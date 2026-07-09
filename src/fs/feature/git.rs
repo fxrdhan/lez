@@ -253,10 +253,11 @@ fn get_path_from_status_entry(e: &StatusEntry<'_>) -> Option<PathBuf> {
     #[cfg(target_family = "unix")]
     return Some(PathBuf::from(OsStr::from_bytes(e.path_bytes())));
     #[cfg(not(target_family = "unix"))]
-    return if let Some(p) = e.path() {
+    // In git2 0.21, `path` became fallible for non-UTF-8 paths.
+    return if let Ok(p) = e.path() {
         Some(PathBuf::from(p))
     } else {
-        info!("Git status ignored for non ASCII path {:?}", e.path_bytes());
+        info!("Git status ignored for non UTF-8 path {:?}", e.path_bytes());
         None
     };
 }

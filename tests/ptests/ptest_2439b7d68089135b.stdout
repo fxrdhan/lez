@@ -15,6 +15,7 @@ LAYOUT OPTIONS:
   -R, --recurse          recurse into directories
   -T, --tree             recurse into directories as a tree
   -L, --level <DEPTH>    limit the depth of recursion
+      --code[=<MODE>]    summarise lines of code by language, recursing the tree or git repo
       --follow-symlinks  drill down into symbolic links that point to directories
   -w, --width <COLS>     set screen width in columns
 
@@ -52,6 +53,7 @@ SORTING OPTIONS:
 LONG VIEW OPTIONS:
   -h, --header               add a header row to each column
   -i, --inode                list each file's inode number
+      --loc[=<MODE>]         add lines-of-code and language columns [modes: lines, percent, both]
   -o, --octal-permissions    list each file's permission in octal format
   -H, --links                list each file's number of hard links
   -b, --binary               show file sizes with binary prefixes
