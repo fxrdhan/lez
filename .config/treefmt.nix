@@ -22,7 +22,7 @@
         excludes = [ ".envrc" ];
       };
       taplo.excludes = [ "tests/ptests/*.toml" ];
-      yamlfmt.excludes = [ "./powertest.yaml" ];
+      yamlfmt.excludes = [ "powertest.yaml" ];
     };
   };
 }
