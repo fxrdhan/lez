@@ -9,6 +9,8 @@ pub mod fs;
 #[allow(unused)]
 pub mod info;
 #[allow(unused)]
+pub mod loc;
+#[allow(unused)]
 pub mod logger;
 #[allow(unused)]
 pub mod options;

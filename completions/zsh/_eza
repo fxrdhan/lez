@@ -50,6 +50,8 @@ __eza() {
         {-h,--header}"[Add a header row to each column]" \
         {-H,--links}"[List each file's number of hard links]" \
         {-i,--inode}"[List each file's inode number]" \
+        --loc="[Add lines-of-code and language columns]:(mode):(lines percent both)" \
+        --code="[Summarise lines of code by language]:(mode):(lines percent both)" \
         {-m,--modified}"[Use the modified timestamp field]" \
         {-n,--numeric}"[List numeric user and group IDs.]" \
         {-S,--blocksize}"[List each file's size of allocated file system blocks.]" \

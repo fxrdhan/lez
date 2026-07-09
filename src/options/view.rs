@@ -9,7 +9,7 @@ use clap::{ArgMatches, ValueEnum};
 use crate::output::TerminalWidth::Automatic;
 
 use crate::fs::feature::xattr;
-use crate::options::parser::ColorScaleModeArgs;
+use crate::options::parser::{CodeContent, ColorScaleModeArgs};
 use crate::options::{NumberSource, OptionsError, Vars, vars};
 use crate::output::TerminalWidth::Set;
 use crate::output::color_scale::{ColorScaleMode, ColorScaleOptions};
@@ -19,7 +19,7 @@ use crate::output::table::{
     Columns, FlagsFormat, GroupFormat, Options as TableOptions, SizeFormat, TimeTypes, UserFormat,
 };
 use crate::output::time::TimeFormat;
-use crate::output::{Mode, TerminalWidth, View, details, grid};
+use crate::output::{Mode, TerminalWidth, View, code, details, grid};
 
 use super::parser::{ColorScaleArgs, TimeArgs};
 
@@ -62,6 +62,12 @@ impl Mode {
         is_tty: bool,
         strict: bool,
     ) -> Result<Self, OptionsError> {
+        // `--code` is its own standalone tool: it summarises languages rather
+        // than listing files, so it takes precedence over the layout flags.
+        if let Some(content) = matches.get_one::<CodeContent>("code").copied() {
+            return Ok(Self::Code(code::Options { content }));
+        }
+
         let long = matches.get_flag("long");
         let oneline = matches.get_flag("oneline");
         let grid = matches.get_flag("grid");
@@ -123,6 +129,7 @@ impl Mode {
             "group",
             "numeric",
             "mounts",
+            "loc",
         ] {
             if matches.contains_id(flag) {
                 return Err(OptionsError::Useless(flag, false, "long"));
@@ -279,6 +286,8 @@ impl Columns {
         let filesize = !matches.get_flag("no-filesize");
         let user = !matches.get_flag("no-user");
 
+        let loc = matches.get_one::<CodeContent>("loc").copied();
+
         Ok(Self {
             time_types,
             inode,
@@ -294,6 +303,7 @@ impl Columns {
             permissions,
             filesize,
             user,
+            loc,
         })
     }
 }
@@ -1074,6 +1084,66 @@ mod tests {
                 NumberSource::Env(vars::COLUMNS),
                 e.unwrap_err()
             ))
+        );
+    }
+
+    #[test]
+    fn deduce_mode_code_default_is_both() {
+        assert_eq!(
+            Mode::deduce(
+                &mock_cli(vec!["--code"]),
+                &MockVars::default(),
+                false,
+                false
+            ),
+            Ok(Mode::Code(code::Options {
+                content: CodeContent::Both
+            }))
+        );
+    }
+
+    #[test]
+    fn deduce_mode_code_lines() {
+        assert_eq!(
+            Mode::deduce(
+                &mock_cli(vec!["--code=lines"]),
+                &MockVars::default(),
+                false,
+                false
+            ),
+            Ok(Mode::Code(code::Options {
+                content: CodeContent::Lines
+            }))
+        );
+    }
+
+    #[test]
+    fn deduce_columns_loc_percent() {
+        assert_eq!(
+            Columns::deduce(&mock_cli(vec!["--loc=percent"]), &MockVars::default())
+                .unwrap()
+                .loc,
+            Some(CodeContent::Percent)
+        );
+    }
+
+    #[test]
+    fn deduce_columns_loc_bare_is_both() {
+        assert_eq!(
+            Columns::deduce(&mock_cli(vec!["--loc"]), &MockVars::default())
+                .unwrap()
+                .loc,
+            Some(CodeContent::Both)
+        );
+    }
+
+    #[test]
+    fn deduce_columns_loc_absent() {
+        assert_eq!(
+            Columns::deduce(&mock_cli(vec![""]), &MockVars::default())
+                .unwrap()
+                .loc,
+            None
         );
     }
 }

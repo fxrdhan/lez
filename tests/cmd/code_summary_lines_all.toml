@@ -1,0 +1,4 @@
+bin.name = "eza"
+args = "--code=lines tests/itest-loc"
+[env.add]
+LC_ALL = "C"

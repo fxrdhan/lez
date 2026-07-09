@@ -40,6 +40,8 @@ export extern "eza" [
     --header(-h)               # Add a header row to each column
     --links(-H)                # List each file's number of hard links
     --inode(-i)                # List each file's inode number
+    --loc: string              # Add lines-of-code and language columns (lines, percent, both)
+    --code: string             # Summarise lines of code by language (lines, percent, both)
     --blocksize(-S)            # List each file's size of allocated file system blocks
     --time(-t) -d              # Which timestamp field to list
     --modified(-m)             # Use the modified timestamp field

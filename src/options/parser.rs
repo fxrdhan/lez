@@ -49,6 +49,12 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-T --tree "recurse into directories as a tree"))
         .arg(arg!(-L --level <DEPTH> "limit the depth of recursion")
             .value_parser(value_parser!(usize)))
+        .arg(arg!(--code <MODE> "summarise lines of code by language, recursing the tree or git repo")
+            .num_args(0..=1)
+            .require_equals(true)
+            .value_parser(value_parser!(CodeContent))
+            .default_missing_value("both")
+            .hide_possible_values(true))
         .arg(arg!(--"follow-symlinks" "drill down into symbolic links that point to directories"))
         .arg(arg!(-w --width <COLS> "set screen width in columns")
             .value_parser(value_parser!(usize)))
@@ -118,6 +124,12 @@ pub fn get_command() -> clap::Command {
         .next_help_heading("LONG VIEW OPTIONS")
         .arg(arg!(-h --header "add a header row to each column"))
         .arg(arg!(-i --inode "list each file's inode number"))
+        .arg(arg!(--loc <MODE> "add lines-of-code and language columns [modes: lines, percent, both]")
+            .num_args(0..=1)
+            .require_equals(true)
+            .value_parser(value_parser!(CodeContent))
+            .default_missing_value("both")
+            .hide_possible_values(true))
         .arg(arg!(-o --"octal-permissions" "list each file's permission in octal format"))
         .arg(arg!(-H --links "list each file's number of hard links"))
         .arg(arg!(-b --binary "show file sizes with binary prefixes"))
@@ -198,6 +210,15 @@ pub enum ColorScaleArgs {
 pub enum ColorScaleModeArgs {
     Fixed,
     Gradient,
+}
+
+/// What the `--loc` columns and `--code` summary should display: raw line
+/// counts, each language’s share as a percentage, or both side by side.
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum CodeContent {
+    Lines,
+    Percent,
+    Both,
 }
 
 impl ValueEnum for SortField {

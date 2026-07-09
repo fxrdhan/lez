@@ -338,6 +338,25 @@ impl<'dir> File<'dir> {
         self.filetype().is_some_and(std::fs::FileType::is_file)
     }
 
+    /// The programming language this file is written in, worked out from its
+    /// name or extension, if eza recognises it.
+    pub fn language(&self) -> Option<&'static crate::loc::Language> {
+        crate::loc::language_for(&self.name, self.ext.as_deref())
+    }
+
+    /// Count this file’s lines of code. Returns `None` for anything that
+    /// isn’t a readable, regular file in a recognised language — that is,
+    /// directories, links, unknown extensions, and binaries.
+    pub fn loc(&self) -> Option<crate::loc::LocCounts> {
+        if !self.is_file() {
+            return None;
+        }
+        let lang = self.language()?;
+        crate::loc::LocCounts::from_path(&self.path, lang)
+            .ok()
+            .flatten()
+    }
+
     /// Whether this file is both a regular file *and* executable for the
     /// current user. An executable file has a different purpose from an
     /// executable directory, so they should be highlighted differently.

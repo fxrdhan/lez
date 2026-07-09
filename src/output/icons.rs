@@ -1123,6 +1123,19 @@ pub fn iconify_style(style: Style) -> Style {
         .unwrap_or_default()
 }
 
+/// Lookup the icon for a plain file name and lowercase extension, without
+/// needing a whole `File`. Used by the `--code` summary to give each
+/// language the icon of a representative source file.
+pub fn icon_for_name_ext(name: &str, ext: Option<&str>) -> char {
+    if let Some(icon) = FILENAME_ICONS.get(name) {
+        *icon
+    } else if let Some(ext) = ext {
+        *EXTENSION_ICONS.get(ext).unwrap_or(&Icons::FILE) //
+    } else {
+        Icons::FILE_UNKNOW // 󰡯
+    }
+}
+
 /// Lookup the icon for a file based on the file's name, if the entry is a
 /// directory, or by the lowercase file extension.
 pub fn icon_for_file(file: &File<'_>) -> char {

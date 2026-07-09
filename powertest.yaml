@@ -183,6 +183,13 @@ commands:
   ? - -i
     - --inode
   :
+  ? # so only the bare forms are generated here.
+    - null # --loc and --code take their mode via `=` only (lines/percent/both),
+    - --loc
+  : prefix: -l
+  ? - null
+    - --code
+  :
   ? - -m
     - --modified
   :

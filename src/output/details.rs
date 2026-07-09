@@ -80,6 +80,7 @@ use crate::fs::feature::xattr::Attribute;
 use crate::fs::fields::SecurityContextType;
 use crate::fs::filter::FileFilter;
 use crate::fs::{Dir, File};
+use crate::options::parser::CodeContent;
 use crate::output::cell::TextCell;
 use crate::output::color_scale::{ColorScaleInformation, ColorScaleOptions};
 use crate::output::file_name::Options as FileStyle;
@@ -192,7 +193,15 @@ impl<'a> Render<'a> {
                 (None, _) => { /* Keep Git how it is */ }
             }
 
+            let loc_content = table.columns.loc;
             let mut table = Table::new(table, self.git, self.theme, self.git_repos);
+
+            // Percentage columns need the whole tree’s code total as their
+            // denominator, so walk the tree (or git repo) once up front.
+            if matches!(loc_content, Some(CodeContent::Percent | CodeContent::Both)) {
+                let report = crate::loc::count_roots(&self.loc_roots());
+                table.set_loc_total(Some(report.total().code));
+            }
 
             if self.opts.header {
                 let header = table.header_row();
@@ -229,6 +238,16 @@ impl<'a> Render<'a> {
         }
 
         Ok(())
+    }
+
+    /// The root path(s) to recurse when computing the `--loc` percentage
+    /// denominator: the directory being listed, or the explicit files given.
+    fn loc_roots(&self) -> Vec<PathBuf> {
+        if let Some(dir) = self.dir {
+            vec![dir.path.clone()]
+        } else {
+            self.files.iter().map(|f| f.path.clone()).collect()
+        }
     }
 
     /// Whether to show the extended attribute hint

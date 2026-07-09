@@ -15,6 +15,7 @@ use term_grid as grid;
 use crate::fs::feature::git::GitCache;
 use crate::fs::filter::FileFilter;
 use crate::fs::{Dir, File};
+use crate::options::parser::CodeContent;
 use crate::output::cell::TextCell;
 use crate::output::color_scale::ColorScaleInformation;
 use crate::output::details::{Options as DetailsOptions, Render as DetailsRender};
@@ -257,6 +258,21 @@ impl<'a> Render<'a> {
         }
 
         let mut table = Table::new(options, self.git, self.theme, self.git_repos);
+
+        // The `--loc` percentage columns need the whole tree’s code total as
+        // their denominator, just like in the details view.
+        if matches!(
+            options.columns.loc,
+            Some(CodeContent::Percent | CodeContent::Both)
+        ) {
+            let roots: Vec<std::path::PathBuf> = if let Some(dir) = self.dir {
+                vec![dir.path.clone()]
+            } else {
+                self.files.iter().map(|f| f.path.clone()).collect()
+            };
+            let report = crate::loc::count_roots(&roots);
+            table.set_loc_total(Some(report.total().code));
+        }
 
         // The header row will be printed separately, but it should be
         // considered for the width calculations.

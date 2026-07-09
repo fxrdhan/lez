@@ -1,0 +1,6 @@
+Language Code Code % Name
+Rust        -      - binary.rs
+-           -      - empty
+Rust        4  57.1% hello.rs
+Markdown    2  28.6% notes.md
+Python      1  14.3% script.py

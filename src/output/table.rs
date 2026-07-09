@@ -19,6 +19,7 @@ use uzers::UsersCache;
 use crate::fs::feature::git::GitCache;
 use crate::fs::{File, fields as f};
 use crate::options::Vars;
+use crate::options::parser::CodeContent;
 use crate::options::vars::EZA_WINDOWS_ATTRIBUTES;
 use crate::output::cell::TextCell;
 use crate::output::color_scale::ColorScaleInformation;
@@ -64,6 +65,10 @@ pub struct Columns {
     pub permissions: bool,
     pub filesize: bool,
     pub user: bool,
+
+    /// If set, add a language column and a lines-of-code column (in the
+    /// requested style) to the long view.
+    pub loc: Option<CodeContent>,
 }
 
 impl Columns {
@@ -92,6 +97,18 @@ impl Columns {
 
         if self.filesize {
             columns.push(Column::FileSize);
+        }
+
+        if let Some(content) = self.loc {
+            columns.push(Column::Language);
+            match content {
+                CodeContent::Lines => columns.push(Column::Loc(CodeContent::Lines)),
+                CodeContent::Percent => columns.push(Column::Loc(CodeContent::Percent)),
+                CodeContent::Both => {
+                    columns.push(Column::Loc(CodeContent::Lines));
+                    columns.push(Column::Loc(CodeContent::Percent));
+                }
+            }
         }
 
         if self.blocksize {
@@ -155,6 +172,8 @@ impl Columns {
 pub enum Column {
     Permissions,
     FileSize,
+    Language,
+    Loc(CodeContent),
     Timestamp(TimeType),
     #[cfg(unix)]
     Blocksize,
@@ -190,9 +209,12 @@ impl Column {
     pub fn alignment(self) -> Alignment {
         #[allow(clippy::wildcard_in_or_patterns)]
         match self {
-            Self::FileSize | Self::HardLinks | Self::Inode | Self::Blocksize | Self::GitStatus => {
-                Alignment::Right
-            }
+            Self::FileSize
+            | Self::HardLinks
+            | Self::Inode
+            | Self::Blocksize
+            | Self::GitStatus
+            | Self::Loc(_) => Alignment::Right,
             Self::Timestamp(_) | _ => Alignment::Left,
         }
     }
@@ -200,7 +222,7 @@ impl Column {
     #[cfg(windows)]
     pub fn alignment(self) -> Alignment {
         match self {
-            Self::FileSize | Self::GitStatus => Alignment::Right,
+            Self::FileSize | Self::GitStatus | Self::Loc(_) => Alignment::Right,
             _ => Alignment::Left,
         }
     }
@@ -215,6 +237,9 @@ impl Column {
             #[cfg(windows)]
             Self::Permissions => "Mode",
             Self::FileSize => "Size",
+            Self::Language => "Language",
+            Self::Loc(CodeContent::Percent) => "Code %",
+            Self::Loc(_) => "Code",
             Self::Timestamp(t) => t.header(),
             #[cfg(unix)]
             Self::Blocksize => "Blocksize",
@@ -417,6 +442,10 @@ pub struct Table<'a> {
     group_format: GroupFormat,
     flags_format: FlagsFormat,
     git: Option<&'a GitCache>,
+
+    /// The grand total of code lines used as the denominator for `--loc`
+    /// percentage columns. `None` until computed by the details renderer.
+    loc_total: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -451,7 +480,14 @@ impl<'a> Table<'a> {
             #[cfg(unix)]
             group_format: options.group_format,
             flags_format: options.flags_format,
+            loc_total: None,
         }
+    }
+
+    /// Set the grand total of code lines, the denominator for `--loc`
+    /// percentage columns.
+    pub fn set_loc_total(&mut self, total: Option<usize>) {
+        self.loc_total = total;
     }
 
     #[must_use]
@@ -530,6 +566,8 @@ impl<'a> Table<'a> {
                 &self.env.numeric,
                 color_scale_info,
             ),
+            Column::Language => self.language(file),
+            Column::Loc(content) => self.loc(file, content),
             #[cfg(unix)]
             Column::HardLinks => file.links().render(self.theme, &self.env.numeric),
             #[cfg(unix)]
@@ -579,6 +617,52 @@ impl<'a> Table<'a> {
                 self.time_format.clone(),
             ),
         }
+    }
+
+    /// The language column: the recognised language’s name, or a dash.
+    fn language(&self, file: &File<'_>) -> TextCell {
+        match file.language() {
+            Some(lang) => TextCell::paint(
+                self.theme.ui.date.unwrap_or_default(),
+                lang.name.to_string(),
+            ),
+            None => self.loc_placeholder(),
+        }
+    }
+
+    /// A lines-of-code column, rendered as a raw code-line count or as a
+    /// percentage of the whole tree’s code, depending on `content`.
+    fn loc(&self, file: &File<'_>, content: CodeContent) -> TextCell {
+        let Some(counts) = file.loc() else {
+            return self.loc_placeholder();
+        };
+        // Quantities take the same colour as file sizes, so the Code column
+        // reads consistently next to Size.
+        let style = self
+            .theme
+            .ui
+            .size
+            .unwrap_or_default()
+            .number_byte
+            .unwrap_or_default();
+        match content {
+            CodeContent::Percent => match self.loc_total {
+                Some(total) if total > 0 => {
+                    let pct = (counts.code as f64) * 100.0 / (total as f64);
+                    TextCell::paint(style, format!("{pct:.1}%"))
+                }
+                _ => self.loc_placeholder(),
+            },
+            _ => TextCell::paint(style, self.env.numeric.format_int(counts.code)),
+        }
+    }
+
+    /// The placeholder shown for files with no language or no count.
+    fn loc_placeholder(&self) -> TextCell {
+        TextCell::paint(
+            self.theme.ui.punctuation.unwrap_or_default(),
+            "-".to_string(),
+        )
     }
 
     fn git_status(&self, file: &File<'_>) -> f::Git {

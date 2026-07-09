@@ -23,12 +23,13 @@ use crate::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
 use crate::fs::{Dir, File};
 use crate::options::stdin::FilesInput;
 use crate::options::{Options, Vars, vars};
-use crate::output::{Mode, View, details, escape, file_name, grid, grid_details, lines};
+use crate::output::{Mode, View, code, details, escape, file_name, grid, grid_details, lines};
 use crate::theme::Theme;
 use log::*;
 
 mod fs;
 mod info;
+mod loc;
 mod logger;
 mod options;
 mod output;
@@ -225,6 +226,44 @@ impl Exa<'_> {
     /// Will return `Err` if printing to stderr fails.
     pub fn run(mut self) -> io::Result<i32> {
         debug!("Running with options: {:#?}", self.options);
+
+        // The `--code` summary doesn’t list files: it walks the given paths and
+        // prints a per-language lines-of-code breakdown, so handle it up front.
+        if let Mode::Code(opts) = &self.options.view.mode {
+            let opts = *opts;
+            let mut exit_status = 0;
+            let mut roots = Vec::new();
+
+            // Report paths that don’t exist, like the normal listing does,
+            // and count the rest.
+            for file_path in &self.input_paths {
+                let path = PathBuf::from(file_path);
+                if let Err(e) = std::fs::symlink_metadata(&path) {
+                    exit_status = 2;
+                    writeln!(io::stderr(), "{file_path:?}: {e}")?;
+                } else {
+                    roots.push(path);
+                }
+            }
+            let file_style = &self.options.view.file_style;
+            let show_icons = match file_style.show_icons {
+                file_name::ShowIcons::Always(_) => true,
+                file_name::ShowIcons::Automatic(_) => file_style.is_a_tty,
+                file_name::ShowIcons::Never => false,
+            };
+            if roots.is_empty() {
+                return Ok(exit_status);
+            }
+
+            let r = code::Render {
+                theme: &self.theme,
+                opts: &opts,
+                roots,
+                show_icons,
+            };
+            r.render(&mut self.writer)?;
+            return Ok(exit_status);
+        }
 
         let mut files = Vec::new();
         let mut dirs = Vec::new();
@@ -512,6 +551,10 @@ impl Exa<'_> {
                 };
                 r.render(&mut self.writer)
             }
+
+            // The code summary never lists files; it’s handled up front in
+            // `run` before we ever get here.
+            (Mode::Code(_), _) => unreachable!("--code is handled in Exa::run"),
         }
     }
 }

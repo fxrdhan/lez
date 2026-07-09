@@ -8,6 +8,7 @@
 pub use self::cell::TextCell;
 pub use self::escape::escape;
 
+pub mod code;
 pub mod color_scale;
 pub mod details;
 pub mod file_name;
@@ -42,6 +43,9 @@ pub enum Mode {
     Details(details::Options),
     GridDetails(grid_details::Options),
     Lines,
+    /// The `--code` lines-of-code summary, which lists languages rather than
+    /// files.
+    Code(code::Options),
 }
 
 /// The width of the terminal requested by the user.
