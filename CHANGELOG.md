@@ -6,11 +6,82 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.23.5] - 2026-07-09
+
+### Bug Fixes
+
+- Update cargo/nix deps
+- Fix yaml icon
+- Color code parsing in theme.yml
+- Use secret GitHub token to avoid rate limiting
+- Enable powertest tests in the CI
+- Update integration tests
+- Ignore extensions for directories when sorting
+- Satisfy newer clippy and stabilise powertest.yaml
+- Adapt Windows git2 path handling and refresh --help powertest
+
+### Documentation
+
+- Update Fedora install instructions
+
+### Features
+
+- Use Clap instead of manual cli args parsing
+- Use version string from file for --version flag
+- Add csv icon
+- Implement `--hyperlink=auto`
+- Add lines-of-code counting and summary
+- Add --short-nix to abbreviate Nix store hashes
+
+### Miscellaneous Tasks
+
+- Apply reviewer (ariasuni) supplied patch
+- Upgrade OpenBSD to 7.8 in CI.
+- Update CODEOWNERS to remove stale entries
+- Update crates, Rust version and flake.lock
+- Fix a few Clippy warnings
+- Clean global lint attributes and remove `clippy::pedantic`
+- Remove some leftover, unused code
+- Replace #[allow(unused)] by `#[cfg(unix)]` when appropriate
+- Update to Rust edition 2024
+- Update .git-blame-ignore-revs
+- Update issue template labels
+
+### Security
+
+- Bump crossbeam-epoch 0.9.18 -> 0.9.20
+- Bump git2 0.20 -> 0.21
+
+### Testing
+
+- Update time in long_time_style_relative_nix.stdout
+- Update powertests
+- Check sort by extension
+
+### Build
+
+- 1.82 -> 1.83
+- Bump actions/checkout from 4 to 6
+- Palette v0.7.6 -> v0.7.5 (again)
+- Fix yamlfmt exclude pattern in treefmt.nix
+- Bump plist 1.8.0 -> 1.10.0
+
+### Ci
+
+- Use rust 1.82 (required by cargo-hack)
+- Bump FreeBSD version.
+- Relax warnings for OpenBSD.
+- Let curl/git installation update dependencies
+
 ## [0.23.4] - 2025-10-03
 
 ### Bug Fixes
 
 - Update nixpkgs/cargo dependencies
+
+### Miscellaneous Tasks
+
+- Eza v0.23.4 changelogs, version bump
 
 ## [0.23.3] - 2025-09-14
 

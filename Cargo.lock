@@ -429,7 +429,7 @@ dependencies = [
 
 [[package]]
 name = "eza"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "ansi-width",
  "backtrace",
