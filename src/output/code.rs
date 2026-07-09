@@ -254,7 +254,7 @@ fn bar(value: usize, max: usize) -> String {
     let units = units.max(1);
 
     let mut bar = "█".repeat(units / 8);
-    if units % 8 > 0 {
+    if !units.is_multiple_of(8) {
         bar.push(EIGHTHS[units % 8 - 1]);
     }
     bar

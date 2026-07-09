@@ -608,7 +608,7 @@ mod tests {
     #[test]
     fn deduce_time_types_changed_word() {
         assert_eq!(
-            TimeTypes::deduce(&&mock_cli(vec!["--time", "changed"])),
+            TimeTypes::deduce(&mock_cli(vec!["--time", "changed"])),
             Ok(TimeTypes {
                 modified: false,
                 changed: true,

@@ -230,7 +230,6 @@ impl Report {
     }
 
     /// The per-language rows, ordered by language name.
-    #[must_use]
     pub fn languages(&self) -> impl Iterator<Item = &LangStat> {
         self.languages.values()
     }
