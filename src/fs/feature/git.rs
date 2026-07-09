@@ -408,7 +408,8 @@ fn current_branch(repo: &git2::Repository) -> Option<String> {
         }
     };
 
-    head.and_then(|h| h.shorthand().map(std::string::ToString::to_string))
+    // In git2 0.21, `shorthand` became fallible for non-UTF-8 branch names.
+    head.and_then(|h| h.shorthand().ok().map(std::string::ToString::to_string))
 }
 
 impl f::SubdirGitRepo {
