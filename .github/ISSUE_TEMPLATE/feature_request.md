@@ -2,7 +2,7 @@
 name: Feature request
 about: Request a feature or enhancement to eza
 title: 'feat:  '
-labels: ''
+labels: 'type: feature'
 assignees: ''
 
 ---

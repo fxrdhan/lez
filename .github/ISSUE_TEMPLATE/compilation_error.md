@@ -2,7 +2,7 @@
 name: Compilation error
 about: Report a problem compiling eza
 title: 'ci: '
-labels: ''
+labels: 'type: chore'
 assignees: ''
 
 ---
