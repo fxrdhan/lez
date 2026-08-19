@@ -36,22 +36,40 @@ SPDX-License-Identifier: EUPL-1.2
 <h1>Try it!</h1>
 </a>
 
+### Cargo / Build from Source 🦀
+
+Install `lsr` directly with Cargo:
+
+```bash
+cargo install --git https://github.com/fxrdhan/lsr.git
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/fxrdhan/lsr.git
+cd lsr
+cargo build --release
+# Binary available at target/release/lsr
+```
+
 ### Nix ❄️
 
-If you already have Nix setup with flake support, you can try out eza with the `nix run` command:
+If you already have Nix setup with flake support, you can try out `lsr` with the `nix run` command:
 
-    nix run github:eza-community/eza
+```bash
+nix run github:fxrdhan/lsr
+```
 
-Nix will build eza and run it.
+Nix will build `lsr` and run it.
 
-If you want to pass arguments this way, use e.g. `nix run github:eza-community/eza -- -ol`.
+If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- -la --icons`.
+
+---
 
 # Installation
 
-eza is available for Windows, macOS and Linux. Platform and distribution
-specific installation instructions can be found in [INSTALL.md](INSTALL.md).
-
-[![Packaging status](https://repology.org/badge/vertical-allrepos/eza.svg?columns=3)](https://repology.org/project/eza/versions)
+`lsr` is available for macOS, Linux, and Windows. Detailed platform-specific installation instructions can be found in [INSTALL.md](INSTALL.md).
 
 ---
 
@@ -59,7 +77,7 @@ specific installation instructions can be found in [INSTALL.md](INSTALL.md).
 <h1>Command-line options</h1>
 </a>
 
-eza’s options are almost, but not quite, entirely unlike `ls`’s. Quick overview:
+`lsr`’s options are intuitive and familiar. Quick overview:
 
 ## Display options
 
@@ -74,7 +92,7 @@ eza’s options are almost, but not quite, entirely unlike `ls`’s. Quick overv
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify=(when)**: display type indicator by file names (always, auto, never)
 - **--colo[u]r=(when)**: when to use terminal colours (always, auto, never)
-- **--colo[u]r-scale=(field)**: highlight levels of `field` distinctly(all, age, size)
+- **--colo[u]r-scale=(field)**: highlight levels of `field` distinctly (all, age, size)
 - **--color-scale-mode=(mode)**: use gradient or fixed colors in --color-scale. valid options are `fixed` or `gradient`
 - **--icons=(when)**: when to display icons (always, auto, never)
 - **--hyperlink=(when)**: when to display entries as hyperlinks (always, auto, never)
@@ -134,7 +152,7 @@ These options are available when running with `--long` (`-l`):
 - **--git-repos**: list each directory’s Git status, if tracked
 - **--git-repos-no-status**: list whether a directory is a Git repository, but not its status (faster)
 - **--no-git**: suppress Git status (always overrides `--git`, `--git-repos`, `--git-repos-no-status`)
-- **--time-style**: how to format timestamps. valid timestamp styles are ‘`default`’, ‘`iso`’, ‘`long-iso`’, ‘`full-iso`’, ‘`relative`’, or a custom style ‘`+<FORMAT>`’ (E.g., ‘`+%Y-%m-%d %H:%M`’ => ‘`2023-09-30 13:00`’. For more specifications on the format string, see the _`eza(1)` manual page_ and [chrono documentation](https://docs.rs/chrono/latest/chrono/format/strftime/index.html).).
+- **--time-style**: how to format timestamps. valid timestamp styles are ‘`default`’, ‘`iso`’, ‘`long-iso`’, ‘`full-iso`’, ‘`relative`’, or a custom style ‘`+<FORMAT>`’ (E.g., ‘`+%Y-%m-%d %H:%M`’ => ‘`2023-09-30 13:00`’. For more specifications on the format string, see the _`lsr(1)` manual page_ and [chrono documentation](https://docs.rs/chrono/latest/chrono/format/strftime/index.html)).
 - **--total-size**: show recursive directory size
 - **--no-permissions**: suppress the permissions field
 - **-o**, **--octal-permissions**: list each file's permission in octal format
@@ -150,40 +168,28 @@ Some of the options accept parameters:
 - Valid time fields are **modified**, **changed**, **accessed**, and **created**.
 - Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, and **relative**.
 
-
-
-See the `man` pages for further documentation of usage. They are available
-- online [in the repo](https://github.com/eza-community/eza/tree/main/man)
-- in your terminal via `man eza`, as of version [`[0.18.13] - 2024-04-25`](https://github.com/eza-community/eza/blob/main/CHANGELOG.md#01813---2024-04-25)
+See the `man` pages for further documentation of usage. They are available:
+- online [in the repo](https://github.com/fxrdhan/lsr/tree/main/man)
+- in your terminal via `man lsr`
 </details>
-
 
 ## Custom Themes
 <details>
 <summary>Click to expand</summary>
 
-**Eza** has recently added support for a `theme.yml` file, where you can specify all of the existing theme-ing options
-available for the `LS_COLORS` and `EXA_COLORS` environment variables, as well as the option to specify different icons
-for different file types and extensions. Any existing environment variables set will continue to work and will take
-precedence for backwards compatibility.
+**`lsr`** supports a `theme.yml` file, where you can customize theme options available for the `LS_COLORS`, `EZA_COLORS`, and `LSR_COLORS` environment variables, as well as specify custom icons for different file types and extensions.
 
-#### **New** Pre-made themes
-Check out the themes available in the official [eza-themes](https://github.com/eza-community/eza-themes) repository, or contribute your own.
+An example theme file is available in `docs/theme.yml`, and can be placed in a directory specified by the 
+environment variable `LSR_CONFIG_DIR`, `EZA_CONFIG_DIR`, or looked for by default in `$XDG_CONFIG_HOME/lsr` or `$XDG_CONFIG_HOME/eza`.
 
-An example theme file is available in `docs/theme.yml`, and needs to either be placed in a directory specified by the 
-environment variable `EZA_CONFIG_DIR`, or will looked for by default in `$XDG_CONFIG_HOME/eza`.
-
-Full details are available on the [man page](https://github.com/eza-community/eza/tree/main/man/eza_colors-explanation.5.md) and an example theme file is included [here](https://github.com/eza-community/eza/tree/main/docs/theme.yml)
+Full details are available on the [man page](https://github.com/fxrdhan/lsr/tree/main/man/eza_colors-explanation.5.md) and an example theme file is included [here](https://github.com/fxrdhan/lsr/tree/main/docs/theme.yml).
 
 </details>
 
+# Contributing to lsr
 
-# Hacking on eza
+If you want to contribute to `lsr`, please check out our:
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
-If you wanna contribute to eza, firstly, you're expected to follow our 
-[code of conduct](https://github.com/eza-community/eza/blob/main/CODE_OF_CONDUCT.md). 
-After having understood the code of conduct, you can have a look at our
-[CONTRIBUTING.md](https://github.com/eza-community/eza/blob/main/CONTRIBUTING.md) 
-for more info about actual hacking.
-
-[![Star History Chart](https://api.star-history.com/svg?repos=eza-community/eza&type=Date)](https://star-history.com/#eza-community/eza&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=fxrdhan/lsr&type=Date)](https://star-history.com/#fxrdhan/lsr&Date)
