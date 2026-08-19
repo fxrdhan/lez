@@ -230,6 +230,8 @@ impl ValueEnum for SortField {
             Self::NameMixHidden(SortCase::AaBbCc),
             Self::NameMixHidden(SortCase::ABCabc),
             Self::Size,
+            #[cfg(unix)]
+            Self::BlockSize,
             Self::Extension(SortCase::AaBbCc),
             Self::Extension(SortCase::ABCabc),
             Self::ModifiedDate,
@@ -251,6 +253,8 @@ impl ValueEnum for SortField {
             Self::NameMixHidden(SortCase::AaBbCc) => PossibleValue::new(".name").alias(".filename"),
             Self::NameMixHidden(SortCase::ABCabc) => PossibleValue::new(".Name").alias(".Filename"),
             Self::Size => PossibleValue::new("size"),
+            #[cfg(unix)]
+            Self::BlockSize => PossibleValue::new("blocks").aliases(vec!["block", "blocksize"]),
             Self::Extension(SortCase::AaBbCc) => PossibleValue::new("ext").alias("extension"),
             Self::Extension(SortCase::ABCabc) => PossibleValue::new("Ext").alias("Extension"),
             // “new” sorts oldest at the top and newest at the bottom; “old” sorts newest at the
