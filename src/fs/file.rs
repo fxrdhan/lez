@@ -714,8 +714,14 @@ impl<'dir> File<'dir> {
     /// of a directory when `total_size` is used.
     #[inline]
     pub fn length(&self) -> u64 {
-        self.recursive_size
-            .unwrap_bytes_or(self.metadata().map_or(0, std::fs::Metadata::len))
+        self.recursive_size.unwrap_bytes_or(
+            match (self.is_link(), self.deref_links, self.link_target_recurse()) {
+                (true, true, FileTarget::Ok(ref f)) => f,
+                _ => self,
+            }
+            .metadata()
+            .map_or(0, std::fs::Metadata::len),
+        )
     }
 
     /// Is the file is using recursive size calculation
@@ -1136,3 +1142,36 @@ mod filename_test {
         assert_eq!("/", File::filename(Path::new("/")));
     }
 }
+
+#[cfg(test)]
+mod length_test {
+    use super::File;
+    use std::fs::{self, File as StdFile};
+    use std::io::Write;
+
+    #[test]
+    #[cfg(unix)]
+    fn dereference_symlink_length() {
+        let temp_dir = std::env::temp_dir().join(format!("lsr_test_deref_len_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let target_path = temp_dir.join("target.txt");
+        let link_path = temp_dir.join("link.txt");
+
+        let mut target_file = StdFile::create(&target_path).unwrap();
+        target_file.write_all(b"hello world!").unwrap();
+        drop(target_file);
+
+        std::os::unix::fs::symlink(&target_path, &link_path).unwrap();
+
+        let link_no_deref = File::from_args(link_path.clone(), None, None, false, false, None);
+        let link_deref = File::from_args(link_path, None, None, true, false, None);
+
+        assert_eq!(link_no_deref.length(), target_path.to_str().unwrap().len() as u64);
+        assert_eq!(link_deref.length(), 12);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+}
+
