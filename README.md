@@ -9,7 +9,7 @@ SPDX-License-Identifier: EUPL-1.2
     
 # ⚡ lsr
 
-**A modern, fast replacement for `ls` in Rust with extended features.**
+**A modern, fast, and feature-rich replacement for `ls` written in Rust.**
 
 [![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.txt)
 [![Rust](https://img.shields.io/badge/Rust-1.90%2B-orange.svg)](https://www.rust-lang.org/)
@@ -20,13 +20,13 @@ SPDX-License-Identifier: EUPL-1.2
 
 ---
 
-**`lsr`** (*ls in Rust, extended features*) is a fast, modern file-listing utility based on `eza` with modern defaults, extended community features, and continuous improvements.
+**`lsr`** is a fast, modern file-listing command-line tool with smart defaults, enhanced file icons, Git integration, and continuous performance improvements.
 
 - ⚡ **Fast & Lightweight:** Written in modern Rust with multithreaded directory scanning via Rayon.
 - 🎨 **Rich Visuals:** Syntax highlighting, Nerd Font icons, and automatic color scaling.
-- 🌿 **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) right in the listing.
-- 🌲 **Tree View Bawaan:** Hierarchical directory tree out of the box (`lsr --tree`).
-- 🚀 **Extended Features:** Extended file classification, custom themes, and upcoming archive preview and notifications.
+- 🌿 **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
+- 🌲 **Built-in Tree View:** Hierarchical directory tree out of the box (`lsr --tree`).
+- 🚀 **Extended Capabilities:** Rich file classification, custom themes, and archive inspection.
 
 ---
 
