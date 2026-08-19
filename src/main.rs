@@ -109,7 +109,7 @@ fn main() {
             }
         }
         Err(error) => {
-            eprintln!("eza: {error}");
+            eprintln!("lsr: {error}");
             exit(exits::OPTIONS_ERROR);
         }
     }
