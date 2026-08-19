@@ -92,7 +92,7 @@ When used without a value, defaults to ‘`automatic`’.
 : Drill down into symbolic links that point to directories.
 
 `-X`, `--dereference`
-: Dereference symbolic links when displaying information.
+: Dereference symbolic links when displaying information and sorting (e.g. resolving target file size with `--sort=size`).
 
 `-x`, `--across`
 : Sort the grid across, rather than downwards.

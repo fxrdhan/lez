@@ -144,7 +144,7 @@ These options are available when running with `--long` (`-l`):
 - **-t**, **--time=(field)**: which timestamp field to use
 - **-u**, **--accessed**: use the accessed timestamp field
 - **-U**, **--created**: use the created timestamp field
-- **-X**, **--dereference**: dereference symlinks for file information
+- **-X**, **--dereference**: dereference symlinks for file information and sorting
 - **-Z**, **--context**: list each file’s security context
 - **-@**, **--extended**: list each file’s extended attributes and sizes
 - **--changed**: use the changed timestamp field
