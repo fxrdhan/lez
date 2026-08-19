@@ -4,7 +4,10 @@
 [package]
 name = "lsr"
 description = "A modern, fast, and feature-rich replacement for ls written in Rust"
-authors = ["fxrdhan <https://github.com/fxrdhan>", "Christina Sørensen <christina@cafkafk.com>"]
+authors = [
+  "fxrdhan <https://github.com/fxrdhan>",
+  "Christina Sørensen <christina@cafkafk.com>",
+]
 categories = ["command-line-utilities"]
 edition = "2024"
 rust-version = "1.90"

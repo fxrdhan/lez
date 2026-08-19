@@ -299,6 +299,23 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn deduce_sort_field_blocks() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "blocks"]).get_one::<SortField>("sort"),
+            Some(&SortField::BlockSize)
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "block"]).get_one::<SortField>("sort"),
+            Some(&SortField::BlockSize)
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "blocksize"]).get_one::<SortField>("sort"),
+            Some(&SortField::BlockSize)
+        );
+    }
+
+    #[test]
     fn deduce_sort_field_extension() {
         assert_eq!(
             mock_cli(vec!["--sort", "ext"]).get_one::<SortField>("sort"),
