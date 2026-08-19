@@ -26,8 +26,8 @@ use chrono::prelude::*;
 fn main() -> io::Result<()> {
     #![allow(clippy::write_with_newline)]
 
-    let tagline = "eza - A modern, maintained replacement for ls";
-    let url = "https://github.com/eza-community/eza";
+    let tagline = "lsr - A modern, fast ls replacement in Rust with extended features";
+    let url = "https://github.com/fxrdhan/lsr";
 
     let ver = if is_debug_build() {
         format!(

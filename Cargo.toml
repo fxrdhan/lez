@@ -1,9 +1,10 @@
 # SPDX-FileCopyrightText: 2024 Christina Sørensen
+# SPDX-FileCopyrightText: 2026 fxrdhan
 # SPDX-License-Identifier: EUPL-1.2
 [package]
-name = "eza"
-description = "A modern replacement for ls"
-authors = ["Christina Sørensen <christina@cafkafk.com>"]
+name = "lsr"
+description = "A modern, fast replacement for ls in Rust with extended features"
+authors = ["fxrdhan <https://github.com/fxrdhan>", "Christina Sørensen <christina@cafkafk.com>"]
 categories = ["command-line-utilities"]
 edition = "2024"
 rust-version = "1.90"
@@ -26,10 +27,10 @@ exclude = [
   "/.pre-commit-config-non-nix.yaml",
 ]
 readme = "README.md"
-homepage = "https://github.com/eza-community/eza"
+homepage = "https://github.com/fxrdhan/lsr"
 license = "EUPL-1.2"
-repository = "https://github.com/eza-community/eza"
-version = "0.23.5"
+repository = "https://github.com/fxrdhan/lsr"
+version = "0.24.0-alpha.1"
 
 
 [package.metadata.deb]
@@ -80,7 +81,7 @@ assets = [
 
 
 [[bin]]
-name = "eza"
+name = "lsr"
 
 
 [dependencies]
