@@ -6,29 +6,25 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Installation
 
-eza is available for Windows, macOS and Linux.
-
-### Cargo (crates.io)
-
-![Crates.io](https://img.shields.io/crates/v/eza?link=https%3A%2F%2Fcrates.io%2Fcrates%2Feza)
-
-If you already have a Rust environment set up, you can use the `cargo install` command:
-
-    cargo install eza
-
-Cargo will build the `eza` binary and place it in your `CARGO_INSTALL_ROOT`.
-For more details on installation location see [the cargo
-book](https://doc.rust-lang.org/cargo/commands/cargo-install.html#description).
+`lsr` is available for macOS, Linux, and Windows.
 
 ### Cargo (git)
 
-If you already have a Rust environment set up, you can use the `cargo install` command in your local clone of the repo:
+Install `lsr` directly via Cargo:
 
-    git clone https://github.com/eza-community/eza.git
-    cd eza
-    cargo install --path .
+```bash
+cargo install --git https://github.com/fxrdhan/lsr.git
+```
 
-Cargo will build the `eza` binary and place it in `$HOME/.cargo`.
+Or clone and build from your local copy:
+
+```bash
+git clone https://github.com/fxrdhan/lsr.git
+cd lsr
+cargo install --path .
+```
+
+Cargo will compile the `lsr` binary and install it to your Cargo binary directory (`$HOME/.cargo/bin`).
 
 ### Arch Linux
 
