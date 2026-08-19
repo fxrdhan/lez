@@ -65,7 +65,6 @@
       nixpkgs,
       treefmt-nix,
       rust-overlay,
-      powertest,
       pre-commit-hooks,
       ...
     }:
@@ -90,7 +89,7 @@
 
         darwinBuildInputs = pkgs.lib.optionals pkgs.stdenv.isDarwin [
           pkgs.libiconv
-          pkgs.darwin.apple_sdk.frameworks.Security
+          pkgs.apple-sdk
         ];
 
         buildInputs = [ pkgs.zlib ] ++ darwinBuildInputs;
@@ -144,7 +143,7 @@
               # For generating demo
               vhs
 
-              powertest.packages.${pkgs.system}.default
+              # powertest.packages.${pkgs.system}.default
 
               cargo-hack
               cargo-udeps

@@ -11,7 +11,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("logger", |b| {
         b.iter(|| {
-            eza::logger::configure(black_box(std::env::var_os(eza::options::vars::EZA_DEBUG)));
+            lsr::logger::configure(black_box(std::env::var_os(lsr::options::vars::EZA_DEBUG)));
         });
     });
 }
