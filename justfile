@@ -96,24 +96,24 @@ genDemo:
 @man:
     mkdir -p "${CARGO_TARGET_DIR:-target}/man"
     version=$(awk 'BEGIN { FS = "\"" } ; /^version/ { print $2 ; exit }' Cargo.toml); \
-    for page in eza.1 eza_colors.5 eza_colors-explanation.5; do \
+    for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5 eza.1 eza_colors.5 eza_colors-explanation.5; do \
         sed "s/\$version/v${version}/g" "man/${page}.md" | pandoc --standalone -f markdown -t man > "${CARGO_TARGET_DIR:-target}/man/${page}"; \
     done;
 
-# build and preview the main man page (eza.1)
+# build and preview the main man page (lsr.1)
 [group('documentation')]
 @man-1-preview: man
-    man "${CARGO_TARGET_DIR:-target}/man/eza.1"
+    man "${CARGO_TARGET_DIR:-target}/man/lsr.1"
 
-# build and preview the colour configuration man page (eza_colors.5)
+# build and preview the colour configuration man page (lsr_colors.5)
 [group('documentation')]
 @man-5-preview: man
-    man "${CARGO_TARGET_DIR:-target}/man/eza_colors.5"
+    man "${CARGO_TARGET_DIR:-target}/man/lsr_colors.5"
 
-# build and preview the colour configuration man page (eza_colors.5)
+# build and preview the colour configuration man page (lsr_colors.5)
 [group('documentation')]
 @man-5-explanations-preview: man
-    man "${CARGO_TARGET_DIR:-target}/man/eza_colors-explanation.5"
+    man "${CARGO_TARGET_DIR:-target}/man/lsr_colors-explanation.5"
 
 #---------------#
 #    release    #
@@ -286,6 +286,9 @@ alias c := cross
 @mangen:
     # Setup Output Directory
     mkdir -p ./target/"man-$(convco version)"
+    pandoc --standalone -f markdown -t man man/lsr.1.md > ./target/"man-$(convco version)"/lsr.1
+    pandoc --standalone -f markdown -t man man/lsr_colors.5.md > ./target/"man-$(convco version)"/lsr_colors.5
+    pandoc --standalone -f markdown -t man man/lsr_colors-explanation.5.md > ./target/"man-$(convco version)"/lsr_colors-explanation.5
     pandoc --standalone -f markdown -t man man/eza.1.md > ./target/"man-$(convco version)"/eza.1
     pandoc --standalone -f markdown -t man man/eza_colors.5.md > ./target/"man-$(convco version)"/eza_colors.5
     pandoc --standalone -f markdown -t man man/eza_colors-explanation.5.md > ./target/"man-$(convco version)"/eza_colors-explanation.5
