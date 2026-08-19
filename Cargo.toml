@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 [package]
 name = "lsr"
-description = "A modern, fast replacement for ls in Rust with extended features"
+description = "A modern, fast, and feature-rich replacement for ls written in Rust"
 authors = ["fxrdhan <https://github.com/fxrdhan>", "Christina Sørensen <christina@cafkafk.com>"]
 categories = ["command-line-utilities"]
 edition = "2024"
