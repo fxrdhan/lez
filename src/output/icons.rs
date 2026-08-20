@@ -88,6 +88,7 @@ impl Icons {
     const KEYPASS: char         = '\u{f23e}';  // 
     const KICAD: char           = '\u{f34c}';  // 
     const KRITA: char           = '\u{f33d}';  // 
+    const LANG_ADA: char        = '\u{e6b5}';  // 
     const LANG_ARDUINO: char    = '\u{f34b}';  // 
     const LANG_ASSEMBLY: char   = '\u{e637}';  // 
     const LANG_C: char          = '\u{e61e}';  // 
@@ -199,6 +200,7 @@ const DIRECTORY_ICONS: Map<&'static str, char> = phf_map! {
     "cron.monthly"        => Icons::FOLDER_CONFIG,    // 
     "cron.weekly"         => Icons::FOLDER_CONFIG,    // 
     "Desktop"             => Icons::FOLDER_DESKTOP,   // 
+    "Dev"                 => '\u{f121}',              // 
     "Documents"           => Icons::FOLDER_DOCUMENTS, // 󰲂
     "Downloads"           => Icons::FOLDER_DOWNLOADS, // 󰉍
     "etc"                 => Icons::FOLDER_CONFIG,    // 
@@ -515,6 +517,9 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "a"              => Icons::OS_LINUX,         // 
     "aac"            => Icons::AUDIO,            // 
     "acf"            => '\u{f1b6}',              // 
+    "ada"            => Icons::LANG_ADA,         // 
+    "adb"            => Icons::LANG_ADA,         // 
+    "ads"            => Icons::LANG_ADA,         // 
     "age"            => Icons::SHIELD_LOCK,      // 󰦝
     "ai"             => '\u{e7b4}',              // 
     "aif"            => Icons::AUDIO,            // 
@@ -533,6 +538,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "asc"            => Icons::SHIELD_LOCK,      // 󰦝
     "asm"            => Icons::LANG_ASSEMBLY,    // 
     "asp"            => '\u{f121}',              // 
+    "astro"          => '\u{e6b3}',              // 
     "ass"            => Icons::SUBTITLE,         // 󰨖
     "avi"            => Icons::VIDEO,            // 
     "avif"           => Icons::IMAGE,            // 
@@ -628,6 +634,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "dylib"          => Icons::OS_APPLE,         // 
     "ebook"          => Icons::BOOK,             // 
     "ebuild"         => '\u{f30d}',              // 
+    "eclass"         => '\u{f30d}',              // 
     "edn"            => '\u{e76a}',              // 
     "editorconfig"   => '\u{e652}',              // 
     "eex"            => Icons::LANG_ELIXIR,      // 
@@ -702,6 +709,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "go"             => Icons::LANG_GO,          // 
     "godot"          => Icons::GODOT,            // 
     "gpg"            => Icons::SHIELD_LOCK,      // 󰦝
+    "gpr"            => Icons::LANG_ADA,         // 
     "gql"            => Icons::GRAPHQL,          // 
     "gradle"         => Icons::GRADLE,           // 
     "graphql"        => Icons::GRAPHQL,          // 
@@ -1240,6 +1248,38 @@ mod test {
             icon_for_name_ext("project.jdn", Some("jdn")),
             Icons::LANG_JANET
         );
+    }
+
+    #[test]
+    fn test_ada_icon_mapping() {
+        assert_eq!(icon_for_name_ext("main.adb", Some("adb")), Icons::LANG_ADA);
+        assert_eq!(icon_for_name_ext("pkg.ads", Some("ads")), Icons::LANG_ADA);
+        assert_eq!(icon_for_name_ext("test.ada", Some("ada")), Icons::LANG_ADA);
+        assert_eq!(
+            icon_for_name_ext("project.gpr", Some("gpr")),
+            Icons::LANG_ADA
+        );
+    }
+
+    #[test]
+    fn test_dev_directory_and_extension_icons() {
+        // Upstream #1626: Dev directory icon
+        assert_eq!(DIRECTORY_ICONS.get("Dev"), Some(&'\u{f121}'));
+        assert_eq!(DIRECTORY_ICONS.get("dev"), None); // Ensure lowercase 'dev' does not match
+
+        // Upstream #1759: .eclass extension icon
+        assert_eq!(
+            icon_for_name_ext("autotools.eclass", Some("eclass")),
+            '\u{f30d}'
+        );
+        assert_eq!(
+            icon_for_name_ext("ebuild.ebuild", Some("ebuild")),
+            '\u{f30d}'
+        );
+
+        // Upstream #1074: .astro extension icon
+        assert_eq!(icon_for_name_ext("App.astro", Some("astro")), '\u{e6b3}');
+        assert_eq!(icon_for_name_ext("Layout.astro", Some("astro")), '\u{e6b3}');
     }
 
     #[test]

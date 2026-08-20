@@ -432,6 +432,7 @@ languages! {
     PROTOBUF   = ("Protocol Buffers", C_LINE,           C_BLOCK);
     ODIN       = ("Odin",         C_LINE,               C_BLOCK);
     JANET      = ("Janet",        HASH_LINE,            NO_BLOCK);
+    ADA        = ("Ada",          &["--"],              NO_BLOCK);
 }
 
 const NO_LINE: &[&str] = &[];
@@ -532,6 +533,10 @@ static BY_EXTENSION: Map<&'static str, &'static Language> = phf_map! {
     "odin"  => &ODIN,
     "janet" => &JANET,
     "jdn"   => &JANET,
+    "adb"   => &ADA,
+    "ads"   => &ADA,
+    "ada"   => &ADA,
+    "gpr"   => &ADA,
 };
 
 #[cfg(test)]
@@ -729,5 +734,48 @@ mod test {
     fn detects_janet_by_extension() {
         assert_eq!(language_for("main.janet", Some("janet")), Some(&JANET));
         assert_eq!(language_for("project.jdn", Some("jdn")), Some(&JANET));
+    }
+
+    #[test]
+    fn counts_ada_code_and_comments() {
+        let source = "-- Ada package\nwith Ada.Text_IO; use Ada.Text_IO;\n\nprocedure Hello is\nbegin\n    Put_Line (\"Hello, Ada!\"); -- trailing comment\nend Hello;\n";
+        let c = count(source, &ADA);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 7,
+                code: 5,
+                comments: 1,
+                blanks: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn ada_comment_token_inside_string_is_code() {
+        let source = "Msg : constant String := \"-- this is not a comment\";\n";
+        let c = count(source, &ADA);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 1,
+                code: 1,
+                comments: 0,
+                blanks: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn ada_empty_file() {
+        assert_eq!(count("", &ADA), LocCounts::default());
+    }
+
+    #[test]
+    fn detects_ada_by_extension() {
+        assert_eq!(language_for("main.adb", Some("adb")), Some(&ADA));
+        assert_eq!(language_for("pkg.ads", Some("ads")), Some(&ADA));
+        assert_eq!(language_for("main.ada", Some("ada")), Some(&ADA));
+        assert_eq!(language_for("build.gpr", Some("gpr")), Some(&ADA));
     }
 }
