@@ -508,7 +508,10 @@ fn test_m2_resourcefork_xattr_decoding_unit() {
         };
 
         let formatted = format!("{attr}");
-        assert!(formatted.contains("<[icns: 1]>"), "Formatted output: {formatted}");
+        assert!(
+            formatted.contains("<[icns: 1]>"),
+            "Formatted output: {formatted}"
+        );
     }
 }
 
