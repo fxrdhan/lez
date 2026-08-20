@@ -583,6 +583,10 @@ const ATTRIBUTE_DISPLAYS: &[AttributeDisplay] = &[
         attribute: "com.apple.macl",
         display: display_macl,
     },
+    AttributeDisplay {
+        attribute: "com.apple.ResourceFork",
+        display: display_resourcefork,
+    },
 ];
 
 #[cfg(not(target_os = "macos"))]
@@ -606,6 +610,43 @@ fn display_lastuseddate(attribute: &Attribute) -> Option<String> {
                 .map(|dt| dt.to_rfc3339_opts(SecondsFormat::Nanos, true))
                 .single()
         })
+}
+
+// Decode Classic Mac OS Resource Fork headers
+#[cfg(target_os = "macos")]
+fn display_resourcefork(attribute: &Attribute) -> Option<String> {
+    let value = attribute.value.as_deref()?;
+    if value.len() < 16 {
+        return None;
+    }
+    let map_offset = u32::from_be_bytes(value[4..8].try_into().ok()?) as usize;
+    let map_len = u32::from_be_bytes(value[12..16].try_into().ok()?) as usize;
+    if value.len() < map_offset.checked_add(map_len)? || map_len < 28 {
+        return None;
+    }
+    let map = &value[map_offset..map_offset + map_len];
+    let type_list_offset = u16::from_be_bytes(map[24..26].try_into().ok()?) as usize;
+    if map.len() < type_list_offset.checked_add(2)? {
+        return None;
+    }
+    let type_list = &map[type_list_offset..];
+    let num_types_minus_1 = u16::from_be_bytes(type_list[0..2].try_into().ok()?);
+    let num_types = num_types_minus_1 as usize + 1;
+    if type_list.len() < 2 + num_types * 8 {
+        return None;
+    }
+    let mut resources = Vec::new();
+    for i in 0..num_types {
+        let entry = &type_list[2 + i * 8..2 + (i + 1) * 8];
+        let type_code = &entry[0..4];
+        let count = u16::from_be_bytes(entry[4..6].try_into().ok()?) + 1;
+        let type_str = match std::str::from_utf8(type_code) {
+            Ok(s) => s.trim().to_string(),
+            Err(_) => format!("{type_code:02x?}"),
+        };
+        resources.push(format!("{type_str}: {count}"));
+    }
+    Some(format!("[{}]", resources.join(", ")))
 }
 
 // com.apple.macl is a two byte flag followed by a uuid for the application
