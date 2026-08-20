@@ -382,6 +382,9 @@ Overrides any `--git` or `--git-repos` argument
 ## `EZA_MIN_LUMINANCE`
 Specifies the minimum luminance to use when color-scale is active. It's value can be between -100 to 100.
 
+## `EZA_MAX_LUMINANCE`
+Specifies the maximum luminance to use when color-scale is active. It's value can be between -100 to 100.
+
 ## `EZA_ICONS_AUTO`
 
 If set, automates the same behavior as using `--icons` or `--icons=auto`. Useful for if you always want to have icons enabled.
