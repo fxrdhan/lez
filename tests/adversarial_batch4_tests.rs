@@ -290,19 +290,29 @@ fn test_m2_systemtime_to_naivedatetime_subsecond_flooring() {
     assert_eq!(dt2.and_utc().timestamp_subsec_nanos(), 500_000_000);
     assert_eq!(dt2.year(), 1969);
 
-    // Test 3: 1 nanosecond before epoch (-0.000000001s) => secs = -1, nanos = 999_999_999
-    let st3 = UNIX_EPOCH - Duration::from_nanos(1);
-    let dt3 = File::systemtime_to_naivedatetime(st3).expect("pre-epoch 1ns conversion");
-    assert_eq!(dt3.and_utc().timestamp(), -1);
-    assert_eq!(dt3.and_utc().timestamp_subsec_nanos(), 999_999_999);
-    assert_eq!(dt3.year(), 1969);
+    // Test 3: subsecond before epoch
+    #[cfg(unix)]
+    {
+        let st3 = UNIX_EPOCH - Duration::from_nanos(1);
+        let dt3 = File::systemtime_to_naivedatetime(st3).expect("pre-epoch 1ns conversion");
+        assert_eq!(dt3.and_utc().timestamp(), -1);
+        assert_eq!(dt3.and_utc().timestamp_subsec_nanos(), 999_999_999);
+        assert_eq!(dt3.year(), 1969);
 
-    // Test 4: 999,999,999 nanoseconds before epoch (-0.999999999s) => secs = -1, nanos = 1
-    let st4 = UNIX_EPOCH - Duration::from_nanos(999_999_999);
-    let dt4 = File::systemtime_to_naivedatetime(st4).expect("pre-epoch 999999999ns conversion");
-    assert_eq!(dt4.and_utc().timestamp(), -1);
-    assert_eq!(dt4.and_utc().timestamp_subsec_nanos(), 1);
-    assert_eq!(dt4.year(), 1969);
+        let st4 = UNIX_EPOCH - Duration::from_nanos(999_999_999);
+        let dt4 = File::systemtime_to_naivedatetime(st4).expect("pre-epoch 999999999ns conversion");
+        assert_eq!(dt4.and_utc().timestamp(), -1);
+        assert_eq!(dt4.and_utc().timestamp_subsec_nanos(), 1);
+        assert_eq!(dt4.year(), 1969);
+    }
+    #[cfg(windows)]
+    {
+        let st3 = UNIX_EPOCH - Duration::from_micros(1);
+        let dt3 = File::systemtime_to_naivedatetime(st3).expect("pre-epoch 1us conversion");
+        assert_eq!(dt3.and_utc().timestamp(), -1);
+        assert_eq!(dt3.and_utc().timestamp_subsec_nanos(), 999_999_000);
+        assert_eq!(dt3.year(), 1969);
+    }
 }
 
 #[test]
@@ -633,6 +643,9 @@ fn test_m5_invalid_time_style_string_returns_invalid_value_error() {
         "iso-long",
         "%Y-%m-%d", // Missing leading '+'
         "+",        // Empty custom format
+        "relative-recent:abc",
+        "relative-recent:-5",
+        "relative-recent:",
     ];
 
     for style in invalid_styles {
@@ -660,6 +673,9 @@ fn test_m5_valid_time_styles_pass() {
         "long-iso",
         "full-iso",
         "relative",
+        "relative-recent",
+        "relative-recent:3",
+        "relative-recent:14",
         "+%Y-%m-%d",
         "+%Y-%m-%d %H:%M",
         "+%Y-%m-%d\n+%H:%M",

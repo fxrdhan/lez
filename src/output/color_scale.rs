@@ -168,6 +168,7 @@ fn update_information_recursively(
         // the dot_filter. Also check if directory is ignored by ignore patterns.
         if file.is_directory()
             && !filter.ignore_patterns.is_ignored(&file.name)
+            && !filter.ignore_patterns_caseins.is_ignored(&file.name)
             && r.is_some_and(|x| !x.is_too_deep(depth.0))
             && file.name != "."
             && file.name != ".."
@@ -285,6 +286,7 @@ mod test {
             flags,
             dot_filter: DotFilter::JustFiles,
             ignore_patterns,
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             no_symlinks: false,
             show_symlinks: false,

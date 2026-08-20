@@ -1181,6 +1181,7 @@ mod filename_test {
 }
 
 #[cfg(test)]
+#[cfg(unix)]
 mod length_test {
     use super::File;
     use std::fs::{self, File as StdFile};

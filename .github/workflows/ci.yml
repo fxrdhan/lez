@@ -1,24 +1,19 @@
 # SPDX-FileCopyrightText: 2026 fxrdhan
 # SPDX-License-Identifier: EUPL-1.2
-
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
   cancel-in-progress: true
-
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: --deny warnings
   MSRV: "1.90"
-
 jobs:
   lint-and-format:
     name: Lint & Format (Rustfmt & Clippy)
@@ -26,34 +21,32 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-
       - name: Check formatting
         run: cargo fmt --all -- --check
-
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
-
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Run REUSE linter
-        uses: fsfe/reuse-action@v2
-
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install and run REUSE 3.3
+        run: |
+          pip install --upgrade reuse
+          reuse lint
   unit-and-integration-tests:
     name: Tests (${{ matrix.os }} - Rust ${{ matrix.rust }})
-    needs: [lint-and-format, reuse-compliance]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -63,20 +56,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}
-
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
-
       - name: Run all tests
         run: cargo test --all-targets --all-features
-
   build-release:
     name: Release Build (${{ matrix.os }})
     needs: [unit-and-integration-tests]
@@ -88,29 +77,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           key: release-${{ matrix.os }}
-
       - name: Build release binary
         run: cargo build --release --all-features
-
   nix-flake-check:
     name: Nix Flake Validation
-    needs: [lint-and-format, reuse-compliance]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v16
-
       - name: Nix Flake Check
         run: nix flake check -L
         env:

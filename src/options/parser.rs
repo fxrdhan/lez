@@ -38,7 +38,7 @@ const TIME_FIELDS_HELP: &str = "[possible values:
   mod|modified, acc|accessed, ch|changed, cr|created]";
 
 const FORMAT_STYLE_FIELDS_HELP: &str = "[possible values:
-  default, iso, long-iso, full-iso, relative, \"+<CUSTOM_FORMAT>\"]";
+  default, iso, long-iso, full-iso, relative, relative-recent, \"+<CUSTOM_FORMAT>\"]";
 
 pub fn get_command() -> clap::Command {
     clap::Command::new(clap::crate_name!())
@@ -130,6 +130,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"show-symlinks" "explicitly show symbolic links (with --only-dirs and --only-files)"))
         .arg(arg!(--"no-symlinks" "do not show symbolic links"))
         .arg(arg!(-I --"ignore-glob" <GLOBS> "glob patterns (pipe-separated) of files to ignore"))
+        .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)"))
         .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'"))
 
         .next_help_heading("SORTING OPTIONS")
@@ -654,5 +655,36 @@ pub mod test {
         let args = vec!["--time-style", "+"];
         let err = mock_cli_try(args).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[test]
+    fn time_style_accepts_relative_recent() {
+        let args = vec!["--time-style", "relative-recent"];
+        assert!(mock_cli_try(args).is_ok());
+    }
+
+    #[test]
+    fn time_style_accepts_relative_recent_with_days() {
+        let args = vec!["--time-style", "relative-recent:14"];
+        assert!(mock_cli_try(args).is_ok());
+    }
+
+    #[test]
+    fn time_style_rejects_invalid_relative_recent_days() {
+        let args = vec!["--time-style", "relative-recent:abc"];
+        let err = mock_cli_try(args).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[test]
+    fn ignore_glob_ci_arg_parsed() {
+        let args = vec!["--ignore-glob-ci", "*.txt|*.md"];
+        let matches = mock_cli(args);
+        assert_eq!(
+            matches
+                .get_one::<String>("ignore-glob-ci")
+                .map(String::as_str),
+            Some("*.txt|*.md")
+        );
     }
 }
