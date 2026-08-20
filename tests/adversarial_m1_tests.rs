@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
+#![allow(unused_imports, dead_code)]
+
 use lsr::fs::fields::Size;
 use lsr::fs::filter::{
     FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, SortCase, SortField,
