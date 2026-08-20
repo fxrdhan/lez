@@ -19,6 +19,7 @@ use crate::{
 pub struct ColorScaleOptions {
     pub mode: ColorScaleMode,
     pub min_luminance: isize,
+    pub max_luminance: isize,
     pub size: bool,
     pub age: bool,
 }
@@ -28,6 +29,7 @@ impl Default for ColorScaleOptions {
         Self {
             mode: ColorScaleMode::Fixed,
             min_luminance: 50,
+            max_luminance: 100,
             size: false,
             age: false,
         }
@@ -99,6 +101,7 @@ impl ColorScaleInformation {
                 fg,
                 ratio,
                 self.options.min_luminance as f32 / 100.0,
+                self.options.max_luminance as f32 / 100.0,
             ));
         }
 
@@ -226,7 +229,7 @@ impl Extremes {
     }
 }
 
-fn adjust_luminance(color: Colour, x: f32, min_l: f32) -> Colour {
+fn adjust_luminance(color: Colour, x: f32, min_l: f32, max_l: f32) -> Colour {
     let rgb_color = match color {
         Colour::Rgb(r, g, b) => LinSrgb::new(
             f32::from(r) / 255.0,
@@ -260,7 +263,7 @@ fn adjust_luminance(color: Colour, x: f32, min_l: f32) -> Colour {
     };
 
     let mut lab: Oklab = Oklab::from_color(rgb_color);
-    lab.l = (min_l + (1.0 - min_l) * (-4.0 * (1.0 - x)).exp()).clamp(0.0, 1.0);
+    lab.l = (min_l + (max_l - min_l) * (-4.0 * (1.0 - x)).exp()).clamp(0.0, 1.0);
 
     let adjusted_rgb: Srgb<f32> = Srgb::from_color(lab);
     Colour::Rgb(
@@ -298,6 +301,7 @@ mod test {
         let opts = ColorScaleOptions {
             mode: ColorScaleMode::Fixed,
             min_luminance: 50,
+            max_luminance: 100,
             size: true,
             age: true,
         };
@@ -311,6 +315,7 @@ mod test {
         let opts = ColorScaleOptions {
             mode: ColorScaleMode::Gradient,
             min_luminance: 50,
+            max_luminance: 100,
             size: true,
             age: true,
         };
@@ -329,6 +334,7 @@ mod test {
         let opts = ColorScaleOptions {
             mode: ColorScaleMode::Gradient,
             min_luminance: 50,
+            max_luminance: 100,
             size: true,
             age: true,
         };
@@ -365,6 +371,7 @@ mod test {
         let opts = ColorScaleOptions {
             mode: ColorScaleMode::Gradient,
             min_luminance: 50,
+            max_luminance: 100,
             size: true,
             age: true,
         };
@@ -393,6 +400,7 @@ mod test {
         let opts = ColorScaleOptions {
             mode: ColorScaleMode::Gradient,
             min_luminance: 50,
+            max_luminance: 100,
             size: true,
             age: true,
         };
@@ -426,6 +434,7 @@ mod test {
         let opts = ColorScaleOptions {
             mode: ColorScaleMode::Gradient,
             min_luminance: 50,
+            max_luminance: 100,
             size: true,
             age: true,
         };
@@ -444,5 +453,37 @@ mod test {
         let base_style = Style::default().fg(Colour::Green);
         let adjusted = info.adjust_style(base_style, 100.0, info.size);
         assert!(adjusted.foreground.is_some());
+    }
+
+    #[test]
+    fn color_scale_adjust_luminance_max_bound() {
+        let full_l = adjust_luminance(Colour::White, 1.0, 0.5, 1.0);
+        let dimmed_l = adjust_luminance(Colour::White, 1.0, 0.5, 0.6);
+
+        if let (Colour::Rgb(r1, g1, b1), Colour::Rgb(r2, g2, b2)) = (full_l, dimmed_l) {
+            assert!(r2 < r1, "dimmed red {r2} should be < full red {r1}");
+            assert!(g2 < g1, "dimmed green {g2} should be < full green {g1}");
+            assert!(b2 < b1, "dimmed blue {b2} should be < full blue {b1}");
+        } else {
+            panic!("Expected RGB colors");
+        }
+    }
+
+    #[test]
+    fn color_scale_adjust_luminance_clamping_and_inverted() {
+        // When max_l == min_l, ratio doesn't change luminance
+        let col_min = adjust_luminance(Colour::Cyan, 0.0, 0.6, 0.6);
+        let col_max = adjust_luminance(Colour::Cyan, 1.0, 0.6, 0.6);
+        assert_eq!(col_min, col_max);
+
+        // When negative bounds are provided, clamp to 0.0 (pure black)
+        let dark = adjust_luminance(Colour::White, 0.0, -1.0, -0.5);
+        if let Colour::Rgb(r, g, b) = dark {
+            assert_eq!(r, 0);
+            assert_eq!(g, 0);
+            assert_eq!(b, 0);
+        } else {
+            panic!("Expected RGB black");
+        }
     }
 }

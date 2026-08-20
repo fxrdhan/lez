@@ -221,6 +221,7 @@ fn test_r2_color_scale_all_files_ignored_returns_none_extremes() {
     let opts = ColorScaleOptions {
         mode: ColorScaleMode::Gradient,
         min_luminance: 50,
+        max_luminance: 100,
         size: true,
         age: true,
     };
@@ -251,6 +252,7 @@ fn test_r2_color_scale_single_file_min_equals_max_style_safety() {
     let opts = ColorScaleOptions {
         mode: ColorScaleMode::Gradient,
         min_luminance: 40,
+        max_luminance: 100,
         size: true,
         age: true,
     };
@@ -282,6 +284,7 @@ fn test_r2_color_scale_combined_only_files_and_ignore_glob() {
     let opts = ColorScaleOptions {
         mode: ColorScaleMode::Gradient,
         min_luminance: 50,
+        max_luminance: 100,
         size: true,
         age: true,
     };
@@ -333,6 +336,7 @@ fn test_r2_color_scale_nested_directory_tree_exclusion() {
     let opts = ColorScaleOptions {
         mode: ColorScaleMode::Gradient,
         min_luminance: 50,
+        max_luminance: 100,
         size: true,
         age: false,
     };
@@ -742,6 +746,7 @@ fn test_r2_adversarial_deep_hierarchy_with_multiple_filters() {
     let opts = ColorScaleOptions {
         mode: ColorScaleMode::Gradient,
         min_luminance: 50,
+        max_luminance: 100,
         size: true,
         age: false,
     };

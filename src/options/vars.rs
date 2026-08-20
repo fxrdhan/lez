@@ -62,10 +62,17 @@ pub static EZA_ICON_SPACING: &str = "EZA_ICON_SPACING";
 pub static EXA_OVERRIDE_GIT: &str = "EXA_OVERRIDE_GIT";
 pub static EZA_OVERRIDE_GIT: &str = "EZA_OVERRIDE_GIT";
 
-/// Enviroment variable used to set the minimum luminance in `color_scale`. It's value
+/// Environment variable used to set the minimum luminance in `color_scale`. Its value
 /// can be between -100 and 100
-pub static EXA_MIN_LUMINANCE: &str = "EXA_MIN_LUMINANCE";
+pub static LSR_MIN_LUMINANCE: &str = "LSR_MIN_LUMINANCE";
 pub static EZA_MIN_LUMINANCE: &str = "EZA_MIN_LUMINANCE";
+pub static EXA_MIN_LUMINANCE: &str = "EXA_MIN_LUMINANCE";
+
+/// Environment variable used to set the maximum luminance in `color_scale`. Its value
+/// can be between -100 and 100
+pub static LSR_MAX_LUMINANCE: &str = "LSR_MAX_LUMINANCE";
+pub static EZA_MAX_LUMINANCE: &str = "EZA_MAX_LUMINANCE";
+pub static EXA_MAX_LUMINANCE: &str = "EXA_MAX_LUMINANCE";
 
 /// Environment variable used to automate the same behavior as `--icons=auto` if set.
 /// Any explicit use of `--icons=WHEN` overrides this behavior.
@@ -132,7 +139,8 @@ pub mod test {
         pub debug: OsString,
         pub grid_rows: OsString,
         pub icon_spacing: OsString,
-        pub luminance: OsString,
+        pub min_luminance: OsString,
+        pub max_luminance: OsString,
         pub icons: OsString,
         pub time: OsString,
         pub lsr_config_dir: OsString,
@@ -161,8 +169,15 @@ pub mod test {
                 "EXA_ICON_SPACING" | "EZA_ICON_SPACING" if !self.icon_spacing.is_empty() => {
                     Some(self.icon_spacing.clone())
                 }
-                "EXA_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" if !self.luminance.is_empty() => {
-                    Some(self.luminance.clone())
+                "LSR_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE"
+                    if !self.min_luminance.is_empty() =>
+                {
+                    Some(self.min_luminance.clone())
+                }
+                "LSR_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE"
+                    if !self.max_luminance.is_empty() =>
+                {
+                    Some(self.max_luminance.clone())
                 }
                 "EZA_ICONS_AUTO" if !self.icons.is_empty() => Some(self.icons.clone()),
                 "COLUMNS" if !self.columns.is_empty() => Some(self.columns.clone()),
@@ -194,7 +209,12 @@ pub mod test {
                 "EXA_DEBUG" | "EZA_DEBUG" => self.debug = value.clone(),
                 "EXA_GRID_ROWS" | "EZA_GRID_ROWS" => self.grid_rows = value.clone(),
                 "EXA_ICON_SPACING" | "EZA_ICON_SPACING" => self.icon_spacing = value.clone(),
-                "EXA_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" => self.luminance = value.clone(),
+                "LSR_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE" => {
+                    self.min_luminance = value.clone()
+                }
+                "LSR_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE" => {
+                    self.max_luminance = value.clone()
+                }
                 "EZA_ICONS_AUTO" => self.icons = value.clone(),
                 "COLUMNS" => self.columns = value.clone(),
                 "NO_COLOR" => self.no_colors = value.clone(),
@@ -249,5 +269,11 @@ pub mod test {
 
         vars.set(HOME, &OsString::from("/home/user"));
         assert_eq!(vars.get(HOME), Some(OsString::from("/home/user")));
+
+        vars.set(LSR_MIN_LUMINANCE, &OsString::from("25"));
+        assert_eq!(vars.get(LSR_MIN_LUMINANCE), Some(OsString::from("25")));
+
+        vars.set(LSR_MAX_LUMINANCE, &OsString::from("85"));
+        assert_eq!(vars.get(LSR_MAX_LUMINANCE), Some(OsString::from("85")));
     }
 }

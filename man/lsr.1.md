@@ -395,6 +395,10 @@ Overrides any `--git` or `--git-repos` argument.
 
 Specifies the minimum luminance to use when color-scale is active. Its value can be between -100 to 100.
 
+## `LSR_MAX_LUMINANCE`, `EZA_MAX_LUMINANCE`
+
+Specifies the maximum luminance to use when color-scale is active. Its value can be between -100 to 100.
+
 ## `LSR_ICONS_AUTO`, `EZA_ICONS_AUTO`
 
 If set, automates the same behavior as using `--icons` or `--icons=auto`. Useful for if you always want to have icons enabled.
