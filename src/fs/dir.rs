@@ -6,11 +6,13 @@
 // SPDX-License-Identifier: MIT
 use crate::fs::feature::git::GitCache;
 use crate::fs::fields::GitStatus;
+use std::collections::HashSet;
 use std::fs;
 use std::fs::DirEntry;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::slice::Iter as SliceIter;
+use std::sync::OnceLock;
 
 use log::info;
 
@@ -28,6 +30,10 @@ pub struct Dir {
 
     /// The path that was read.
     pub path: PathBuf,
+
+    /// The same paths as `contents`, in a form that can be searched in
+    /// constant time. Built on first use, since most listings never ask.
+    paths: OnceLock<HashSet<PathBuf>>,
 }
 
 impl Dir {
@@ -40,6 +46,7 @@ impl Dir {
         Self {
             contents: vec![],
             path,
+            paths: OnceLock::new(),
         }
     }
 
@@ -52,6 +59,8 @@ impl Dir {
         info!("Reading directory {:?}", self.path);
 
         self.contents = fs::read_dir(&self.path)?.collect::<Result<Vec<_>, _>>()?;
+        // The contents just changed, so anything derived from them is stale.
+        self.paths = OnceLock::new();
 
         info!("Read directory success {:?}", self.path);
         Ok(self)
@@ -71,7 +80,11 @@ impl Dir {
         let contents = fs::read_dir(&path)?.collect::<Result<Vec<_>, _>>()?;
 
         info!("Read directory success {:?}", path);
-        Ok(Self { contents, path })
+        Ok(Self {
+            contents,
+            path,
+            paths: OnceLock::new(),
+        })
     }
 
     /// Produce an iterator of IO results of trying to read all the files in
@@ -100,7 +113,9 @@ impl Dir {
     /// Whether this directory contains a file with the given path.
     #[must_use]
     pub fn contains(&self, path: &Path) -> bool {
-        self.contents.iter().any(|p| p.path().as_path() == path)
+        self.paths
+            .get_or_init(|| self.contents.iter().map(DirEntry::path).collect())
+            .contains(path)
     }
 
     /// Append a path onto the path specified by this directory.
@@ -266,5 +281,104 @@ impl DotFilter {
             Self::Dotfiles => DotsNext::Files,
             Self::DotfilesAndDots => DotsNext::Dot,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File as StdFile;
+    use std::io::Write;
+
+    struct TestDir {
+        path: PathBuf,
+    }
+
+    impl TestDir {
+        fn new(name: &str) -> Self {
+            let path =
+                std::env::temp_dir().join(format!("lsr_test_dir_{}_{}", name, std::process::id()));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).unwrap();
+            Self { path }
+        }
+
+        fn create_file(&self, name: &str) -> PathBuf {
+            let file_path = self.path.join(name);
+            let mut file = StdFile::create(&file_path).unwrap();
+            file.write_all(b"test").unwrap();
+            file_path
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn test_dir_contains_finds_existing_file() {
+        let test_dir = TestDir::new("contains_existing");
+        let file_a = test_dir.create_file("foo.txt");
+        let _file_b = test_dir.create_file("bar.rs");
+
+        let dir = Dir::read_dir(test_dir.path.clone()).unwrap();
+        assert!(dir.contains(&file_a));
+    }
+
+    #[test]
+    fn test_dir_contains_returns_false_for_missing_file() {
+        let test_dir = TestDir::new("contains_nonexistent");
+        let _file_a = test_dir.create_file("foo.txt");
+
+        let dir = Dir::read_dir(test_dir.path.clone()).unwrap();
+        let non_existent = test_dir.path.join("nonexistent.txt");
+        assert!(!dir.contains(&non_existent));
+    }
+
+    #[test]
+    fn test_dir_contains_cache_invalidation_on_reread() {
+        let test_dir = TestDir::new("cache_invalidation");
+        let file_a = test_dir.create_file("foo.txt");
+
+        let mut dir = Dir::read_dir(test_dir.path.clone()).unwrap();
+        assert!(dir.contains(&file_a));
+
+        let file_b = test_dir.path.join("bar.txt");
+        // Verify before creation: false and cached
+        assert!(!dir.contains(&file_b));
+
+        // Now create file_b on disk
+        test_dir.create_file("bar.txt");
+
+        // Before re-read, dir.contains(&file_b) is still false because of cache
+        assert!(!dir.contains(&file_b));
+
+        // Re-read directory
+        dir.read().unwrap();
+
+        // After re-read, cache must be invalidated and contain file_b
+        assert!(dir.contains(&file_b));
+        assert!(dir.contains(&file_a));
+    }
+
+    #[test]
+    fn test_dir_new_then_read() {
+        let test_dir = TestDir::new("new_then_read");
+        let file_a = test_dir.create_file("a.txt");
+
+        let mut dir = Dir::new(test_dir.path.clone());
+        assert!(!dir.contains(&file_a));
+
+        dir.read().unwrap();
+        assert!(dir.contains(&file_a));
+    }
+
+    #[test]
+    fn test_empty_dir_contains_returns_false() {
+        let test_dir = TestDir::new("empty_dir");
+        let dir = Dir::read_dir(test_dir.path.clone()).unwrap();
+        assert!(!dir.contains(&test_dir.path.join("anything.txt")));
     }
 }
