@@ -511,3 +511,14 @@ fn test_m2_resourcefork_xattr_decoding_unit() {
         assert!(formatted.contains("<[icns: 1]>"), "Formatted output: {formatted}");
     }
 }
+
+#[test]
+fn test_m3_mounts_cli_display() {
+    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let output = Command::new(bin_path)
+        .args(["-l", "-M", "/"])
+        .output()
+        .expect("Failed to run lsr");
+
+    assert!(output.status.success());
+}
