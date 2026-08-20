@@ -11,7 +11,7 @@ use std::default::Default;
 use crate::output::color_scale::{ColorScaleMode, ColorScaleOptions};
 use crate::theme::ui_styles::{
     FileKinds, FileType, Git, GitRepo, Links, Permissions, SELinuxContext, SecurityContext, Size,
-    UiStyles, Users,
+    Tags, UiStyles, Users,
 };
 impl UiStyles {
     #[must_use]
@@ -126,6 +126,7 @@ impl Default for UiStyles {
                 source:     Some(Yellow.bold()), // Need to discuss color
             }),
 
+            tags: Some(Tags::default()),
             punctuation: Some(DarkGray.bold()),
             date: Some(Blue.normal()),
             inode: Some(Purple.normal()),

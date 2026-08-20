@@ -38,6 +38,8 @@ impl f::Type {
     }
 }
 
+use crate::fs::fields::TagColor;
+
 pub trait Colours {
     fn normal(&self) -> Style;
     fn directory(&self) -> Style;
@@ -47,6 +49,7 @@ pub trait Colours {
     fn char_device(&self) -> Style;
     fn socket(&self) -> Style;
     fn special(&self) -> Style;
+    fn tag(&self, tag: &TagColor) -> Style;
 }
 
 #[cfg(test)]

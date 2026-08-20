@@ -7,7 +7,7 @@
 use crate::theme::ThemeFileType as FileType;
 use crate::theme::{
     FileKinds, FileNameStyle, Git, GitRepo, IconStyle, Links, Permissions, SELinuxContext,
-    SecurityContext, Size, UiStyles, Users,
+    SecurityContext, Size, Tags, UiStyles, Users,
 };
 use nu_ansi_term::{Color, Style};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -555,6 +555,34 @@ impl FromOverride<FileTypeOverride> for FileType {
 }
 
 #[rustfmt::skip]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TagsOverride {
+    pub none: Option<StyleOverride>,
+    pub grey: Option<StyleOverride>,
+    pub green: Option<StyleOverride>,
+    pub purple: Option<StyleOverride>,
+    pub blue: Option<StyleOverride>,
+    pub yellow: Option<StyleOverride>,
+    pub red: Option<StyleOverride>,
+    pub orange: Option<StyleOverride>,
+}
+
+impl FromOverride<TagsOverride> for Tags {
+    fn from(value: TagsOverride, default: Self) -> Self {
+        Tags {
+            none: FromOverride::from(value.none, default.none),
+            grey: FromOverride::from(value.grey, default.grey),
+            green: FromOverride::from(value.green, default.green),
+            purple: FromOverride::from(value.purple, default.purple),
+            blue: FromOverride::from(value.blue, default.blue),
+            yellow: FromOverride::from(value.yellow, default.yellow),
+            red: FromOverride::from(value.red, default.red),
+            orange: FromOverride::from(value.orange, default.orange),
+        }
+    }
+}
+
+#[rustfmt::skip]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct UiStylesOverride {
     pub colourful: Option<bool>,
@@ -568,6 +596,7 @@ pub struct UiStylesOverride {
     pub git_repo:         Option<GitRepoOverride>,
     pub security_context: Option<SecurityContextOverride>,
     pub file_type:        Option<FileTypeOverride>,
+    pub tags:             Option<TagsOverride>,
 
     pub punctuation:  Option<StyleOverride>,          // xx
     pub date:         Option<StyleOverride>,          // da
@@ -601,6 +630,7 @@ impl FromOverride<UiStylesOverride> for UiStyles {
             git_repo: FromOverride::from(value.git_repo, default.git_repo),
             security_context: FromOverride::from(value.security_context, default.security_context),
             file_type: FromOverride::from(value.file_type, default.file_type),
+            tags: FromOverride::from(value.tags, default.tags),
 
             punctuation: FromOverride::from(value.punctuation, default.punctuation),
             date: FromOverride::from(value.date, default.date),
