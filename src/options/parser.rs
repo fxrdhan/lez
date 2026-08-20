@@ -75,6 +75,8 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"follow-symlinks" "drill down into symbolic links that point to directories"))
         .arg(arg!(-w --width <COLS> "set screen width in columns")
             .value_parser(value_parser!(usize)))
+        .arg(arg!(--spacing <SPACES> "set number of spaces between columns")
+            .value_parser(value_parser!(usize)))
         .arg(arg!(--json "display as a json object"))
 
         .next_help_heading("DISPLAY OPTIONS")

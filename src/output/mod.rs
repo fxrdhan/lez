@@ -90,6 +90,55 @@ impl TerminalWidth {
     }
 }
 
+/// The default spacing mode for different view types.
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum SpacingMode {
+    /// Grid mode default (2 spaces)
+    Grid,
+    /// Details/tree mode default (1 space)
+    Details,
+}
+
+impl SpacingMode {
+    /// Get the default number of spaces for this mode.
+    #[must_use]
+    pub fn default_spaces(self) -> usize {
+        match self {
+            Self::Grid => 2,
+            Self::Details => 1,
+        }
+    }
+}
+
+/// The spacing between columns requested by the user.
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum SpacingBetweenColumns {
+    /// The user requested this specific number of spaces.
+    Set(usize),
+    /// Use the default spacing based on the current mode.
+    Default,
+}
+
+impl SpacingBetweenColumns {
+    pub fn deduce(matches: &clap::ArgMatches) -> Self {
+        if let Some(&spaces) = matches.get_one::<usize>("spacing") {
+            Self::Set(spaces)
+        } else {
+            Self::Default
+        }
+    }
+
+    /// Get the actual number of spaces to use between columns.
+    /// Takes the spacing mode to determine the correct default.
+    #[must_use]
+    pub fn spaces(self, mode: SpacingMode) -> usize {
+        match self {
+            Self::Set(spaces) => spaces,
+            Self::Default => mode.default_spaces(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -113,6 +162,20 @@ mod test {
         assert_eq!(
             TerminalWidth::Set(usize::MAX).actual_terminal_width(),
             Some(u16::MAX as usize)
+        );
+    }
+
+    #[test]
+    fn test_spacing_between_columns() {
+        assert_eq!(SpacingBetweenColumns::Default.spaces(SpacingMode::Grid), 2);
+        assert_eq!(
+            SpacingBetweenColumns::Default.spaces(SpacingMode::Details),
+            1
+        );
+        assert_eq!(SpacingBetweenColumns::Set(0).spaces(SpacingMode::Grid), 0);
+        assert_eq!(
+            SpacingBetweenColumns::Set(4).spaces(SpacingMode::Details),
+            4
         );
     }
 }
