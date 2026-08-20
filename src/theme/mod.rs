@@ -484,20 +484,20 @@ impl FileNameColours for Theme {
             if let Some(ref dir_overrides) = self.ui.directorynames
                 && let Some(dir_override) = dir_overrides.get(&file.name)
             {
-                return Some(*dir_override);
+                return Some(dir_override.clone());
             }
         } else {
             if let Some(ref name_overrides) = self.ui.filenames
                 && let Some(file_override) = name_overrides.get(&file.name)
             {
-                return Some(*file_override);
+                return Some(file_override.clone());
             }
 
             if let Some(ref ext_overrides) = self.ui.extensions
                 && let Some(ext) = file.ext.clone()
                 && let Some(file_override) = ext_overrides.get(&ext)
             {
-                return Some(*file_override);
+                return Some(file_override.clone());
             }
         }
 
