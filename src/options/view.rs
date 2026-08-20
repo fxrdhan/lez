@@ -206,6 +206,7 @@ impl details::Options {
             table: None,
             header: false,
             xattr: xattr::ENABLED && matches.get_flag("extended"),
+            tags: xattr::ENABLED && matches.get_flag("tags"),
             secattr: xattr::ENABLED && matches.get_flag("security-context"),
             mounts: matches.get_flag("mounts"),
             color_scale: ColorScaleOptions::deduce(matches, vars),
@@ -222,6 +223,7 @@ impl details::Options {
             table: Some(TableOptions::deduce(matches, vars, spaces)?),
             header: false,
             xattr: xattr::ENABLED && matches.get_flag("extended"),
+            tags: xattr::ENABLED && matches.get_flag("tags"),
             secattr: xattr::ENABLED && matches.get_flag("security-context"),
             mounts: matches.get_flag("mounts"),
             color_scale: ColorScaleOptions::default(),
@@ -247,6 +249,7 @@ impl details::Options {
             table: Some(TableOptions::deduce(matches, vars, spaces)?),
             header: matches.get_flag("header"),
             xattr: xattr::ENABLED && matches.get_flag("extended"),
+            tags: xattr::ENABLED && matches.get_flag("tags"),
             secattr: xattr::ENABLED && matches.get_flag("security-context"),
             mounts: matches.get_flag("mounts"),
             color_scale: ColorScaleOptions::deduce(matches, vars),
@@ -1250,6 +1253,7 @@ mod tests {
                 table: None,
                 header: false,
                 xattr: false,
+                tags: false,
                 secattr: false,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
@@ -1267,6 +1271,7 @@ mod tests {
                 table: None,
                 header: false,
                 xattr: false,
+                tags: false,
                 secattr: false,
                 mounts: true,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
@@ -1284,6 +1289,25 @@ mod tests {
                 table: None,
                 header: false,
                 xattr: xattr::ENABLED,
+                tags: false,
+                secattr: false,
+                mounts: false,
+                color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
+                follow_links: false,
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_details_options_tree_tags() {
+        let cli = mock_cli(vec!["--tree", "--tags"]);
+        assert_eq!(
+            details::Options::deduce_tree(&cli, &MockVars::default()),
+            details::Options {
+                table: None,
+                header: false,
+                xattr: false,
+                tags: xattr::ENABLED,
                 secattr: false,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
@@ -1301,6 +1325,7 @@ mod tests {
                 table: None,
                 header: false,
                 xattr: false,
+                tags: false,
                 secattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
