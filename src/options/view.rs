@@ -20,7 +20,9 @@ use crate::output::table::{
     Columns, FlagsFormat, GroupFormat, Options as TableOptions, SizeFormat, TimeTypes, UserFormat,
 };
 use crate::output::time::TimeFormat;
-use crate::output::{Mode, TerminalWidth, View, code, details, grid, json};
+use crate::output::{
+    Mode, SpacingBetweenColumns, SpacingMode, TerminalWidth, View, code, details, grid, json,
+};
 
 use super::parser::{ColorScaleArgs, TimeArgs};
 
@@ -76,9 +78,11 @@ impl Mode {
         let grid = matches.get_flag("grid");
         let tree = matches.get_flag("tree");
         let json = matches.get_flag("json");
+        let spacing = SpacingBetweenColumns::deduce(matches);
 
         if json {
-            let json = json::Options::deduce(matches, vars, long)?;
+            let json =
+                json::Options::deduce(matches, vars, long, spacing.spaces(SpacingMode::Details))?;
             return Ok(Self::Json(json));
         }
 
@@ -88,14 +92,19 @@ impl Mode {
 
         if !(long || oneline || grid || tree) {
             if is_tty {
-                let grid = grid::Options::deduce(matches);
+                let grid = grid::Options::deduce(matches, spacing.spaces(SpacingMode::Grid));
                 return Ok(Self::Grid(grid));
             }
             return Ok(Self::Lines);
         }
 
         if long {
-            let details = details::Options::deduce_long(matches, vars, strict)?;
+            let details = details::Options::deduce_long(
+                matches,
+                vars,
+                strict,
+                spacing.spaces(SpacingMode::Details),
+            )?;
 
             if grid {
                 let across = matches.get_flag("across");
@@ -121,7 +130,7 @@ impl Mode {
             return Ok(Self::Lines);
         }
 
-        let grid = grid::Options::deduce(matches);
+        let grid = grid::Options::deduce(matches, spacing.spaces(SpacingMode::Grid));
         Ok(Self::Grid(grid))
     }
 
@@ -166,17 +175,23 @@ impl Mode {
 }
 
 impl grid::Options {
-    fn deduce(matches: &ArgMatches) -> Self {
+    fn deduce(matches: &ArgMatches, spaces: usize) -> Self {
         grid::Options {
             across: matches.get_flag("across"),
+            spaces,
         }
     }
 }
 
 impl json::Options {
-    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, long: bool) -> Result<Self, OptionsError> {
+    fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        long: bool,
+        spaces: usize,
+    ) -> Result<Self, OptionsError> {
         let details = if long {
-            Some(details::Options::deduce_json(matches, vars)?)
+            Some(details::Options::deduce_json(matches, vars, spaces)?)
         } else {
             None
         };
@@ -198,9 +213,13 @@ impl details::Options {
         }
     }
 
-    fn deduce_json<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<Self, OptionsError> {
+    fn deduce_json<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        spaces: usize,
+    ) -> Result<Self, OptionsError> {
         Ok(details::Options {
-            table: Some(TableOptions::deduce(matches, vars)?),
+            table: Some(TableOptions::deduce(matches, vars, spaces)?),
             header: false,
             xattr: xattr::ENABLED && matches.get_flag("extended"),
             secattr: xattr::ENABLED && matches.get_flag("security-context"),
@@ -214,6 +233,7 @@ impl details::Options {
         matches: &ArgMatches,
         vars: &V,
         strict: bool,
+        spaces: usize,
     ) -> Result<Self, OptionsError> {
         if strict {
             if matches.get_flag("across") && !matches.get_flag("grid") {
@@ -224,7 +244,7 @@ impl details::Options {
         }
 
         Ok(details::Options {
-            table: Some(TableOptions::deduce(matches, vars)?),
+            table: Some(TableOptions::deduce(matches, vars, spaces)?),
             header: matches.get_flag("header"),
             xattr: xattr::ENABLED && matches.get_flag("extended"),
             secattr: xattr::ENABLED && matches.get_flag("security-context"),
@@ -286,7 +306,11 @@ impl RowThreshold {
 }
 
 impl TableOptions {
-    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<Self, OptionsError> {
+    fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        spaces: usize,
+    ) -> Result<Self, OptionsError> {
         let time_format = TimeFormat::deduce(matches, vars);
         let flags_format = FlagsFormat::deduce(vars);
         let size_format = SizeFormat::deduce(matches);
@@ -300,6 +324,7 @@ impl TableOptions {
             group_format,
             flags_format,
             columns,
+            spaces,
         })
     }
 }
@@ -915,8 +940,11 @@ mod tests {
     #[test]
     fn deduce_grid_options() {
         assert_eq!(
-            grid::Options::deduce(&mock_cli(vec!["--across"])),
-            grid::Options { across: true }
+            grid::Options::deduce(&mock_cli(vec!["--across"]), 2),
+            grid::Options {
+                across: true,
+                spaces: 2
+            }
         );
     }
 
@@ -1191,7 +1219,10 @@ mod tests {
                 false,
                 false
             ),
-            Ok(Mode::Grid(grid::Options { across: false }))
+            Ok(Mode::Grid(grid::Options {
+                across: false,
+                spaces: 2
+            }))
         );
     }
 
@@ -1204,7 +1235,10 @@ mod tests {
                 false,
                 false
             ),
-            Ok(Mode::Grid(grid::Options { across: true }))
+            Ok(Mode::Grid(grid::Options {
+                across: true,
+                spaces: 2
+            }))
         );
     }
     #[test]
@@ -1281,7 +1315,8 @@ mod tests {
             details::Options::deduce_long(
                 &mock_cli(vec!["--long", "--across"]),
                 &MockVars::default(),
-                true
+                true,
+                1
             ),
             Err(OptionsError::Useless("across", true, "long"))
         );
@@ -1293,7 +1328,8 @@ mod tests {
             details::Options::deduce_long(
                 &mock_cli(vec!["--long", "--oneline"]),
                 &MockVars::default(),
-                true
+                true,
+                1
             ),
             Err(OptionsError::Useless("one-line", true, "long"))
         );

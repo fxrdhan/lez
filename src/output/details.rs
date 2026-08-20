@@ -458,7 +458,7 @@ impl<'a> Render<'a> {
     pub fn iterate_with_table(&'a self, table: Table<'a>, rows: Vec<Row>) -> TableIter<'a> {
         TableIter {
             tree_trunk: TreeTrunk::default(),
-            total_width: table.widths().total(),
+            total_width: table.total_width(),
             table,
             inner: rows.into_iter(),
             tree_style: self.theme.ui.punctuation.unwrap_or_default(),
