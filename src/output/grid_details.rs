@@ -26,6 +26,7 @@ use crate::theme::Theme;
 #[derive(PartialEq, Eq, Debug)]
 pub struct Options {
     pub details: DetailsOptions,
+    pub across: bool,
     pub row_threshold: RowThreshold,
 }
 
@@ -70,6 +71,9 @@ pub struct Render<'a> {
 
     /// The details part of the grid-details view.
     pub details: &'a DetailsOptions,
+
+    /// Whether to sort items across rows instead of down columns.
+    pub across: bool,
 
     /// How to filter files after listing a directory. The files in this
     /// render will already have been filtered and sorted, but any directories
@@ -158,11 +162,17 @@ impl<'a> Render<'a> {
             })
             .collect();
 
+        let direction = if self.across {
+            Direction::LeftToRight
+        } else {
+            Direction::TopToBottom
+        };
+
         let grid = Grid::new(
             cells,
             GridOptions {
                 filling: Filling::Spaces(4),
-                direction: Direction::TopToBottom,
+                direction,
                 width: self.console_width,
             },
         );
