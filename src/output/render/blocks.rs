@@ -50,6 +50,8 @@ impl f::Blocksize {
             NumberPrefix::Prefixed(p, n) => (p, n),
         };
 
+        let (prefix, n) = super::size::carry_to_next_prefix(prefix, n);
+
         let symbol = prefix.symbol();
         let number = if n < 10_f64 {
             numerics.format_float(n, 1)
@@ -161,6 +163,57 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::JustBytes,
+                &NumericLocale::english()
+            )
+        );
+    }
+
+    #[test]
+    fn blocksize_binary_carries_to_next_prefix() {
+        let file = f::Blocksize::Some(1_048_575);
+        let expected = TextCell {
+            width: DisplayWidth::from(5),
+            contents: vec![Fixed(66).paint("1.0"), Fixed(77).bold().paint("Mi")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                SizeFormat::BinaryBytes,
+                &NumericLocale::english()
+            )
+        );
+    }
+
+    #[test]
+    fn blocksize_decimal_carries_to_next_prefix() {
+        let file = f::Blocksize::Some(999_999);
+        let expected = TextCell {
+            width: DisplayWidth::from(4),
+            contents: vec![Fixed(66).paint("1.0"), Fixed(77).bold().paint("M")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                SizeFormat::DecimalBytes,
+                &NumericLocale::english()
+            )
+        );
+    }
+
+    #[test]
+    fn blocksize_binary_below_boundary_is_unchanged() {
+        let file = f::Blocksize::Some(1_047_000);
+        let expected = TextCell {
+            width: DisplayWidth::from(7),
+            contents: vec![Fixed(66).paint("1,022"), Fixed(77).bold().paint("Ki")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                SizeFormat::BinaryBytes,
                 &NumericLocale::english()
             )
         );
