@@ -1,2 +1,2 @@
 bin.name = "lsr"
-args = "tests/itest/index.svg --hyperlink always"
+args = "tests/itest/index.svg --hyperlink=always"
