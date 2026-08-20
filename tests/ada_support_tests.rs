@@ -1,0 +1,163 @@
+// SPDX-FileCopyrightText: 2026 fxrdhan
+// SPDX-License-Identifier: EUPL-1.2
+
+#![allow(unused_imports, dead_code)]
+
+use std::fs::{self, File as StdFile};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+struct TempTestDir {
+    path: PathBuf,
+}
+
+impl TempTestDir {
+    fn new(prefix: &str) -> Self {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("lsr_ada_{prefix}_{}_{}", std::process::id(), nanos));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).expect("Failed to create temp test directory");
+        Self { path }
+    }
+
+    fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
+        let file_path = self.path.join(rel_path);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let mut file = StdFile::create(&file_path).unwrap();
+        file.write_all(content).unwrap();
+        file_path
+    }
+}
+
+impl Drop for TempTestDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+fn bin_path() -> PathBuf {
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    if path.ends_with("deps") {
+        path.pop();
+    }
+    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+}
+
+#[test]
+fn test_ada_icons_cli() {
+    let temp = TempTestDir::new("icons");
+    temp.create_file("main.adb", b"procedure Main is begin null; end Main;\n");
+    temp.create_file("spec.ads", b"package Spec is end Spec;\n");
+    temp.create_file("legacy.ada", b"procedure Legacy is begin null; end;\n");
+    temp.create_file("project.gpr", b"project Project is end Project;\n");
+
+    let output = Command::new(bin_path())
+        .arg("--icons=always")
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to execute lsr with icons");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let ada_glyph = '\u{e6b5}'.to_string();
+
+    assert!(stdout.contains(&ada_glyph), "Output missing Ada icon");
+    assert!(stdout.contains("main.adb"));
+    assert!(stdout.contains("spec.ads"));
+    assert!(stdout.contains("legacy.ada"));
+    assert!(stdout.contains("project.gpr"));
+}
+
+#[test]
+fn test_ada_code_summary_cli() {
+    let temp = TempTestDir::new("code");
+    temp.create_file(
+        "main.adb",
+        b"-- Body implementation\nwith Ada.Text_IO;\n\nprocedure Main is\nbegin\n    Ada.Text_IO.Put_Line(\"Hello\");\nend Main;\n",
+    );
+    temp.create_file(
+        "spec.ads",
+        b"-- Package specification\npackage Spec is\n    function Get_Val return Integer;\nend Spec;\n",
+    );
+    temp.create_file(
+        "build.gpr",
+        b"-- GNAT Project\nproject Build is\n    for Source_Dirs use (\"src\");\nend Build;\n",
+    );
+
+    let output = Command::new(bin_path())
+        .arg("--code")
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to execute lsr --code");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("Ada"),
+        "Output missing Ada language in --code summary: {}",
+        stdout
+    );
+    // Should show 3 files counted under Ada
+    assert!(
+        stdout.contains('3'),
+        "Output should show 3 files counted: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_ada_code_summary_with_icons_cli() {
+    let temp = TempTestDir::new("code_icons");
+    temp.create_file(
+        "example.adb",
+        b"procedure Example is\nbegin\n    null;\nend Example;\n",
+    );
+
+    let output = Command::new(bin_path())
+        .arg("--code")
+        .arg("--icons=always")
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to execute lsr --code --icons=always");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let ada_glyph = '\u{e6b5}'.to_string();
+    assert!(
+        stdout.contains(&ada_glyph),
+        "Output missing Ada icon in --code --icons summary: {}",
+        stdout
+    );
+    assert!(stdout.contains("Ada"));
+}
+
+#[test]
+fn test_ada_comment_counting_edge_cases() {
+    let temp = TempTestDir::new("edge_cases");
+    // String with comment marker, trailing comment, empty lines
+    let content = b"-- First comment line\n-- Second comment line\nwith Ada.Text_IO;\n\nprocedure Edge is\n   S : String := \"-- not a comment\";\nbegin\n   Ada.Text_IO.Put_Line (S); -- trailing comment\nend Edge;\n";
+    temp.create_file("edge.adb", content);
+
+    let output = Command::new(bin_path())
+        .arg("--code")
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to execute lsr --code");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("Ada"));
+}
