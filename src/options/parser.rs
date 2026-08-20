@@ -6,12 +6,28 @@
 // SPDX-License-Identifier: MIT
 use std::ffi::OsString;
 
-use clap::{Error, ValueEnum, arg, builder::PossibleValue, value_parser};
+use clap::{
+    Error, ValueEnum, arg,
+    builder::{
+        PossibleValue,
+        styling::{AnsiColor, Effects, Styles},
+    },
+    value_parser,
+};
 
 use crate::{
     fs::filter::{SortCase, SortField},
     output::{file_name::Absolute, time::TimeFormat},
 };
+
+const HELP_STYLES: Styles = Styles::styled()
+    .header(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
+    .usage(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
+    .literal(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
+    .placeholder(AnsiColor::Cyan.on_default())
+    .error(AnsiColor::BrightRed.on_default().effects(Effects::BOLD))
+    .valid(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
+    .invalid(AnsiColor::Yellow.on_default().effects(Effects::BOLD));
 
 const SORT_FIELDS_HELP: &str = "[default: name] [possible values:
   name, Name, .name, .Name, ext, ext, created,
@@ -32,6 +48,7 @@ pub fn get_command() -> clap::Command {
         .disable_help_flag(true)
         .disable_version_flag(true)
         .args_override_self(true)
+        .styles(HELP_STYLES)
 
         .arg(arg!([FILE]...).value_parser(clap::value_parser!(OsString)).hide_short_help(true))
 
@@ -512,5 +529,49 @@ pub mod test {
                 .collect::<Vec<_>>(),
             ["path1"]
         );
+    }
+
+    #[test]
+    fn help_uses_cargo_style_colors() {
+        let command = get_command();
+        let styles = command.get_styles();
+        assert_eq!(
+            styles.get_header(),
+            &AnsiColor::BrightGreen.on_default().effects(Effects::BOLD)
+        );
+        assert_eq!(
+            styles.get_usage(),
+            &AnsiColor::BrightGreen.on_default().effects(Effects::BOLD)
+        );
+        assert_eq!(
+            styles.get_literal(),
+            &AnsiColor::BrightCyan.on_default().effects(Effects::BOLD)
+        );
+        assert_eq!(styles.get_placeholder(), &AnsiColor::Cyan.on_default());
+        assert_eq!(
+            styles.get_error(),
+            &AnsiColor::BrightRed.on_default().effects(Effects::BOLD)
+        );
+        assert_eq!(
+            styles.get_valid(),
+            &AnsiColor::BrightCyan.on_default().effects(Effects::BOLD)
+        );
+        assert_eq!(
+            styles.get_invalid(),
+            &AnsiColor::Yellow.on_default().effects(Effects::BOLD)
+        );
+    }
+
+    #[test]
+    fn help_renders_correctly() {
+        let mut command = get_command();
+        let help_output = command.render_help().to_string();
+        assert!(help_output.contains("Usage:"));
+        assert!(help_output.contains("META OPTIONS"));
+        assert!(help_output.contains("LAYOUT OPTIONS"));
+        assert!(help_output.contains("DISPLAY OPTIONS"));
+        assert!(help_output.contains("FILTERING OPTIONS"));
+        assert!(help_output.contains("SORTING OPTIONS"));
+        assert!(help_output.contains("LONG VIEW OPTIONS"));
     }
 }
