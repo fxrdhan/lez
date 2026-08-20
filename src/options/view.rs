@@ -125,7 +125,6 @@ impl Mode {
             "links",
             "header",
             "blocksize",
-            "time",
             "group",
             "numeric",
             "mounts",
@@ -134,6 +133,12 @@ impl Mode {
             if matches.contains_id(flag) {
                 return Err(OptionsError::Useless(flag, false, "long"));
             }
+        }
+
+        if let Some(word) = matches.get_one::<TimeArgs>("time")
+            && *word != TimeArgs::Default
+        {
+            return Err(OptionsError::Useless("time", false, "long"));
         }
 
         if matches.get_flag("git") && !matches.get_flag("no-git") {
@@ -480,7 +485,18 @@ impl TimeTypes {
                 created: false,
             }
         } else if let Some(word) = possible_word {
-            if modified {
+            if *word == TimeArgs::Default {
+                if modified || changed || accessed || created {
+                    Self {
+                        modified,
+                        changed,
+                        accessed,
+                        created,
+                    }
+                } else {
+                    Self::default()
+                }
+            } else if modified {
                 return Err(OptionsError::Useless("modified", true, "time"));
             } else if changed {
                 return Err(OptionsError::Useless("changed", true, "time"));
@@ -591,7 +607,7 @@ mod tests {
     #[test]
     fn deduce_time_types_modified_word() {
         assert_eq!(
-            TimeTypes::deduce(&mock_cli(vec!["--time", "modified"])),
+            TimeTypes::deduce(&mock_cli(vec!["--time=modified"])),
             Ok(TimeTypes {
                 modified: true,
                 ..TimeTypes::default()
@@ -602,7 +618,7 @@ mod tests {
     #[test]
     fn deduce_time_types_accessed_word() {
         assert_eq!(
-            TimeTypes::deduce(&mock_cli(vec!["--time", "accessed"])),
+            TimeTypes::deduce(&mock_cli(vec!["--time=accessed"])),
             Ok(TimeTypes {
                 accessed: true,
                 modified: false,
@@ -614,7 +630,7 @@ mod tests {
     #[test]
     fn deduce_time_types_changed_word() {
         assert_eq!(
-            TimeTypes::deduce(&mock_cli(vec!["--time", "changed"])),
+            TimeTypes::deduce(&mock_cli(vec!["--time=changed"])),
             Ok(TimeTypes {
                 modified: false,
                 changed: true,
@@ -626,10 +642,54 @@ mod tests {
     #[test]
     fn deduce_time_types_created_word() {
         assert_eq!(
-            TimeTypes::deduce(&mock_cli(vec!["--time", "created"])),
+            TimeTypes::deduce(&mock_cli(vec!["--time=created"])),
             Ok(TimeTypes {
                 modified: false,
                 created: true,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_bare_time_flag() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["-t"])),
+            Ok(TimeTypes::default())
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_bare_time_flag_with_accessed() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["-t", "-u"])),
+            Ok(TimeTypes {
+                accessed: true,
+                modified: false,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_bare_time_flag_with_changed() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["-t", "--changed"])),
+            Ok(TimeTypes {
+                changed: true,
+                modified: false,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_bare_time_flag_with_created() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["-t", "-U"])),
+            Ok(TimeTypes {
+                created: true,
+                modified: false,
                 ..TimeTypes::default()
             })
         );

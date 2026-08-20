@@ -63,7 +63,7 @@ When used without a value, defaults to '`on`'.
 '`follow`': Show absolute paths and resolve symbolic links to their targets.
 '`off`': Show relative paths (default behavior).
 
-`-F`, `--classify=WHEN`
+`-F`, `--classify[=WHEN]`
 : Display file kind indicators next to file names.
 
 Valid settings are ‘`always`’, ‘`automatic`’ (or ‘`auto`’ for short), and ‘`never`’.

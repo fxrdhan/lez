@@ -91,7 +91,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **-T**, **--tree**: recurse into directories as a tree
 - **--code[=MODE]**: print lines-of-code summary by language (Odin, Rust, C/C++, Python, Go, etc.)
 - **-x**, **--across**: sort the grid across, rather than downwards
-- **-F**, **--classify=(when)**: display type indicator by file names (always, auto, never)
+- **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
 - **--colo[u]r=(when)**: when to use terminal colours (always, auto, never)
 - **--colo[u]r-scale=(field)**: highlight levels of `field` distinctly (all, age, size)
 - **--color-scale-mode=(mode)**: use gradient or fixed colors in --color-scale. valid options are `fixed` or `gradient`

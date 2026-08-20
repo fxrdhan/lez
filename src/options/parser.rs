@@ -60,8 +60,9 @@ pub fn get_command() -> clap::Command {
             .value_parser(value_parser!(usize)))
 
         .next_help_heading("DISPLAY OPTIONS")
-        .arg(arg!(-F --classify <WHEN> "display type indicator by file names")
+        .arg(arg!(-F --classify [WHEN] "display type indicator by file names")
             .num_args(0..=1)
+            .require_equals(true)
             .value_parser(value_parser!(ShowWhen))
             .default_missing_value("auto"))
         .arg(arg!(-X --dereference  "dereference symbolic links when displaying information"))
@@ -142,9 +143,11 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-g --group "list each file's group"))
         .arg(arg!(--"smart-group" "only show group if it has a different name from owner"))
         .arg(arg!(-n --numeric "show user and group as their numeric IDs"))
-        .arg(arg!(-t --time <FIELD>).help(format!("which timestamp field to show {TIME_FIELDS_HELP}"))
+        .arg(arg!(-t --time [FIELD]).help(format!("which timestamp field to show {TIME_FIELDS_HELP}"))
+            .num_args(0..=1)
+            .require_equals(true)
             .value_parser(value_parser!(TimeArgs))
-            .conflicts_with_all(["modified", "accessed", "changed", "created"])
+            .default_missing_value("default")
             .hide_possible_values(true))
         .arg(arg!(-m --modified "show the modified timestamp field (replace default field, combinable)"))
         .arg(arg!(-u --accessed "show the accessed timestamp field (replace default field, combinable)"))
@@ -182,14 +185,11 @@ impl ValueEnum for ShowWhen {
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
-        Some(
-            match self {
-                Self::Always => "always",
-                Self::Auto => "auto",
-                Self::Never => "never",
-            }
-            .into(),
-        )
+        Some(match self {
+            Self::Always => PossibleValue::new("always"),
+            Self::Auto => PossibleValue::new("auto").alias("automatic"),
+            Self::Never => PossibleValue::new("never"),
+        })
     }
 
     fn from_str(s: &str, _ignore_case: bool) -> Result<Self, String> {
@@ -285,11 +285,18 @@ pub enum TimeArgs {
     Changed,
     Accessed,
     Created,
+    Default,
 }
 
 impl ValueEnum for TimeArgs {
     fn value_variants<'a>() -> &'a [Self] {
-        &[Self::Modified, Self::Changed, Self::Accessed, Self::Created]
+        &[
+            Self::Modified,
+            Self::Changed,
+            Self::Accessed,
+            Self::Created,
+            Self::Default,
+        ]
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
@@ -298,6 +305,7 @@ impl ValueEnum for TimeArgs {
             Self::Changed => PossibleValue::new("changed").alias("ch"),
             Self::Accessed => PossibleValue::new("accessed").alias("acc"),
             Self::Created => PossibleValue::new("created").alias("cr"),
+            Self::Default => PossibleValue::new("default").hide(true),
         })
     }
 }
@@ -372,6 +380,137 @@ pub mod test {
                 .map(OsString::as_os_str)
                 .collect::<Vec<_>>(),
             ["file1", "file2"]
+        );
+    }
+
+    #[test]
+    fn classify_does_not_consume_positional_files() {
+        let cli = mock_cli(vec!["-alF", "."]);
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["."]
+        );
+        assert_eq!(cli.get_one::<ShowWhen>("classify"), Some(&ShowWhen::Auto));
+
+        let cli_multiple = mock_cli(vec!["-F", "path1", "path2"]);
+        assert_eq!(
+            cli_multiple
+                .get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["path1", "path2"]
+        );
+        assert_eq!(
+            cli_multiple.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Auto)
+        );
+
+        let cli_long = mock_cli(vec!["--classify", "path1", "path2"]);
+        assert_eq!(
+            cli_long
+                .get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["path1", "path2"]
+        );
+        assert_eq!(
+            cli_long.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Auto)
+        );
+    }
+
+    #[test]
+    fn classify_does_not_consume_keyword_named_files() {
+        let cli = mock_cli(vec!["-F", "auto", "never", "always"]);
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["auto", "never", "always"]
+        );
+        assert_eq!(cli.get_one::<ShowWhen>("classify"), Some(&ShowWhen::Auto));
+    }
+
+    #[test]
+    fn classify_accepts_explicit_values() {
+        let cli_always = mock_cli(vec!["--classify=always", "."]);
+        assert_eq!(
+            cli_always.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Always)
+        );
+        assert_eq!(
+            cli_always
+                .get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["."]
+        );
+
+        let cli_never = mock_cli(vec!["--classify=never", "."]);
+        assert_eq!(
+            cli_never.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Never)
+        );
+
+        let cli_auto = mock_cli(vec!["--classify=auto", "."]);
+        assert_eq!(
+            cli_auto.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Auto)
+        );
+
+        let cli_short_always = mock_cli(vec!["-F=always", "."]);
+        assert_eq!(
+            cli_short_always.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Always)
+        );
+
+        let cli_short_never = mock_cli(vec!["-F=never", "."]);
+        assert_eq!(
+            cli_short_never.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Never)
+        );
+
+        let cli_short_auto = mock_cli(vec!["-F=auto", "."]);
+        assert_eq!(
+            cli_short_auto.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Auto)
+        );
+    }
+
+    #[test]
+    fn classify_short_flag_clustering() {
+        let cli = mock_cli(vec!["-Fa", "path1"]);
+        assert_eq!(cli.get_one::<ShowWhen>("classify"), Some(&ShowWhen::Auto));
+        assert_eq!(cli.get_count("all"), 1);
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["path1"]
+        );
+
+        let cli_laf = mock_cli(vec!["-laF", "path1"]);
+        assert_eq!(
+            cli_laf.get_one::<ShowWhen>("classify"),
+            Some(&ShowWhen::Auto)
+        );
+        assert!(cli_laf.get_flag("long"));
+        assert_eq!(cli_laf.get_count("all"), 1);
+        assert_eq!(
+            cli_laf
+                .get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["path1"]
         );
     }
 }
