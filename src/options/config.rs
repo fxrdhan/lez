@@ -221,14 +221,14 @@ impl FromOverride<StyleOverride> for Style {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct IconStyleOverride {
-    pub glyph: Option<char>,
+    pub glyph: Option<String>,
     pub style: Option<StyleOverride>,
 }
 
-impl FromOverride<char> for char {
-    fn from(value: char, _default: char) -> char {
+impl FromOverride<String> for String {
+    fn from(value: String, _default: String) -> String {
         value
     }
 }
@@ -242,7 +242,7 @@ impl FromOverride<IconStyleOverride> for IconStyle {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FileNameStyleOverride {
     pub icon: Option<IconStyleOverride>,
     pub filename: Option<StyleOverride>,
