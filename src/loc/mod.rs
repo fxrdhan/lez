@@ -431,6 +431,7 @@ languages! {
     ASSEMBLY   = ("Assembly",     &[";"],               NO_BLOCK);
     PROTOBUF   = ("Protocol Buffers", C_LINE,           C_BLOCK);
     ODIN       = ("Odin",         C_LINE,               C_BLOCK);
+    JANET      = ("Janet",        HASH_LINE,            NO_BLOCK);
 }
 
 const NO_LINE: &[&str] = &[];
@@ -529,6 +530,8 @@ static BY_EXTENSION: Map<&'static str, &'static Language> = phf_map! {
     "asm"   => &ASSEMBLY,
     "proto" => &PROTOBUF,
     "odin"  => &ODIN,
+    "janet" => &JANET,
+    "jdn"   => &JANET,
 };
 
 #[cfg(test)]
@@ -670,5 +673,61 @@ mod test {
     #[test]
     fn odin_empty_file() {
         assert_eq!(count("", &ODIN), LocCounts::default());
+    }
+
+    #[test]
+    fn counts_janet_code_and_comments() {
+        let source = "# Janet script\n(defn hello [name]\n  # print greeting\n  (print (string/format \"Hello, %s!\" name)))\n\n(hello \"world\")\n";
+        let c = count(source, &JANET);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 6,
+                code: 3,
+                comments: 2,
+                blanks: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn janet_comment_token_inside_string_is_code() {
+        let source = "(def msg \"# not a comment\")\n";
+        let c = count(source, &JANET);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 1,
+                code: 1,
+                comments: 0,
+                blanks: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn janet_empty_file() {
+        assert_eq!(count("", &JANET), LocCounts::default());
+    }
+
+    #[test]
+    fn janet_blank_lines() {
+        let source = "\n\n   \n\t\n";
+        let c = count(source, &JANET);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 4,
+                code: 0,
+                comments: 0,
+                blanks: 4,
+            }
+        );
+    }
+
+    #[test]
+    fn detects_janet_by_extension() {
+        assert_eq!(language_for("main.janet", Some("janet")), Some(&JANET));
+        assert_eq!(language_for("project.jdn", Some("jdn")), Some(&JANET));
     }
 }
