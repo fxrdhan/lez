@@ -261,7 +261,7 @@ fn test_smart_group_with_header_alignment() {
         .output()
         .expect("Failed");
     assert!(out_no_sg.status.success());
-    let stdout_no_sg = String::from_utf8_lossy(&out_no_sg.stdout);
+    let _stdout_no_sg = String::from_utf8_lossy(&out_no_sg.stdout);
 
     // Case 2: -l -h --smart-group
     let out_sg = Command::new(bin_path())
@@ -276,18 +276,18 @@ fn test_smart_group_with_header_alignment() {
         .output()
         .expect("Failed");
     assert!(out_sg.status.success());
-    let stdout_sg = String::from_utf8_lossy(&out_sg.stdout);
+    let _stdout_sg = String::from_utf8_lossy(&out_sg.stdout);
 
     // Header in smart-group mode must contain "Group"
     #[cfg(unix)]
     {
         assert!(
-            stdout_sg.contains("Group"),
+            _stdout_sg.contains("Group"),
             "Header must contain 'Group' when --smart-group is active:\n{}",
-            stdout_sg
+            _stdout_sg
         );
         // Header without -g / --smart-group must NOT contain "Group"
-        let first_line_no_sg = stdout_no_sg.lines().next().unwrap_or_default();
+        let first_line_no_sg = _stdout_no_sg.lines().next().unwrap_or_default();
         assert!(
             !first_line_no_sg.contains("Group"),
             "Plain -l --header must NOT contain 'Group' header column:\n{}",
@@ -295,7 +295,7 @@ fn test_smart_group_with_header_alignment() {
         );
 
         // Verify column count alignment between header and data rows
-        let lines: Vec<&str> = stdout_sg.lines().collect();
+        let lines: Vec<&str> = _stdout_sg.lines().collect();
         assert!(lines.len() >= 4, "Expected at least header + 3 files");
         let header_cols: Vec<&str> = lines[0].split_whitespace().collect();
         assert!(
@@ -379,11 +379,11 @@ fn test_smart_group_json_consistency() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let parsed: serde_json::Value =
         serde_json::from_str(&stdout).expect("Output must be valid JSON");
-    let map = parsed.as_object().expect("Expected JSON map");
+    let _map = parsed.as_object().expect("Expected JSON map");
 
     #[cfg(unix)]
     {
-        for (filename, val) in map {
+        for (filename, val) in _map {
             let meta = val.as_object().expect("File metadata object");
             assert!(
                 meta.contains_key("Group"),
@@ -455,13 +455,13 @@ fn test_smart_group_strict_mode_env() {
 #[test]
 fn test_smart_group_symlinks_and_dereference() {
     let temp = TempTestDir::new("symlinks");
-    let target = temp.create_file("target.txt", b"target payload");
+    let _target = temp.create_file("target.txt", b"target payload");
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::symlink;
         let link_path = temp.path.join("link_to_target");
-        let _ = symlink(&target, &link_path);
+        let _ = symlink(&_target, &link_path);
 
         // Run with -l --smart-group
         let out_sym = Command::new(bin_path())
