@@ -35,7 +35,7 @@ const SORT_FIELDS_HELP: &str = "[default: name] [possible values:
   size, inode, type, none]";
 
 const TIME_FIELDS_HELP: &str = "[possible values:
-  mod|modified, acc|accessed, ch|changed, cr|created]";
+  mod|m|r|modified, acc|accessed, ch|changed, cr|created]";
 
 const FORMAT_STYLE_FIELDS_HELP: &str = "[possible values:
   default, iso, long-iso, full-iso, relative, relative-recent, \"+<CUSTOM_FORMAT>\"]";
@@ -330,7 +330,7 @@ impl ValueEnum for TimeArgs {
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
         Some(match self {
-            Self::Modified => PossibleValue::new("modified").alias("mod"),
+            Self::Modified => PossibleValue::new("modified").aliases(vec!["mod", "m", "r"]),
             Self::Changed => PossibleValue::new("changed").alias("ch"),
             Self::Accessed => PossibleValue::new("accessed").alias("acc"),
             Self::Created => PossibleValue::new("created").alias("cr"),
@@ -689,5 +689,49 @@ pub mod test {
                 .map(String::as_str),
             Some("*.txt|*.md")
         );
+    }
+
+    #[test]
+    fn time_aliases_parsed_correctly() {
+        assert_eq!(
+            mock_cli(vec!["--time=modified"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["--time=mod"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["--time=m"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["--time=r"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["-t=modified"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["-t=mod"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["-t=m"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["-t=r"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+    }
+
+    #[test]
+    fn time_short_flag_clustering_ltr() {
+        let cli = mock_cli(vec!["-ltr"]);
+        assert!(cli.get_flag("long"));
+        assert_eq!(cli.get_one::<TimeArgs>("time"), Some(&TimeArgs::Default));
+        assert!(cli.get_flag("reverse"));
     }
 }

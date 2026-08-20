@@ -274,7 +274,7 @@ These options are available when running with `--long` (`-l`):
 `-t`, `--time=WORD`
 : Which timestamp field to list.
 
-: Valid timestamp fields are ‘`modified`’, ‘`changed`’, ‘`accessed`’, and ‘`created`’.
+: Valid timestamp fields are ‘`modified`’ (aliases: ‘`mod`’, ‘`m`’, ‘`r`’), ‘`changed`’ (alias: ‘`ch`’), ‘`accessed`’ (alias: ‘`acc`’), and ‘`created`’ (alias: ‘`cr`’).
 
 `--time-style=STYLE`
 : How to format timestamps.

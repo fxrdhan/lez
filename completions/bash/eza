@@ -34,7 +34,7 @@ _eza() {
             ;;
 
         -t|--time)
-            mapfile -t COMPREPLY < <(compgen -W 'modified changed accessed created --' -- "$cur")
+            mapfile -t COMPREPLY < <(compgen -W 'modified mod m r changed ch accessed acc created cr --' -- "$cur")
             return
             ;;
 
