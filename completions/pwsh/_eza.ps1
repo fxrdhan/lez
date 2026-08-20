@@ -204,6 +204,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('-I'                         ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--ignore-glob'              ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--git-ignore'               ,'git-ignore'          , [CompletionResultType]::ParameterName, 'ignore files mentioned in ''.gitignore''')
+            [CompletionResult]::new('--print-total'              ,'print-total'         , [CompletionResultType]::ParameterName, 'display total number of entries')
             break
         }
         

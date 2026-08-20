@@ -296,6 +296,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `--stdin`
 : When you wish to pipe directories to eza/read from stdin. Separate one per line or define custom separation char in `EZA_STDIN_SEPARATOR` env variable.
 
+`--print-total`
+: Print the total number of files and directories listed at the bottom of the output.
+
 `-@`, `--extended`
 : List each file’s extended attributes and sizes.
 
