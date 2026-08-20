@@ -4,6 +4,10 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::LazyLock;
+
 use nu_ansi_term::Style;
 use phf::{Map, phf_map};
 
@@ -40,14 +44,27 @@ impl Icons {
     const FOLDER: char          = '\u{e5ff}';  // 
     const FOLDER_BUILD: char    = '\u{f19fc}'; // 󱧼
     const FOLDER_CONFIG: char   = '\u{e5fc}';  // 
+    const FOLDER_CONTACTS: char = '\u{f024c}'; // 󰉌
+    const FOLDER_DESKTOP: char  = '\u{f108}';  // 
+    const FOLDER_DOCUMENTS: char= '\u{f0c82}'; // 󰲂
+    const FOLDER_DOWNLOADS: char= '\u{f024d}'; // 󰉍
     const FOLDER_EXERCISM: char = '\u{ebe5}';  // 
+    const FOLDER_FAVORITES: char= '\u{f069d}'; // 󰚝
     const FOLDER_GIT: char      = '\u{e5fb}';  // 
     const FOLDER_GITHUB: char   = '\u{e5fd}';  // 
     const FOLDER_HIDDEN: char   = '\u{f179e}'; // 󱞞
+    const FOLDER_HOME: char     = '\u{f10b5}'; // 󱂵
     const FOLDER_KEY: char      = '\u{f08ac}'; // 󰢬
+    const FOLDER_MAIL: char     = '\u{f01f0}'; // 󰇰
+    const FOLDER_MOVIES: char   = '\u{f0fce}'; // 󰿎
+    const FOLDER_MUSIC: char    = '\u{f1359}'; // 󱍙
     const FOLDER_NPM: char      = '\u{e5fa}';  // 
     const FOLDER_OCAML: char    = '\u{e67a}';  // 
     const FOLDER_OPEN: char     = '\u{f115}';  // 
+    const FOLDER_PICTURES: char = '\u{f024f}'; // 󰉏
+    const FOLDER_SRC: char      = '\u{f08de}'; // 󰣞
+    const FOLDER_TRASH: char    = '\u{f1f8}';  // 
+    const FOLDER_VIDEOS: char   = '\u{f03d}';  // 
     const FILE_UNKNOW: char     = '\u{f086f}'; // 󰡯
     const FONT: char            = '\u{f031}';  // 
     const FREECAD: char         = '\u{f336}';  // 
@@ -164,46 +181,46 @@ impl Icons {
 /// Mapping from full filenames to directory icon. This mapping should contain
 /// all the directories that have a custom icon.
 const DIRECTORY_ICONS: Map<&'static str, char> = phf_map! {
-    ".config"             => Icons::FOLDER_CONFIG,  // 
-    ".exercism"           => Icons::FOLDER_EXERCISM,// 
-    ".git"                => Icons::FOLDER_GIT,     // 
-    ".github"             => Icons::FOLDER_GITHUB,  // 
-    ".npm"                => Icons::FOLDER_NPM,     // 
-    ".opam"               => Icons::FOLDER_OCAML,   // 
-    ".ssh"                => Icons::FOLDER_KEY,     // 󰢬
-    ".Trash"              => '\u{f1f8}',            // 
-    "build"               => Icons::FOLDER_BUILD,   // 󱧼
-    "config"              => Icons::FOLDER_CONFIG,  // 
-    "Contacts"            => '\u{f024c}',           // 󰉌
-    "cron.d"              => Icons::FOLDER_CONFIG,  // 
-    "cron.daily"          => Icons::FOLDER_CONFIG,  // 
-    "cron.hourly"         => Icons::FOLDER_CONFIG,  // 
-    "cron.minutely"       => Icons::FOLDER_CONFIG,  // 
-    "cron.monthly"        => Icons::FOLDER_CONFIG,  // 
-    "cron.weekly"         => Icons::FOLDER_CONFIG,  // 
-    "Desktop"             => '\u{f108}',            // 
-    "Documents"           => '\u{f0c82}',           // 󰲂
-    "Downloads"           => '\u{f024d}',           // 󰉍
-    "etc"                 => Icons::FOLDER_CONFIG,  // 
-    "Favorites"           => '\u{f069d}',           // 󰚝
-    "hidden"              => Icons::FOLDER_HIDDEN,  // 󱞞
-    "home"                => '\u{f10b5}',           // 󱂵
-    "include"             => Icons::FOLDER_CONFIG,  // 
-    "Mail"                => '\u{f01f0}',           // 󰇰
-    "Movies"              => '\u{f0fce}',           // 󰿎
-    "Music"               => '\u{f1359}',           // 󱍙
-    "node_modules"        => Icons::FOLDER_NPM,     // 
-    "npm_cache"           => Icons::FOLDER_NPM,     // 
-    "pacman.d"            => Icons::FOLDER_CONFIG,  // 
-    "pam.d"               => Icons::FOLDER_KEY,     // 󰢬
-    "Pictures"            => '\u{f024f}',           // 󰉏
-    "src"                 => '\u{f08de}',           // 󰣞
-    "ssh"                 => Icons::FOLDER_KEY,     // 󰢬
-    "sudoers.d"           => Icons::FOLDER_KEY,     // 󰢬
-    "Videos"              => '\u{f03d}',            // 
-    "xbps.d"              => Icons::FOLDER_CONFIG,  // 
-    "xorg.conf.d"         => Icons::FOLDER_CONFIG,  // 
-    "cabal"               => Icons::LANG_HASKELL,   // 
+    ".config"             => Icons::FOLDER_CONFIG,    // 
+    ".exercism"           => Icons::FOLDER_EXERCISM,  // 
+    ".git"                => Icons::FOLDER_GIT,       // 
+    ".github"             => Icons::FOLDER_GITHUB,    // 
+    ".npm"                => Icons::FOLDER_NPM,       // 
+    ".opam"               => Icons::FOLDER_OCAML,     // 
+    ".ssh"                => Icons::FOLDER_KEY,       // 󰢬
+    ".Trash"              => Icons::FOLDER_TRASH,     // 
+    "build"               => Icons::FOLDER_BUILD,     // 󱧼
+    "config"              => Icons::FOLDER_CONFIG,    // 
+    "Contacts"            => Icons::FOLDER_CONTACTS,  // 󰉌
+    "cron.d"              => Icons::FOLDER_CONFIG,    // 
+    "cron.daily"          => Icons::FOLDER_CONFIG,    // 
+    "cron.hourly"         => Icons::FOLDER_CONFIG,    // 
+    "cron.minutely"       => Icons::FOLDER_CONFIG,    // 
+    "cron.monthly"        => Icons::FOLDER_CONFIG,    // 
+    "cron.weekly"         => Icons::FOLDER_CONFIG,    // 
+    "Desktop"             => Icons::FOLDER_DESKTOP,   // 
+    "Documents"           => Icons::FOLDER_DOCUMENTS, // 󰲂
+    "Downloads"           => Icons::FOLDER_DOWNLOADS, // 󰉍
+    "etc"                 => Icons::FOLDER_CONFIG,    // 
+    "Favorites"           => Icons::FOLDER_FAVORITES, // 󰚝
+    "hidden"              => Icons::FOLDER_HIDDEN,    // 󱞞
+    "home"                => Icons::FOLDER_HOME,      // 󱂵
+    "include"             => Icons::FOLDER_CONFIG,    // 
+    "Mail"                => Icons::FOLDER_MAIL,      // 󰇰
+    "Movies"              => Icons::FOLDER_MOVIES,    // 󰿎
+    "Music"               => Icons::FOLDER_MUSIC,     // 󱍙
+    "node_modules"        => Icons::FOLDER_NPM,       // 
+    "npm_cache"           => Icons::FOLDER_NPM,       // 
+    "pacman.d"            => Icons::FOLDER_CONFIG,    // 
+    "pam.d"               => Icons::FOLDER_KEY,       // 󰢬
+    "Pictures"            => Icons::FOLDER_PICTURES,  // 󰉏
+    "src"                 => Icons::FOLDER_SRC,       // 󰣞
+    "ssh"                 => Icons::FOLDER_KEY,       // 󰢬
+    "sudoers.d"           => Icons::FOLDER_KEY,       // 󰢬
+    "Videos"              => Icons::FOLDER_VIDEOS,    // 
+    "xbps.d"              => Icons::FOLDER_CONFIG,    // 
+    "xorg.conf.d"         => Icons::FOLDER_CONFIG,    // 
+    "cabal"               => Icons::LANG_HASKELL,     // 
 };
 
 /// Mapping from full filenames to file icon. This mapping should also contain
@@ -1145,17 +1162,61 @@ pub fn icon_for_name_ext(name: &str, ext: Option<&str>) -> char {
     }
 }
 
+static SPECIAL_DIRS: LazyLock<HashMap<PathBuf, char>> = LazyLock::new(load_special_dirs);
+
+/// Builds up the cache of special directories, mapping the directories it finds to the associated
+/// icons.
+fn load_special_dirs() -> HashMap<PathBuf, char> {
+    let mut map = HashMap::new();
+
+    // NOTE: maybe we should not use this for Windows, since AppData\Roaming is not really
+    // a config directory (Windows does not split the config and data directories like this)
+    if let Some(p) = dirs::config_dir() {
+        map.insert(p, Icons::FOLDER_CONFIG);
+    }
+    if let Some(p) = dirs::desktop_dir() {
+        map.insert(p, Icons::FOLDER_DESKTOP);
+    }
+    if let Some(p) = dirs::document_dir() {
+        map.insert(p, Icons::FOLDER_DOCUMENTS);
+    }
+    if let Some(p) = dirs::download_dir() {
+        map.insert(p, Icons::FOLDER_DOWNLOADS);
+    }
+    // NOTE: maybe we should make the home dir icon a profile/person icon like  (\uf415)
+    // in Windows, instead of a home icon, since that is a more common representation
+    // for Users\<User> in Windows
+    if let Some(p) = dirs::home_dir() {
+        map.insert(p, Icons::FOLDER_HOME);
+    }
+    if let Some(p) = dirs::audio_dir() {
+        map.insert(p, Icons::FOLDER_MUSIC);
+    }
+    if let Some(p) = dirs::picture_dir() {
+        map.insert(p, Icons::FOLDER_PICTURES);
+    }
+    if let Some(p) = dirs::video_dir() {
+        map.insert(p, Icons::FOLDER_VIDEOS);
+    }
+
+    map
+}
+
 /// Lookup the icon for a file based on the file's name, if the entry is a
 /// directory, or by the lowercase file extension.
 pub fn icon_for_file(file: &File<'_>) -> char {
     if file.points_to_directory() {
-        *DIRECTORY_ICONS.get(file.name.as_str()).unwrap_or_else(|| {
-            if file.is_empty_dir() {
-                &Icons::FOLDER_OPEN // 
-            } else {
-                &Icons::FOLDER // 
-            }
-        })
+        if let Some(icon) = SPECIAL_DIRS.get(&file.path) {
+            *icon
+        } else {
+            *DIRECTORY_ICONS.get(file.name.as_str()).unwrap_or_else(|| {
+                if file.is_empty_dir() {
+                    &Icons::FOLDER_OPEN // 
+                } else {
+                    &Icons::FOLDER // 
+                }
+            })
+        }
     } else if let Some(icon) = FILENAME_ICONS.get(file.name.as_str()) {
         *icon
     } else if let Some(ext) = file.ext.as_ref() {
