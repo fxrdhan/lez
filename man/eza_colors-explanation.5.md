@@ -16,7 +16,7 @@ Any mappings in the environment variables will override this default set: runnin
 You can also disable this built\-in set entirely by including a
 `reset` entry at the beginning of `EZA_COLORS`.
 So setting `EZA_COLORS="reset:*.txt=31"` will highlight only text
-files; setting `EZA_COLORS="reset"` will highlight nothing.
+files in addition to any styles in `LS_COLORS`; setting `EZA_COLORS="reset"` will highlight nothing.
 
 ## Examples
 
