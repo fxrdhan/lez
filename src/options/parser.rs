@@ -30,7 +30,7 @@ const HELP_STYLES: Styles = Styles::styled()
     .invalid(AnsiColor::Yellow.on_default().effects(Effects::BOLD));
 
 const SORT_FIELDS_HELP: &str = "[default: name] [possible values:
-  name, Name, .name, .Name, ext, ext, created,
+  name, Name, .name, .Name, ext, ext, path, Path, created,
   date, age, accessed, changed,
   size, inode, type, none]";
 
@@ -188,6 +188,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"no-user" "suppress the user field"))
         .arg(arg!(--"no-time" "suppress the time field"))
         .arg(arg!(--"no-git" "suppress Git fields (overrides --git, --git-repos, --git-repos-no-status)"))
+        .arg(arg!(--"print-total" "display total number of entries"))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -250,6 +251,8 @@ impl ValueEnum for SortField {
             Self::Name(SortCase::ABCabc),
             Self::NameMixHidden(SortCase::AaBbCc),
             Self::NameMixHidden(SortCase::ABCabc),
+            Self::Path(SortCase::AaBbCc),
+            Self::Path(SortCase::ABCabc),
             Self::Size,
             #[cfg(unix)]
             Self::BlockSize,
@@ -273,6 +276,8 @@ impl ValueEnum for SortField {
             Self::Name(SortCase::ABCabc) => PossibleValue::new("Name").alias("Filename"),
             Self::NameMixHidden(SortCase::AaBbCc) => PossibleValue::new(".name").alias(".filename"),
             Self::NameMixHidden(SortCase::ABCabc) => PossibleValue::new(".Name").alias(".Filename"),
+            Self::Path(SortCase::AaBbCc) => PossibleValue::new("path"),
+            Self::Path(SortCase::ABCabc) => PossibleValue::new("Path"),
             Self::Size => PossibleValue::new("size"),
             #[cfg(unix)]
             Self::BlockSize => PossibleValue::new("blocks").aliases(vec!["block", "blocksize"]),
@@ -349,7 +354,14 @@ impl clap::builder::TypedValueParser for TimeFormatParser {
         _arg: Option<&clap::Arg>,
         value: &std::ffi::OsStr,
     ) -> Result<Self::Value, Error> {
-        match TimeFormat::try_from_str(value.to_str().unwrap()) {
+        let s = value.to_str().ok_or_else(|| {
+            Error::raw(
+                clap::error::ErrorKind::InvalidUtf8,
+                format!("--time-style value '{value:?}' is not valid UTF-8"),
+            )
+            .with_cmd(cmd)
+        })?;
+        match TimeFormat::try_from_str(s) {
             Err(s) => Err(Error::raw(clap::error::ErrorKind::InvalidValue, s).with_cmd(cmd)),
             Ok(v) => Ok(v),
         }
@@ -615,5 +627,31 @@ pub mod test {
                 .collect::<Vec<_>>(),
             ["auto", "never", "always"]
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn time_style_rejects_non_utf8() {
+        use std::os::unix::ffi::OsStringExt;
+        let args = vec![
+            OsString::from("--time-style"),
+            OsString::from_vec(b"\xff\xfe".to_vec()),
+        ];
+        let err = mock_cli_try(args).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidUtf8);
+    }
+
+    #[test]
+    fn time_style_rejects_invalid_value() {
+        let args = vec!["--time-style", "invalid_format_name"];
+        let err = mock_cli_try(args).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[test]
+    fn time_style_rejects_empty_custom_format() {
+        let args = vec!["--time-style", "+"];
+        let err = mock_cli_try(args).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
     }
 }

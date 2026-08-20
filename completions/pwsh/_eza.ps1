@@ -5,7 +5,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
     $ArrayWhen           = @('always', 'auto', 'never')
-    $ArraySort           = @('name', 'extension', 'size', 'block', 'blocks', 'blocksize', 'type', 'created', 'modified', 'accessed', 'changed', 'inode', 'none')
+    $ArraySort           = @('name', 'Name', 'extension', 'Extension', 'path', 'Path', 'size', 'block', 'blocks', 'blocksize', 'type', 'created', 'modified', 'accessed', 'changed', 'inode', 'none')
     $ArrayColorScaleMode = @('fixed', 'gradient')
     $ArrayColorScale     = @('all', 'age', 'size')
     $ArrayAbsolute       = @('on', 'follow', 'off')
@@ -144,6 +144,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--no-git'                   ,'no-git'              , [CompletionResultType]::ParameterName, 'suppress Git status (always overrides -git, --git-repos, --git-repos-no-status)')
             [CompletionResult]::new('--git-repos'                ,'git-repos'           , [CompletionResultType]::ParameterName, 'list root of git-tree status')
             [CompletionResult]::new('--git-repos-no-status'      ,'git-repos-no-status' , [CompletionResultType]::ParameterName, 'list each git-repos branch name (much faster)')
+            [CompletionResult]::new('--print-total'              ,'print-total'         , [CompletionResultType]::ParameterName, 'display total number of entries')
 
             break
         }
@@ -203,6 +204,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('-I'                         ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--ignore-glob'              ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--git-ignore'               ,'git-ignore'          , [CompletionResultType]::ParameterName, 'ignore files mentioned in ''.gitignore''')
+            [CompletionResult]::new('--print-total'              ,'print-total'         , [CompletionResultType]::ParameterName, 'display total number of entries')
             break
         }
         

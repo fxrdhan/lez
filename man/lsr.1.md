@@ -178,7 +178,7 @@ Use this twice to also show the ‘`.`’ and ‘`..`’ directories.
 `-s`, `--sort=SORT_FIELD`
 : Which field to sort by.
 
-Valid sort fields are ‘`name`’, ‘`Name`’, ‘`extension`’, ‘`Extension`’, ‘`size`’, ‘`block`’ [Unix only], ‘`modified`’, ‘`changed`’, ‘`accessed`’, ‘`created`’, ‘`inode`’, ‘`type`’, and ‘`none`’.
+Valid sort fields are ‘`name`’, ‘`Name`’, ‘`extension`’, ‘`Extension`’, ‘`path`’, ‘`Path`’, ‘`size`’, ‘`block`’ [Unix only], ‘`modified`’, ‘`changed`’, ‘`accessed`’, ‘`created`’, ‘`inode`’, ‘`type`’, and ‘`none`’.
 
 The ‘`block`’ sort field has the aliases ‘`blocks`’ and ‘`blocksize`’.
 
@@ -302,6 +302,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 
 `--stdin`
 : When you wish to pipe directories to lsr/read from stdin. Separate one per line or define custom separation char in `LSR_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
+
+`--print-total`
+: Print the total number of files and directories listed at the bottom of the output.
 
 `-@`, `--extended`
 : List each file’s extended attributes and sizes.
