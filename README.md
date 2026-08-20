@@ -98,6 +98,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
 - **--hyperlink[=(when)]**: when to display entries as hyperlinks (always, auto, never; requires '=' if value provided)
 - **--absolute=(mode)**: display entries with their absolute path (on, follow, off)
+- **--print-total**: print the total number of files and directories listed
 - **-w**, **--width=(columns)**: set screen width in columns (clamped to `1..65535`)
 
 </details>
@@ -166,7 +167,7 @@ These options are available when running with `--long` (`-l`):
 Some of the options accept parameters:
 
 - Valid **--colo\[u\]r** options are **always**, **automatic** (or **auto** for short), and **never**.
-- Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **modified**, **name**, **Name**, **size**, **block**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, and **newest**, while its reverse has the aliases **age** and **oldest**. The **block** field has the aliases **blocks** and **blocksize**.
+- Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **modified**, **name**, **Name**, **path**, **Path**, **size**, **block**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, and **newest**, while its reverse has the aliases **age** and **oldest**. The **block** field has the aliases **blocks** and **blocksize**.
 - Valid time fields are **modified**, **changed**, **accessed**, and **created**.
 - Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, and **relative**.
 

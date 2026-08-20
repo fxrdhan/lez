@@ -66,4 +66,5 @@ export extern "eza" [
     --context(-Z)              # List each file's security context
     --smart-group              # Only show group if it has a different name from owner
     --stdin                    # When piping to eza. Read file paths from stdin
+    --print-total              # Display total number of entries
 ]

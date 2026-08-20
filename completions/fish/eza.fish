@@ -82,6 +82,8 @@ complete -c eza -s s -l sort -d "Which field to sort by" -x -a "
     newest\t'Sort by file modified time (newest first)'
     none\t'Do not sort files at all'
     oldest\t'Sort by file modified time'
+    path\t'Sort by file path'
+    Path\t'Sort by file path (uppercase first)'
     size\t'Sort by file size'
     block\t'Sort by file block size'
     blocks\t'Sort by file block size'
@@ -132,6 +134,7 @@ complete -c eza -l no-user -d "Suppress the user field"
 complete -c eza -l no-time -d "Suppress the time field"
 complete -c eza -s M -l mounts -d "Show mount details"
 complete -c eza -l stdin -d "When piping to eza. Read file names from stdin"
+complete -c eza -l print-total -d "Display total number of entries"
 
 # Optional extras
 complete -c eza -l git -d "List each file's Git status, if tracked"
