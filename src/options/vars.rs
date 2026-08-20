@@ -72,6 +72,16 @@ pub static EZA_ICONS_AUTO: &str = "EZA_ICONS_AUTO";
 
 pub static EZA_STDIN_SEPARATOR: &str = "EZA_STDIN_SEPARATOR";
 
+/// Environment variable for user home directory.
+pub static HOME: &str = "HOME";
+
+/// Environment variable for XDG configuration directory.
+pub static XDG_CONFIG_HOME: &str = "XDG_CONFIG_HOME";
+
+/// Environment variable used to override the configuration directory for lsr.
+pub static LSR_CONFIG_DIR: &str = "LSR_CONFIG_DIR";
+pub static EZA_CONFIG_DIR: &str = "EZA_CONFIG_DIR";
+
 /// Environment variable used to choose how windows attributes are displayed.
 /// Short will display a single character for each set attribute, long will
 /// display a comma separated list of descriptions.
@@ -120,6 +130,10 @@ pub mod test {
         pub luminance: OsString,
         pub icons: OsString,
         pub time: OsString,
+        pub lsr_config_dir: OsString,
+        pub eza_config_dir: OsString,
+        pub xdg_config_home: OsString,
+        pub home: OsString,
     }
 
     impl Vars for MockVars {
@@ -143,6 +157,16 @@ pub mod test {
                 "COLUMNS" if !self.columns.is_empty() => Some(self.columns.clone()),
                 "NO_COLOR" if !self.no_colors.is_empty() => Some(self.no_colors.clone()),
                 "TIME_STYLE" if !self.time.is_empty() => Some(self.time.clone()),
+                "LSR_CONFIG_DIR" if !self.lsr_config_dir.is_empty() => {
+                    Some(self.lsr_config_dir.clone())
+                }
+                "EZA_CONFIG_DIR" if !self.eza_config_dir.is_empty() => {
+                    Some(self.eza_config_dir.clone())
+                }
+                "XDG_CONFIG_HOME" if !self.xdg_config_home.is_empty() => {
+                    Some(self.xdg_config_home.clone())
+                }
+                "HOME" if !self.home.is_empty() => Some(self.home.clone()),
                 _ => None,
             }
         }
@@ -161,6 +185,10 @@ pub mod test {
                 "COLUMNS" => self.columns = value.clone(),
                 "NO_COLOR" => self.no_colors = value.clone(),
                 "TIME_STYLE" => self.time = value.clone(),
+                "LSR_CONFIG_DIR" => self.lsr_config_dir = value.clone(),
+                "EZA_CONFIG_DIR" => self.eza_config_dir = value.clone(),
+                "XDG_CONFIG_HOME" => self.xdg_config_home = value.clone(),
+                "HOME" => self.home = value.clone(),
                 _ => (),
             };
         }
@@ -174,5 +202,26 @@ pub mod test {
 
         vars.set(TIME_STYLE, &OsString::from("iso"));
         assert_eq!(vars.get(TIME_STYLE), Some(OsString::from("iso")));
+
+        vars.set(LSR_CONFIG_DIR, &OsString::from("~/.config/lsr"));
+        assert_eq!(
+            vars.get(LSR_CONFIG_DIR),
+            Some(OsString::from("~/.config/lsr"))
+        );
+
+        vars.set(EZA_CONFIG_DIR, &OsString::from("~/.config/eza"));
+        assert_eq!(
+            vars.get(EZA_CONFIG_DIR),
+            Some(OsString::from("~/.config/eza"))
+        );
+
+        vars.set(XDG_CONFIG_HOME, &OsString::from("/home/user/.config"));
+        assert_eq!(
+            vars.get(XDG_CONFIG_HOME),
+            Some(OsString::from("/home/user/.config"))
+        );
+
+        vars.set(HOME, &OsString::from("/home/user"));
+        assert_eq!(vars.get(HOME), Some(OsString::from("/home/user")));
     }
 }

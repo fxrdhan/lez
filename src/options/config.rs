@@ -13,7 +13,8 @@ use nu_ansi_term::{Color, Style};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_norway;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ThemeConfig {
@@ -23,12 +24,17 @@ pub struct ThemeConfig {
 
 impl Default for ThemeConfig {
     fn default() -> Self {
-        ThemeConfig {
-            location: dirs::config_dir()
-                .unwrap_or_default()
-                .join("eza")
-                .join("theme.yml"),
-        }
+        let config_dir = config_dir_from_env(None, None, None);
+        let theme_yml = config_dir.join("theme.yml");
+        let theme_yaml = config_dir.join("theme.yaml");
+        let location = if theme_yml.exists() {
+            theme_yml
+        } else if theme_yaml.exists() {
+            theme_yaml
+        } else {
+            theme_yml
+        };
+        ThemeConfig { location }
     }
 }
 
@@ -623,6 +629,12 @@ impl ThemeConfig {
     pub fn from_path(path: PathBuf) -> Self {
         ThemeConfig { location: path }
     }
+
+    #[must_use]
+    pub fn location(&self) -> &Path {
+        &self.location
+    }
+
     #[must_use]
     pub fn to_theme(&self) -> Option<UiStyles> {
         let ui_styles_override: Option<UiStylesOverride> = {
@@ -631,6 +643,129 @@ impl ThemeConfig {
         };
         FromOverride::from(ui_styles_override, Some(UiStyles::default()))
     }
+}
+
+/// Expands user home directory prefixes (`~`, `~/...`, `~\...`, `$HOME/...`, `${HOME}/...`)
+/// against the provided home directory or system home directory.
+pub(crate) fn expand_home_path(path: &OsStr, home: Option<&Path>) -> PathBuf {
+    let s = match path.to_str() {
+        Some(s) => s,
+        None => return PathBuf::from(path),
+    };
+
+    let home = home.map(Path::to_path_buf).or_else(dirs::home_dir);
+
+    if s == "~" || s == "$HOME" || s == "${HOME}" {
+        return home.unwrap_or_else(|| PathBuf::from(path));
+    }
+
+    if let Some(rest) = s.strip_prefix("~/").or_else(|| s.strip_prefix("~\\")) {
+        return match home {
+            Some(h) => {
+                if rest.is_empty() {
+                    h
+                } else {
+                    h.join(rest)
+                }
+            }
+            None => PathBuf::from(path),
+        };
+    }
+
+    if let Some(rest) = s
+        .strip_prefix("$HOME/")
+        .or_else(|| s.strip_prefix("$HOME\\"))
+    {
+        return match home {
+            Some(h) => {
+                if rest.is_empty() {
+                    h
+                } else {
+                    h.join(rest)
+                }
+            }
+            None => PathBuf::from(path),
+        };
+    }
+
+    if let Some(rest) = s
+        .strip_prefix("${HOME}/")
+        .or_else(|| s.strip_prefix("${HOME}\\"))
+    {
+        return match home {
+            Some(h) => {
+                if rest.is_empty() {
+                    h
+                } else {
+                    h.join(rest)
+                }
+            }
+            None => PathBuf::from(path),
+        };
+    }
+
+    PathBuf::from(path)
+}
+
+/// Resolves the configuration directory, prioritizing:
+/// 1. `custom_config_dir` (`LSR_CONFIG_DIR` or `EZA_CONFIG_DIR`)
+/// 2. `xdg_config_home` (`XDG_CONFIG_HOME`), if set, non-empty, and resolves to an absolute path
+/// 3. Platform configuration directory (`dirs::config_dir()`)
+/// 4. Fallback to `$HOME/.config/lsr`
+pub(crate) fn config_dir_from_env(
+    custom_config_dir: Option<PathBuf>,
+    xdg_config_home: Option<PathBuf>,
+    home_env: Option<PathBuf>,
+) -> PathBuf {
+    if let Some(custom) = custom_config_dir
+        && !custom.as_os_str().is_empty()
+    {
+        return expand_home_path(custom.as_os_str(), home_env.as_deref());
+    }
+
+    if let Some(xdg) = xdg_config_home
+        && !xdg.as_os_str().is_empty()
+    {
+        let expanded = expand_home_path(xdg.as_os_str(), home_env.as_deref());
+        if expanded.is_absolute() {
+            let lsr_dir = expanded.join("lsr");
+            let eza_dir = expanded.join("eza");
+            if lsr_dir.exists() {
+                return lsr_dir;
+            } else if eza_dir.exists() {
+                return eza_dir;
+            } else {
+                return lsr_dir;
+            }
+        }
+    }
+
+    if let Some(config_dir) = dirs::config_dir() {
+        let lsr_dir = config_dir.join("lsr");
+        let eza_dir = config_dir.join("eza");
+        if lsr_dir.exists() {
+            return lsr_dir;
+        } else if eza_dir.exists() {
+            return eza_dir;
+        } else {
+            return lsr_dir;
+        }
+    }
+
+    if let Some(home) = home_env.or_else(dirs::home_dir) {
+        let base = home.join(".config");
+        let lsr_dir = base.join("lsr");
+        let eza_dir = base.join("eza");
+        if lsr_dir.exists() {
+            return lsr_dir;
+        } else if eza_dir.exists() {
+            return eza_dir;
+        } else {
+            return lsr_dir;
+        }
+    }
+
+    PathBuf::default()
 }
 
 #[cfg(test)]
@@ -677,5 +812,189 @@ mod tests {
         for (s, c) in &[("118", 118), ("10", 10), ("01", 1), ("1", 1), ("001", 1)] {
             assert_eq!(color_from_str(s), Some(Color::Fixed(*c)));
         }
+    }
+
+    #[test]
+    fn test_expand_home_path_tilde_alone() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("~"), Some(home)),
+            PathBuf::from("/custom/home")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_tilde_slash() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("~/sub/path"), Some(home)),
+            PathBuf::from("/custom/home/sub/path")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_tilde_trailing_slash() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("~/"), Some(home)),
+            PathBuf::from("/custom/home")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_tilde_backslash() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("~\\sub\\path"), Some(home)),
+            home.join("sub\\path")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_dollar_home() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("$HOME"), Some(home)),
+            PathBuf::from("/custom/home")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_dollar_home_slash() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("$HOME/dir/file.yml"), Some(home)),
+            PathBuf::from("/custom/home/dir/file.yml")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_dollar_home_trailing_slash() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("$HOME/"), Some(home)),
+            PathBuf::from("/custom/home")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_dollar_brace_home() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("${HOME}"), Some(home)),
+            PathBuf::from("/custom/home")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_dollar_brace_home_slash() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("${HOME}/.config/lsr"), Some(home)),
+            PathBuf::from("/custom/home/.config/lsr")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_dollar_brace_home_trailing_slash() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("${HOME}/"), Some(home)),
+            PathBuf::from("/custom/home")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_user_not_expanded() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("~otheruser/foo"), Some(home)),
+            PathBuf::from("~otheruser/foo")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_non_matching_var() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("$HOMEDIR/foo"), Some(home)),
+            PathBuf::from("$HOMEDIR/foo")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_relative() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("foo/bar.yaml"), Some(home)),
+            PathBuf::from("foo/bar.yaml")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_absolute() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new("/etc/config"), Some(home)),
+            PathBuf::from("/etc/config")
+        );
+    }
+
+    #[test]
+    fn test_expand_home_path_empty() {
+        let home = Path::new("/custom/home");
+        assert_eq!(
+            expand_home_path(OsStr::new(""), Some(home)),
+            PathBuf::from("")
+        );
+    }
+
+    #[test]
+    fn test_config_dir_from_env_custom_priority() {
+        let custom = Some(PathBuf::from("~/my_custom_lsr"));
+        let xdg = Some(PathBuf::from("/etc/xdg"));
+        let home = Some(PathBuf::from("/home/testuser"));
+
+        let resolved = config_dir_from_env(custom, xdg, home);
+        assert_eq!(resolved, PathBuf::from("/home/testuser/my_custom_lsr"));
+    }
+
+    #[test]
+    fn test_config_dir_from_env_xdg_priority() {
+        let custom = None;
+        let xdg = Some(PathBuf::from("/custom/xdg"));
+        let home = Some(PathBuf::from("/home/testuser"));
+
+        let resolved = config_dir_from_env(custom, xdg, home);
+        // /custom/xdg is absolute, so it checks /custom/xdg/lsr or /custom/xdg/eza
+        assert_eq!(resolved, PathBuf::from("/custom/xdg/lsr"));
+    }
+
+    #[test]
+    fn test_config_dir_from_env_xdg_tilde() {
+        let custom = None;
+        let xdg = Some(PathBuf::from("~/.config"));
+        let home = Some(PathBuf::from("/home/testuser"));
+
+        let resolved = config_dir_from_env(custom, xdg, home);
+        assert_eq!(resolved, PathBuf::from("/home/testuser/.config/lsr"));
+    }
+
+    #[test]
+    fn test_config_dir_from_env_xdg_relative_ignored() {
+        let custom = None;
+        let xdg = Some(PathBuf::from("relative/xdg"));
+        let home = Some(PathBuf::from("/home/testuser"));
+
+        let resolved = config_dir_from_env(custom, xdg, home);
+        // Relative XDG is ignored, falling back to dirs::config_dir() or home/.config/lsr
+        assert_ne!(resolved, PathBuf::from("relative/xdg/lsr"));
+    }
+
+    #[test]
+    fn test_theme_config_location_and_from_path() {
+        let p = PathBuf::from("/etc/lsr/theme.yml");
+        let cfg = ThemeConfig::from_path(p.clone());
+        assert_eq!(cfg.location(), p.as_path());
     }
 }

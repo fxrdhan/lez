@@ -12,7 +12,7 @@ use crate::output::color_scale::ColorScaleOptions;
 use crate::theme::{Definitions, Options, UseColours};
 use std::path::PathBuf;
 
-use super::config::ThemeConfig;
+use super::config::{ThemeConfig, config_dir_from_env};
 
 impl Options {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
@@ -36,31 +36,26 @@ impl Options {
 }
 
 impl ThemeConfig {
-    fn deduce<V: Vars>(vars: &V) -> Option<Self> {
-        if let Some(path) = vars.get("EZA_CONFIG_DIR") {
-            let path = PathBuf::from(path);
-            let theme = path.join("theme.yml");
-            if theme.exists() {
-                return Some(ThemeConfig::from_path(theme));
-            }
-            let theme = path.join("theme.yaml");
-            if theme.exists() {
-                return Some(ThemeConfig::from_path(theme));
-            }
-            None
-        } else {
-            let path = dirs::config_dir().unwrap_or_default();
-            let path = path.join("eza");
-            let theme = path.join("theme.yml");
-            if theme.exists() {
-                return Some(ThemeConfig::default());
-            }
-            let theme = path.join("theme.yaml");
-            if theme.exists() {
-                return Some(ThemeConfig::from_path(theme));
-            }
-            None
+    pub(crate) fn deduce<V: Vars>(vars: &V) -> Option<Self> {
+        let custom = vars
+            .get_with_fallback(vars::LSR_CONFIG_DIR, vars::EZA_CONFIG_DIR)
+            .map(PathBuf::from);
+        let xdg = vars.get(vars::XDG_CONFIG_HOME).map(PathBuf::from);
+        let home = vars.get(vars::HOME).map(PathBuf::from);
+
+        let config_dir = config_dir_from_env(custom, xdg, home);
+
+        let theme_yml = config_dir.join("theme.yml");
+        if theme_yml.exists() {
+            return Some(ThemeConfig::from_path(theme_yml));
         }
+
+        let theme_yaml = config_dir.join("theme.yaml");
+        if theme_yaml.exists() {
+            return Some(ThemeConfig::from_path(theme_yaml));
+        }
+
+        None
     }
 }
 
@@ -176,5 +171,144 @@ mod tests {
             UseColours::deduce(&mock_cli(vec!["--color", "auto"]), &vars),
             UseColours::Automatic
         );
+    }
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new(prefix: &str) -> Self {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "lsr_theme_test_{prefix}_{}_{}",
+                std::process::id(),
+                nanos
+            ));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).unwrap();
+            Self { path }
+        }
+
+        fn create_file(&self, name: &str, content: &[u8]) -> PathBuf {
+            let p = self.path.join(name);
+            if let Some(parent) = p.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            std::fs::write(&p, content).unwrap();
+            p
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn test_theme_config_deduce_lsr_config_dir_yml() {
+        let temp = TempDir::new("lsr_yml");
+        temp.create_file("theme.yml", b"colourful: true\n");
+
+        let mut vars = MockVars::default();
+        vars.set(vars::LSR_CONFIG_DIR, &temp.path.clone().into_os_string());
+
+        let theme_cfg = ThemeConfig::deduce(&vars);
+        assert!(theme_cfg.is_some());
+        assert_eq!(
+            theme_cfg.unwrap().location(),
+            temp.path.join("theme.yml").as_path()
+        );
+    }
+
+    #[test]
+    fn test_theme_config_deduce_lsr_config_dir_yaml() {
+        let temp = TempDir::new("lsr_yaml");
+        temp.create_file("theme.yaml", b"colourful: true\n");
+
+        let mut vars = MockVars::default();
+        vars.set(vars::LSR_CONFIG_DIR, &temp.path.clone().into_os_string());
+
+        let theme_cfg = ThemeConfig::deduce(&vars);
+        assert!(theme_cfg.is_some());
+        assert_eq!(
+            theme_cfg.unwrap().location(),
+            temp.path.join("theme.yaml").as_path()
+        );
+    }
+
+    #[test]
+    fn test_theme_config_deduce_eza_config_dir_fallback() {
+        let temp = TempDir::new("eza_yml");
+        temp.create_file("theme.yml", b"colourful: true\n");
+
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_CONFIG_DIR, &temp.path.clone().into_os_string());
+
+        let theme_cfg = ThemeConfig::deduce(&vars);
+        assert!(theme_cfg.is_some());
+        assert_eq!(
+            theme_cfg.unwrap().location(),
+            temp.path.join("theme.yml").as_path()
+        );
+    }
+
+    #[test]
+    fn test_theme_config_deduce_tilde_expansion() {
+        let temp = TempDir::new("tilde_theme");
+        let sub = temp.path.join("themes_folder");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("theme.yml"), b"colourful: true\n").unwrap();
+
+        let mut vars = MockVars::default();
+        vars.set(vars::HOME, &temp.path.clone().into_os_string());
+        vars.set(
+            vars::LSR_CONFIG_DIR,
+            &OsString::from("~/themes_folder"),
+        );
+
+        let theme_cfg = ThemeConfig::deduce(&vars);
+        assert!(theme_cfg.is_some());
+        assert_eq!(
+            theme_cfg.unwrap().location(),
+            temp.path.join("themes_folder").join("theme.yml").as_path()
+        );
+    }
+
+    #[test]
+    fn test_theme_config_deduce_dollar_home_expansion() {
+        let temp = TempDir::new("dollar_home_theme");
+        let sub = temp.path.join("custom_dir");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("theme.yaml"), b"colourful: true\n").unwrap();
+
+        let mut vars = MockVars::default();
+        vars.set(vars::HOME, &temp.path.clone().into_os_string());
+        vars.set(
+            vars::LSR_CONFIG_DIR,
+            &OsString::from("$HOME/custom_dir"),
+        );
+
+        let theme_cfg = ThemeConfig::deduce(&vars);
+        assert!(theme_cfg.is_some());
+        assert_eq!(
+            theme_cfg.unwrap().location(),
+            temp.path.join("custom_dir").join("theme.yaml").as_path()
+        );
+    }
+
+    #[test]
+    fn test_theme_config_deduce_nonexistent_returns_none() {
+        let temp = TempDir::new("empty_dir");
+
+        let mut vars = MockVars::default();
+        vars.set(vars::LSR_CONFIG_DIR, &temp.path.clone().into_os_string());
+
+        let theme_cfg = ThemeConfig::deduce(&vars);
+        assert!(theme_cfg.is_none());
     }
 }
