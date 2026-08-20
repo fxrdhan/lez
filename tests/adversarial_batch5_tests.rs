@@ -264,7 +264,11 @@ fn test_m1_json_cli_bytes_and_binary_units() {
         .unwrap()
         .as_str()
         .unwrap();
-    assert!(size_bytes == "1,048,576" || size_bytes == "1048576" || size_bytes.replace(',', "") == "1048576");
+    assert!(
+        size_bytes == "1,048,576"
+            || size_bytes == "1048576"
+            || size_bytes.replace(',', "") == "1048576"
+    );
 
     // --binary mode
     let out_binary = Command::new(bin_path)
