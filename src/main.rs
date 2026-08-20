@@ -492,6 +492,9 @@ impl Exa<'_> {
     /// Prints the list of files using whichever view is selected.
     fn print_files(&mut self, dir: Option<&Dir>, mut files: Vec<File<'_>>) -> io::Result<()> {
         if files.is_empty() {
+            if self.options.view.total_entries {
+                writeln!(&mut self.writer, "total: 0")?;
+            }
             return Ok(());
         }
         let recursing = self.options.dir_action.recurse_options().is_some();

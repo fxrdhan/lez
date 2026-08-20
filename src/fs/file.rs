@@ -795,7 +795,7 @@ impl<'dir> File<'dir> {
     ///
     /// Fixes #655 and #667 in `Self::modified_time`, `Self::accessed_time` and
     /// `Self::created_time`.
-    fn systemtime_to_naivedatetime(st: SystemTime) -> Option<NaiveDateTime> {
+    pub fn systemtime_to_naivedatetime(st: SystemTime) -> Option<NaiveDateTime> {
         let (secs, nanos) = match st.duration_since(SystemTime::UNIX_EPOCH) {
             // Time at or after the UNIX epoch.
             Ok(duration) => (
