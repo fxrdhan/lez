@@ -160,10 +160,19 @@ impl GitRepo {
 
         debug!("Querying Git repo {:?} for the first time", self.workdir);
         let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
-        let statuses = repo_to_statuses(&repo, &self.workdir);
+        let statuses = repo_to_statuses(&repo, &self.workdir, &self.listing_roots());
         let result = statuses.status(index, prefix_lookup);
         let _processing = replace(&mut *contents, GitContents::After { statuses });
         result
+    }
+
+    /// The absolute paths of every listing that resolved to this repository:
+    /// status queries only ever concern paths beneath these (see `has_path`).
+    fn listing_roots(&self) -> Vec<PathBuf> {
+        std::iter::once(&self.original_path)
+            .chain(self.extra_paths.iter())
+            .map(|p| reorient(p))
+            .collect()
     }
 
     /// Whether this repository has the given working directory.
@@ -224,11 +233,37 @@ impl GitContents {
 /// mapping of files to their Git status.
 /// We will have already used the working directory at this point, so it gets
 /// passed in rather than deriving it from the `Repository` again.
-fn repo_to_statuses(repo: &git2::Repository, workdir: &Path) -> Git {
+fn repo_to_statuses(repo: &git2::Repository, workdir: &Path, roots: &[PathBuf]) -> Git {
     let mut statuses = Vec::new();
 
     info!("Getting Git statuses for repo with workdir {workdir:?}");
-    match repo.statuses(None) {
+
+    // Mirror `GIT_STATUS_OPT_DEFAULTS`, which libgit2 applies when given no options.
+    let mut options = git2::StatusOptions::new();
+    options
+        .include_ignored(true)
+        .include_untracked(true)
+        .recurse_untracked_dirs(true);
+
+    // Limit the scan to the listed paths: a small corner of a large repository
+    // should not pay for a scan of the whole working tree. Roots at or outside
+    // the workdir fall back to a full scan.
+    let workdir_canonical = reorient(workdir);
+    let pathspecs: Option<Vec<&Path>> = roots
+        .iter()
+        .map(|root| match root.strip_prefix(&workdir_canonical) {
+            Ok(rel) if !rel.as_os_str().is_empty() => Some(rel),
+            _ => None,
+        })
+        .collect();
+    if let Some(pathspecs) = pathspecs {
+        debug!("Limiting Git status scan to {pathspecs:?}");
+        for spec in pathspecs {
+            options.pathspec(spec);
+        }
+    }
+
+    match repo.statuses(Some(&mut options)) {
         Ok(es) => {
             for e in es.iter() {
                 if let Some(p) = get_path_from_status_entry(&e) {
@@ -452,5 +487,292 @@ impl f::SubdirGitRepo {
             },
             branch: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File as StdFile};
+    use std::io::Write;
+
+    struct TestGitRepo {
+        path: PathBuf,
+    }
+
+    impl TestGitRepo {
+        fn new(name: &str) -> Self {
+            let path =
+                std::env::temp_dir().join(format!("lsr_test_git_{}_{}", name, std::process::id()));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).unwrap();
+
+            let repo = git2::Repository::init(&path).unwrap();
+            let workdir = repo.workdir().unwrap().to_path_buf();
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test User").unwrap();
+            config.set_str("user.email", "test@example.com").unwrap();
+
+            Self { path: workdir }
+        }
+
+        fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
+            let file_path = self.path.join(rel_path);
+            if let Some(parent) = file_path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            let mut file = StdFile::create(&file_path).unwrap();
+            file.write_all(content).unwrap();
+            file_path
+        }
+
+        fn commit_all(&self, msg: &str) {
+            let repo = git2::Repository::open(&self.path).unwrap();
+            let mut index = repo.index().unwrap();
+            index
+                .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+                .unwrap();
+            index.write().unwrap();
+
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+            let sig = git2::Signature::now("Test User", "test@example.com").unwrap();
+
+            let parent_commit = match repo.head() {
+                Ok(head) => head.peel_to_commit().ok(),
+                Err(_) => None,
+            };
+
+            let parents: Vec<&git2::Commit<'_>> = parent_commit.iter().collect();
+            repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parents)
+                .unwrap();
+        }
+    }
+
+    impl Drop for TestGitRepo {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn test_listing_roots_collects_reoriented_paths() {
+        let test_repo = TestGitRepo::new("listing_roots");
+        let sub_a = test_repo.path.join("sub_a");
+        let sub_b = test_repo.path.join("sub_b");
+        fs::create_dir_all(&sub_a).unwrap();
+        fs::create_dir_all(&sub_b).unwrap();
+
+        let repo = GitRepo {
+            contents: Mutex::new(GitContents::Processing),
+            workdir: test_repo.path.clone(),
+            original_path: sub_a.clone(),
+            extra_paths: vec![sub_b.clone()],
+        };
+
+        let roots = repo.listing_roots();
+        assert_eq!(roots.len(), 2);
+        assert_eq!(roots[0], reorient(&sub_a));
+        assert_eq!(roots[1], reorient(&sub_b));
+    }
+
+    #[test]
+    fn test_scoped_status_queries_only_targets_subpath() {
+        let test_repo = TestGitRepo::new("scoped_subpath");
+        let file_root = test_repo.create_file("root.txt", b"root init\n");
+        let file_a = test_repo.create_file("sub_a/file_a.txt", b"a init\n");
+        let file_b = test_repo.create_file("sub_b/file_b.txt", b"b init\n");
+
+        test_repo.commit_all("initial commit");
+
+        // Modify all files in working directory
+        let mut f_root = StdFile::create(&file_root).unwrap();
+        f_root.write_all(b"root modified\n").unwrap();
+        let mut f_a = StdFile::create(&file_a).unwrap();
+        f_a.write_all(b"a modified\n").unwrap();
+        let mut f_b = StdFile::create(&file_b).unwrap();
+        f_b.write_all(b"b modified\n").unwrap();
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let sub_a_path = test_repo.path.join("sub_a");
+
+        // Query status scoped strictly to sub_a
+        let roots = vec![reorient(&sub_a_path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // Status for sub_a/file_a.txt should be Modified
+        let file_a_status = git_status.file_status(&file_a);
+        assert!(file_a_status.unstaged == f::GitStatus::Modified);
+
+        // Status for sub_a directory should be Modified
+        let dir_a_status = git_status.dir_status(&sub_a_path);
+        assert!(dir_a_status.unstaged == f::GitStatus::Modified);
+
+        // Because query was scoped to sub_a, file_b and root.txt should NOT be in scanned statuses
+        let file_b_status = git_status.file_status(&file_b);
+        assert!(file_b_status.unstaged == f::GitStatus::NotModified);
+
+        let root_status = git_status.file_status(&file_root);
+        assert!(root_status.unstaged == f::GitStatus::NotModified);
+    }
+
+    #[test]
+    fn test_scoped_status_fallback_on_repo_root() {
+        let test_repo = TestGitRepo::new("fallback_root");
+        let file_root = test_repo.create_file("root.txt", b"root init\n");
+        let file_a = test_repo.create_file("sub_a/file_a.txt", b"a init\n");
+        let file_b = test_repo.create_file("sub_b/file_b.txt", b"b init\n");
+
+        test_repo.commit_all("initial commit");
+
+        // Modify all files
+        let mut f_root = StdFile::create(&file_root).unwrap();
+        f_root.write_all(b"root modified\n").unwrap();
+        let mut f_a = StdFile::create(&file_a).unwrap();
+        f_a.write_all(b"a modified\n").unwrap();
+        let mut f_b = StdFile::create(&file_b).unwrap();
+        f_b.write_all(b"b modified\n").unwrap();
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+
+        // Listing root is repository root (workdir) -> triggers full scan fallback
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // All modified files must be detected
+        assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::Modified);
+        assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
+        assert!(git_status.file_status(&file_b).unstaged == f::GitStatus::Modified);
+    }
+
+    #[test]
+    fn test_scoped_status_fallback_on_outside_path() {
+        let test_repo = TestGitRepo::new("fallback_outside");
+        let file_a = test_repo.create_file("sub_a/file_a.txt", b"a init\n");
+        test_repo.commit_all("initial commit");
+
+        let mut f_a = StdFile::create(&file_a).unwrap();
+        f_a.write_all(b"a modified\n").unwrap();
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+
+        // Listing root is outside the repo workdir -> triggers full scan fallback
+        let outside_path = std::env::temp_dir();
+        let roots = vec![reorient(&outside_path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
+    }
+
+    #[test]
+    fn test_git_cache_end_to_end_with_scoped_path() {
+        let test_repo = TestGitRepo::new("cache_e2e");
+        let file_a = test_repo.create_file("sub_a/file_a.txt", b"a init\n");
+        let file_b = test_repo.create_file("sub_b/file_b.txt", b"b init\n");
+        test_repo.commit_all("initial commit");
+
+        let mut f_a = StdFile::create(&file_a).unwrap();
+        f_a.write_all(b"a modified\n").unwrap();
+        let mut f_b = StdFile::create(&file_b).unwrap();
+        f_b.write_all(b"b modified\n").unwrap();
+
+        let sub_a_path = test_repo.path.join("sub_a");
+        let git_cache = GitCache::from_iter(vec![sub_a_path.clone()]);
+
+        assert!(git_cache.has_anything_for(&sub_a_path));
+        let status_a = git_cache.get(&file_a, false);
+        assert!(status_a.unstaged == f::GitStatus::Modified);
+
+        let dir_status_a = git_cache.get(&sub_a_path, true);
+        assert!(dir_status_a.unstaged == f::GitStatus::Modified);
+    }
+
+    #[test]
+    fn test_scoped_status_multiple_subpaths() {
+        let test_repo = TestGitRepo::new("multi_subpath");
+        let file_root = test_repo.create_file("root.txt", b"root init\n");
+        let file_a = test_repo.create_file("sub_a/file_a.txt", b"a init\n");
+        let file_b = test_repo.create_file("sub_b/file_b.txt", b"b init\n");
+        let file_c = test_repo.create_file("sub_c/file_c.txt", b"c init\n");
+
+        test_repo.commit_all("initial commit");
+
+        // Modify all files
+        let mut f_root = StdFile::create(&file_root).unwrap();
+        f_root.write_all(b"root modified\n").unwrap();
+        let mut f_a = StdFile::create(&file_a).unwrap();
+        f_a.write_all(b"a modified\n").unwrap();
+        let mut f_b = StdFile::create(&file_b).unwrap();
+        f_b.write_all(b"b modified\n").unwrap();
+        let mut f_c = StdFile::create(&file_c).unwrap();
+        f_c.write_all(b"c modified\n").unwrap();
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let sub_a_path = test_repo.path.join("sub_a");
+        let sub_b_path = test_repo.path.join("sub_b");
+
+        // Scoped to sub_a and sub_b
+        let roots = vec![reorient(&sub_a_path), reorient(&sub_b_path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // sub_a and sub_b files should be modified
+        assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
+        assert!(git_status.file_status(&file_b).unstaged == f::GitStatus::Modified);
+
+        // sub_c and root.txt should not be in the scoped scan
+        assert!(git_status.file_status(&file_c).unstaged == f::GitStatus::NotModified);
+        assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::NotModified);
+    }
+
+    #[test]
+    fn test_scoped_status_untracked_and_ignored() {
+        let test_repo = TestGitRepo::new("untracked_ignored");
+        test_repo.create_file(".gitignore", b"*.ignored\n");
+        test_repo.commit_all("add gitignore");
+
+        let untracked_a = test_repo.create_file("sub_a/untracked.txt", b"untracked");
+        let ignored_a = test_repo.create_file("sub_a/test.ignored", b"ignored");
+        let untracked_b = test_repo.create_file("sub_b/untracked.txt", b"untracked");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let sub_a_path = test_repo.path.join("sub_a");
+
+        let roots = vec![reorient(&sub_a_path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // Within sub_a: untracked is New, ignored is Ignored
+        assert!(git_status.file_status(&untracked_a).unstaged == f::GitStatus::New);
+        assert!(git_status.file_status(&ignored_a).unstaged == f::GitStatus::Ignored);
+
+        // Outside sub_a: untracked_b was not scanned
+        assert!(git_status.file_status(&untracked_b).unstaged == f::GitStatus::NotModified);
+    }
+
+    #[test]
+    fn test_scoped_status_mixed_roots_fallback() {
+        let test_repo = TestGitRepo::new("mixed_fallback");
+        let file_root = test_repo.create_file("root.txt", b"root init\n");
+        let file_a = test_repo.create_file("sub_a/file_a.txt", b"a init\n");
+        let file_b = test_repo.create_file("sub_b/file_b.txt", b"b init\n");
+
+        test_repo.commit_all("initial commit");
+
+        let mut f_root = StdFile::create(&file_root).unwrap();
+        f_root.write_all(b"root modified\n").unwrap();
+        let mut f_a = StdFile::create(&file_a).unwrap();
+        f_a.write_all(b"a modified\n").unwrap();
+        let mut f_b = StdFile::create(&file_b).unwrap();
+        f_b.write_all(b"b modified\n").unwrap();
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let sub_a_path = test_repo.path.join("sub_a");
+
+        // Passing both a subpath and repo root triggers full scan fallback
+        let roots = vec![reorient(&sub_a_path), reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::Modified);
+        assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
+        assert!(git_status.file_status(&file_b).unstaged == f::GitStatus::Modified);
     }
 }
