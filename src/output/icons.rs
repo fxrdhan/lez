@@ -86,6 +86,7 @@ impl Icons {
     const LANG_HASKELL: char    = '\u{e777}';  // 
     const LANG_HDL: char        = '\u{f035b}'; // 󰍛
     const LANG_HOLYC: char      = '\u{f00a2}'; // 󰂢
+    const LANG_JANET: char      = '\u{f0af7}'; // 󰫷
     const LANG_JAVA: char       = '\u{e256}';  // 
     const LANG_JAVASCRIPT: char = '\u{e74e}';  // 
     const LANG_KOTLIN: char     = '\u{e634}';  // 
@@ -736,8 +737,10 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "j2c"            => Icons::IMAGE,            // 
     "j2k"            => Icons::IMAGE,            // 
     "jad"            => Icons::LANG_JAVA,        // 
+    "janet"          => Icons::LANG_JANET,       // 󰫷
     "jar"            => Icons::LANG_JAVA,        // 
     "java"           => Icons::LANG_JAVA,        // 
+    "jdn"            => Icons::LANG_JANET,       // 󰫷
     "jwmrc"          => '\u{f35b}',              // 
     "jfi"            => Icons::IMAGE,            // 
     "jfif"           => Icons::IMAGE,            // 
@@ -1154,5 +1157,31 @@ pub fn icon_for_file(file: &File<'_>) -> char {
         *EXTENSION_ICONS.get(ext.as_str()).unwrap_or(&Icons::FILE) // 
     } else {
         Icons::FILE_UNKNOW // 󰡯
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_janet_icon_mapping() {
+        assert_eq!(
+            icon_for_name_ext("main.janet", Some("janet")),
+            Icons::LANG_JANET
+        );
+        assert_eq!(
+            icon_for_name_ext("project.jdn", Some("jdn")),
+            Icons::LANG_JANET
+        );
+    }
+
+    #[test]
+    fn test_icon_for_name_ext_fallback() {
+        assert_eq!(
+            icon_for_name_ext("unknown.unknownext123", Some("unknownext123")),
+            Icons::FILE
+        );
+        assert_eq!(icon_for_name_ext("noextension", None), Icons::FILE_UNKNOW);
     }
 }
