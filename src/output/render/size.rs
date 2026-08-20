@@ -103,6 +103,38 @@ impl f::Size {
             .into(),
         }
     }
+
+    pub fn render_json(self, size_format: SizeFormat, numerics: &NumericLocale) -> Option<String> {
+        use unit_prefix::NumberPrefix;
+
+        let size = match self {
+            Self::Some(s) => s,
+            Self::None => return None,
+            Self::DeviceIDs(ref ids) => return Some(ids.render_json()),
+        };
+
+        let result = match size_format {
+            SizeFormat::DecimalBytes => NumberPrefix::decimal(size as f64),
+            SizeFormat::BinaryBytes => NumberPrefix::binary(size as f64),
+            SizeFormat::JustBytes => return Some(numerics.format_int(size)),
+        };
+
+        let (prefix, n) = match result {
+            NumberPrefix::Standalone(b) => return Some(numerics.format_int(b)),
+            NumberPrefix::Prefixed(p, n) => (p, n),
+        };
+
+        let (prefix, n) = carry_to_next_prefix(prefix, n);
+
+        let symbol = prefix.symbol();
+        let number = if n < 10_f64 {
+            numerics.format_float(n, 1)
+        } else {
+            numerics.format_int(n.round() as isize)
+        };
+
+        Some(number + symbol)
+    }
 }
 
 /// Steps up to the next unit prefix when rounding for display would otherwise
@@ -161,6 +193,10 @@ impl f::DeviceIDs {
             ]
             .into(),
         }
+    }
+
+    fn render_json(self) -> String {
+        [self.major.to_string(), self.minor.to_string()].join(",")
     }
 }
 
@@ -462,6 +498,63 @@ pub mod test {
         assert_eq!(
             carry_to_next_prefix(Prefix::Kibi, 512.0),
             (Prefix::Kibi, 512.0)
+        );
+    }
+
+    #[test]
+    fn directory_json() {
+        let directory = f::Size::None;
+        let expected = None;
+        assert_eq!(
+            expected,
+            directory.render_json(SizeFormat::JustBytes, &NumericLocale::english())
+        );
+    }
+
+    #[test]
+    fn file_decimal_json() {
+        let directory = f::Size::Some(2_100_000);
+        let expected = Some("2.1M".to_string());
+
+        assert_eq!(
+            expected,
+            directory.render_json(SizeFormat::DecimalBytes, &NumericLocale::english())
+        );
+    }
+
+    #[test]
+    fn file_binary_json() {
+        let directory = f::Size::Some(1_048_576);
+        let expected = Some("1.0Mi".to_string());
+
+        assert_eq!(
+            expected,
+            directory.render_json(SizeFormat::BinaryBytes, &NumericLocale::english())
+        );
+    }
+
+    #[test]
+    fn file_bytes_json() {
+        let directory = f::Size::Some(1_048_576);
+        let expected = Some("1,048,576".to_string());
+
+        assert_eq!(
+            expected,
+            directory.render_json(SizeFormat::JustBytes, &NumericLocale::english())
+        );
+    }
+
+    #[test]
+    fn device_ids_json() {
+        let directory = f::Size::DeviceIDs(f::DeviceIDs {
+            major: 10,
+            minor: 80,
+        });
+        let expected = Some("10,80".to_string());
+
+        assert_eq!(
+            expected,
+            directory.render_json(SizeFormat::JustBytes, &NumericLocale::english())
         );
     }
 }

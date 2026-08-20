@@ -24,7 +24,9 @@ use crate::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
 use crate::fs::{Dir, File};
 use crate::options::stdin::FilesInput;
 use crate::options::{Options, Vars, vars};
-use crate::output::{Mode, View, code, details, escape, file_name, grid, grid_details, lines};
+use crate::output::{
+    Mode, View, code, details, escape, file_name, grid, grid_details, json, lines,
+};
 use crate::theme::Theme;
 use log::*;
 
@@ -265,6 +267,14 @@ fn git_repos(options: &Options, args: &[&OsStr]) -> bool {
                     ..
                 },
             ..
+        })
+        | Mode::Json(json::Options {
+            details:
+                Some(details::Options {
+                    table: Some(ref table),
+                    ..
+                }),
+            ..
         }) => table.columns.subdir_git_repos || table.columns.subdir_git_repos_no_stat,
         _ => false,
     };
@@ -366,6 +376,21 @@ impl Exa<'_> {
 
         let no_files = files.is_empty();
         let is_only_dir = dirs.len() == 1 && no_files;
+
+        // Separate json mode as there is special cases for multi directories cases
+        if let Mode::Json(opts) = &self.options.view.mode {
+            let r = json::Render::new(
+                self.git.as_ref(),
+                self.options.filter.dot_filter,
+                opts,
+                self.options.filter.git_ignore == GitIgnore::CheckAndIgnore,
+                self.git_repos,
+                &self.options,
+            );
+
+            r.render(files, dirs, &mut self.writer)?;
+            return Ok(exit_status);
+        }
 
         self.options.filter.filter_argument_files(&mut files);
         self.print_files(None, files)?;
@@ -625,6 +650,8 @@ impl Exa<'_> {
             // The code summary never lists files; it’s handled up front in
             // `run` before we ever get here.
             (Mode::Code(_), _) => unreachable!("--code is handled in Exa::run"),
+
+            (Mode::Json(_), _) => unreachable!("--json is handled in Exa::run"),
         };
         result?;
 
