@@ -52,6 +52,10 @@ pub enum TimeFormat {
     /// Use a relative but fixed width representation.
     Relative,
 
+    /// Use a relative format for recent timestamps (newer than recent_window_days,
+    /// defaulting to 7 days) and the default format for older timestamps.
+    RelativeRecent { recent_window_days: Option<u32> },
+
     /// Use custom formats, optionally a different custom format can be
     /// specified for recent times, otherwise the same custom format will be
     /// used for both recent and non-recent times.
@@ -71,6 +75,7 @@ impl TimeFormat {
             Self::LongISO                       => long(time),
             Self::FullISO                       => full(time),
             Self::Relative                      => relative(time),
+            Self::RelativeRecent { recent_window_days } => relative_recent(time, recent_window_days),
             Self::Custom { non_recent, recent } => custom(
                 time, non_recent.as_str(), recent.as_deref()
             ),
@@ -125,6 +130,19 @@ fn relative(time: &DateTime<FixedOffset>) -> String {
         ))
 }
 
+const DEFAULT_RECENT_WINDOW_DAYS: u32 = 7;
+
+fn relative_recent(time: &DateTime<FixedOffset>, recent_window_days: Option<u32>) -> String {
+    let days = recent_window_days.unwrap_or(DEFAULT_RECENT_WINDOW_DAYS);
+    let window_secs = i64::from(days) * 24 * 60 * 60;
+    let delta = Local::now().timestamp() - time.timestamp();
+    if delta >= 0 && delta < window_secs {
+        relative(time)
+    } else {
+        default(time)
+    }
+}
+
 fn full(time: &DateTime<FixedOffset>) -> String {
     time.format("%Y-%m-%d %H:%M:%S.%f %z").to_string()
 }
@@ -159,6 +177,78 @@ static MAX_MONTH_WIDTH: LazyLock<usize> = LazyLock::new(|| {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn relative_recent_time_format_default_window() {
+        let now = Local::now();
+
+        // 2 hours ago (< 7 days default window): should be formatted relative
+        let recent_time = DateTime::<FixedOffset>::from(now - chrono::Duration::hours(2));
+        let formatted_recent = TimeFormat::RelativeRecent {
+            recent_window_days: None,
+        }
+        .format(&recent_time);
+        let formatted_relative = TimeFormat::Relative.format(&recent_time);
+        assert_eq!(formatted_recent, formatted_relative);
+
+        // 10 days ago (> 7 days default window): should be formatted default calendar
+        let old_time = DateTime::<FixedOffset>::from(now - chrono::Duration::days(10));
+        let formatted_old = TimeFormat::RelativeRecent {
+            recent_window_days: None,
+        }
+        .format(&old_time);
+        let formatted_default = TimeFormat::DefaultFormat.format(&old_time);
+        assert_eq!(formatted_old, formatted_default);
+
+        // Future timestamp (1 day in future): should fall back to default calendar
+        let future_time = DateTime::<FixedOffset>::from(now + chrono::Duration::days(1));
+        let formatted_future = TimeFormat::RelativeRecent {
+            recent_window_days: None,
+        }
+        .format(&future_time);
+        assert_eq!(
+            formatted_future,
+            TimeFormat::DefaultFormat.format(&future_time)
+        );
+    }
+
+    #[test]
+    fn relative_recent_time_format_custom_window() {
+        let now = Local::now();
+
+        // 2 days ago (< 3 days custom window): should be relative
+        let two_days_ago = DateTime::<FixedOffset>::from(now - chrono::Duration::days(2));
+        let formatted_custom_recent = TimeFormat::RelativeRecent {
+            recent_window_days: Some(3),
+        }
+        .format(&two_days_ago);
+        assert_eq!(
+            formatted_custom_recent,
+            TimeFormat::Relative.format(&two_days_ago)
+        );
+
+        // 4 days ago (> 3 days custom window): should be default calendar
+        let four_days_ago = DateTime::<FixedOffset>::from(now - chrono::Duration::days(4));
+        let formatted_custom_old = TimeFormat::RelativeRecent {
+            recent_window_days: Some(3),
+        }
+        .format(&four_days_ago);
+        assert_eq!(
+            formatted_custom_old,
+            TimeFormat::DefaultFormat.format(&four_days_ago)
+        );
+
+        // Window = 0 days: all times formatted default
+        let one_hour_ago = DateTime::<FixedOffset>::from(now - chrono::Duration::hours(1));
+        let formatted_zero_window = TimeFormat::RelativeRecent {
+            recent_window_days: Some(0),
+        }
+        .format(&one_hour_ago);
+        assert_eq!(
+            formatted_zero_window,
+            TimeFormat::DefaultFormat.format(&one_hour_ago)
+        );
+    }
 
     #[test]
     fn short_month_width_japanese() {
