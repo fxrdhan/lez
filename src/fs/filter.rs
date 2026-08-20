@@ -82,6 +82,10 @@ pub struct FileFilter {
     /// patterns won’t be displayed in the list.
     pub ignore_patterns: IgnorePatterns,
 
+    /// Case-insensitive glob patterns to ignore. Any file name that matches
+    /// *any* of these patterns won’t be displayed in the list.
+    pub ignore_patterns_caseins: IgnorePatterns,
+
     /// Whether to ignore Git-ignored patterns.
     pub git_ignore: GitIgnore,
 
@@ -99,7 +103,9 @@ impl FileFilter {
     pub fn is_file_included(&self, file: &File<'_>) -> bool {
         use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
 
-        if self.ignore_patterns.is_ignored(&file.name) {
+        if self.ignore_patterns.is_ignored(&file.name)
+            || self.ignore_patterns_caseins.is_ignored(&file.name)
+        {
             return false;
         }
 
@@ -126,7 +132,7 @@ impl FileFilter {
     pub fn filter_child_files(&self, is_recurse: bool, files: &mut Vec<File<'_>>) {
         use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
 
-        files.retain(|f| !self.ignore_patterns.is_ignored(&f.name));
+        files.retain(|f| !self.ignore_patterns.is_ignored(&f.name) && !self.ignore_patterns_caseins.is_ignored(&f.name));
         files.retain(|f| {
             match (
                 self.flags.contains(&OnlyDirs),
@@ -156,7 +162,10 @@ impl FileFilter {
     /// `exa -I='*.ogg' music/*` should filter out the ogg files obtained
     /// from the glob, even though the globbing is done by the shell!
     pub fn filter_argument_files(&self, files: &mut Vec<File<'_>>) {
-        files.retain(|f| !self.ignore_patterns.is_ignored(&f.name));
+        files.retain(|f| {
+            !self.ignore_patterns.is_ignored(&f.name)
+                && !self.ignore_patterns_caseins.is_ignored(&f.name)
+        });
     }
 
     /// Sort the files in the given vector based on the sort field option.
@@ -361,9 +370,19 @@ impl SortField {
 /// The **ignore patterns** are a list of globs that are tested against
 /// each filename, and if any of them match, that file isn’t displayed.
 /// This lets a user hide, say, text files by ignoring `*.txt`.
-#[derive(PartialEq, Eq, Default, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct IgnorePatterns {
     patterns: Vec<glob::Pattern>,
+    options: glob::MatchOptions,
+}
+
+impl Default for IgnorePatterns {
+    fn default() -> Self {
+        Self {
+            patterns: Vec::new(),
+            options: glob::MatchOptions::new(),
+        }
+    }
 }
 
 impl FromIterator<glob::Pattern> for IgnorePatterns {
@@ -372,7 +391,10 @@ impl FromIterator<glob::Pattern> for IgnorePatterns {
         I: IntoIterator<Item = glob::Pattern>,
     {
         let patterns = iter.into_iter().collect();
-        Self { patterns }
+        Self {
+            patterns,
+            options: glob::MatchOptions::new(),
+        }
     }
 }
 
@@ -402,7 +424,13 @@ impl IgnorePatterns {
             }
         }
 
-        (Self { patterns }, errors)
+        (
+            Self {
+                patterns,
+                options: glob::MatchOptions::new(),
+            },
+            errors,
+        )
     }
 
     /// Create a new empty set of patterns that matches nothing.
@@ -410,13 +438,35 @@ impl IgnorePatterns {
     pub fn empty() -> Self {
         Self {
             patterns: Vec::new(),
+            options: glob::MatchOptions::new(),
         }
+    }
+
+    /// Create a new empty set of case-insensitive patterns that matches nothing.
+    #[must_use]
+    pub fn empty_insensitive() -> Self {
+        Self {
+            patterns: Vec::new(),
+            options: glob::MatchOptions {
+                case_sensitive: false,
+                ..glob::MatchOptions::new()
+            },
+        }
+    }
+
+    /// Sets the match options for the patterns.
+    #[must_use]
+    pub fn set_match_options(mut self, opts: glob::MatchOptions) -> Self {
+        self.options = opts;
+        self
     }
 
     /// Test whether the given file should be hidden from the results.
     #[must_use]
     pub fn is_ignored(&self, file: &str) -> bool {
-        self.patterns.iter().any(|p| p.matches(file))
+        self.patterns
+            .iter()
+            .any(|p| p.matches_with(file, self.options))
     }
 }
 
@@ -450,6 +500,20 @@ mod test_ignores {
     }
 
     #[test]
+    fn ignores_glob_case_insensitive() {
+        let (pats, fails) = IgnorePatterns::parse_from_iter(vec!["*.mp3"]);
+        assert!(fails.is_empty());
+        let pats_ci = pats.set_match_options(glob::MatchOptions {
+            case_sensitive: false,
+            ..Default::default()
+        });
+        assert!(pats_ci.is_ignored("song.mp3"));
+        assert!(pats_ci.is_ignored("song.MP3"));
+        assert!(pats_ci.is_ignored("song.Mp3"));
+        assert!(!pats_ci.is_ignored("song.wav"));
+    }
+
+    #[test]
     fn ignores_an_exact_filename() {
         let (pats, fails) = IgnorePatterns::parse_from_iter(vec!["nothing"]);
         assert!(fails.is_empty());
@@ -479,6 +543,7 @@ mod test_ignores {
             flags: vec![],
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             no_symlinks: false,
             show_symlinks: false,
@@ -506,10 +571,22 @@ mod test_ignores {
         let (ignore_patterns, _) = IgnorePatterns::parse_from_iter(vec!["*.toml"]);
         let filter_ignore = FileFilter {
             ignore_patterns,
-            ..filter_default
+            ..filter_default.clone()
         };
         assert!(!filter_ignore.is_file_included(&file_cargo));
         assert!(filter_ignore.is_file_included(&dir_src));
+
+        // Case-insensitive ignore glob
+        let (ignore_patterns_ci, _) = IgnorePatterns::parse_from_iter(vec!["*.TOML"]);
+        let filter_ignore_ci = FileFilter {
+            ignore_patterns_caseins: ignore_patterns_ci.set_match_options(glob::MatchOptions {
+                case_sensitive: false,
+                ..Default::default()
+            }),
+            ..filter_default
+        };
+        assert!(!filter_ignore_ci.is_file_included(&file_cargo));
+        assert!(filter_ignore_ci.is_file_included(&dir_src));
     }
 
     #[test]
