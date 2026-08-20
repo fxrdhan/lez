@@ -49,11 +49,11 @@ impl Dir {
     /// calls, rather than `read_dir`, to avoid holding multiple open file descriptors
     /// simultaneously, which can lead to "too many open files" errors.
     pub fn read(&mut self) -> io::Result<&Self> {
-        info!("Reading directory {:?}", &self.path);
+        info!("Reading directory {:?}", self.path);
 
         self.contents = fs::read_dir(&self.path)?.collect::<Result<Vec<_>, _>>()?;
 
-        info!("Read directory success {:?}", &self.path);
+        info!("Read directory success {:?}", self.path);
         Ok(self)
     }
 
@@ -66,11 +66,11 @@ impl Dir {
     /// entries, so if the user wants to see them, we’ll have to add them
     /// ourselves after the files have been read.
     pub fn read_dir(path: PathBuf) -> io::Result<Self> {
-        info!("Reading directory {:?}", &path);
+        info!("Reading directory {:?}", path);
 
         let contents = fs::read_dir(&path)?.collect::<Result<Vec<_>, _>>()?;
 
-        info!("Read directory success {:?}", &path);
+        info!("Read directory success {:?}", path);
         Ok(Self { contents, path })
     }
 

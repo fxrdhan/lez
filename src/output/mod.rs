@@ -66,8 +66,10 @@ impl TerminalWidth {
         // where the output goes.
 
         #[cfg(unix)]
-        let stdout_term_width =
-            { terminal_size::terminal_size_of(std::io::stdout()).map(|(w, _h)| w.0 as _) };
+        let stdout_term_width = {
+            terminal_size::terminal_size_of(std::io::stdout())
+                .map(|(w, _h)| (w.0 as usize).clamp(1, u16::MAX as usize))
+        };
         #[cfg(windows)]
         let stdout_term_width = {
             use std::os::windows::io::BorrowedHandle;
@@ -75,13 +77,39 @@ impl TerminalWidth {
             terminal_size::terminal_size_of(unsafe {
                 BorrowedHandle::borrow_raw(GetStdHandle(STD_OUTPUT_HANDLE))
             })
-            .map(|(w, _h)| w.0 as _)
+            .map(|(w, _h)| (w.0 as usize).clamp(1, u16::MAX as usize))
         };
 
-        #[rustfmt::skip]
-        return match self {
-            Self::Set(width)  => Some(width),
-            Self::Automatic   => stdout_term_width,
-        };
+        match self {
+            Self::Set(width) => Some(width.clamp(1, u16::MAX as usize)),
+            Self::Automatic => stdout_term_width,
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn actual_terminal_width_set_normal() {
+        assert_eq!(TerminalWidth::Set(80).actual_terminal_width(), Some(80));
+    }
+
+    #[test]
+    fn actual_terminal_width_set_clamped_min() {
+        assert_eq!(TerminalWidth::Set(0).actual_terminal_width(), Some(1));
+    }
+
+    #[test]
+    fn actual_terminal_width_set_clamped_max() {
+        assert_eq!(
+            TerminalWidth::Set(100_000).actual_terminal_width(),
+            Some(u16::MAX as usize)
+        );
+        assert_eq!(
+            TerminalWidth::Set(usize::MAX).actual_terminal_width(),
+            Some(u16::MAX as usize)
+        );
     }
 }

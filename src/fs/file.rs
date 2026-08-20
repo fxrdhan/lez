@@ -280,7 +280,7 @@ impl<'dir> File<'dir> {
     pub fn metadata(&self) -> Result<&std::fs::Metadata, &io::Error> {
         self.metadata
             .get_or_init(|| {
-                debug!("Statting file {:?}", &self.path);
+                debug!("Statting file {:?}", self.path);
                 std::fs::symlink_metadata(&self.path)
             })
             .as_ref()
@@ -467,7 +467,7 @@ impl<'dir> File<'dir> {
         // this file — which could be absolute or relative — to the path
         // we actually look up and turn into a `File` — which needs to be
         // absolute to be accessible from any directory.
-        debug!("Reading link {:?}", &self.path);
+        debug!("Reading link {:?}", self.path);
         let path = match std::fs::read_link(&self.path) {
             Ok(p) => p,
             Err(e) => return FileTarget::Err(e),
@@ -499,7 +499,7 @@ impl<'dir> File<'dir> {
                 FileTarget::Ok(Box::new(file))
             }
             Err(e) => {
-                error!("Error following link {:?}: {:#?}", &path, e);
+                error!("Error following link {:?}: {:#?}", path, e);
                 FileTarget::Broken(path)
             }
         }
@@ -1152,7 +1152,8 @@ mod length_test {
     #[test]
     #[cfg(unix)]
     fn dereference_symlink_length() {
-        let temp_dir = std::env::temp_dir().join(format!("lsr_test_deref_len_{}", std::process::id()));
+        let temp_dir =
+            std::env::temp_dir().join(format!("lsr_test_deref_len_{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).unwrap();
 
@@ -1168,10 +1169,12 @@ mod length_test {
         let link_no_deref = File::from_args(link_path.clone(), None, None, false, false, None);
         let link_deref = File::from_args(link_path, None, None, true, false, None);
 
-        assert_eq!(link_no_deref.length(), target_path.to_str().unwrap().len() as u64);
+        assert_eq!(
+            link_no_deref.length(),
+            target_path.to_str().unwrap().len() as u64
+        );
         assert_eq!(link_deref.length(), 12);
 
         let _ = fs::remove_dir_all(&temp_dir);
     }
 }
-

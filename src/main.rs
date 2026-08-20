@@ -166,7 +166,7 @@ fn git_options(options: &Options, args: &[&OsStr]) -> Option<GitCache> {
 
 #[cfg(not(feature = "git"))]
 fn git_repos(_options: &Options, _args: &[&OsStr]) -> bool {
-    return false;
+    false
 }
 
 #[cfg(feature = "git")]

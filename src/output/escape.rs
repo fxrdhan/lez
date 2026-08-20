@@ -45,18 +45,25 @@ pub fn escape(
     }
 }
 
-const HYPERLINK_ESCAPE_CHARS: &AsciiSet = &CONTROLS.add(b' ');
+const HYPERLINK_ESCAPE_CHARS: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'?')
+    .add(b'#')
+    .add(b'%')
+    .add(b'[')
+    .add(b']')
+    .add(b'\\');
 const HYPERLINK_OPENING_START: &str = "\x1B]8;;";
 const HYPERLINK_OPENING_END: &str = "\x1B\x5C";
 // Combination of both above tags
 pub const HYPERLINK_CLOSING: &str = "\x1B]8;;\x1B\x5C";
 
 pub fn get_hyperlink_start_tag(abs_path: &str) -> String {
-    let abs_path = utf8_percent_encode(abs_path, HYPERLINK_ESCAPE_CHARS).to_string();
-
     // On Windows, `std::fs::canonicalize` adds the Win32 File prefix, which we need to remove
     #[cfg(target_os = "windows")]
-    let abs_path = abs_path.strip_prefix("\\\\?\\").unwrap_or(&abs_path);
+    let abs_path = abs_path.strip_prefix(r"\\?\").unwrap_or(abs_path);
+
+    let abs_path = utf8_percent_encode(abs_path, HYPERLINK_ESCAPE_CHARS).to_string();
 
     format!("{HYPERLINK_OPENING_START}file://{abs_path}{HYPERLINK_OPENING_END}")
 }
@@ -68,10 +75,83 @@ mod test {
     #[test]
     fn hyperlink_start_tag_escape_spaces() {
         assert_eq!(
-            get_hyperlink_start_tag("/folder name/file name").to_string(),
+            get_hyperlink_start_tag("/folder name/file name"),
             format!(
                 "{HYPERLINK_OPENING_START}file:///folder%20name/file%20name{HYPERLINK_OPENING_END}"
             ),
         );
+    }
+
+    #[test]
+    fn hyperlink_start_tag_escape_question_mark() {
+        assert_eq!(
+            get_hyperlink_start_tag("/path/file?name"),
+            format!("{HYPERLINK_OPENING_START}file:///path/file%3Fname{HYPERLINK_OPENING_END}"),
+        );
+    }
+
+    #[test]
+    fn hyperlink_start_tag_escape_hash() {
+        assert_eq!(
+            get_hyperlink_start_tag("/path/file#name"),
+            format!("{HYPERLINK_OPENING_START}file:///path/file%23name{HYPERLINK_OPENING_END}"),
+        );
+    }
+
+    #[test]
+    fn hyperlink_start_tag_escape_percent() {
+        assert_eq!(
+            get_hyperlink_start_tag("/path/100%_done"),
+            format!("{HYPERLINK_OPENING_START}file:///path/100%25_done{HYPERLINK_OPENING_END}"),
+        );
+    }
+
+    #[test]
+    fn hyperlink_start_tag_escape_brackets() {
+        assert_eq!(
+            get_hyperlink_start_tag("/path/[test]/file"),
+            format!("{HYPERLINK_OPENING_START}file:///path/%5Btest%5D/file{HYPERLINK_OPENING_END}"),
+        );
+    }
+
+    #[test]
+    fn hyperlink_start_tag_escape_backslash() {
+        assert_eq!(
+            get_hyperlink_start_tag("/path/dir\\file"),
+            format!("{HYPERLINK_OPENING_START}file:///path/dir%5Cfile{HYPERLINK_OPENING_END}"),
+        );
+    }
+
+    #[test]
+    fn hyperlink_start_tag_escape_composite() {
+        assert_eq!(
+            get_hyperlink_start_tag("/dir [v1]/file #1?mode=100%\\test"),
+            format!(
+                "{HYPERLINK_OPENING_START}file:///dir%20%5Bv1%5D/file%20%231%3Fmode=100%25%5Ctest{HYPERLINK_OPENING_END}"
+            ),
+        );
+    }
+
+    #[test]
+    fn hyperlink_start_tag_empty_path() {
+        assert_eq!(
+            get_hyperlink_start_tag(""),
+            format!("{HYPERLINK_OPENING_START}file://{HYPERLINK_OPENING_END}"),
+        );
+    }
+
+    #[test]
+    fn hyperlink_start_tag_preserves_utf8() {
+        assert_eq!(
+            get_hyperlink_start_tag("/docs/日本語/αβγ"),
+            format!(
+                "{HYPERLINK_OPENING_START}file:///docs/%E6%97%A5%E6%9C%AC%E8%AA%9E/%CE%B1%CE%B2%CE%B3{HYPERLINK_OPENING_END}"
+            ),
+        );
+    }
+
+    #[test]
+    fn hyperlink_closing_tag_format() {
+        assert_eq!(HYPERLINK_CLOSING, "\x1B]8;;\x1B\x5C");
     }
 }

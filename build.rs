@@ -108,7 +108,7 @@ fn version_string() -> String {
 
     let feats = nonstandard_features_string();
     if !feats.is_empty() {
-        ver.push_str(&format!(" [{}]", &feats));
+        ver.push_str(&format!(" [{feats}]"));
     }
 
     ver
