@@ -89,7 +89,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **-l**, **--long**: display extended details and attributes
 - **-R**, **--recurse**: recurse into directories
 - **-T**, **--tree**: recurse into directories as a tree
-- **--code[=MODE]**: print lines-of-code summary by language (Odin, Rust, C/C++, Python, Go, etc.)
+- **--code[=MODE]**: print lines-of-code summary by language (Janet, Odin, Rust, C/C++, Python, Go, etc.)
 - **--json**: output file listing and metadata as structured JSON
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
@@ -122,6 +122,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **--show-symlinks**: explicitly show links (with `--only-dirs`, `--only-files`, to show symlinks that match the filter)
 - **--git-ignore**: ignore files mentioned in `.gitignore`
 - **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore
+- **--ignore-glob-case-insensitive**: match ignore globs case-insensitively
 
 Pass the `--all` option twice to also show the `.` and `..` directories.
 
@@ -137,11 +138,11 @@ These options are available when running with `--long` (`-l`):
 - **-b**, **--binary**: list file sizes with binary prefixes (overrides `--bytes` if passed after)
 - **-B**, **--bytes**: list file sizes in bytes, without any prefixes (overrides `--binary` if passed after)
 - **-g**, **--group**: list each file’s group
-- **--smart-group**: only show group if it has a different name from owner
+- **--smart-group**: only show group if it has a different name from owner (automatically enables group column)
 - **-h**, **--header**: add a header row to each column
 - **-H**, **--links**: list each file’s number of hard links
 - **-i**, **--inode**: list each file’s inode number
-- **--loc[=MODE]**: display language and lines-of-code columns (Odin, Rust, C/C++, Python, Go, etc.)
+- **--loc[=MODE]**: display language and lines-of-code columns (Janet, Odin, Rust, C/C++, Python, Go, etc.)
 - **-m**, **--modified**: use the modified timestamp field
 - **-M**, **--mounts**: Show mount details (Linux and MacOS only).
 - **-S**, **--blocksize**: show size of allocated file system blocks
@@ -170,7 +171,7 @@ Some of the options accept parameters:
 - Valid **--colo\[u\]r** options are **always**, **automatic** (or **auto** for short), and **never**.
 - Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **modified**, **name**, **Name**, **path**, **Path**, **size**, **block**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, and **newest**, while its reverse has the aliases **age** and **oldest**. The **block** field has the aliases **blocks** and **blocksize**.
 - Valid time fields are **modified**, **changed**, **accessed**, and **created**.
-- Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, and **relative**.
+- Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, **relative**, and **relative-recent** (or **recent**).
 
 See the `man` pages for further documentation of usage. They are available:
 - online [in the repo](https://github.com/fxrdhan/lsr/tree/main/man)
