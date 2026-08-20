@@ -93,6 +93,33 @@ pub struct FileFilter {
 }
 
 impl FileFilter {
+    /// Determines whether an individual file matches active filter rules
+    /// (not considering directory recursion container status).
+    #[must_use]
+    pub fn is_file_included(&self, file: &File<'_>) -> bool {
+        use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
+
+        if self.ignore_patterns.is_ignored(&file.name) {
+            return false;
+        }
+
+        match (
+            self.flags.contains(&OnlyDirs),
+            self.flags.contains(&OnlyFiles),
+            self.flags.contains(&NoSymlinks),
+            self.flags.contains(&ShowSymlinks),
+        ) {
+            (true, false, false, false) | (true, false, true, false) => file.is_directory(),
+            (true, false, false, true) => file.is_directory() || file.points_to_directory(),
+            (false, true, false, false) => file.is_file(),
+            (false, true, false, true) => {
+                file.is_file() || (file.is_link() && !file.points_to_directory())
+            }
+            (false, false, true, false) => !file.is_link(),
+            _ => true,
+        }
+    }
+
     /// Remove every file in the given vector that does *not* pass the
     /// filter predicate for files found inside a directory.
     #[rustfmt::skip]
@@ -381,7 +408,8 @@ impl IgnorePatterns {
     }
 
     /// Test whether the given file should be hidden from the results.
-    fn is_ignored(&self, file: &str) -> bool {
+    #[must_use]
+    pub fn is_ignored(&self, file: &str) -> bool {
         self.patterns.iter().any(|p| p.matches(file))
     }
 }
@@ -429,5 +457,52 @@ mod test_ignores {
         assert!(fails.is_empty());
         assert!(pats.is_ignored("nothing"));
         assert!(pats.is_ignored("test.mp3"));
+    }
+
+    #[test]
+    fn is_file_included_with_various_flags() {
+        use std::path::PathBuf;
+
+        let file_cargo =
+            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
+        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, None);
+
+        // Default filter includes both
+        let filter_default = FileFilter {
+            sort_field: SortField::Name(SortCase::ABCabc),
+            flags: vec![],
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            git_ignore: GitIgnore::Off,
+            no_symlinks: false,
+            show_symlinks: false,
+        };
+        assert!(filter_default.is_file_included(&file_cargo));
+        assert!(filter_default.is_file_included(&dir_src));
+
+        // OnlyDirs
+        let filter_only_dirs = FileFilter {
+            flags: vec![FileFilterFlags::OnlyDirs],
+            ..filter_default.clone()
+        };
+        assert!(!filter_only_dirs.is_file_included(&file_cargo));
+        assert!(filter_only_dirs.is_file_included(&dir_src));
+
+        // OnlyFiles
+        let filter_only_files = FileFilter {
+            flags: vec![FileFilterFlags::OnlyFiles],
+            ..filter_default.clone()
+        };
+        assert!(filter_only_files.is_file_included(&file_cargo));
+        assert!(!filter_only_files.is_file_included(&dir_src));
+
+        // Ignore glob
+        let (ignore_patterns, _) = IgnorePatterns::parse_from_iter(vec!["*.toml"]);
+        let filter_ignore = FileFilter {
+            ignore_patterns,
+            ..filter_default
+        };
+        assert!(!filter_ignore.is_file_included(&file_cargo));
+        assert!(filter_ignore.is_file_included(&dir_src));
     }
 }

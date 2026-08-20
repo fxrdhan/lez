@@ -154,11 +154,11 @@ impl GitRepo {
 
         let mut contents = self.contents.lock().unwrap();
         if let GitContents::After { ref statuses } = *contents {
-            debug!("Git repo {:?} has been found in cache", &self.workdir);
+            debug!("Git repo {:?} has been found in cache", self.workdir);
             return statuses.status(index, prefix_lookup);
         }
 
-        debug!("Querying Git repo {:?} for the first time", &self.workdir);
+        debug!("Querying Git repo {:?} for the first time", self.workdir);
         let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
         let statuses = repo_to_statuses(&repo, &self.workdir);
         let result = statuses.status(index, prefix_lookup);

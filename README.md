@@ -89,6 +89,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **-l**, **--long**: display extended details and attributes
 - **-R**, **--recurse**: recurse into directories
 - **-T**, **--tree**: recurse into directories as a tree
+- **--code[=MODE]**: print lines-of-code summary by language (Odin, Rust, C/C++, Python, Go, etc.)
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify=(when)**: display type indicator by file names (always, auto, never)
 - **--colo[u]r=(when)**: when to use terminal colours (always, auto, never)
@@ -97,7 +98,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **--icons=(when)**: when to display icons (always, auto, never)
 - **--hyperlink=(when)**: when to display entries as hyperlinks (always, auto, never)
 - **--absolute=(mode)**: display entries with their absolute path (on, follow, off)
-- **-w**, **--width=(columns)**: set screen width in columns
+- **-w**, **--width=(columns)**: set screen width in columns (clamped to `1..65535`)
 
 </details>
 
@@ -131,13 +132,14 @@ Pass the `--all` option twice to also show the `.` and `..` directories.
 
 These options are available when running with `--long` (`-l`):
 
-- **-b**, **--binary**: list file sizes with binary prefixes
-- **-B**, **--bytes**: list file sizes in bytes, without any prefixes
+- **-b**, **--binary**: list file sizes with binary prefixes (overrides `--bytes` if passed after)
+- **-B**, **--bytes**: list file sizes in bytes, without any prefixes (overrides `--binary` if passed after)
 - **-g**, **--group**: list each file’s group
 - **--smart-group**: only show group if it has a different name from owner
 - **-h**, **--header**: add a header row to each column
 - **-H**, **--links**: list each file’s number of hard links
 - **-i**, **--inode**: list each file’s inode number
+- **--loc[=MODE]**: display language and lines-of-code columns (Odin, Rust, C/C++, Python, Go, etc.)
 - **-m**, **--modified**: use the modified timestamp field
 - **-M**, **--mounts**: Show mount details (Linux and MacOS only).
 - **-S**, **--blocksize**: show size of allocated file system blocks

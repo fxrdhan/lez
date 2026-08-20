@@ -86,7 +86,7 @@ When used without a value, defaults to ‘`automatic`’.
 `--code[=MODE]`
 : Print a lines-of-code summary by language instead of listing files, in the spirit of tools like `tokei` and `cloc`.
 
-: The given paths (or the current directory) are walked recursively, honouring a git repository’s `.gitignore` when one is present, and each recognised language is reported with its file, line, code, comment, and blank counts, plus a bar visualising its share of the code. Valid modes are ‘`lines`’, ‘`percent`’, and ‘`both`’ (the default).
+: The given paths (or the current directory) are walked recursively, honouring a git repository’s `.gitignore` when one is present, and each recognised language (including Odin, Rust, C/C++, Python, Go, and 100+ others) is reported with its file, line, code, comment, and blank counts, plus a bar visualising its share of the code. Valid modes are ‘`lines`’, ‘`percent`’, and ‘`both`’ (the default).
 
 `--follow-symlinks`
 : Drill down into symbolic links that point to directories.
@@ -142,7 +142,7 @@ When used without a value, defaults to ‘`automatic`’.
 `automatic` or `auto` will display hyperlinks only when the standard output is connected to a real terminal. If `eza` is ran while in a `tty`, or the output of `eza` is either redirected to a file or piped into another program, hyperlinks will not be used. Setting this option to ‘`always`’ causes `eza` to always display hyperlinks, while ‘`never`’ disables the use of hyperlinks.
 
 `-w`, `--width=COLS`
-: Set screen width in columns.
+: Set screen width in columns (clamped to the safe range `1..65535` to prevent integer overflow and division-by-zero).
 
 FILTERING AND SORTING OPTIONS
 =============================
@@ -210,10 +210,10 @@ LONG VIEW OPTIONS
 These options are available when running with `--long` (`-l`):
 
 `-b`, `--binary`
-: List file sizes with binary prefixes.
+: List file sizes with binary prefixes. Overrides preceding `-B`/`--bytes` flags.
 
 `-B`, `--bytes`
-: List file sizes in bytes, without any prefixes.
+: List file sizes in bytes, without any prefixes. Overrides preceding `-b`/`--binary` flags.
 
 `--changed`
 : Use the changed timestamp field.
@@ -236,7 +236,7 @@ These options are available when running with `--long` (`-l`):
 `--loc[=MODE]`
 : Add a language column and a lines-of-code column to the long view.
 
-: Only regular files in a recognised programming language are counted; counting is comment-aware, so the code column excludes comment and blank lines.
+: Only regular files in a recognised programming language (including Odin, Rust, C/C++, Python, Go, and 100+ others) are counted; counting is comment-aware, so the code column excludes comment and blank lines.
 
 : Valid modes are ‘`lines`’ (the count of code lines), ‘`percent`’ (each file’s share of the code in the whole tree), and ‘`both`’ (the default). In `percent` and `both` modes the denominator is the total code across the recursed tree, or the git repository if one is present.
 
