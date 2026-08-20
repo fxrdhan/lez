@@ -82,6 +82,8 @@ complete -c eza -s s -l sort -d "Which field to sort by" -x -a "
     newest\t'Sort by file modified time (newest first)'
     none\t'Do not sort files at all'
     oldest\t'Sort by file modified time'
+    path\t'Sort by file path'
+    Path\t'Sort by file path (uppercase first)'
     size\t'Sort by file size'
     block\t'Sort by file block size'
     blocks\t'Sort by file block size'
