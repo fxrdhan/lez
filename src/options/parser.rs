@@ -142,9 +142,11 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-g --group "list each file's group"))
         .arg(arg!(--"smart-group" "only show group if it has a different name from owner"))
         .arg(arg!(-n --numeric "show user and group as their numeric IDs"))
-        .arg(arg!(-t --time <FIELD>).help(format!("which timestamp field to show {TIME_FIELDS_HELP}"))
+        .arg(arg!(-t --time [FIELD]).help(format!("which timestamp field to show {TIME_FIELDS_HELP}"))
+            .num_args(0..=1)
+            .require_equals(true)
             .value_parser(value_parser!(TimeArgs))
-            .conflicts_with_all(["modified", "accessed", "changed", "created"])
+            .default_missing_value("default")
             .hide_possible_values(true))
         .arg(arg!(-m --modified "show the modified timestamp field (replace default field, combinable)"))
         .arg(arg!(-u --accessed "show the accessed timestamp field (replace default field, combinable)"))
@@ -285,11 +287,18 @@ pub enum TimeArgs {
     Changed,
     Accessed,
     Created,
+    Default,
 }
 
 impl ValueEnum for TimeArgs {
     fn value_variants<'a>() -> &'a [Self] {
-        &[Self::Modified, Self::Changed, Self::Accessed, Self::Created]
+        &[
+            Self::Modified,
+            Self::Changed,
+            Self::Accessed,
+            Self::Created,
+            Self::Default,
+        ]
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
@@ -298,6 +307,7 @@ impl ValueEnum for TimeArgs {
             Self::Changed => PossibleValue::new("changed").alias("ch"),
             Self::Accessed => PossibleValue::new("accessed").alias("acc"),
             Self::Created => PossibleValue::new("created").alias("cr"),
+            Self::Default => PossibleValue::new("default").hide(true),
         })
     }
 }
