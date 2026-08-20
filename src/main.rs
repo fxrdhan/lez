@@ -502,14 +502,16 @@ impl Exa<'_> {
                 .filter(|f| !f.is_directory())
                 .collect::<Vec<_>>();
         }
+        let files_count = files.len();
         let theme = &self.theme;
         let View {
             ref mode,
             ref file_style,
+            ref total_entries,
             ..
         } = self.options.view;
 
-        match (mode, self.console_width) {
+        let result = match (mode, self.console_width) {
             (Mode::Grid(opts), Some(console_width)) => {
                 let filter = &self.options.filter;
                 let r = grid::Render {
@@ -620,7 +622,14 @@ impl Exa<'_> {
             // The code summary never lists files; it’s handled up front in
             // `run` before we ever get here.
             (Mode::Code(_), _) => unreachable!("--code is handled in Exa::run"),
+        };
+        result?;
+
+        if *total_entries {
+            writeln!(&mut self.writer, "total: {files_count}")?;
         }
+
+        Ok(())
     }
 }
 

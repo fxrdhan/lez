@@ -144,6 +144,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--no-git'                   ,'no-git'              , [CompletionResultType]::ParameterName, 'suppress Git status (always overrides -git, --git-repos, --git-repos-no-status)')
             [CompletionResult]::new('--git-repos'                ,'git-repos'           , [CompletionResultType]::ParameterName, 'list root of git-tree status')
             [CompletionResult]::new('--git-repos-no-status'      ,'git-repos-no-status' , [CompletionResultType]::ParameterName, 'list each git-repos branch name (much faster)')
+            [CompletionResult]::new('--print-total'              ,'print-total'         , [CompletionResultType]::ParameterName, 'display total number of entries')
 
             break
         }

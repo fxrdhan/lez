@@ -33,6 +33,7 @@ pub struct View {
     pub deref_links: bool,
     pub follow_links: bool,
     pub total_size: bool,
+    pub total_entries: bool,
 }
 
 /// The **mode** is the “type” of output.
