@@ -135,12 +135,12 @@ fn test_m3_cli_smart_group_json_mode() {
         .as_object()
         .expect("Must be JSON object map in long mode");
     let file_meta = obj.get("doc.md").expect("doc.md must exist in map");
-    let meta_obj = file_meta.as_object().expect("Metadata must be object");
+    let _meta_obj = file_meta.as_object().expect("Metadata must be object");
     #[cfg(unix)]
     {
         // In long mode with --smart-group, Group column is implied and present
         assert!(
-            meta_obj.contains_key("Group"),
+            _meta_obj.contains_key("Group"),
             "Group key must be present when --smart-group is active"
         );
     }
