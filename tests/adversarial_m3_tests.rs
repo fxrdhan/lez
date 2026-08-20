@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
+#![cfg(unix)]
+
 use std::fs::{self, File as StdFile};
 use std::io::Write;
 use std::path::PathBuf;
