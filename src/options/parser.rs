@@ -107,10 +107,12 @@ pub fn get_command() -> clap::Command {
             .default_value("gradient"))
         .arg(arg!(--icons <WHEN> "when to display icons")
             .num_args(0..=1)
+            .require_equals(true)
             .value_parser(value_parser!(ShowWhen))
             .default_missing_value("auto"))
         .arg(arg!(--hyperlink <WHEN> "when to display entries as hyperlinks")
             .num_args(0..=1)
+            .require_equals(true)
             .value_parser(value_parser!(ShowWhen))
             .default_missing_value("auto"))
         .arg(arg!(--"no-quotes" "don't quote file names with spaces"))
@@ -573,5 +575,45 @@ pub mod test {
         assert!(help_output.contains("FILTERING OPTIONS"));
         assert!(help_output.contains("SORTING OPTIONS"));
         assert!(help_output.contains("LONG VIEW OPTIONS"));
+    }
+
+    #[test]
+    fn icons_without_equals_does_not_consume_file() {
+        let cli = mock_cli(vec!["--icons", "file1"]);
+        assert_eq!(cli.get_one::<ShowWhen>("icons"), Some(&ShowWhen::Auto));
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["file1"]
+        );
+    }
+
+    #[test]
+    fn hyperlink_without_equals_does_not_consume_file() {
+        let cli = mock_cli(vec!["--hyperlink", "file1"]);
+        assert_eq!(cli.get_one::<ShowWhen>("hyperlink"), Some(&ShowWhen::Auto));
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["file1"]
+        );
+    }
+
+    #[test]
+    fn icons_and_hyperlink_do_not_consume_keyword_named_files() {
+        let cli = mock_cli(vec!["--icons", "--hyperlink", "auto", "never", "always"]);
+        assert_eq!(cli.get_one::<ShowWhen>("icons"), Some(&ShowWhen::Auto));
+        assert_eq!(cli.get_one::<ShowWhen>("hyperlink"), Some(&ShowWhen::Auto));
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["auto", "never", "always"]
+        );
     }
 }
