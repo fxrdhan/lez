@@ -522,3 +522,20 @@ fn test_m3_mounts_cli_display() {
 
     assert!(output.status.success());
 }
+
+#[test]
+fn test_m4_directorynames_theme_override() {
+    let yaml = r#"
+directorynames:
+  special_dir:
+    filename:
+      foreground: Red
+"#;
+    let temp = TempTestDir::new("theme_dir");
+    let theme_file = temp.create_file("theme.yml", yaml.as_bytes());
+    let cfg = lsr::options::config::ThemeConfig::from_path(theme_file);
+    let theme = cfg.to_theme().expect("Failed to parse theme");
+    assert!(theme.directorynames.is_some());
+    let dir_styles = theme.directorynames.unwrap();
+    assert!(dir_styles.contains_key("special_dir"));
+}
