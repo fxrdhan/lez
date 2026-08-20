@@ -382,7 +382,7 @@ lsr provides its own built-in set of file extension mappings that cover a large 
 Any mappings in the environment variables will override this default set: running lsr with `LS_COLORS="*.zip=32"` will turn zip files green but leave the colours of other compressed files alone.
 
 You can also disable this built-in set entirely by including a `reset` entry at the beginning of `LSR_COLORS` or `EZA_COLORS`.
-So setting `LSR_COLORS="reset:*.txt=31"` will highlight only text files; setting `LSR_COLORS="reset"` will highlight nothing.
+So setting `LSR_COLORS="reset:*.txt=31"` will highlight only text files in addition to any styles in `LS_COLORS`; setting `LSR_COLORS="reset"` will highlight nothing.
 
 
 AUTHOR

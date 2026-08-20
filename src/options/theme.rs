@@ -80,7 +80,8 @@ impl Definitions {
             .get(vars::LS_COLORS)
             .map(|e| e.to_string_lossy().to_string());
         let exa = vars
-            .get_with_fallback(vars::EZA_COLORS, vars::EXA_COLORS)
+            .get(vars::LSR_COLORS)
+            .or_else(|| vars.get_with_fallback(vars::EZA_COLORS, vars::EXA_COLORS))
             .map(|e| e.to_string_lossy().to_string());
         Self { ls, exa }
     }
@@ -108,18 +109,60 @@ mod tests {
     }
 
     #[test]
-    fn deduce_definitions_colors() {
-        let mut vars = MockVars {
-            ..MockVars::default()
-        };
-
+    fn deduce_definitions_ls_colors() {
+        let mut vars = MockVars::default();
         vars.set(vars::LS_COLORS, &OsString::from("uR=1;34"));
 
         assert_eq!(
             Definitions::deduce(&vars),
             Definitions {
                 ls: Some("uR=1;34".to_string()),
-                exa: Some("uR=1;34".to_string()),
+                exa: None,
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_definitions_lsr_colors_precedence() {
+        let mut vars = MockVars::default();
+        vars.set(vars::LSR_COLORS, &OsString::from("reset:da=32"));
+        vars.set(vars::EZA_COLORS, &OsString::from("da=33"));
+        vars.set(vars::EXA_COLORS, &OsString::from("da=34"));
+
+        assert_eq!(
+            Definitions::deduce(&vars),
+            Definitions {
+                ls: None,
+                exa: Some("reset:da=32".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_definitions_eza_colors_fallback() {
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_COLORS, &OsString::from("reset:da=33"));
+        vars.set(vars::EXA_COLORS, &OsString::from("da=34"));
+
+        assert_eq!(
+            Definitions::deduce(&vars),
+            Definitions {
+                ls: None,
+                exa: Some("reset:da=33".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_definitions_exa_colors_fallback() {
+        let mut vars = MockVars::default();
+        vars.set(vars::EXA_COLORS, &OsString::from("reset:da=34"));
+
+        assert_eq!(
+            Definitions::deduce(&vars),
+            Definitions {
+                ls: None,
+                exa: Some("reset:da=34".to_string()),
             }
         );
     }
