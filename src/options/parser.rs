@@ -354,7 +354,14 @@ impl clap::builder::TypedValueParser for TimeFormatParser {
         _arg: Option<&clap::Arg>,
         value: &std::ffi::OsStr,
     ) -> Result<Self::Value, Error> {
-        match TimeFormat::try_from_str(value.to_str().unwrap()) {
+        let s = value.to_str().ok_or_else(|| {
+            Error::raw(
+                clap::error::ErrorKind::InvalidUtf8,
+                format!("--time-style value '{value:?}' is not valid UTF-8"),
+            )
+            .with_cmd(cmd)
+        })?;
+        match TimeFormat::try_from_str(s) {
             Err(s) => Err(Error::raw(clap::error::ErrorKind::InvalidValue, s).with_cmd(cmd)),
             Ok(v) => Ok(v),
         }
@@ -620,5 +627,31 @@ pub mod test {
                 .collect::<Vec<_>>(),
             ["auto", "never", "always"]
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn time_style_rejects_non_utf8() {
+        use std::os::unix::ffi::OsStringExt;
+        let args = vec![
+            OsString::from("--time-style"),
+            OsString::from_vec(b"\xff\xfe".to_vec()),
+        ];
+        let err = mock_cli_try(args).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidUtf8);
+    }
+
+    #[test]
+    fn time_style_rejects_invalid_value() {
+        let args = vec!["--time-style", "invalid_format_name"];
+        let err = mock_cli_try(args).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[test]
+    fn time_style_rejects_empty_custom_format() {
+        let args = vec!["--time-style", "+"];
+        let err = mock_cli_try(args).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
     }
 }
