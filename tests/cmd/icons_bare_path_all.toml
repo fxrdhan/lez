@@ -1,0 +1,4 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+bin.name = "lsr"
+args = "-al --icons tests/cmd"

@@ -285,7 +285,7 @@ mod tests {
             EmbedHyperlinks::Automatic
         );
         assert_eq!(
-            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink", "auto"])),
+            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink=auto"])),
             EmbedHyperlinks::Automatic
         );
     }
@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn deduce_embed_hyperlinks_always() {
         assert_eq!(
-            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink", "always"])),
+            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink=always"])),
             EmbedHyperlinks::Always
         );
     }
@@ -301,7 +301,7 @@ mod tests {
     #[test]
     fn deduce_embed_hyperlinks_never() {
         assert_eq!(
-            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink", "never"])),
+            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink=never"])),
             EmbedHyperlinks::Never
         );
         assert_eq!(
@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn deduce_show_icon_always() {
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons", "always"]), &MockVars::default()),
+            ShowIcons::deduce(&mock_cli(vec!["--icons=always"]), &MockVars::default()),
             Ok(ShowIcons::Always(1)),
         );
     }
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn deduce_show_icons_never() {
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons", "never"]), &MockVars::default()),
+            ShowIcons::deduce(&mock_cli(vec!["--icons=never"]), &MockVars::default()),
             Ok(ShowIcons::Never)
         );
     }
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn deduce_show_icons_auto() {
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons", "auto"]), &MockVars::default()),
+            ShowIcons::deduce(&mock_cli(vec!["--icons=auto"]), &MockVars::default()),
             Ok(ShowIcons::Automatic(1))
         );
     }
@@ -383,7 +383,7 @@ mod tests {
             .parse();
 
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons", "auto"]), &vars),
+            ShowIcons::deduce(&mock_cli(vec!["--icons=auto"]), &vars),
             Err(OptionsError::FailedParse(
                 String::from("foo"),
                 NumberSource::Env(vars::EXA_ICON_SPACING),
