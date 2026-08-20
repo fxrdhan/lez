@@ -430,6 +430,7 @@ languages! {
     JULIA      = ("Julia",        HASH_LINE,            &[("#=", "=#")]);
     ASSEMBLY   = ("Assembly",     &[";"],               NO_BLOCK);
     PROTOBUF   = ("Protocol Buffers", C_LINE,           C_BLOCK);
+    ODIN       = ("Odin",         C_LINE,               C_BLOCK);
 }
 
 const NO_LINE: &[&str] = &[];
@@ -527,6 +528,7 @@ static BY_EXTENSION: Map<&'static str, &'static Language> = phf_map! {
     "s"     => &ASSEMBLY,
     "asm"   => &ASSEMBLY,
     "proto" => &PROTOBUF,
+    "odin"  => &ODIN,
 };
 
 #[cfg(test)]
@@ -610,6 +612,7 @@ mod test {
     fn detects_language_by_extension() {
         assert_eq!(language_for("main.rs", Some("rs")), Some(&RUST));
         assert_eq!(language_for("app.py", Some("py")), Some(&PYTHON));
+        assert_eq!(language_for("main.odin", Some("odin")), Some(&ODIN));
         assert_eq!(language_for("mystery.xyz", Some("xyz")), None);
     }
 
@@ -617,5 +620,55 @@ mod test {
     fn detects_language_by_filename() {
         assert_eq!(language_for("Makefile", None), Some(&MAKE));
         assert_eq!(language_for("Dockerfile", Some("")), Some(&DOCKER));
+    }
+
+    #[test]
+    fn counts_odin_code_and_comments() {
+        let source = "package main\n\nimport \"core:fmt\"\n\n// line comment\n/* block comment */\nmain :: proc() {\n    fmt.println(\"Hello, Odin!\");\n}\n";
+        let c = count(source, &ODIN);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 9,
+                code: 5,
+                comments: 2,
+                blanks: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn odin_block_comment_spanning_lines() {
+        let source = "package main\n/* multi-line\n   block comment\n   in odin */\nx := 42;\n";
+        let c = count(source, &ODIN);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 5,
+                code: 2,
+                comments: 3,
+                blanks: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn odin_comment_token_inside_string_is_code() {
+        let source = "package main\nmsg := \"// not a comment /* also not */\";\n";
+        let c = count(source, &ODIN);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 2,
+                code: 2,
+                comments: 0,
+                blanks: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn odin_empty_file() {
+        assert_eq!(count("", &ODIN), LocCounts::default());
     }
 }
