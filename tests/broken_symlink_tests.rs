@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports)]
+#![allow(unused_imports, dead_code)]
 
 use std::fs::{self, File as StdFile};
 use std::io::Write;
