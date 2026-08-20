@@ -490,18 +490,13 @@ fn test_smart_group_symlinks_and_dereference() {
 #[test]
 fn test_smart_group_with_git_integration() {
     let temp = TempTestDir::new("git_smart_group");
-    // Initialize git repo in temp dir
-    let init_out = Command::new("git")
-        .arg("init")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to git init");
-    if init_out.status.success() {
+    #[cfg(feature = "git")]
+    if let Ok(repo) = git2::Repository::init(&temp.path) {
         temp.create_file("tracked.rs", b"pub fn hello() {}");
-        let _ = Command::new("git")
-            .current_dir(&temp.path)
-            .args(["add", "tracked.rs"])
-            .output();
+        if let Ok(mut index) = repo.index() {
+            let _ = index.add_path(std::path::Path::new("tracked.rs"));
+            let _ = index.write();
+        }
 
         let out = Command::new(bin_path())
             .args(["-l", "--smart-group", "--git"])
