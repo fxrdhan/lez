@@ -6,7 +6,7 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use std::io::{self, Write};
-use std::path::{Component, PathBuf};
+use std::path::PathBuf;
 
 use log::debug;
 
@@ -96,7 +96,7 @@ impl<'a> Render<'a> {
                 self.render_directory(dir, w)
             }
             (_, 0, _) => self.render_files(files, w),
-            (0, _, true) => self.render_recursive_directories(&mut dirs, false, w),
+            (0, _, true) => self.render_recursive_directories(&mut dirs, false, w, 0),
             (0, _, _) => self.render_directories(dirs, w),
             (_, _, recurse) => self.render_files_directories(files, dirs, recurse, w),
         }?;
@@ -164,6 +164,7 @@ impl<'a> Render<'a> {
         dirs: &'a mut Vec<Dir>,
         sub_dir: bool,
         w: &mut W,
+        depth: usize,
     ) -> io::Result<()> {
         write!(w, "{{")?;
         let mut first = true;
@@ -200,15 +201,10 @@ impl<'a> Render<'a> {
             self.file_filter.filter_child_files(true, &mut files);
             self.file_filter.sort_files(&mut files);
             let recurse_opts = self.dir_action.recurse_options().unwrap();
-            let depth: usize = dir_r
-                .path
-                .components()
-                .filter(|&c| c != Component::CurDir)
-                .count()
-                + 1;
+            let child_depth = depth + 1;
 
             let follow_links = self.view.follow_links;
-            if !recurse_opts.tree && !recurse_opts.is_too_deep(depth) {
+            if !recurse_opts.tree && !recurse_opts.is_too_deep(child_depth) {
                 let mut child_dirs = files
                     .iter()
                     .filter(|f| {
@@ -224,7 +220,7 @@ impl<'a> Render<'a> {
                 write!(w, "\"files\":")?;
                 self.render_files(files, w)?;
                 write!(w, ", \"directories\":")?;
-                self.render_recursive_directories(&mut child_dirs, false, w)?;
+                self.render_recursive_directories(&mut child_dirs, false, w, child_depth)?;
             } else {
                 write!(w, "\"files\":")?;
                 self.render_files(files, w)?;
@@ -264,7 +260,7 @@ impl<'a> Render<'a> {
         self.render_files(files, w)?;
         write!(w, ", \"directories\":")?;
         if recurse {
-            self.render_recursive_directories(&mut dirs, false, w)?;
+            self.render_recursive_directories(&mut dirs, false, w, 0)?;
         } else {
             self.render_directories(dirs, w)?;
         }
