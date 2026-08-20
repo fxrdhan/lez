@@ -417,6 +417,10 @@ impl<C: Colours> FileName<'_, '_, C> {
             // This is a filesystem mounted on the directory, output its details
             bits.push(Style::default().paint(" ["));
             bits.push(Style::default().paint(mount_details.source.clone()));
+            if !mount_details.dest.as_os_str().is_empty() && mount_details.dest.as_path() != Path::new("/") {
+                bits.push(Style::default().paint(" on "));
+                bits.push(Style::default().paint(mount_details.dest.display().to_string()));
+            }
             bits.push(Style::default().paint(" ("));
             bits.push(Style::default().paint(mount_details.fstype.clone()));
             bits.push(Style::default().paint(")]"));
