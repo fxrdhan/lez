@@ -539,3 +539,19 @@ directorynames:
     let dir_styles = theme.directorynames.unwrap();
     assert!(dir_styles.contains_key("special_dir"));
 }
+
+#[test]
+fn test_m5_icons_apple_and_configs() {
+    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let temp = TempTestDir::new("icons_test");
+    temp.create_file("hyprland.conf", b"");
+
+    let output = Command::new(bin_path)
+        .args(["--icons=always", temp.path.to_str().unwrap()])
+        .output()
+        .expect("Failed to run lsr");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("hyprland.conf"));
+}
