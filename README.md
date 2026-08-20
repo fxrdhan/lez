@@ -90,6 +90,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **-R**, **--recurse**: recurse into directories
 - **-T**, **--tree**: recurse into directories as a tree
 - **--code[=MODE]**: print lines-of-code summary by language (Odin, Rust, C/C++, Python, Go, etc.)
+- **--json**: output file listing and metadata as structured JSON
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
 - **--colo[u]r=(when)**: when to use terminal colours (always, auto, never)

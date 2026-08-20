@@ -479,17 +479,27 @@ impl FileNameColours for Theme {
             .unwrap_or(self.ui.filekinds.unwrap_or_default().normal())
     }
 
- fn style_override(&self, file: &File<'_>) -> Option<FileNameStyle> {
-        if let Some(ref name_overrides) = self.ui.filenames
-            && let Some(file_override) = name_overrides.get(&file.name) {
+    fn style_override(&self, file: &File<'_>) -> Option<FileNameStyle> {
+        if file.is_directory() {
+            if let Some(ref dir_overrides) = self.ui.directorynames
+                && let Some(dir_override) = dir_overrides.get(&file.name)
+            {
+                return Some(*dir_override);
+            }
+        } else {
+            if let Some(ref name_overrides) = self.ui.filenames
+                && let Some(file_override) = name_overrides.get(&file.name)
+            {
                 return Some(*file_override);
             }
 
-        if let Some(ref ext_overrides) = self.ui.extensions
-            && let Some(ext) = file.ext.clone()
-                && let Some(file_override) = ext_overrides.get(&ext) {
-                    return Some(*file_override);
-                }
+            if let Some(ref ext_overrides) = self.ui.extensions
+                && let Some(ext) = file.ext.clone()
+                && let Some(file_override) = ext_overrides.get(&ext)
+            {
+                return Some(*file_override);
+            }
+        }
 
         None
     }
