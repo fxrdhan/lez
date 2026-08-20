@@ -15,6 +15,7 @@ struct Icons;
 #[rustfmt::skip]
 impl Icons {
     const AUDIO: char           = '\u{f001}';  // 
+    const BICEP: char           = '\u{e63b}';  // 
     const BINARY: char          = '\u{eae8}';  // 
     const BOOK: char            = '\u{e28b}';  // 
     const CALENDAR: char        = '\u{eab0}';  // 
@@ -299,6 +300,7 @@ const FILENAME_ICONS: Map<&'static str, char> = phf_map! {
     "AUTHORS"             => '\u{edca}',            // 
     "AUTHORS.txt"         => '\u{edca}',            // 
     "bashrc"              => Icons::SHELL,          // 󱆃
+    "bicepconfig.json"    => Icons::BICEP,          // 
     "Brewfile"            => '\u{f1116}',           // 󱄖
     "Brewfile.lock.json"  => '\u{f1116}',           // 󱄖
     "bspwmrc"             => '\u{f355}',            // 
@@ -523,6 +525,8 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "bat"            => Icons::OS_WINDOWS_CMD,   // 
     "bats"           => Icons::SHELL_CMD,        // 
     "bdf"            => Icons::FONT,             // 
+    "bicep"          => Icons::BICEP,            // 
+    "bicepparam"     => Icons::BICEP,            // 
     "bib"            => Icons::LANG_TEX,         // 
     "bin"            => Icons::BINARY,           // 
     "blend"          => '\u{f00ab}',             // 󰂫
@@ -987,6 +991,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "sldprt"         => Icons::CAD,              // 󰻫
     "slim"           => Icons::LANG_RUBYRAILS,   // 
     "sln"            => '\u{e70c}',              // 
+    "slnx"           => '\u{e70c}',              // 
     "slvs"           => Icons::CAD,              // 󰻫
     "so"             => Icons::OS_LINUX,         // 
     "sql"            => Icons::DATABASE,         // 
