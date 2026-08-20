@@ -637,10 +637,10 @@ impl ThemeConfig {
 
     #[must_use]
     pub fn to_theme(&self) -> Option<UiStyles> {
-        let ui_styles_override: Option<UiStylesOverride> = {
+        let ui_styles_override: Option<UiStylesOverride> = (|| {
             let file = std::fs::File::open(&self.location).ok()?;
             serde_norway::from_reader(&file).ok()
-        };
+        })();
         FromOverride::from(ui_styles_override, Some(UiStyles::default()))
     }
 }
