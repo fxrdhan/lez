@@ -22,6 +22,20 @@ impl f::Type {
             Self::Special      => colours.special().paint("?"),
         };
     }
+
+    pub fn render_json(self) -> &'static str {
+        #[rustfmt::skip]
+        return match self {
+            Self::File         => ".",
+            Self::Directory    => "d",
+            Self::Pipe         => "|",
+            Self::Link         => "l",
+            Self::BlockDevice  => "b",
+            Self::CharDevice   => "c",
+            Self::Socket       => "s",
+            Self::Special      => "?",
+        };
+    }
 }
 
 pub trait Colours {
@@ -33,4 +47,21 @@ pub trait Colours {
     fn char_device(&self) -> Style;
     fn socket(&self) -> Style;
     fn special(&self) -> Style;
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_filetype_render_json() {
+        assert_eq!(f::Type::File.render_json(), ".");
+        assert_eq!(f::Type::Directory.render_json(), "d");
+        assert_eq!(f::Type::Pipe.render_json(), "|");
+        assert_eq!(f::Type::Link.render_json(), "l");
+        assert_eq!(f::Type::BlockDevice.render_json(), "b");
+        assert_eq!(f::Type::CharDevice.render_json(), "c");
+        assert_eq!(f::Type::Socket.render_json(), "s");
+        assert_eq!(f::Type::Special.render_json(), "?");
+    }
 }
