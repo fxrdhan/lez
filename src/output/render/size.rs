@@ -74,6 +74,8 @@ impl f::Size {
             NumberPrefix::Prefixed(p, n)  => (p, n),
         };
 
+        let (prefix, n) = carry_to_next_prefix(prefix, n);
+
         let symbol = prefix.symbol();
         let number = if n < 10_f64 {
             numerics.format_float(n, 1)
@@ -100,6 +102,48 @@ impl f::Size {
             }
             .into(),
         }
+    }
+}
+
+/// Steps up to the next unit prefix when rounding for display would otherwise
+/// show a whole unit's worth of the current one.
+///
+/// The prefix is picked before the number is rounded, so a size just short of
+/// the next unit — 1 048 575 bytes is 1023.999 KiB — ends up rendered as
+/// `1,024Ki` instead of `1.0Mi`. `NumberPrefix` only ever hands back a value in
+/// `1 .. base`, so rounding can at most reach `base` exactly, which is one of
+/// the next unit.
+pub fn carry_to_next_prefix(prefix: Prefix, n: f64) -> (Prefix, f64) {
+    #[rustfmt::skip]
+    let (base, next) = match prefix {
+        Prefix::Kilo  => (1000_f64, Some(Prefix::Mega)),
+        Prefix::Mega  => (1000_f64, Some(Prefix::Giga)),
+        Prefix::Giga  => (1000_f64, Some(Prefix::Tera)),
+        Prefix::Tera  => (1000_f64, Some(Prefix::Peta)),
+        Prefix::Peta  => (1000_f64, Some(Prefix::Exa)),
+        Prefix::Exa   => (1000_f64, Some(Prefix::Zetta)),
+        Prefix::Zetta => (1000_f64, Some(Prefix::Yotta)),
+        Prefix::Yotta => (1000_f64, None),
+        Prefix::Kibi  => (1024_f64, Some(Prefix::Mebi)),
+        Prefix::Mebi  => (1024_f64, Some(Prefix::Gibi)),
+        Prefix::Gibi  => (1024_f64, Some(Prefix::Tebi)),
+        Prefix::Tebi  => (1024_f64, Some(Prefix::Pebi)),
+        Prefix::Pebi  => (1024_f64, Some(Prefix::Exbi)),
+        Prefix::Exbi  => (1024_f64, Some(Prefix::Zebi)),
+        Prefix::Zebi  => (1024_f64, Some(Prefix::Yobi)),
+        Prefix::Yobi  => (1024_f64, None),
+    };
+
+    // Mirror the rounding that the number will be displayed with.
+    let rounded = if n < 10_f64 {
+        (n * 10_f64).round() / 10_f64
+    } else {
+        n.round()
+    };
+
+    match next {
+        Some(next) if rounded >= base => (next, 1_f64),
+        _ => (prefix, n),
     }
 }
 
@@ -251,6 +295,173 @@ pub mod test {
                 &NumericLocale::english(),
                 None
             )
+        );
+    }
+
+    #[test]
+    fn file_binary_carries_to_next_prefix() {
+        let file = f::Size::Some(1_048_575); // 1023.999 KiB -> 1.0Mi
+        let expected = TextCell {
+            width: DisplayWidth::from(5),
+            contents: vec![Fixed(66).paint("1.0"), Fixed(77).bold().paint("Mi")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                SizeFormat::BinaryBytes,
+                &NumericLocale::english(),
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn file_decimal_carries_to_next_prefix() {
+        let file = f::Size::Some(999_999); // 999.999 KB -> 1.0M
+        let expected = TextCell {
+            width: DisplayWidth::from(4),
+            contents: vec![Fixed(66).paint("1.0"), Fixed(77).bold().paint("M")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                SizeFormat::DecimalBytes,
+                &NumericLocale::english(),
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn file_binary_below_boundary_is_unchanged() {
+        let file = f::Size::Some(1_047_000); // 1022.46 KiB -> 1,022Ki
+        let expected = TextCell {
+            width: DisplayWidth::from(7),
+            contents: vec![Fixed(66).paint("1,022"), Fixed(77).bold().paint("Ki")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                SizeFormat::BinaryBytes,
+                &NumericLocale::english(),
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn file_decimal_below_boundary_is_unchanged() {
+        let file = f::Size::Some(999_000); // 999.0 KB -> 999k
+        let expected = TextCell {
+            width: DisplayWidth::from(4),
+            contents: vec![Fixed(66).paint("999"), Fixed(77).bold().paint("k")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                SizeFormat::DecimalBytes,
+                &NumericLocale::english(),
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn carry_prefixes_step_up_correctly() {
+        use super::carry_to_next_prefix;
+
+        // Decimal carries
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Kilo, 999.99),
+            (Prefix::Mega, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Mega, 999.99),
+            (Prefix::Giga, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Giga, 999.99),
+            (Prefix::Tera, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Tera, 999.99),
+            (Prefix::Peta, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Peta, 999.99),
+            (Prefix::Exa, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Exa, 999.99),
+            (Prefix::Zetta, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Zetta, 999.99),
+            (Prefix::Yotta, 1.0)
+        );
+        // Top prefix (Yotta) has no next prefix, so it remains unchanged
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Yotta, 1000.0),
+            (Prefix::Yotta, 1000.0)
+        );
+
+        // Binary carries
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Kibi, 1023.99),
+            (Prefix::Mebi, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Mebi, 1023.99),
+            (Prefix::Gibi, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Gibi, 1023.99),
+            (Prefix::Tebi, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Tebi, 1023.99),
+            (Prefix::Pebi, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Pebi, 1023.99),
+            (Prefix::Exbi, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Exbi, 1023.99),
+            (Prefix::Zebi, 1.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Zebi, 1023.99),
+            (Prefix::Yobi, 1.0)
+        );
+        // Top prefix (Yobi) has no next prefix, so it remains unchanged
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Yobi, 1024.0),
+            (Prefix::Yobi, 1024.0)
+        );
+
+        // Sub-10 values do not carry over across units
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Kilo, 9.95),
+            (Prefix::Kilo, 9.95)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Kibi, 9.95),
+            (Prefix::Kibi, 9.95)
+        );
+
+        // Values below threshold do not carry
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Kilo, 500.0),
+            (Prefix::Kilo, 500.0)
+        );
+        assert_eq!(
+            carry_to_next_prefix(Prefix::Kibi, 512.0),
+            (Prefix::Kibi, 512.0)
         );
     }
 }
