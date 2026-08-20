@@ -18,6 +18,7 @@ use crate::options::OptionsError;
 impl FileFilter {
     /// Determines which of all the file filter options to use.
     pub fn deduce(matches: &ArgMatches, strict: bool) -> Result<Self, OptionsError> {
+        use crate::options::parser::TimeArgs;
         use FileFilterFlags as FFF;
         let mut filter_flags: Vec<FileFilterFlags> = vec![];
 
@@ -35,11 +36,30 @@ impl FileFilter {
             }
         }
 
+        let sort_field = match (
+            matches.value_source("sort"),
+            matches.get_one::<TimeArgs>("time"),
+        ) {
+            (Some(clap::parser::ValueSource::CommandLine), _) => *matches.get_one("sort").unwrap(),
+            (_, Some(TimeArgs::Default)) => {
+                if matches.get_flag("accessed") {
+                    SortField::AccessedDate
+                } else if matches.get_flag("changed") {
+                    SortField::ChangedDate
+                } else if matches.get_flag("created") {
+                    SortField::CreatedDate
+                } else {
+                    SortField::ModifiedAge
+                }
+            }
+            _ => *matches.get_one("sort").unwrap(),
+        };
+
         Ok(Self {
             no_symlinks: matches.get_flag("no-symlinks"),
             show_symlinks: matches.get_flag("show-symlinks"),
             flags: filter_flags,
-            sort_field: *matches.get_one("sort").unwrap(),
+            sort_field,
             dot_filter: DotFilter::deduce(matches, strict)?,
             ignore_patterns: IgnorePatterns::deduce(matches)?,
             git_ignore: GitIgnore::deduce(matches),
@@ -453,6 +473,79 @@ mod tests {
                 no_symlinks: false,
                 show_symlinks: false,
             })
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_time_flag_defaults_to_age() {
+        assert_eq!(
+            FileFilter::deduce(&mock_cli(vec!["-t"]), false)
+                .unwrap()
+                .sort_field,
+            SortField::ModifiedAge
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_time_flag_with_reverse() {
+        let filter = FileFilter::deduce(&mock_cli(vec!["-t", "-r"]), false).unwrap();
+        assert_eq!(filter.sort_field, SortField::ModifiedAge);
+        assert!(filter.flags.contains(&FileFilterFlags::Reverse));
+    }
+
+    #[test]
+    fn deduce_sort_field_time_flag_with_accessed() {
+        assert_eq!(
+            FileFilter::deduce(&mock_cli(vec!["-t", "-u"]), false)
+                .unwrap()
+                .sort_field,
+            SortField::AccessedDate
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_time_flag_with_changed() {
+        assert_eq!(
+            FileFilter::deduce(&mock_cli(vec!["-t", "--changed"]), false)
+                .unwrap()
+                .sort_field,
+            SortField::ChangedDate
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_time_flag_with_created() {
+        assert_eq!(
+            FileFilter::deduce(&mock_cli(vec!["-t", "-U"]), false)
+                .unwrap()
+                .sort_field,
+            SortField::CreatedDate
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_explicit_sort_overrides_time_flag() {
+        assert_eq!(
+            FileFilter::deduce(&mock_cli(vec!["-t", "--sort=size"]), false)
+                .unwrap()
+                .sort_field,
+            SortField::Size
+        );
+        assert_eq!(
+            FileFilter::deduce(&mock_cli(vec!["--sort=size", "-t"]), false)
+                .unwrap()
+                .sort_field,
+            SortField::Size
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_explicit_time_arg_preserves_default_sort() {
+        assert_eq!(
+            FileFilter::deduce(&mock_cli(vec!["--time=accessed"]), false)
+                .unwrap()
+                .sort_field,
+            SortField::default()
         );
     }
 }
