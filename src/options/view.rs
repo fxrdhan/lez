@@ -36,6 +36,7 @@ impl View {
         let deref_links = matches.get_flag("dereference");
         let follow_links = matches.get_flag("follow-symlinks");
         let total_size = matches.get_flag("total-size");
+        let total_entries = matches.get_flag("print-total");
         let file_style = FileStyle::deduce(matches, vars, is_tty)?;
         Ok(Self {
             mode,
@@ -44,6 +45,7 @@ impl View {
             deref_links,
             follow_links,
             total_size,
+            total_entries,
         })
     }
 }
@@ -1390,5 +1392,19 @@ mod tests {
                 "Expected Mode::deduce with {short_flag} to fail in strict mode"
             );
         }
+    }
+
+    #[test]
+    fn deduce_view_print_total_flag() {
+        let matches = mock_cli(vec!["--print-total"]);
+        let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
+        assert!(view.total_entries);
+    }
+
+    #[test]
+    fn deduce_view_print_total_default() {
+        let matches = mock_cli(vec![""]);
+        let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
+        assert!(!view.total_entries);
     }
 }
