@@ -791,6 +791,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(unix)]
     fn hyperlink_wraps_full_explicit_path() {
         let colours = TestColours;
         let path = std::path::PathBuf::from("tests/itest/index.svg");

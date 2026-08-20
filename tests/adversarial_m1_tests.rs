@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
+#![allow(unused_imports, dead_code)]
+
 use lsr::fs::fields::Size;
 use lsr::fs::filter::{
     FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, SortCase, SortField,
@@ -96,6 +98,7 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
         flags,
         dot_filter: DotFilter::JustFiles,
         ignore_patterns,
+        ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         no_symlinks: false,
         show_symlinks: false,
@@ -107,6 +110,7 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
 // =========================================================================
 
 #[test]
+#[cfg(unix)]
 fn test_r1_hyperlink_painting_with_special_characters() {
     let temp = TempTestDir::new("r1_hyperlink");
     let test_names = [
@@ -626,6 +630,7 @@ fn test_cross_feature_grid_narrow_width_with_binary_and_color_scale() {
 }
 
 #[test]
+#[cfg(unix)]
 fn test_r1_adversarial_hyperlink_edge_cases() {
     let temp = TempTestDir::new("r1_adv_edge");
     let adversarial_names = [

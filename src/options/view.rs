@@ -320,7 +320,11 @@ impl Columns {
 
         let file_flags = matches.get_flag("file-flags");
         let blocksize = matches.get_flag("blocksize");
-        let group = matches.get_flag("group");
+        // `--smart-group` only controls *how* the group is rendered; on its own
+        // it would have no effect because the group column is hidden unless
+        // `--group` is given. Treat it as implying `--group` so the column
+        // actually shows up.
+        let group = matches.get_flag("group") || matches.get_flag("smart-group");
         let inode = matches.get_flag("inode");
         let links = matches.get_flag("links");
         let octal = matches.get_flag("octal-permissions");
@@ -373,12 +377,13 @@ impl SizeFormat {
     }
 }
 
-const FORMAT_STYLE_FIELDS: [&str; 6] = [
+const FORMAT_STYLE_FIELDS: [&str; 7] = [
     "default",
     "iso",
     "long-iso",
     "full-iso",
     "relative",
+    "relative-recent",
     "+<CUSTOM_FORMAT>",
 ];
 
@@ -406,6 +411,27 @@ impl TimeFormat {
             "long-iso" => return Ok(TimeFormat::LongISO),
             "full-iso" => return Ok(TimeFormat::FullISO),
             "relative" => return Ok(TimeFormat::Relative),
+            "relative-recent" => {
+                return Ok(TimeFormat::RelativeRecent {
+                    recent_window_days: None,
+                });
+            }
+            s if s.starts_with("relative-recent:") => {
+                let days_str = &s["relative-recent:".len()..];
+                match days_str.parse::<u32>() {
+                    Ok(days) => {
+                        return Ok(TimeFormat::RelativeRecent {
+                            recent_window_days: Some(days),
+                        });
+                    }
+                    Err(_) => {
+                        let error_middle = format!(
+                            "Invalid days duration for relative-recent: '{days_str}'. Please specify a valid integer for days (e.g. 'relative-recent:7')."
+                        );
+                        return Err(format!("{error_header}{error_middle}{error_footer}"));
+                    }
+                }
+            }
             s if !s.starts_with('+') => {
                 let error_middle = format!(
                     "{}{}",
@@ -969,6 +995,79 @@ mod tests {
     }
 
     #[test]
+    fn deduce_time_style_relative_recent_env() {
+        let mut vars = MockVars::default();
+        vars.set(vars::TIME_STYLE, &OsString::from("relative-recent"));
+        assert_eq!(
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::RelativeRecent {
+                recent_window_days: None
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_time_style_relative_recent_arg() {
+        let vars = MockVars::default();
+        assert_eq!(
+            TimeFormat::deduce(&mock_cli(vec!["--time-style", "relative-recent"]), &vars),
+            TimeFormat::RelativeRecent {
+                recent_window_days: None
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_time_style_relative_recent_custom_days_env() {
+        let mut vars = MockVars::default();
+        vars.set(vars::TIME_STYLE, &OsString::from("relative-recent:14"));
+        assert_eq!(
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::RelativeRecent {
+                recent_window_days: Some(14)
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_time_style_relative_recent_custom_days_arg() {
+        let vars = MockVars::default();
+        assert_eq!(
+            TimeFormat::deduce(&mock_cli(vec!["--time-style", "relative-recent:3"]), &vars),
+            TimeFormat::RelativeRecent {
+                recent_window_days: Some(3)
+            }
+        );
+    }
+
+    #[test]
+    fn try_from_str_relative_recent_valid_and_invalid() {
+        assert_eq!(
+            TimeFormat::try_from_str("relative-recent"),
+            Ok(TimeFormat::RelativeRecent {
+                recent_window_days: None
+            })
+        );
+        assert_eq!(
+            TimeFormat::try_from_str("relative-recent:7"),
+            Ok(TimeFormat::RelativeRecent {
+                recent_window_days: Some(7)
+            })
+        );
+        assert_eq!(
+            TimeFormat::try_from_str("relative-recent:0"),
+            Ok(TimeFormat::RelativeRecent {
+                recent_window_days: Some(0)
+            })
+        );
+
+        assert!(TimeFormat::try_from_str("relative-recent:").is_err());
+        assert!(TimeFormat::try_from_str("relative-recent:abc").is_err());
+        assert!(TimeFormat::try_from_str("relative-recent:-5").is_err());
+        assert!(TimeFormat::try_from_str("relative-recent:3.14").is_err());
+    }
+
+    #[test]
     fn deduce_time_style_custom_env() {
         let mut vars = MockVars::default();
         vars.set(vars::TIME_STYLE, &OsString::from("+%Y-%b-%d"));
@@ -1336,6 +1435,43 @@ mod tests {
                 .loc,
             None
         );
+    }
+
+    #[test]
+    fn deduce_columns_smart_group_implies_group() {
+        let columns =
+            Columns::deduce(&mock_cli(vec!["--smart-group"]), &MockVars::default()).unwrap();
+        assert!(columns.group);
+    }
+
+    #[test]
+    fn deduce_columns_no_group_by_default() {
+        let columns = Columns::deduce(&mock_cli(vec![""]), &MockVars::default()).unwrap();
+        assert!(!columns.group);
+    }
+
+    #[test]
+    fn deduce_columns_explicit_group() {
+        let columns = Columns::deduce(&mock_cli(vec!["-g"]), &MockVars::default()).unwrap();
+        assert!(columns.group);
+
+        let columns_long =
+            Columns::deduce(&mock_cli(vec!["--group"]), &MockVars::default()).unwrap();
+        assert!(columns_long.group);
+    }
+
+    #[test]
+    fn deduce_columns_both_group_and_smart_group() {
+        let columns =
+            Columns::deduce(&mock_cli(vec!["-g", "--smart-group"]), &MockVars::default()).unwrap();
+        assert!(columns.group);
+
+        let columns_long = Columns::deduce(
+            &mock_cli(vec!["--group", "--smart-group"]),
+            &MockVars::default(),
+        )
+        .unwrap();
+        assert!(columns_long.group);
     }
 
     #[test]
