@@ -38,7 +38,7 @@ const TIME_FIELDS_HELP: &str = "[possible values:
   mod|modified, acc|accessed, ch|changed, cr|created]";
 
 const FORMAT_STYLE_FIELDS_HELP: &str = "[possible values:
-  default, iso, long-iso, full-iso, relative, \"+<CUSTOM_FORMAT>\"]";
+  default, iso, long-iso, full-iso, relative, relative-recent, \"+<CUSTOM_FORMAT>\"]";
 
 pub fn get_command() -> clap::Command {
     clap::Command::new(clap::crate_name!())
@@ -652,6 +652,25 @@ pub mod test {
     #[test]
     fn time_style_rejects_empty_custom_format() {
         let args = vec!["--time-style", "+"];
+        let err = mock_cli_try(args).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[test]
+    fn time_style_accepts_relative_recent() {
+        let args = vec!["--time-style", "relative-recent"];
+        assert!(mock_cli_try(args).is_ok());
+    }
+
+    #[test]
+    fn time_style_accepts_relative_recent_with_days() {
+        let args = vec!["--time-style", "relative-recent:14"];
+        assert!(mock_cli_try(args).is_ok());
+    }
+
+    #[test]
+    fn time_style_rejects_invalid_relative_recent_days() {
+        let args = vec!["--time-style", "relative-recent:abc"];
         let err = mock_cli_try(args).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
     }

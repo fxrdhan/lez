@@ -633,6 +633,9 @@ fn test_m5_invalid_time_style_string_returns_invalid_value_error() {
         "iso-long",
         "%Y-%m-%d", // Missing leading '+'
         "+",        // Empty custom format
+        "relative-recent:abc",
+        "relative-recent:-5",
+        "relative-recent:",
     ];
 
     for style in invalid_styles {
@@ -660,6 +663,9 @@ fn test_m5_valid_time_styles_pass() {
         "long-iso",
         "full-iso",
         "relative",
+        "relative-recent",
+        "relative-recent:3",
+        "relative-recent:14",
         "+%Y-%m-%d",
         "+%Y-%m-%d %H:%M",
         "+%Y-%m-%d\n+%H:%M",

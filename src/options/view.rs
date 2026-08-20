@@ -373,12 +373,13 @@ impl SizeFormat {
     }
 }
 
-const FORMAT_STYLE_FIELDS: [&str; 6] = [
+const FORMAT_STYLE_FIELDS: [&str; 7] = [
     "default",
     "iso",
     "long-iso",
     "full-iso",
     "relative",
+    "relative-recent",
     "+<CUSTOM_FORMAT>",
 ];
 
@@ -406,6 +407,27 @@ impl TimeFormat {
             "long-iso" => return Ok(TimeFormat::LongISO),
             "full-iso" => return Ok(TimeFormat::FullISO),
             "relative" => return Ok(TimeFormat::Relative),
+            "relative-recent" => {
+                return Ok(TimeFormat::RelativeRecent {
+                    recent_window_days: None,
+                });
+            }
+            s if s.starts_with("relative-recent:") => {
+                let days_str = &s["relative-recent:".len()..];
+                match days_str.parse::<u32>() {
+                    Ok(days) => {
+                        return Ok(TimeFormat::RelativeRecent {
+                            recent_window_days: Some(days),
+                        });
+                    }
+                    Err(_) => {
+                        let error_middle = format!(
+                            "Invalid days duration for relative-recent: '{days_str}'. Please specify a valid integer for days (e.g. 'relative-recent:7')."
+                        );
+                        return Err(format!("{error_header}{error_middle}{error_footer}"));
+                    }
+                }
+            }
             s if !s.starts_with('+') => {
                 let error_middle = format!(
                     "{}{}",
@@ -966,6 +988,79 @@ mod tests {
             TimeFormat::deduce(&mock_cli(vec!["--time-style", "relative"]), &vars),
             TimeFormat::Relative
         );
+    }
+
+    #[test]
+    fn deduce_time_style_relative_recent_env() {
+        let mut vars = MockVars::default();
+        vars.set(vars::TIME_STYLE, &OsString::from("relative-recent"));
+        assert_eq!(
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::RelativeRecent {
+                recent_window_days: None
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_time_style_relative_recent_arg() {
+        let vars = MockVars::default();
+        assert_eq!(
+            TimeFormat::deduce(&mock_cli(vec!["--time-style", "relative-recent"]), &vars),
+            TimeFormat::RelativeRecent {
+                recent_window_days: None
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_time_style_relative_recent_custom_days_env() {
+        let mut vars = MockVars::default();
+        vars.set(vars::TIME_STYLE, &OsString::from("relative-recent:14"));
+        assert_eq!(
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::RelativeRecent {
+                recent_window_days: Some(14)
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_time_style_relative_recent_custom_days_arg() {
+        let vars = MockVars::default();
+        assert_eq!(
+            TimeFormat::deduce(&mock_cli(vec!["--time-style", "relative-recent:3"]), &vars),
+            TimeFormat::RelativeRecent {
+                recent_window_days: Some(3)
+            }
+        );
+    }
+
+    #[test]
+    fn try_from_str_relative_recent_valid_and_invalid() {
+        assert_eq!(
+            TimeFormat::try_from_str("relative-recent"),
+            Ok(TimeFormat::RelativeRecent {
+                recent_window_days: None
+            })
+        );
+        assert_eq!(
+            TimeFormat::try_from_str("relative-recent:7"),
+            Ok(TimeFormat::RelativeRecent {
+                recent_window_days: Some(7)
+            })
+        );
+        assert_eq!(
+            TimeFormat::try_from_str("relative-recent:0"),
+            Ok(TimeFormat::RelativeRecent {
+                recent_window_days: Some(0)
+            })
+        );
+
+        assert!(TimeFormat::try_from_str("relative-recent:").is_err());
+        assert!(TimeFormat::try_from_str("relative-recent:abc").is_err());
+        assert!(TimeFormat::try_from_str("relative-recent:-5").is_err());
+        assert!(TimeFormat::try_from_str("relative-recent:3.14").is_err());
     }
 
     #[test]
