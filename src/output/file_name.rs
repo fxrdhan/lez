@@ -309,6 +309,21 @@ impl<C: Colours> FileName<'_, '_, C> {
             bits.push(style.paint(" ".repeat(spaces_count as usize)));
         }
 
+        let should_embed_hyperlink = match self.options.embed_hyperlinks {
+            EmbedHyperlinks::Never => false,
+            EmbedHyperlinks::Automatic => self.options.is_a_tty,
+            EmbedHyperlinks::Always => true,
+        };
+        let hyperlink_start_tag = should_embed_hyperlink
+            .then(|| self.file.absolute_path())
+            .flatten()
+            .and_then(|p| p.as_os_str().to_str())
+            .map(escape::get_hyperlink_start_tag);
+
+        if let Some(start_tag) = hyperlink_start_tag.as_ref() {
+            bits.push(ANSIString::from(start_tag.clone()));
+        }
+
         if self.file.parent_dir.is_none()
             && self.options.absolute == Absolute::Off
             && let Some(parent) = self.file.path.parent()
@@ -326,6 +341,10 @@ impl<C: Colours> FileName<'_, '_, C> {
             for bit in self.escaped_file_name(filename_style_override) {
                 bits.push(bit);
             }
+        }
+
+        if hyperlink_start_tag.is_some() {
+            bits.push(ANSIString::from(escape::HYPERLINK_CLOSING));
         }
 
         if let (LinkStyle::FullLinkPaths, Some(target)) = (self.link_style, self.target.as_ref()) {
@@ -477,8 +496,6 @@ impl<C: Colours> FileName<'_, '_, C> {
     /// Returns at least one ANSI-highlighted string representing this file’s
     /// name using the given set of colours.
     ///
-    /// If --hyperlink flag is provided, it will escape the filename accordingly.
-    ///
     /// Ordinarily, this will be just one string: the file’s complete name,
     /// coloured according to its file type. If the name contains control
     /// characters such as newlines or escapes, though, we can’t just print them
@@ -492,23 +509,6 @@ impl<C: Colours> FileName<'_, '_, C> {
     ) -> Vec<ANSIString<'unused>> {
         let file_style = style_override.unwrap_or(self.style());
         let mut bits = Vec::new();
-
-        let mut display_hyperlink = false;
-        let should_embed_hyperlinks = match self.options.embed_hyperlinks {
-            EmbedHyperlinks::Never => false,
-            EmbedHyperlinks::Automatic => self.options.is_a_tty,
-            EmbedHyperlinks::Always => true,
-        };
-        if should_embed_hyperlinks
-            && let Some(abs_path) = self
-                .file
-                .absolute_path()
-                .and_then(|p| p.as_os_str().to_str())
-        {
-            bits.push(ANSIString::from(escape::get_hyperlink_start_tag(abs_path)));
-
-            display_hyperlink = true;
-        }
 
         let display_name = self.display_name();
         if self.options.short_nix {
@@ -536,10 +536,6 @@ impl<C: Colours> FileName<'_, '_, C> {
                 self.colours.control_char(),
                 self.options.quote_style,
             );
-        }
-
-        if display_hyperlink {
-            bits.push(ANSIString::from(escape::HYPERLINK_CLOSING));
         }
 
         bits
@@ -723,5 +719,236 @@ mod test {
         // A name whose 32-char boundary would fall inside a multi-byte
         // character must not panic.
         assert_eq!(split_nix_hash("ααααααααααααααααα-x"), None);
+    }
+
+    struct TestColours;
+    impl FiletypeColours for TestColours {
+        fn normal(&self) -> Style {
+            Style::default()
+        }
+        fn directory(&self) -> Style {
+            Style::default()
+        }
+        fn pipe(&self) -> Style {
+            Style::default()
+        }
+        fn symlink(&self) -> Style {
+            Style::default()
+        }
+        fn block_device(&self) -> Style {
+            Style::default()
+        }
+        fn char_device(&self) -> Style {
+            Style::default()
+        }
+        fn socket(&self) -> Style {
+            Style::default()
+        }
+        fn special(&self) -> Style {
+            Style::default()
+        }
+    }
+    impl Colours for TestColours {
+        fn symlink_path(&self) -> Style {
+            Style::default()
+        }
+        fn normal_arrow(&self) -> Style {
+            Style::default()
+        }
+        fn broken_symlink(&self) -> Style {
+            Style::default()
+        }
+        fn broken_filename(&self) -> Style {
+            Style::default()
+        }
+        fn control_char(&self) -> Style {
+            Style::default()
+        }
+        fn broken_control_char(&self) -> Style {
+            Style::default()
+        }
+        fn nix_hash(&self) -> Style {
+            Style::default()
+        }
+        fn executable_file(&self) -> Style {
+            Style::default()
+        }
+        fn mount_point(&self) -> Style {
+            Style::default()
+        }
+        fn colour_file(&self, _file: &File<'_>) -> Style {
+            Style::default()
+        }
+        fn style_override(&self, _file: &File<'_>) -> Option<FileNameStyle> {
+            None
+        }
+    }
+
+    #[test]
+    fn hyperlink_wraps_full_explicit_path() {
+        let colours = TestColours;
+        let path = std::path::PathBuf::from("tests/itest/index.svg");
+        let file = File::from_args(path, None, None, false, false, None);
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Always,
+            absolute: Absolute::Off,
+            short_nix: false,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &file,
+            colours: &colours,
+            target: None,
+            link_style: LinkStyle::FullLinkPaths,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        let abs_path = std::fs::canonicalize("tests/itest/index.svg").unwrap();
+        let abs_path_str = abs_path.to_str().unwrap();
+        let expected_start = format!("\x1B]8;;file://{abs_path_str}\x1B\\");
+        let expected_end = "\x1B]8;;\x1B\\";
+
+        assert!(
+            painted.starts_with(&expected_start),
+            "Expected start tag '{expected_start}', got '{painted}'"
+        );
+        assert!(
+            painted.ends_with(expected_end),
+            "Expected closing tag '{expected_end}', got '{painted}'"
+        );
+        // The explicit parent path AND the filename must both be inside the hyperlink tags
+        let inner = &painted[expected_start.len()..painted.len() - expected_end.len()];
+        assert_eq!(inner, "tests/itest/index.svg");
+    }
+
+    #[test]
+    fn hyperlink_with_icons_keeps_icon_outside_tags() {
+        let colours = TestColours;
+        let path = std::path::PathBuf::from("tests/itest/index.svg");
+        let file = File::from_args(path, None, None, false, false, None);
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Always(1),
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Always,
+            absolute: Absolute::Off,
+            short_nix: false,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &file,
+            colours: &colours,
+            target: None,
+            link_style: LinkStyle::FullLinkPaths,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        let hyperlink_tag_pos = painted
+            .find("\x1B]8;;file://")
+            .expect("hyperlink tag present");
+        assert!(
+            hyperlink_tag_pos > 0,
+            "Icon must precede the hyperlink start tag"
+        );
+    }
+
+    #[test]
+    fn hyperlink_with_classifier_keeps_classifier_outside_tags() {
+        let colours = TestColours;
+        let path = std::path::PathBuf::from("tests/itest");
+        let file = File::from_args(path, None, None, false, false, None);
+        let options = Options {
+            classify: Classify::AddFileIndicators,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Always,
+            absolute: Absolute::Off,
+            short_nix: false,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &file,
+            colours: &colours,
+            target: None,
+            link_style: LinkStyle::FullLinkPaths,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        let closing_tag = "\x1B]8;;\x1B\\";
+        let closing_pos = painted.rfind(closing_tag).expect("closing tag present");
+        let after_closing = &painted[closing_pos + closing_tag.len()..];
+        assert_eq!(
+            after_closing, "/",
+            "Classifier character must follow the hyperlink closing tag"
+        );
+    }
+
+    #[test]
+    fn hyperlink_with_symlink_target_keeps_target_outside_tags() {
+        let colours = TestColours;
+        let link_path = std::path::PathBuf::from("tests/itest/dir-symlink");
+        let target_path = std::path::PathBuf::from("vagrant/debug");
+        let link_file = File::from_args(link_path, None, None, false, false, None);
+        let target_file = File::from_args(target_path, None, None, false, false, None);
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Always,
+            absolute: Absolute::Off,
+            short_nix: false,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &link_file,
+            colours: &colours,
+            target: Some(FileTarget::Ok(Box::new(target_file))),
+            link_style: LinkStyle::FullLinkPaths,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        let closing_tag = "\x1B]8;;\x1B\\";
+        let closing_pos = painted.find(closing_tag).expect("closing tag present");
+        let arrow_pos = painted.find("->").expect("symlink arrow present");
+        assert!(
+            closing_pos < arrow_pos,
+            "Hyperlink must close before the symlink arrow and target"
+        );
+    }
+
+    #[test]
+    fn hyperlink_disabled_emits_no_osc8_sequences() {
+        let colours = TestColours;
+        let path = std::path::PathBuf::from("tests/itest/index.svg");
+        let file = File::from_args(path, None, None, false, false, None);
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &file,
+            colours: &colours,
+            target: None,
+            link_style: LinkStyle::FullLinkPaths,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        assert!(
+            !painted.contains("\x1B]8;;"),
+            "No OSC 8 hyperlink sequence when hyperlinks disabled"
+        );
     }
 }
