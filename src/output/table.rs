@@ -40,6 +40,7 @@ pub struct Options {
     pub group_format: GroupFormat,
     pub flags_format: FlagsFormat,
     pub columns: Columns,
+    pub spaces: usize,
 }
 
 /// Extra columns to display in the table.
@@ -446,6 +447,7 @@ pub struct Table<'a> {
     /// The grand total of code lines used as the denominator for `--loc`
     /// percentage columns. `None` until computed by the details renderer.
     loc_total: Option<usize>,
+    spaces: usize,
 }
 
 #[derive(Clone)]
@@ -481,6 +483,7 @@ impl<'a> Table<'a> {
             group_format: options.group_format,
             flags_format: options.flags_format,
             loc_total: None,
+            spaces: options.spaces,
         }
     }
 
@@ -491,8 +494,14 @@ impl<'a> Table<'a> {
     }
 
     #[must_use]
+    #[allow(dead_code)]
     pub fn widths(&self) -> &TableWidths {
         &self.widths
+    }
+
+    #[must_use]
+    pub fn total_width(&self) -> usize {
+        self.widths.total(self.spaces)
     }
 
     #[must_use]
@@ -649,7 +658,7 @@ impl<'a> Table<'a> {
                 }
             }
 
-            cell.add_spaces(1);
+            cell.add_spaces(self.spaces);
         }
 
         cell
@@ -679,7 +688,7 @@ impl TableWidths {
     }
 
     #[must_use]
-    pub fn total(&self) -> usize {
-        self.0.len() + self.0.iter().sum::<usize>()
+    pub fn total(&self, spaces: usize) -> usize {
+        self.0.len() * spaces + self.0.iter().sum::<usize>()
     }
 }
