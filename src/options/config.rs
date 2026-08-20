@@ -950,6 +950,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_config_dir_from_env_custom_priority() {
         let custom = Some(PathBuf::from("~/my_custom_lsr"));
         let xdg = Some(PathBuf::from("/etc/xdg"));
@@ -960,6 +961,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_config_dir_from_env_xdg_priority() {
         let custom = None;
         let xdg = Some(PathBuf::from("/custom/xdg"));
@@ -971,6 +973,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_config_dir_from_env_xdg_tilde() {
         let custom = None;
         let xdg = Some(PathBuf::from("~/.config"));
@@ -981,6 +984,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_config_dir_from_env_xdg_relative_ignored() {
         let custom = None;
         let xdg = Some(PathBuf::from("relative/xdg"));
@@ -992,6 +996,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_theme_config_location_and_from_path() {
         let p = PathBuf::from("/etc/lsr/theme.yml");
         let cfg = ThemeConfig::from_path(p.clone());
