@@ -197,15 +197,21 @@ impl details::Options {
 
 impl TerminalWidth {
     fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<Self, OptionsError> {
-        if let Some(&width) = matches.get_one("width") {
+        if let Some(&width) = matches.get_one::<usize>("width") {
             if width >= 1 {
-                Ok(Set(width))
+                Ok(Set(width.min(u16::MAX as usize)))
             } else {
                 Ok(Automatic)
             }
         } else if let Some(columns) = vars.get(vars::COLUMNS).and_then(|s| s.into_string().ok()) {
-            match columns.parse() {
-                Ok(width) => Ok(Set(width)),
+            match columns.parse::<usize>() {
+                Ok(width) => {
+                    if width >= 1 {
+                        Ok(Set(width.min(u16::MAX as usize)))
+                    } else {
+                        Ok(Automatic)
+                    }
+                }
                 Err(e) => {
                     let source = NumberSource::Env(vars::COLUMNS);
                     Err(OptionsError::FailedParse(columns, source, e))
@@ -730,6 +736,62 @@ mod tests {
     }
 
     #[test]
+    fn deduce_size_format_precedence_binary_then_bytes() {
+        assert_eq!(
+            SizeFormat::deduce(&mock_cli(vec!["--binary", "--bytes"])),
+            SizeFormat::JustBytes
+        );
+    }
+
+    #[test]
+    fn deduce_size_format_precedence_bytes_then_binary() {
+        assert_eq!(
+            SizeFormat::deduce(&mock_cli(vec!["--bytes", "--binary"])),
+            SizeFormat::BinaryBytes
+        );
+    }
+
+    #[test]
+    fn deduce_size_format_short_precedence_b_then_b() {
+        assert_eq!(
+            SizeFormat::deduce(&mock_cli(vec!["-b", "-B"])),
+            SizeFormat::JustBytes
+        );
+    }
+
+    #[test]
+    fn deduce_size_format_short_precedence_b_then_b_reverse() {
+        assert_eq!(
+            SizeFormat::deduce(&mock_cli(vec!["-B", "-b"])),
+            SizeFormat::BinaryBytes
+        );
+    }
+
+    #[test]
+    fn deduce_size_format_alternating_precedence() {
+        assert_eq!(
+            SizeFormat::deduce(&mock_cli(vec!["-b", "-B", "-b", "-B", "-b"])),
+            SizeFormat::BinaryBytes
+        );
+        assert_eq!(
+            SizeFormat::deduce(&mock_cli(vec!["-B", "-b", "-B", "-b", "-B"])),
+            SizeFormat::JustBytes
+        );
+    }
+
+    #[test]
+    fn deduce_size_format_mixed_short_and_long_precedence() {
+        assert_eq!(
+            SizeFormat::deduce(&mock_cli(vec!["--binary", "-B"])),
+            SizeFormat::JustBytes
+        );
+        assert_eq!(
+            SizeFormat::deduce(&mock_cli(vec!["--bytes", "-b"])),
+            SizeFormat::BinaryBytes
+        );
+    }
+
+    #[test]
     fn deduce_grid_options() {
         assert_eq!(
             grid::Options::deduce(&mock_cli(vec!["--across"])),
@@ -1070,11 +1132,47 @@ mod tests {
     }
 
     #[test]
+    fn deduce_terminal_width_set_arg_clamped_max() {
+        assert_eq!(
+            TerminalWidth::deduce(&mock_cli(vec!["--width", "100000"]), &MockVars::default()),
+            Ok(Set(u16::MAX as usize))
+        );
+    }
+
+    #[test]
+    fn deduce_terminal_width_set_arg_zero() {
+        assert_eq!(
+            TerminalWidth::deduce(&mock_cli(vec!["--width", "0"]), &MockVars::default()),
+            Ok(Automatic)
+        );
+    }
+
+    #[test]
+    fn deduce_terminal_width_set_env_clamped_max() {
+        let mut vars = MockVars::default();
+        vars.set(vars::COLUMNS, &OsString::from("100000"));
+        assert_eq!(
+            TerminalWidth::deduce(&mock_cli(vec![""]), &vars),
+            Ok(Set(u16::MAX as usize))
+        );
+    }
+
+    #[test]
+    fn deduce_terminal_width_set_env_zero() {
+        let mut vars = MockVars::default();
+        vars.set(vars::COLUMNS, &OsString::from("0"));
+        assert_eq!(
+            TerminalWidth::deduce(&mock_cli(vec![""]), &vars),
+            Ok(Automatic)
+        );
+    }
+
+    #[test]
     fn deduce_terminal_width_set_env_bad() {
         let mut vars = MockVars::default();
         vars.set(vars::COLUMNS, &OsString::from("bad"));
 
-        let e: Result<i64, ParseIntError> =
+        let e: Result<usize, ParseIntError> =
             vars.get(vars::COLUMNS).unwrap().to_string_lossy().parse();
 
         assert_eq!(

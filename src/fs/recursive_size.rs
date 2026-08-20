@@ -25,7 +25,7 @@ impl RecursiveSize {
     /// # Examples
     ///
     /// ```
-    /// use eza::fs::recursive_size::RecursiveSize;
+    /// use lsr::fs::recursive_size::RecursiveSize;
     ///
     /// let x = RecursiveSize::None;
     /// assert_eq!(x.is_none(), true);
@@ -47,7 +47,7 @@ impl RecursiveSize {
     /// # Examples
     ///
     /// ```
-    /// use eza::fs::recursive_size::RecursiveSize;
+    /// use lsr::fs::recursive_size::RecursiveSize;
     ///
     /// assert_eq!(RecursiveSize::None.unwrap_bytes_or(1), 1);
     /// assert_eq!(RecursiveSize::Unknown.unwrap_bytes_or(1), 1);
@@ -68,7 +68,7 @@ impl RecursiveSize {
     /// # Examples
     ///
     /// ```
-    /// use eza::fs::recursive_size::RecursiveSize;
+    /// use lsr::fs::recursive_size::RecursiveSize;
     ///
     /// assert_eq!(RecursiveSize::None.map_or(None, |s, _| Some(s * 2)), None);
     /// assert_eq!(RecursiveSize::Unknown.map_or(None, |s, _| Some(s * 2)), None);

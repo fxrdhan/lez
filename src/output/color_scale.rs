@@ -9,7 +9,9 @@ use nu_ansi_term::{Color as Colour, Style};
 use palette::{FromColor, LinSrgb, Oklab, Srgb};
 
 use crate::{
-    fs::{DotFilter, File, dir_action::RecurseOptions, feature::git::GitCache, fields::Size},
+    fs::{
+        File, dir_action::RecurseOptions, feature::git::GitCache, fields::Size, filter::FileFilter,
+    },
     output::{table::TimeType, tree::TreeDepth},
 };
 
@@ -54,7 +56,7 @@ impl ColorScaleInformation {
     pub fn from_color_scale(
         color_scale: ColorScaleOptions,
         files: &[File<'_>],
-        dot_filter: DotFilter,
+        filter: &FileFilter,
         git: Option<&GitCache>,
         git_ignoring: bool,
         r: Option<RecurseOptions>,
@@ -74,7 +76,7 @@ impl ColorScaleInformation {
             update_information_recursively(
                 &mut information,
                 files,
-                dot_filter,
+                filter,
                 git,
                 git_ignoring,
                 TreeDepth::root(),
@@ -122,61 +124,66 @@ impl ColorScaleInformation {
 fn update_information_recursively(
     information: &mut ColorScaleInformation,
     files: &[File<'_>],
-    dot_filter: DotFilter,
+    filter: &FileFilter,
     git: Option<&GitCache>,
     git_ignoring: bool,
     depth: TreeDepth,
     r: Option<RecurseOptions>,
 ) {
     for file in files {
-        if information.options.age {
-            Extremes::update(
-                file.created_time()
-                    .map(|x| x.and_utc().timestamp_millis() as f32),
-                &mut information.created,
-            );
-            Extremes::update(
-                file.modified_time()
-                    .map(|x| x.and_utc().timestamp_millis() as f32),
-                &mut information.modified,
-            );
-            Extremes::update(
-                file.accessed_time()
-                    .map(|x| x.and_utc().timestamp_millis() as f32),
-                &mut information.accessed,
-            );
-            Extremes::update(
-                file.changed_time()
-                    .map(|x| x.and_utc().timestamp_millis() as f32),
-                &mut information.changed,
-            );
-        }
+        if filter.is_file_included(file) {
+            if information.options.age {
+                Extremes::update(
+                    file.created_time()
+                        .map(|x| x.and_utc().timestamp_millis() as f32),
+                    &mut information.created,
+                );
+                Extremes::update(
+                    file.modified_time()
+                        .map(|x| x.and_utc().timestamp_millis() as f32),
+                    &mut information.modified,
+                );
+                Extremes::update(
+                    file.accessed_time()
+                        .map(|x| x.and_utc().timestamp_millis() as f32),
+                    &mut information.accessed,
+                );
+                Extremes::update(
+                    file.changed_time()
+                        .map(|x| x.and_utc().timestamp_millis() as f32),
+                    &mut information.changed,
+                );
+            }
 
-        if information.options.size {
-            let size = match file.size() {
-                Size::Some(size) => Some(size as f32),
-                _ => None,
-            };
-            Extremes::update(size, &mut information.size);
+            if information.options.size {
+                let size = match file.size() {
+                    Size::Some(size) => Some(size as f32),
+                    _ => None,
+                };
+                Extremes::update(size, &mut information.size);
+            }
         }
 
         // We don't want to recurse into . and .., but still want to list them, therefore bypass
-        // the dot_filter.
+        // the dot_filter. Also check if directory is ignored by ignore patterns.
         if file.is_directory()
+            && !filter.ignore_patterns.is_ignored(&file.name)
             && r.is_some_and(|x| !x.is_too_deep(depth.0))
             && file.name != "."
             && file.name != ".."
         {
             match file.read_dir() {
                 Ok(dir) => {
-                    let files: Vec<File<'_>> = dir
-                        .files(dot_filter, git, git_ignoring, false, false)
+                    let mut child_files: Vec<File<'_>> = dir
+                        .files(filter.dot_filter, git, git_ignoring, false, false)
                         .collect();
+
+                    filter.filter_child_files(r.is_some(), &mut child_files);
 
                     update_information_recursively(
                         information,
-                        &files,
-                        dot_filter,
+                        &child_files,
+                        filter,
                         git,
                         git_ignoring,
                         depth.deeper(),
@@ -189,10 +196,10 @@ fn update_information_recursively(
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Extremes {
-    max: f32,
-    min: f32,
+    pub max: f32,
+    pub min: f32,
 }
 
 impl Extremes {
@@ -260,4 +267,180 @@ fn adjust_luminance(color: Colour, x: f32, min_l: f32) -> Colour {
         (adjusted_rgb.green * 255.0).round() as u8,
         (adjusted_rgb.blue * 255.0).round() as u8,
     )
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::fs::{
+        DotFilter,
+        filter::{FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, SortCase, SortField},
+    };
+    use std::path::PathBuf;
+
+    fn make_test_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
+        let (ignore_patterns, _) = IgnorePatterns::parse_from_iter(ignores);
+        FileFilter {
+            sort_field: SortField::Name(SortCase::ABCabc),
+            flags,
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns,
+            git_ignore: GitIgnore::Off,
+            no_symlinks: false,
+            show_symlinks: false,
+        }
+    }
+
+    #[test]
+    fn color_scale_fixed_returns_none() {
+        let opts = ColorScaleOptions {
+            mode: ColorScaleMode::Fixed,
+            min_luminance: 50,
+            size: true,
+            age: true,
+        };
+        let filter = make_test_filter(vec![], vec![]);
+        let info = ColorScaleInformation::from_color_scale(opts, &[], &filter, None, false, None);
+        assert!(info.is_none());
+    }
+
+    #[test]
+    fn color_scale_empty_files_returns_none_extremes() {
+        let opts = ColorScaleOptions {
+            mode: ColorScaleMode::Gradient,
+            min_luminance: 50,
+            size: true,
+            age: true,
+        };
+        let filter = make_test_filter(vec![], vec![]);
+        let info =
+            ColorScaleInformation::from_color_scale(opts, &[], &filter, None, false, None).unwrap();
+        assert!(info.size.is_none());
+        assert!(info.modified.is_none());
+        assert!(info.created.is_none());
+        assert!(info.accessed.is_none());
+        assert!(info.changed.is_none());
+    }
+
+    #[test]
+    fn color_scale_excludes_ignored_globs() {
+        let opts = ColorScaleOptions {
+            mode: ColorScaleMode::Gradient,
+            min_luminance: 50,
+            size: true,
+            age: true,
+        };
+        // Use real existing files in repo to test size extraction
+        let file_cargo =
+            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
+        let file_readme =
+            File::from_args(PathBuf::from("README.md"), None, None, false, false, None);
+
+        let files = vec![file_cargo, file_readme];
+
+        // Filter ignoring Cargo.toml
+        let filter = make_test_filter(vec![], vec!["Cargo.toml"]);
+        let info =
+            ColorScaleInformation::from_color_scale(opts, &files, &filter, None, false, None)
+                .unwrap();
+
+        // Size extremes should only reflect README.md
+        if let Size::Some(readme_size) = files[1].size() {
+            assert_eq!(
+                info.size,
+                Some(Extremes {
+                    min: readme_size as f32,
+                    max: readme_size as f32,
+                })
+            );
+        } else {
+            panic!("README.md should have a size");
+        }
+    }
+
+    #[test]
+    fn color_scale_only_dirs_exclusion() {
+        let opts = ColorScaleOptions {
+            mode: ColorScaleMode::Gradient,
+            min_luminance: 50,
+            size: true,
+            age: true,
+        };
+        let file_cargo =
+            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
+        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, None);
+
+        let files = vec![file_cargo, dir_src];
+
+        let filter = make_test_filter(vec![FileFilterFlags::OnlyDirs], vec![]);
+        let info =
+            ColorScaleInformation::from_color_scale(opts, &files, &filter, None, false, None)
+                .unwrap();
+
+        // Cargo.toml is excluded because OnlyDirs is set; dir_src without total_size has Size::None
+        assert!(info.size.is_none());
+        // Modified time should only reflect dir_src
+        let dir_time = files[1]
+            .modified_time()
+            .map(|t| t.and_utc().timestamp_millis() as f32);
+        assert_eq!(info.modified, dir_time.map(|t| Extremes { min: t, max: t }));
+    }
+
+    #[test]
+    fn color_scale_only_files_exclusion() {
+        let opts = ColorScaleOptions {
+            mode: ColorScaleMode::Gradient,
+            min_luminance: 50,
+            size: true,
+            age: true,
+        };
+        let file_cargo =
+            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
+        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, None);
+
+        let files = vec![file_cargo, dir_src];
+
+        let filter = make_test_filter(vec![FileFilterFlags::OnlyFiles], vec![]);
+        let info =
+            ColorScaleInformation::from_color_scale(opts, &files, &filter, None, false, None)
+                .unwrap();
+
+        // Only the file should be included, not the directory
+        if let Size::Some(file_size) = files[0].size() {
+            assert_eq!(
+                info.size,
+                Some(Extremes {
+                    min: file_size as f32,
+                    max: file_size as f32,
+                })
+            );
+        } else {
+            panic!("Cargo.toml should have a size");
+        }
+    }
+
+    #[test]
+    fn color_scale_adjust_style_nan_ratio() {
+        let opts = ColorScaleOptions {
+            mode: ColorScaleMode::Gradient,
+            min_luminance: 50,
+            size: true,
+            age: true,
+        };
+        let info = ColorScaleInformation {
+            options: opts,
+            accessed: None,
+            changed: None,
+            created: None,
+            modified: None,
+            size: Some(Extremes {
+                min: 100.0,
+                max: 100.0,
+            }),
+        };
+
+        let base_style = Style::default().fg(Colour::Green);
+        let adjusted = info.adjust_style(base_style, 100.0, info.size);
+        assert!(adjusted.foreground.is_some());
+    }
 }
