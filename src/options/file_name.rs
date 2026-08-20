@@ -124,6 +124,10 @@ mod tests {
             Classify::deduce(&mock_cli(vec!["--classify"])),
             Classify::AutomaticAddFileIndicators
         );
+        assert_eq!(
+            Classify::deduce(&mock_cli(vec!["-F"])),
+            Classify::AutomaticAddFileIndicators
+        );
     }
 
     #[test]
@@ -132,6 +136,130 @@ mod tests {
             Classify::deduce(&mock_cli(vec![""])),
             Classify::JustFilenames
         );
+    }
+
+    #[test]
+    fn deduce_classify_explicit_values() {
+        assert_eq!(
+            Classify::deduce(&mock_cli(vec!["--classify=always"])),
+            Classify::AddFileIndicators
+        );
+        assert_eq!(
+            Classify::deduce(&mock_cli(vec!["-F=always"])),
+            Classify::AddFileIndicators
+        );
+        assert_eq!(
+            Classify::deduce(&mock_cli(vec!["--classify=never"])),
+            Classify::JustFilenames
+        );
+        assert_eq!(
+            Classify::deduce(&mock_cli(vec!["-F=never"])),
+            Classify::JustFilenames
+        );
+        assert_eq!(
+            Classify::deduce(&mock_cli(vec!["--classify=auto"])),
+            Classify::AutomaticAddFileIndicators
+        );
+        assert_eq!(
+            Classify::deduce(&mock_cli(vec!["-F=auto"])),
+            Classify::AutomaticAddFileIndicators
+        );
+        assert_eq!(
+            Classify::deduce(&mock_cli(vec!["--classify=automatic"])),
+            Classify::AutomaticAddFileIndicators
+        );
+    }
+
+    #[test]
+    fn deduce_classify_does_not_consume_positional_paths() {
+        let matches_short = mock_cli(vec!["-F", "path1", "path2"]);
+        assert_eq!(
+            Classify::deduce(&matches_short),
+            Classify::AutomaticAddFileIndicators
+        );
+        let files_short: Vec<&str> = matches_short
+            .get_many::<OsString>("FILE")
+            .unwrap()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(files_short, vec!["path1", "path2"]);
+
+        let matches_long = mock_cli(vec!["--classify", "path1", "path2"]);
+        assert_eq!(
+            Classify::deduce(&matches_long),
+            Classify::AutomaticAddFileIndicators
+        );
+        let files_long: Vec<&str> = matches_long
+            .get_many::<OsString>("FILE")
+            .unwrap()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(files_long, vec!["path1", "path2"]);
+    }
+
+    #[test]
+    fn deduce_classify_does_not_consume_keyword_named_files() {
+        let matches = mock_cli(vec!["-F", "auto", "never", "always"]);
+        assert_eq!(
+            Classify::deduce(&matches),
+            Classify::AutomaticAddFileIndicators
+        );
+        let files: Vec<&str> = matches
+            .get_many::<OsString>("FILE")
+            .unwrap()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(files, vec!["auto", "never", "always"]);
+    }
+
+    #[test]
+    fn deduce_classify_explicit_value_with_paths() {
+        let matches = mock_cli(vec!["--classify=always", "file.txt"]);
+        assert_eq!(Classify::deduce(&matches), Classify::AddFileIndicators);
+        let files: Vec<&str> = matches
+            .get_many::<OsString>("FILE")
+            .unwrap()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(files, vec!["file.txt"]);
+
+        let matches_short = mock_cli(vec!["-F=never", "file.txt"]);
+        assert_eq!(Classify::deduce(&matches_short), Classify::JustFilenames);
+        let files_short: Vec<&str> = matches_short
+            .get_many::<OsString>("FILE")
+            .unwrap()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(files_short, vec!["file.txt"]);
+    }
+
+    #[test]
+    fn deduce_classify_clustering_with_short_flags() {
+        let matches = mock_cli(vec!["-Fa", "path1"]);
+        assert_eq!(
+            Classify::deduce(&matches),
+            Classify::AutomaticAddFileIndicators
+        );
+        assert_eq!(matches.get_count("all"), 1);
+        let files: Vec<&str> = matches
+            .get_many::<OsString>("FILE")
+            .unwrap()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(files, vec!["path1"]);
+
+        let matches_long = mock_cli(vec!["-lF", "path1"]);
+        assert_eq!(
+            Classify::deduce(&matches_long),
+            Classify::AutomaticAddFileIndicators
+        );
+        assert!(matches_long.get_flag("long"));
+        let files_long: Vec<&str> = matches_long
+            .get_many::<OsString>("FILE")
+            .unwrap()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(files_long, vec!["path1"]);
     }
 
     #[test]
