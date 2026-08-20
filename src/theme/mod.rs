@@ -9,6 +9,7 @@ use nu_ansi_term::Style;
 use std::collections::HashMap;
 
 use crate::fs::File;
+use crate::fs::fields::TagColor;
 use crate::info::filetype::FileType;
 use crate::options::config::ThemeConfig;
 use crate::output::color_scale::ColorScaleOptions;
@@ -358,6 +359,18 @@ impl render::FiletypeColours for Theme {
     fn char_device(&self)  -> Style { self.ui.filekinds.unwrap_or_default().char_device() }
     fn socket(&self)       -> Style { self.ui.filekinds.unwrap_or_default().socket() }
     fn special(&self)      -> Style { self.ui.filekinds.unwrap_or_default().special() }
+    fn tag(&self, color: &TagColor) -> Style {
+        match color {
+            TagColor::None =>   self.ui.tags.unwrap_or_default().none(),
+            TagColor::Grey =>   self.ui.tags.unwrap_or_default().grey(),
+            TagColor::Green =>  self.ui.tags.unwrap_or_default().green(),
+            TagColor::Purple => self.ui.tags.unwrap_or_default().purple(),
+            TagColor::Blue =>   self.ui.tags.unwrap_or_default().blue(),
+            TagColor::Yellow => self.ui.tags.unwrap_or_default().yellow(),
+            TagColor::Red =>    self.ui.tags.unwrap_or_default().red(),
+            TagColor::Orange => self.ui.tags.unwrap_or_default().orange(),
+        }
+    }
 }
 
 #[rustfmt::skip]

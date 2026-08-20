@@ -11,6 +11,8 @@ use nu_ansi_term::{AnsiString as ANSIString, Style};
 use path_clean;
 use unicode_width::UnicodeWidthStr;
 
+use crate::fs::feature::xattr::display_tags;
+use crate::fs::fields::TagColor;
 use crate::fs::{File, FileTarget};
 use crate::output::cell::TextCellContents;
 use crate::output::escape;
@@ -122,6 +124,7 @@ impl Options {
                 None
             },
             mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
         }
     }
 }
@@ -153,6 +156,13 @@ pub enum Classify {
 
     // Like previous, but only when output is going to a terminal, not otherwise.
     AutomaticAddFileIndicators,
+}
+
+/// Whether to show macOS tags.
+#[derive(PartialEq, Debug, Copy, Clone)]
+enum Tags {
+    Off,
+    On,
 }
 
 /// When displaying a directory name, there needs to be some way to handle
@@ -232,6 +242,8 @@ pub struct FileName<'a, 'dir, C> {
 
     /// How to handle displaying a mounted filesystem.
     mount_style: MountStyle,
+
+    tags: Tags,
 }
 
 impl<C> FileName<'_, '_, C> {
@@ -254,6 +266,13 @@ impl<C> FileName<'_, '_, C> {
         } else {
             MountStyle::JustDirectoryNames
         };
+        self
+    }
+
+    /// Sets the flag on this file name to display macOS tags.
+    #[must_use]
+    pub fn with_tags(mut self, enable: bool) -> Self {
+        self.tags = if enable { Tags::On } else { Tags::Off };
         self
     }
 }
@@ -375,6 +394,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                             link_style: LinkStyle::FullLinkPaths,
                             options: target_options,
                             mount_style: MountStyle::JustDirectoryNames,
+                            tags: Tags::Off,
                         };
 
                         for bit in target_name.escaped_file_name(filename_style_override) {
@@ -425,6 +445,18 @@ impl<C: Colours> FileName<'_, '_, C> {
             bits.push(Style::default().paint(" ("));
             bits.push(Style::default().paint(mount_details.fstype.clone()));
             bits.push(Style::default().paint(")]"));
+        }
+
+        if self.tags == Tags::On {
+            self.file.extended_attributes().iter().for_each(|attr| {
+                if let Some(tags) = display_tags(attr) {
+                    for tag in &tags {
+                        let color = tag.color.as_ref().unwrap_or(&TagColor::None);
+                        bits.push(Style::default().paint(" "));
+                        bits.push(self.colours.tag(color).paint(tag.name.clone()));
+                    }
+                }
+            });
         }
 
         bits.into()
@@ -752,6 +784,9 @@ mod test {
         fn special(&self) -> Style {
             Style::default()
         }
+        fn tag(&self, _tag: &TagColor) -> Style {
+            Style::default()
+        }
     }
     impl Colours for TestColours {
         fn symlink_path(&self) -> Style {
@@ -811,6 +846,7 @@ mod test {
             link_style: LinkStyle::FullLinkPaths,
             options,
             mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
         };
         let painted = format!("{}", file_name.paint().strings());
         let abs_path = std::fs::canonicalize("tests/itest/index.svg").unwrap();
@@ -852,6 +888,7 @@ mod test {
             link_style: LinkStyle::FullLinkPaths,
             options,
             mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
         };
         let painted = format!("{}", file_name.paint().strings());
         let hyperlink_tag_pos = painted
@@ -884,6 +921,7 @@ mod test {
             link_style: LinkStyle::FullLinkPaths,
             options,
             mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
         };
         let painted = format!("{}", file_name.paint().strings());
         let closing_tag = "\x1B]8;;\x1B\\";
@@ -918,6 +956,7 @@ mod test {
             link_style: LinkStyle::FullLinkPaths,
             options,
             mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
         };
         let painted = format!("{}", file_name.paint().strings());
         let closing_tag = "\x1B]8;;\x1B\\";
@@ -950,6 +989,7 @@ mod test {
             link_style: LinkStyle::FullLinkPaths,
             options,
             mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
         };
         let painted = format!("{}", file_name.paint().strings());
         assert!(
