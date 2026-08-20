@@ -108,6 +108,7 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
 // =========================================================================
 
 #[test]
+#[cfg(unix)]
 fn test_r1_hyperlink_painting_with_special_characters() {
     let temp = TempTestDir::new("r1_hyperlink");
     let test_names = [
@@ -627,6 +628,7 @@ fn test_cross_feature_grid_narrow_width_with_binary_and_color_scale() {
 }
 
 #[test]
+#[cfg(unix)]
 fn test_r1_adversarial_hyperlink_edge_cases() {
     let temp = TempTestDir::new("r1_adv_edge");
     let adversarial_names = [
