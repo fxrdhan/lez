@@ -198,6 +198,9 @@ pub enum SortField {
     /// The file name. This is the default sorting.
     Name(SortCase),
 
+    /// The full path name.
+    Path(SortCase),
+
     /// The file’s extension, with extensionless files being listed first.
     Extension(SortCase),
 
@@ -301,6 +304,9 @@ impl SortField {
 
             Self::Name(ABCabc)  => natord::compare(&a.name, &b.name),
             Self::Name(AaBbCc)  => natord::compare_ignore_case(&a.name, &b.name),
+
+            Self::Path(ABCabc) => natord::compare(a.path.to_string_lossy().as_ref(), b.path.to_string_lossy().as_ref()),
+            Self::Path(AaBbCc) => natord::compare_ignore_case(a.path.to_string_lossy().as_ref(), b.path.to_string_lossy().as_ref()),
 
             Self::Size          => a.length().cmp(&b.length()),
 
@@ -504,5 +510,68 @@ mod test_ignores {
         };
         assert!(!filter_ignore.is_file_included(&file_cargo));
         assert!(filter_ignore.is_file_included(&dir_src));
+    }
+
+    #[test]
+    fn sort_by_path_and_path_case() {
+        use std::path::PathBuf;
+
+        let file_a = File::from_args(
+            PathBuf::from("dir_a/zeta.txt"),
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let file_b = File::from_args(
+            PathBuf::from("dir_b/alpha.txt"),
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Sorting by Name (basename): alpha.txt comes before zeta.txt
+        assert_eq!(
+            SortField::Name(SortCase::AaBbCc).compare_files(&file_a, &file_b),
+            Ordering::Greater
+        );
+
+        // Sorting by Path: dir_a/zeta.txt comes before dir_b/alpha.txt
+        assert_eq!(
+            SortField::Path(SortCase::AaBbCc).compare_files(&file_a, &file_b),
+            Ordering::Less
+        );
+
+        let file_upper = File::from_args(
+            PathBuf::from("DirA/file.txt"),
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+        let file_lower = File::from_args(
+            PathBuf::from("dira/file.txt"),
+            None,
+            None,
+            false,
+            false,
+            None,
+        );
+
+        // Case-insensitive path: DirA equals dira
+        assert_eq!(
+            SortField::Path(SortCase::AaBbCc).compare_files(&file_upper, &file_lower),
+            Ordering::Equal
+        );
+
+        // Case-sensitive path (ABCabc): DirA comes before dira
+        assert_eq!(
+            SortField::Path(SortCase::ABCabc).compare_files(&file_upper, &file_lower),
+            Ordering::Less
+        );
     }
 }

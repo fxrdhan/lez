@@ -172,7 +172,7 @@ Use this twice to also show the ‘`.`’ and ‘`..`’ directories.
 `-s`, `--sort=SORT_FIELD`
 : Which field to sort by.
 
-Valid sort fields are ‘`name`’, ‘`Name`’, ‘`extension`’, ‘`Extension`’, ‘`size`’, ‘`block`’ [Unix only], ‘`modified`’, ‘`changed`’, ‘`accessed`’, ‘`created`’, ‘`inode`’, ‘`type`’, and ‘`none`’.
+Valid sort fields are ‘`name`’, ‘`Name`’, ‘`extension`’, ‘`Extension`’, ‘`path`’, ‘`Path`’, ‘`size`’, ‘`block`’ [Unix only], ‘`modified`’, ‘`changed`’, ‘`accessed`’, ‘`created`’, ‘`inode`’, ‘`type`’, and ‘`none`’.
 
 The ‘`block`’ sort field has the aliases ‘`blocks`’ and ‘`blocksize`’.
 
