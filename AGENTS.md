@@ -195,5 +195,6 @@ If adding a new CLI flag:
 
 ### 5. Code Quality & Commits
 - Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`).
+- **Granular Atomic Commits (1 Upstream Task = 1 Commit)**: Never bundle multiple independent upstream PRs or features into a single monolithic commit. Each upstream port or distinct feature must have its own separate, atomic commit with unit tests and clear commit messages. Batch PRs in `lsr` must contain at least 5 granular commits (one per item).
 - Ensure all licenses comply with REUSE / SPDX guidelines (`EUPL-1.2` or `MIT`).
 - Run `cargo clippy` and `cargo test --lib` before committing.
