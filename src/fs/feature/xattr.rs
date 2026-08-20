@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: 2024 Christina Sørensen
+// SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 //
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
@@ -591,8 +592,25 @@ const ATTRIBUTE_DISPLAYS: &[AttributeDisplay] = &[
     },
 ];
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
+const ATTRIBUTE_DISPLAYS: &[AttributeDisplay] = &[AttributeDisplay {
+    attribute: "security.capability",
+    display: display_capability,
+}];
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 const ATTRIBUTE_DISPLAYS: &[AttributeDisplay] = &[];
+
+// "security.capability" attribute represents capabilities in a binary format.
+// See "capabilities(7)"
+#[cfg(target_os = "linux")]
+fn display_capability(attribute: &Attribute) -> Option<String> {
+    attribute
+        .value
+        .as_ref()
+        .and_then(|v| capctl::FileCaps::unpack_attrs(v).ok())
+        .map(|caps| format!("{caps}"))
+}
 
 // com.apple.lastuseddate is two 64-bit values representing the seconds and nano seconds
 // from January 1, 1970
@@ -825,4 +843,102 @@ fn plist_tags_display(value: &[u8]) -> Vec<Tag> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_empty_attribute_display() {
+        let attr = Attribute {
+            name: "user.empty".to_string(),
+            value: None,
+        };
+        assert_eq!(format!("{attr}"), "user.empty: <empty>");
+    }
+
+    #[test]
+    fn test_utf8_attribute_display() {
+        let attr = Attribute {
+            name: "user.comment".to_string(),
+            value: Some(b"hello world\0".to_vec()),
+        };
+        assert_eq!(format!("{attr}"), "user.comment: \"hello world\"");
+    }
+
+    #[test]
+    fn test_binary_hex_fallback_display() {
+        let attr = Attribute {
+            name: "user.data".to_string(),
+            value: Some(vec![0x01, 0x02, 0xff]),
+        };
+        assert_eq!(format!("{attr}"), "user.data: [01, 02, ff]");
+    }
+
+    #[test]
+    fn test_binary_long_fallback_display() {
+        let attr = Attribute {
+            name: "user.big".to_string(),
+            value: Some(vec![0xab; 20]),
+        };
+        assert_eq!(format!("{attr}"), "user.big: <length 20>");
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_linux_security_capability_display() {
+        // V2 format with CAP_NET_RAW (bit 13) and effective flag
+        let raw_cap_net_raw: [u8; 20] = [
+            0x01, 0x00, 0x00, 0x02, // magic_etc: VFS_CAP_REVISION_2 | VFS_CAP_FLAGS_EFFECTIVE
+            0x00, 0x20, 0x00, 0x00, // permitted: 1 << 13 (CAP_NET_RAW)
+            0x00, 0x00, 0x00, 0x00, // inheritable: 0
+            0x00, 0x00, 0x00, 0x00, // permitted high: 0
+            0x00, 0x00, 0x00, 0x00, // inheritable high: 0
+        ];
+        let attr = Attribute {
+            name: "security.capability".to_string(),
+            value: Some(raw_cap_net_raw.to_vec()),
+        };
+        let formatted = format!("{attr}");
+        assert!(
+            formatted.contains("cap_net_raw"),
+            "Expected formatted capability to contain cap_net_raw, got: {formatted}"
+        );
+        let cap_str = display_capability(&attr);
+        assert!(cap_str.is_some());
+        assert!(cap_str.unwrap().contains("cap_net_raw"));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_linux_security_capability_corrupted_payload() {
+        let corrupted: [u8; 3] = [0xff, 0xfe, 0xfd];
+        let attr = Attribute {
+            name: "security.capability".to_string(),
+            value: Some(corrupted.to_vec()),
+        };
+        let cap_str = display_capability(&attr);
+        assert!(cap_str.is_none());
+        let formatted = format!("{attr}");
+        assert_eq!(formatted, "security.capability: [ff, fe, fd]");
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_macos_lastuseddate_display() {
+        // 16 bytes: 8 bytes seconds, 8 bytes nanoseconds
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&0_i64.to_le_bytes());
+        bytes.extend_from_slice(&0_i64.to_le_bytes());
+        let attr = Attribute {
+            name: "com.apple.lastuseddate".to_string(),
+            value: Some(bytes),
+        };
+        let formatted = format!("{attr}");
+        assert!(
+            formatted.starts_with("com.apple.lastuseddate: <1970-01-01")
+                || formatted.starts_with("com.apple.lastuseddate: <1969-12-31")
+        );
+    }
 }
