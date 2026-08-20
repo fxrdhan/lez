@@ -42,7 +42,7 @@ META OPTIONS
 ===============
 
 `--help`
-: Show list of command-line options.
+: Show list of command-line options with syntax-highlighted ANSI colors.
 
 `-v`, `--version`
 : Show version of eza.
@@ -117,11 +117,11 @@ Use comma(,) separated list of all, age, size
 Valid options are `fixed` or `gradient`.
 When used without a value, defaults to `gradient`.
 
-`--icons=WHEN`
+`--icons[=WHEN]`
 : Display icons next to file names.
 
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
-When used without a value, defaults to ‘`automatic`’.
+When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--icons=WHEN`).
 
 `automatic` or `auto` will display icons only when the standard output is connected to a real terminal. If `eza` is ran while in a `tty`, or the output of `eza` is either redirected to a file or piped into another program, icons will not be used. Setting this option to ‘`always`’ causes `eza` to always display icons, while ‘`never`’ disables the use of icons.
 
@@ -133,11 +133,11 @@ When used without a value, defaults to ‘`automatic`’.
 
 : A path component beginning with a Nix store hash — exactly 32 characters of Nix’s base32 alphabet followed by a dash, like `vlkia5wk0svsikwv50554mh06iayg2m2-source.drv` — is displayed with the hash shortened to its first 8 characters and an ellipsis, painted dim so the name stands out: `vlkia5wk…-source.drv`. This applies to listed names, symbolic link targets, and absolute paths.
 
-`--hyperlink=WHEN`
+`--hyperlink[=WHEN]`
 : Display entries as hyperlinks
 
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
-When used without a value, defaults to ‘`automatic`’.
+When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--hyperlink=WHEN`).
 
 `automatic` or `auto` will display hyperlinks only when the standard output is connected to a real terminal. If `eza` is ran while in a `tty`, or the output of `eza` is either redirected to a file or piped into another program, hyperlinks will not be used. Setting this option to ‘`always`’ causes `eza` to always display hyperlinks, while ‘`never`’ disables the use of hyperlinks.
 

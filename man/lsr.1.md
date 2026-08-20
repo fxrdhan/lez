@@ -45,7 +45,7 @@ META OPTIONS
 ===============
 
 `--help`, `-?`
-: Show list of command-line options.
+: Show list of command-line options with syntax-highlighted ANSI colors.
 
 `-v`, `--version`
 : Show version of lsr.
@@ -101,22 +101,25 @@ When used without a value, defaults to ‘`automatic`’.
 `-x`, `--across`
 : Sort the grid across, rather than downwards.
 
-`--color[=WHEN]`, `--colour[=WHEN]`
-: When to use terminal colours (using ANSI escape code to colorize the output).
+`-F`, `--classify[=WHEN]`
+: Display type indicator by file names.
 
-Valid settings are ‘`always`’, ‘`automatic`’ (or ‘`auto`’ for short), and ‘`never`’.
-When used without a value, defaults to ‘`automatic`’.
+Valid settings are '`always`', '`automatic`' ('`auto`' for short), and '`never`'.
+When used without a value, defaults to '`automatic`'.
 
-The default behavior (‘`automatic`’ or ‘`auto`’) is to colorize the output only when the standard output is connected to a real terminal. If the output of `lsr` is redirected to a file or piped into another program, terminal colors will not be used. Setting this option to ‘`always`’ causes `lsr` to always output terminal color, while ‘`never`’ disables the use of terminal color.
+`--color=WHEN`, `--colour=WHEN`
+: When to use terminal colours.
 
-Manually setting this option overrides `NO_COLOR` environment.
+Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
 
-`--color-scale[=FIELDS]`, `--colour-scale[=FIELDS]`
-: Highlight levels of `field` distinctly.
-Use comma(,) separated list of `all`, `age`, `size`.
+`--color-scale[=FIELD]`, `--colour-scale[=FIELD]`
+: Highlight levels of ‘`field`’ distinctly.
+
+Valid fields are ‘`all`’, ‘`age`’, and ‘`size`’.
+When used without a value, defaults to ‘`all`’.
 
 `--color-scale-mode=MODE`, `--colour-scale-mode=MODE`
-: Use gradient or fixed colors in `--color-scale`.
+: Mode of color scale.
 
 Valid options are `fixed` or `gradient`.
 When used without a value, defaults to `gradient`.
@@ -125,7 +128,7 @@ When used without a value, defaults to `gradient`.
 : Display icons next to file names.
 
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
-When used without a value, defaults to ‘`automatic`’.
+When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--icons=WHEN`).
 
 `automatic` or `auto` will display icons only when the standard output is connected to a real terminal. If `lsr` is run while in a `tty`, or the output of `lsr` is either redirected to a file or piped into another program, icons will not be used. Setting this option to ‘`always`’ causes `lsr` to always display icons, while ‘`never`’ disables the use of icons.
 
@@ -141,7 +144,7 @@ When used without a value, defaults to ‘`automatic`’.
 : Display entries as hyperlinks.
 
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
-When used without a value, defaults to ‘`automatic`’.
+When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--hyperlink=WHEN`).
 
 `-w`, `--width=COLS`
 : Set screen width in columns (clamped to the safe range `1..65535` to prevent integer overflow and division-by-zero).
