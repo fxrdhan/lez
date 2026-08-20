@@ -48,12 +48,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run REUSE linter
-        uses: fsfe/reuse-action@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install and run REUSE 3.3
+        run: |
+          pip install --upgrade reuse
+          reuse lint
 
   unit-and-integration-tests:
     name: Tests (${{ matrix.os }} - Rust ${{ matrix.rust }})
-    needs: [lint-and-format, reuse-compliance]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -102,7 +108,6 @@ jobs:
 
   nix-flake-check:
     name: Nix Flake Validation
-    needs: [lint-and-format, reuse-compliance]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
