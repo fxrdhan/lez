@@ -23,7 +23,7 @@ SPDX-License-Identifier: EUPL-1.2
 **`lsr`** is a fast, modern file-listing command-line tool with smart defaults, enhanced file icons, Git integration, and continuous performance improvements.
 
 - ⚡ **Fast & Lightweight:** Written in modern Rust with multithreaded directory scanning via Rayon.
-- 🎨 **Rich Visuals:** Syntax highlighting, Nerd Font icons, and automatic color scaling.
+- 🎨 **Rich Visuals:** Syntax highlighting, colored CLI help output, Nerd Font icons, and automatic color scaling.
 - 🌿 **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
 - 🌲 **Built-in Tree View:** Hierarchical directory tree out of the box (`lsr --tree`).
 - 🚀 **Extended Capabilities:** Rich file classification, custom themes, and archive inspection.
@@ -95,8 +95,8 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **--colo[u]r=(when)**: when to use terminal colours (always, auto, never)
 - **--colo[u]r-scale=(field)**: highlight levels of `field` distinctly (all, age, size)
 - **--color-scale-mode=(mode)**: use gradient or fixed colors in --color-scale. valid options are `fixed` or `gradient`
-- **--icons=(when)**: when to display icons (always, auto, never)
-- **--hyperlink=(when)**: when to display entries as hyperlinks (always, auto, never)
+- **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
+- **--hyperlink[=(when)]**: when to display entries as hyperlinks (always, auto, never; requires '=' if value provided)
 - **--absolute=(mode)**: display entries with their absolute path (on, follow, off)
 - **-w**, **--width=(columns)**: set screen width in columns (clamped to `1..65535`)
 

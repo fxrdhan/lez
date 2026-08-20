@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
+use clap::parser::ValueSource;
 use clap::{ArgMatches, ValueEnum};
 
 use crate::output::TerminalWidth::Automatic;
@@ -130,7 +131,7 @@ impl Mode {
             "mounts",
             "loc",
         ] {
-            if matches.contains_id(flag) {
+            if matches.value_source(flag) == Some(ValueSource::CommandLine) {
                 return Err(OptionsError::Useless(flag, false, "long"));
             }
         }
@@ -1303,5 +1304,91 @@ mod tests {
                 .loc,
             None
         );
+    }
+
+    #[test]
+    fn strict_check_long_flags_default_is_ok() {
+        assert_eq!(Mode::strict_check_long_flags(&mock_cli(vec![""])), Ok(()));
+        assert!(Mode::deduce(&mock_cli(vec![""]), &MockVars::default(), false, true).is_ok());
+    }
+
+    #[test]
+    fn strict_check_long_flags_useless_without_long() {
+        for flag in &[
+            "binary",
+            "bytes",
+            "inode",
+            "links",
+            "header",
+            "blocksize",
+            "group",
+            "numeric",
+            "mounts",
+            "loc",
+        ] {
+            let arg = format!("--{flag}");
+            let matches = mock_cli(vec![&arg]);
+            assert_eq!(
+                Mode::strict_check_long_flags(&matches),
+                Err(OptionsError::Useless(flag, false, "long")),
+                "Expected --{flag} to trigger OptionsError::Useless without --long"
+            );
+            assert_eq!(
+                Mode::deduce(&matches, &MockVars::default(), false, true),
+                Err(OptionsError::Useless(flag, false, "long")),
+                "Expected Mode::deduce with --{flag} to fail in strict mode"
+            );
+        }
+    }
+
+    #[test]
+    fn strict_check_long_flags_with_long_is_ok() {
+        for flag in &[
+            "binary",
+            "bytes",
+            "inode",
+            "links",
+            "header",
+            "blocksize",
+            "group",
+            "numeric",
+            "mounts",
+            "loc",
+        ] {
+            let arg = format!("--{flag}");
+            let matches = mock_cli(vec!["--long", &arg]);
+            assert!(
+                Mode::deduce(&matches, &MockVars::default(), false, true).is_ok(),
+                "Expected --long with --{flag} to succeed in strict mode"
+            );
+        }
+    }
+
+    #[test]
+    fn strict_check_long_flags_short_options_without_long() {
+        let cases = [
+            ("-b", "binary"),
+            ("-B", "bytes"),
+            ("-i", "inode"),
+            ("-H", "links"),
+            ("-h", "header"),
+            ("-S", "blocksize"),
+            ("-g", "group"),
+            ("-n", "numeric"),
+        ];
+
+        for (short_flag, expected_name) in cases {
+            let matches = mock_cli(vec![short_flag]);
+            assert_eq!(
+                Mode::strict_check_long_flags(&matches),
+                Err(OptionsError::Useless(expected_name, false, "long")),
+                "Expected {short_flag} to trigger OptionsError::Useless for {expected_name}"
+            );
+            assert_eq!(
+                Mode::deduce(&matches, &MockVars::default(), false, true),
+                Err(OptionsError::Useless(expected_name, false, "long")),
+                "Expected Mode::deduce with {short_flag} to fail in strict mode"
+            );
+        }
     }
 }
