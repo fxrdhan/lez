@@ -192,6 +192,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `-I`, `--ignore-glob=GLOBS`
 : Glob patterns, pipe-separated, of files to ignore.
 
+`--ignore-glob-case-insensitive`
+: Match ignore globs case-insensitively.
+
 `--git-ignore` [if lsr was built with git support]
 : Do not list files that are ignored by Git.
 
@@ -213,6 +216,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--no-symlinks`
 : Do not show symbolic links.
 
+`--show-dotfiles`
+: Explicitly show dotfiles even if hidden.
+
 
 LONG VIEW OPTIONS
 =================
@@ -232,7 +238,7 @@ These options are available when running with `--long` (`-l`):
 : List each file’s group.
 
 `--smart-group`
-: Only show group if it has a different name from owner.
+: Only show group if it has a different name from owner. Automatically enables the group column in long view.
 
 `-h`, `--header`
 : Add a header row to each column.
@@ -246,7 +252,7 @@ These options are available when running with `--long` (`-l`):
 `--loc[=MODE]`
 : Add a language column and a lines-of-code column to the long view.
 
-: Only regular files in a recognised programming language (including Odin, Rust, C/C++, Python, Go, and 100+ others) are counted; counting is comment-aware, so the code column excludes comment and blank lines.
+: Only regular files in a recognised programming language (including Janet, Odin, Rust, C/C++, Python, Go, and 100+ others) are counted; counting is comment-aware, so the code column excludes comment and blank lines.
 
 : Valid modes are ‘`lines`’ (the count of code lines), ‘`percent`’ (each file’s share of the code in the whole tree), and ‘`both`’ (the default). In `percent` and `both` modes the denominator is the total code across the recursed tree, or the git repository if one is present.
 
