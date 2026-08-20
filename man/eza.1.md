@@ -88,6 +88,9 @@ When used without a value, defaults to ‘`automatic`’.
 
 : The given paths (or the current directory) are walked recursively, honouring a git repository’s `.gitignore` when one is present, and each recognised language (including Odin, Rust, C/C++, Python, Go, and 100+ others) is reported with its file, line, code, comment, and blank counts, plus a bar visualising its share of the code. Valid modes are ‘`lines`’, ‘`percent`’, and ‘`both`’ (the default).
 
+`--json`
+: Output file listing and metadata as structured JSON for easy parsing and scripting.
+
 `--follow-symlinks`
 : Drill down into symbolic links that point to directories.
 
