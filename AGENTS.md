@@ -12,7 +12,9 @@ SPDX-License-Identifier: EUPL-1.2
 
 ## 1. System Overview & Architecture
 
-`lsr` reads directories and files from the filesystem, extracts rich metadata (permissions, ownership, sizes, Git status, extended attributes, mounts, timestamps), formats them with syntax highlighting, Nerd Font icons, and renders them in various display modes (Grid, Long Details, Grid Details, One-line, Tree, and Lines of Code Summary).
+`lsr` reads directories and files from the filesystem, extracts rich metadata (permissions, ownership, sizes, Git status, extended attributes, mounts, timestamps), formats them with syntax highlighting, Nerd Font icons, and renders them in various display modes (Grid, Long Details, Grid Details, One-line, Tree, Lines of Code Summary via `--code`, and JSON via `--json`).
+
+Mode selection priority (`Mode::deduce` in `src/options/view.rs`): `--code` → `--json` → strict-mode checks → TTY default (Grid on TTY, Lines otherwise) → `--long` (+ `--grid` = GridDetails) → `--tree` → `--oneline`. Only `--binary`/`--bytes` still use last-argument-wins semantics (clap `overrides_with`).
 
 ```
 CLI Input (Args & Env)
@@ -42,7 +44,7 @@ CLI Input (Args & Env)
 - [`build.rs`](build.rs): Generates `version_string.txt` during compilation (reads git commit hash, date, features) consumed by `clap` in `src/options/parser.rs`.
 - [`justfile`](justfile): Command runner recipes for building, testing, linting, packaging, and man page generation.
 - [`flake.nix`](flake.nix): Nix flake definition for reproducible developer environment and CI builds.
-- [`man/`](man/): Pandoc markdown sources for man pages (`eza.1.md`, `eza_colors.5.md`, `eza_colors-explanation.5.md`).
+- [`man/`](man/): Pandoc markdown sources for man pages (`lsr.1.md`, `lsr_colors.5.md`, `lsr_colors-explanation.5.md`, plus legacy `eza`-named copies).
 - [`completions/`](completions/): Shell completion scripts for `bash`, `zsh`, `fish`, `nushell`, and `powershell`.
 - [`tests/`](tests/): Integration tests, snapshot tests powered by `trycmd`, LOC tests, and powertests.
 
@@ -58,23 +60,25 @@ CLI Input (Args & Env)
   - Initializes `Exa` struct holding `Options`, `Theme`, terminal width, and `GitCache`.
   - Runs `Exa::run()`:
     - If `--code` mode: counts lines of code and renders language breakdown via `src/output/code.rs`.
+    - If `--json` mode: serializes files/directories via `src/output/json.rs` (special-cased for multi-directory output).
     - Otherwise: wraps input paths into `File` / `Dir` structs, verifies metadata, sorts/filters, recurses if requested (`--recurse`, `--tree`), and delegates rendering to `print_files()` and `print_dirs()`.
   - Maps standard exit codes:
     - `0` (`SUCCESS`): Successful execution.
     - `1` (`RUNTIME_ERROR`): I/O or filesystem error encountered.
+    - `2`: At least one input path does not exist (listing of remaining paths still proceeds).
     - `3` (`OPTIONS_ERROR`): Invalid or conflicting CLI options.
     - `13` (`PERMISSION_DENIED`): Skipped directories due to OS permission denial.
 - [`src/lib.rs`](src/lib.rs): Re-exports modules for internal library tests and benchmarks.
 - [`src/logger.rs`](src/logger.rs): Debug logging implementation.
+- [`src/info/`](src/info/): Internal "business logic" on already-read metadata (not filesystem probing nor output): `filetype.rs` (file type classification) and `sources.rs`.
 
 #### CLI & Configuration (`src/options/`)
 - [`src/options/parser.rs`](src/options/parser.rs): Defines the `clap::Command` CLI specification with all flags, options, headings, value parsers, and defaults.
-- [`src/options/mod.rs`](src/options/mod.rs): Combines sub-options into `Options`. Implements backward precedence heuristics (later flags override earlier flags from shell aliases).
-- [`src/options/dir_action.rs`](src/options/dir_action.rs): Handles recursion settings (`--recurse`, `--tree`, `--level`, `--treat-dirs-as-files`).
-- [`src/options/filter.rs`](src/options/filter.rs): Handles filtering flags (`-a`/`--all`, `-D`/`--only-dirs`, `-f`/`--only-files`, `--git-ignore`, `-I`/`--ignore-glob`, `--no-symlinks`, `--show-symlinks`, `--sort`, `--reverse`).
-- [`src/options/view.rs`](src/options/view.rs): Handles view mode selection (`Grid`, `Details`, `GridDetails`, `Lines`, `Code`), column toggles, `--absolute`, `--dereference`, `--hyperlink`, `--icons`.
-- [`src/options/theme.rs`](src/options/theme.rs) & [`src/options/config.rs`](src/options/config.rs): Parses `theme.yml` configuration (from `$LSR_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or `$XDG_CONFIG_HOME/lsr|eza`) and color variables.
-- [`src/options/vars.rs`](src/options/vars.rs): Declares environment variables (`LS_COLORS`, `EZA_COLORS`, `EXA_COLORS`, `NO_COLOR`, `COLUMNS`, `TIME_STYLE`, `EZA_STRICT`, `EZA_DEBUG`, `EZA_GRID_ROWS`, `EZA_ICON_SPACING`, `EZA_ICONS_AUTO`, `EZA_STDIN_SEPARATOR`, etc.) and the mockable `Vars` trait.
+- [`src/options/mod.rs`](src/options/mod.rs): Combines sub-options into `Options`. Deduction order: View → DirAction → FileFilter → Theme → FilesInput.
+- [`src/options/filter.rs`](src/options/filter.rs): Handles filtering flags (`-a`/`--all`, `-D`/`--only-dirs`, `-f`/`--only-files`, `--git-ignore`, `-I`/`--ignore-glob`, `--ignore-glob-ci`, `--since <DURATION>`, `--no-symlinks`, `--show-symlinks`, `--sort`, `--reverse`). Sort aliases: `newest`/`new` → ModifiedAge (newest first), `old`/`oldest` → ModifiedDate.
+- [`src/options/view.rs`](src/options/view.rs): Handles view mode selection (`Grid`, `Details`, `GridDetails`, `Lines`, `Code`, `Json`), column toggles, `--absolute`, `--dereference`, `--hyperlink`, `--icons`, `--summary`, `--print-total`.
+- [`src/options/theme.rs`](src/options/theme.rs) & [`src/options/config.rs`](src/options/config.rs): Parses `theme.yml` configuration (from `$LSR_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or `$XDG_CONFIG_HOME/lsr|eza`) and color variables. YAML sections: `filekinds`, `perms`, `size`, `users`, `links`, `git`, `git_repo`, `security_context`, `file_type`, `tags`, scalar UI styles, plus per-name maps `filenames`, `extensions`, `directorynames`.
+- [`src/options/vars.rs`](src/options/vars.rs): Declares environment variables (`LS_COLORS`, `LSR_COLORS`/`EZA_COLORS`/`EXA_COLORS`, `NO_COLOR`, `COLUMNS`, `TIME_STYLE`, `EZA_STRICT`, `EZA_DEBUG`, `EZA_GRID_ROWS`, `EZA_ICON_SPACING`, `EZA_ICONS_AUTO`, `EZA_STDIN_SEPARATOR`, `LSR_MIN_LUMINANCE`/`LSR_MAX_LUMINANCE`, etc.) and the mockable `Vars` trait. Precedence for duplicated vars: `LSR_*` > `EZA_*` > `EXA_*`.
 - [`src/options/stdin.rs`](src/options/stdin.rs): Handles `--stdin` filename input with configurable delimiter.
 - [`src/options/error.rs`](src/options/error.rs): Error formatting for option validation.
 
@@ -87,6 +91,7 @@ CLI Input (Args & Env)
   - Recursive directory size (`recursive_size`).
   - Security context (`SecurityContextType`).
 - [`src/fs/dir.rs`](src/fs/dir.rs): `Dir` struct and `Files` iterator for reading directory entries with dotfile/gitignore filtering.
+- [`src/fs/dir_action.rs`](src/fs/dir_action.rs): Handles directory encounter behavior (`--recurse`, `--tree`, `--level`, `--treat-dirs-as-files`).
 - [`src/fs/filter.rs`](src/fs/filter.rs): Core sorting and filtering algorithms (`SortField`, natural casing sort via `natord-plus-plus`, directory-first/last ordering).
 - [`src/fs/fields.rs`](src/fs/fields.rs): Domain types for file attributes (Permissions, Inode, Links, GitStatus, FileSize, Blocks, etc.).
 - [`src/fs/feature/git.rs`](src/fs/feature/git.rs): Git integration backed by `git2` (libgit2). Caches repo statuses (`Modified`, `New`, `Deleted`, `Renamed`, `Ignored`, `Typechange`) and branch heads.
@@ -100,6 +105,8 @@ CLI Input (Args & Env)
 - [`src/output/lines.rs`](src/output/lines.rs): Single-column / one-per-line output (`-1`).
 - [`src/output/details.rs`](src/output/details.rs): Long table view (`-l`), calculates column widths, prints optional headers (`-h`).
 - [`src/output/grid_details.rs`](src/output/grid_details.rs): Hybrid grid + long details view.
+- [`src/output/json.rs`](src/output/json.rs): JSON output mode (`--json`); reuses the same `Column` collection as the long view so `-l` and `--json -l` stay in parity.
+- [`src/output/summary.rs`](src/output/summary.rs): Total counts summary footer (`--summary`).
 - [`src/output/tree.rs`](src/output/tree.rs): Recursive tree structure drawing with edge connectors (`├──`, `└──`, `│`).
 - [`src/output/table.rs`](src/output/table.rs): Table row and cell layout generator.
 - [`src/output/file_name.rs`](src/output/file_name.rs): Formats filename with extension styling, icons, symlink arrow target (`=>`), classification symbols (`*`, `/`, `@`, etc.), and OSC 8 terminal hyperlinks.
@@ -113,6 +120,7 @@ CLI Input (Args & Env)
   - `times.rs`: Timestamps (modified, created, accessed, changed) formatted by style or custom strftime format.
   - `git.rs`: Staged/unstaged status indicators (`.M`, `M.`, `UU`, `??`, etc.).
   - `inode.rs`, `links.rs`, `flags.rs`, `securityctx.rs`: Advanced OS attributes.
+  - `language.rs`, `loc.rs`: Language name and lines-of-code columns (`--loc`).
 
 #### Lines of Code (LOC) Engine (`src/loc/` & `src/output/code.rs`)
 - [`src/loc/mod.rs`](src/loc/mod.rs): Comment-aware source code line counter supporting 100+ programming languages. Uses static `phf_map` of filenames and extensions.
@@ -148,6 +156,17 @@ CLI Input (Args & Env)
 | Format code | `cargo fmt` | `nix fmt` |
 | Build man pages | `pandoc ...` | `just man` |
 
+### Test Layers
+| Layer | Location | How to run |
+|---|---|---|
+| Unit tests (inline `#[cfg(test)]`) | throughout `src/` | `cargo test --lib` |
+| Rust integration tests | `tests/*.rs` | `cargo test --workspace` |
+| trycmd CLI snapshots | `tests/cmd/*.toml` + fixtures in `tests/itest/`, `tests/itest-loc/` | `cargo test --test cli_tests` |
+| Generated snapshots (nix-gated) | `tests/gen/` | nix build (`just itest`) |
+| Powertest corpus (feature-gated) | `tests/ptests/` | built via powertest tool (`just regen`) |
+
+Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `just regen` (regenerate powertest cases). See [TESTING.md](TESTING.md) and [TEST_INFRA.md](TEST_INFRA.md).
+
 ### Nix Environment (Optional)
 ```bash
 nix develop       # Enter development shell
@@ -164,11 +183,11 @@ When making modifications or adding new features to `lsr`:
 ### 1. Adding a New CLI Flag or Option
 If adding a new CLI flag:
 1. **Define argument** in [`src/options/parser.rs`](src/options/parser.rs) using `clap`.
-2. **Handle option deduction** in [`src/options/mod.rs`](src/options/mod.rs) or the appropriate sub-options module (`view.rs`, `filter.rs`, `dir_action.rs`).
+2. **Handle option deduction** in [`src/options/mod.rs`](src/options/mod.rs) or the appropriate sub-options module (`view.rs`, `filter.rs`; recursion behavior lives in `src/fs/dir_action.rs`).
 3. **Propagate into runtime** in [`src/main.rs`](src/main.rs) and the corresponding `src/output/` or `src/fs/` renderer.
 4. **Update documentation**:
    - Add flag to [README.md](README.md) under "Command-line options".
-   - Update man pages in [`man/eza.1.md`](man/eza.1.md).
+   - Update man pages in [`man/lsr.1.md`](man/lsr.1.md).
 5. **Update Shell Completions**:
    - [`completions/bash/eza`](completions/bash/eza)
    - [`completions/zsh/_eza`](completions/zsh/_eza)
@@ -195,6 +214,7 @@ If adding a new CLI flag:
 
 ### 5. Code Quality & Commits
 - Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`).
+- **Upstream references live in the PR body only**: commit messages must NOT tag upstream (`eza#NNNN` or `eza-community/eza#NNNN`) — describe the change itself instead. The PR body carries the single authoritative mapping as full markdown links: `[eza-community/eza#1667](https://github.com/eza-community/eza/pull/1667)`. This keeps the upstream timeline to one cross-reference event per item (from the PR body), avoiding duplicate "mentioned this" events + notifications that pushing tagged commits would create. Plain `eza#NNNN` / bare `#NNNN` are dead text anyway: GitHub only auto-links `#N` within the same repository.
 - **Granular Atomic Commits (1 Upstream Task = 1 Commit)**: Never bundle multiple independent upstream PRs or features into a single monolithic commit. Each upstream port or distinct feature must have its own separate, atomic commit with unit tests and clear commit messages. Batch PRs in `lsr` must contain at least 5 granular commits (one per item).
 - Ensure all licenses comply with REUSE / SPDX guidelines (`EUPL-1.2` or `MIT`).
 - Run `cargo clippy` and `cargo test --lib` before committing.
