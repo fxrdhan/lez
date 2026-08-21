@@ -144,7 +144,7 @@ impl Definitions {
 
         if let Some(lsc) = &self.ls {
             LSColors(lsc).each_pair(|pair| {
-                if !colours.set_ls(&pair) {
+                if !colours.set_ls(&pair) && !is_builtin_ls_colors_key(pair.key) {
                     match glob::Pattern::new(pair.key) {
                         Ok(pat) => {
                             exts.add(pat, pair.to_style());
@@ -180,6 +180,34 @@ impl Definitions {
 
         (exts, use_default_filetypes)
     }
+}
+
+fn is_builtin_ls_colors_key(key: &str) -> bool {
+    matches!(
+        key,
+        "rs" | "no"
+            | "fi"
+            | "di"
+            | "ln"
+            | "mh"
+            | "pi"
+            | "so"
+            | "do"
+            | "bd"
+            | "cd"
+            | "or"
+            | "mi"
+            | "su"
+            | "sg"
+            | "ca"
+            | "tw"
+            | "ow"
+            | "st"
+            | "ex"
+            | "lc"
+            | "rc"
+            | "ec"
+    )
 }
 
 /// Determine the style to paint the text for the filename part of the output.
@@ -812,6 +840,10 @@ mod customs_test {
     test!(ls_fi_exa_txt:  ls "fi=33", exa "*.txt=31"  => colours c -> { c.filekinds().normal = Some(Yellow.normal()); }, exts [ ("*.txt", Red.normal()) ]);
     test!(ls_txt_exa_fi:  ls "*.txt=31", exa "fi=33"  => colours c -> { c.filekinds().normal = Some(Yellow.normal()); }, exts [ ("*.txt", Red.normal()) ]);
     test!(eza_fi_exa_txt: ls "", exa "fi=33:*.txt=31" => colours c -> { c.filekinds().normal = Some(Yellow.normal()); }, exts [ ("*.txt", Red.normal()) ]);
+
+    test!(ls_unsupported_indicators: ls "rs=0:no=0:mh=31:do=32:mi=33:su=34:sg=35:ca=36:tw=37:ow=90:st=91:lc=92:rc=93:ec=94", exa "" => exts Vec::<(&str, Style)>::new());
+    test!(ls_eza_only_sf_still_glob: ls "sf=38;5;121", exa ""  =>  exts [ ("sf", Fixed(121).normal()) ]);
+    test!(ls_mixed_indicators_and_globs: ls "di=31:su=34:*.rs=32", exa "" => colours c -> { c.filekinds().directory = Some(Red.normal()); }, exts [ ("*.rs", Green.normal()) ]);
 
     #[test]
     fn test_should_reset_styles() {
