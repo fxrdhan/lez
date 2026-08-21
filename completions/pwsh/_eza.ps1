@@ -179,6 +179,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--no-quotes'                ,'noquotes'            , [CompletionResultType]::ParameterName, 'don''t quote file names with spaces')
             [CompletionResult]::new('--short-nix'                ,'shortnix'            , [CompletionResultType]::ParameterName, 'abbreviate Nix store hashes in file names and paths')
             [CompletionResult]::new('--no-symlink-targets'       ,'nosymlinktargets'    , [CompletionResultType]::ParameterName, 'do not show symlink targets')
+            [CompletionResult]::new('--summary'                  ,'summary'             , [CompletionResultType]::ParameterName, 'display total summary statistics of entries')
             [CompletionResult]::new('--hyperlink'                ,'hyperlink'           , [CompletionResultType]::ParameterName, 'when to display entries as hyperlinks (always, auto, never)')
             [CompletionResult]::new('--absolute'                 ,'absolute'            , [CompletionResultType]::ParameterName, 'display entries with their absolute path (on, follow, off)')
             [CompletionResult]::new('--follow-symlinks'          ,'followsymlinks'      , [CompletionResultType]::ParameterName, 'drill down into symbolic links that point to directories')

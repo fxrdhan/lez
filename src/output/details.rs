@@ -151,6 +151,8 @@ pub struct Render<'a> {
     pub git: Option<&'a GitCache>,
 
     pub git_repos: bool,
+
+    pub summary: bool,
 }
 
 #[rustfmt::skip]
@@ -171,6 +173,12 @@ impl<'a> AsRef<File<'a>> for Egg<'a> {
 impl<'a> Render<'a> {
     pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<()> {
         let mut rows = Vec::new();
+        let is_tree = self.recurse.is_some_and(|r| r.tree);
+        let mut summary = if self.summary && is_tree {
+            Some(crate::output::summary::Summary::new())
+        } else {
+            None
+        };
 
         let color_scale_info = ColorScaleInformation::from_color_scale(
             self.opts.color_scale,
@@ -221,6 +229,7 @@ impl<'a> Render<'a> {
                 &self.files,
                 TreeDepth::root(),
                 color_scale_info,
+                &mut summary,
             );
 
             for row in self.iterate_with_table(table.unwrap(), rows) {
@@ -233,11 +242,17 @@ impl<'a> Render<'a> {
                 &self.files,
                 TreeDepth::root(),
                 color_scale_info,
+                &mut summary,
             );
 
             for row in self.iterate(rows) {
                 writeln!(w, "{}", row.strings())?;
             }
+        }
+
+        if let Some(summary) = summary {
+            let show_icons = self.file_style.are_icons_enabled();
+            summary.render(self.theme, show_icons, w)?;
         }
 
         Ok(())
@@ -262,6 +277,7 @@ impl<'a> Render<'a> {
         src: &[File<'dir>],
         depth: TreeDepth,
         color_scale_info: Option<ColorScaleInformation>,
+        summary: &mut Option<crate::output::summary::Summary>,
     ) {
         use crate::fs::feature::xattr;
 
@@ -343,6 +359,10 @@ impl<'a> Render<'a> {
         self.filter.sort_files(&mut file_eggs);
 
         for (tree_params, egg) in depth.iterate_over(file_eggs.into_iter()) {
+            if let Some(s) = summary {
+                s.record_file(egg.file);
+            }
+
             let mut files = Vec::new();
             let errors = egg.errors;
 
@@ -396,7 +416,14 @@ impl<'a> Render<'a> {
                         ));
                     }
 
-                    self.add_files_to_table(table, rows, &files, depth.deeper(), color_scale_info);
+                    self.add_files_to_table(
+                        table,
+                        rows,
+                        &files,
+                        depth.deeper(),
+                        color_scale_info,
+                        summary,
+                    );
                     continue;
                 }
             }

@@ -39,6 +39,7 @@ impl View {
         let follow_links = matches.get_flag("follow-symlinks");
         let total_size = matches.get_flag("total-size");
         let total_entries = matches.get_flag("print-total");
+        let summary = matches.get_flag("summary");
         let file_style = FileStyle::deduce(matches, vars, is_tty)?;
         Ok(Self {
             mode,
@@ -48,6 +49,7 @@ impl View {
             follow_links,
             total_size,
             total_entries,
+            summary,
         })
     }
 }
@@ -1826,6 +1828,20 @@ mod tests {
         let matches = mock_cli(vec![""]);
         let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
         assert!(!view.total_entries);
+    }
+
+    #[test]
+    fn deduce_view_summary_flag() {
+        let matches = mock_cli(vec!["--summary"]);
+        let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
+        assert!(view.summary);
+    }
+
+    #[test]
+    fn deduce_view_summary_default() {
+        let matches = mock_cli(vec![""]);
+        let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
+        assert!(!view.summary);
     }
 
     #[test]

@@ -146,6 +146,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 `--no-symlink-targets`
 : Do not show symlink targets (the `-> ...`) in long details and lines view modes.
 
+`--summary`
+: Display total summary statistics of entries (directories count, files count, symlinks count, and total count).
+
 `--hyperlink[=WHEN]`
 : Display entries as hyperlinks.
 

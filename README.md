@@ -98,6 +98,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **--color-scale-mode=(mode)**: use gradient or fixed colors in --color-scale. valid options are `fixed` or `gradient`
 - **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
+- **--summary**: display total summary statistics of entries (directories, files, symlinks, and total)
 - **--hyperlink[=(when)]**: when to display entries as hyperlinks (always, auto, never; requires '=' if value provided)
 - **--absolute=(mode)**: display entries with their absolute path (on, follow, off)
 - **--print-total**: print the total number of files and directories listed
