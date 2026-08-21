@@ -13,6 +13,7 @@ SPDX-License-Identifier: EUPL-1.2
 
 [![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.txt)
 [![Rust](https://img.shields.io/badge/Rust-1.90%2B-orange.svg)](https://www.rust-lang.org/)
+[![binary cache](https://img.shields.io/endpoint?url=https%3A%2F%2Ffxrdhan-lsr.cachix.org%2Fapi%2Fv1%2Fcache%2Fbadges%2Fshield.svg)](https://app.cachix.org/cache/fxrdhan-lsr)
 
 </div>
 
@@ -64,6 +65,23 @@ nix run github:fxrdhan/lsr
 Nix will build `lsr` and run it.
 
 If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- -la --icons`.
+
+#### Binary Cache ⚡
+
+Every commit on `main` is validated with `nix flake check` in CI, and the resulting store paths are pushed to a public binary cache on [Cachix](https://www.cachix.org). Contributors and Nix users can pull prebuilt outputs instead of compiling from scratch:
+
+```bash
+cachix use fxrdhan-lsr
+```
+
+Measured impact on the CI `Nix Flake Validation` job (identical inputs, same commit, two consecutive runs):
+
+| Run | Source | Job duration |
+|---|---|---|
+| Cold (populates the cache) | built everything from nixpkgs | **10 min 42 s** |
+| Warm (full closure cached) | substituted from Cachix | **33 s** |
+
+That is a **~19.5× speedup** for warm runs, with zero correctness trade-off — Nix store paths are content-addressed and signature-verified, so any input change produces a new derivation hash and an automatic cache miss. A weekly cold-build canary (`nix flake check` with substituters disabled) keeps the flake honest even when the cache hides a breakage.
 
 ---
 
