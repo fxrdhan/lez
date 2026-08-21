@@ -392,12 +392,10 @@ fn reorient(path: &Path) -> PathBuf {
 fn reorient(path: &Path) -> PathBuf {
     let unc_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     // On Windows UNC path is returned. We need to strip the prefix for it to work.
-    let normal_path = unc_path
-        .as_os_str()
-        .to_str()
-        .unwrap()
-        .trim_start_matches("\\\\?\\");
-    PathBuf::from(normal_path)
+    match unc_path.to_str() {
+        Some(text) => PathBuf::from(text.trim_start_matches("\\\\?\\")),
+        None => unc_path,
+    }
 }
 
 /// The character to display if the file has been modified, but not staged.
@@ -774,5 +772,21 @@ mod tests {
         assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::Modified);
         assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
         assert!(git_status.file_status(&file_b).unstaged == f::GitStatus::Modified);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn reorient_handles_non_unicode_paths_without_panicking() {
+        use std::ffi::OsString;
+        use std::os::windows::ffi::{OsStrExt, OsStringExt};
+
+        let invalid: Vec<u16> = std::env::temp_dir()
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0xD800))
+            .collect();
+        let os_str = OsString::from_wide(&invalid);
+        let path = std::path::PathBuf::from(os_str);
+        let _ = super::reorient(&path);
     }
 }
