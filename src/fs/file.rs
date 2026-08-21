@@ -1069,6 +1069,7 @@ impl<'dir> File<'dir> {
             file_type: self.type_char(),
             permissions: p,
             xattrs,
+            mount: self.is_mount_point(),
         })
     }
 
@@ -1080,6 +1081,7 @@ impl<'dir> File<'dir> {
             #[cfg(windows)]
             attributes: self.attributes()?,
             xattrs,
+            mount: false,
         })
     }
 }

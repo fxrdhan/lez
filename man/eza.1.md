@@ -136,6 +136,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 
 : A path component beginning with a Nix store hash — exactly 32 characters of Nix’s base32 alphabet followed by a dash, like `vlkia5wk0svsikwv50554mh06iayg2m2-source.drv` — is displayed with the hash shortened to its first 8 characters and an ellipsis, painted dim so the name stands out: `vlkia5wk…-source.drv`. This applies to listed names, symbolic link targets, and absolute paths.
 
+`--no-symlink-targets`
+: Do not show symlink targets (the `-> ...`) in long details and lines view modes.
+
 `--hyperlink[=WHEN]`
 : Display entries as hyperlinks
 

@@ -16,7 +16,7 @@ use nu_ansi_term::{AnsiString as ANSIString, Style};
 impl PermissionsPlusRender for Option<f::PermissionsPlus> {
     fn render<C: Colours + FiletypeColours>(&self, colours: &C) -> TextCell {
         if let Some(p) = self {
-            let mut chars = vec![p.file_type.render(colours)];
+            let mut chars = vec![p.file_type.render(colours, p.mount)];
             let permissions = p.permissions;
             chars.extend(Some(permissions).render(colours, p.file_type.is_regular_file()));
 
@@ -198,6 +198,19 @@ pub mod test {
         fn special_user_file(&self)   -> Style { Fixed(110).normal() }
         fn special_other(&self)       -> Style { Fixed(111).normal() }
         fn attribute(&self)           -> Style { Fixed(112).normal() }
+    }
+
+    #[rustfmt::skip]
+    impl FiletypeColours for TestColours {
+        fn normal(&self)       -> Style { Fixed(1).normal() }
+        fn directory(&self)    -> Style { Fixed(2).bold() }
+        fn pipe(&self)         -> Style { Fixed(3).normal() }
+        fn symlink(&self)      -> Style { Fixed(4).normal() }
+        fn block_device(&self) -> Style { Fixed(5).normal() }
+        fn char_device(&self)  -> Style { Fixed(6).normal() }
+        fn socket(&self)       -> Style { Fixed(7).normal() }
+        fn special(&self)      -> Style { Fixed(8).normal() }
+        fn tag(&self, _tag: &f::TagColor) -> Style { Fixed(9).normal() }
     }
 
     #[test]
@@ -418,5 +431,134 @@ pub mod test {
         let expected = vec!["-", "-", "S", "-", "-", "S", "-", "-", "T"];
 
         assert_eq!(expected, bits.render_json(true));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn permissions_plus_regular_dir() {
+        let perm = f::Permissions {
+            user_read: true,
+            user_write: true,
+            user_execute: true,
+            setuid: false,
+            group_read: true,
+            group_write: false,
+            group_execute: true,
+            setgid: false,
+            other_read: true,
+            other_write: false,
+            other_execute: true,
+            sticky: false,
+        };
+        let p = Some(f::PermissionsPlus {
+            file_type: f::Type::Directory,
+            permissions: perm,
+            xattrs: false,
+            mount: false,
+        });
+
+        let rendered = p.render(&TestColours);
+        assert_eq!(*rendered.width, 10);
+        let s = format!("{:?}", rendered.contents);
+        // The first character should be 'd'
+        assert!(s.contains("\"d\""));
+        assert!(!s.contains("\"D\""));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn permissions_plus_mount_point_dir() {
+        let perm = f::Permissions {
+            user_read: true,
+            user_write: true,
+            user_execute: true,
+            setuid: false,
+            group_read: true,
+            group_write: false,
+            group_execute: true,
+            setgid: false,
+            other_read: true,
+            other_write: false,
+            other_execute: true,
+            sticky: false,
+        };
+        let p = Some(f::PermissionsPlus {
+            file_type: f::Type::Directory,
+            permissions: perm,
+            xattrs: false,
+            mount: true,
+        });
+
+        let rendered = p.render(&TestColours);
+        assert_eq!(*rendered.width, 10);
+        let s = format!("{:?}", rendered.contents);
+        // The first character should be 'D'
+        assert!(s.contains("\"D\""));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn permissions_plus_mount_point_with_xattrs() {
+        let perm = f::Permissions {
+            user_read: true,
+            user_write: true,
+            user_execute: true,
+            setuid: false,
+            group_read: true,
+            group_write: false,
+            group_execute: true,
+            setgid: false,
+            other_read: true,
+            other_write: false,
+            other_execute: true,
+            sticky: false,
+        };
+        let p = Some(f::PermissionsPlus {
+            file_type: f::Type::Directory,
+            permissions: perm,
+            xattrs: true,
+            mount: true,
+        });
+
+        let rendered = p.render(&TestColours);
+        assert_eq!(*rendered.width, 11);
+        let s = format!("{:?}", rendered.contents);
+        assert!(s.contains("\"D\""));
+        assert!(s.contains("\"@\""));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn permissions_plus_json_schema_compatibility() {
+        let perm = f::Permissions {
+            user_read: true,
+            user_write: true,
+            user_execute: true,
+            setuid: false,
+            group_read: true,
+            group_write: false,
+            group_execute: true,
+            setgid: false,
+            other_read: true,
+            other_write: false,
+            other_execute: true,
+            sticky: false,
+        };
+        let regular_p = Some(f::PermissionsPlus {
+            file_type: f::Type::Directory,
+            permissions: perm,
+            xattrs: false,
+            mount: false,
+        });
+        let mount_p = Some(f::PermissionsPlus {
+            file_type: f::Type::Directory,
+            permissions: perm,
+            xattrs: false,
+            mount: true,
+        });
+
+        // JSON format must remain "drwxr-xr-x" in both cases for schema compatibility
+        assert_eq!(regular_p.render_json(), Some("drwxr-xr-x".to_string()));
+        assert_eq!(mount_p.render_json(), Some("drwxr-xr-x".to_string()));
     }
 }
