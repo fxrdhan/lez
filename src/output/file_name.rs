@@ -41,6 +41,9 @@ pub struct Options {
     /// Whether to abbreviate Nix store hashes in file names and paths.
     pub short_nix: bool,
 
+    /// Whether to show symlink targets (the `-> ...`).
+    pub show_symlink_targets: ShowSymlinkTargets,
+
     /// Whether we are in a console or redirecting the output
     pub is_a_tty: bool,
 }
@@ -223,6 +226,13 @@ pub enum QuoteStyle {
     QuoteSpaces,
 }
 
+/// Whether to show symlink targets.
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum ShowSymlinkTargets {
+    NoSymlinkTargets,
+    ShowSymlinkTargets,
+}
+
 /// A **file name** holds all the information necessary to display the name
 /// of the given file. This is used in all of the views.
 pub struct FileName<'a, 'dir, C> {
@@ -255,6 +265,17 @@ impl<C> FileName<'_, '_, C> {
             self.link_style = LinkStyle::FullLinkPaths;
         }
         self
+    }
+
+    /// Sets the flag on this file name to display link targets with an
+    /// arrow followed by their path if configured to do so.
+    #[must_use]
+    pub fn use_symlink_targets(self) -> Self {
+        if self.options.show_symlink_targets == ShowSymlinkTargets::ShowSymlinkTargets {
+            self.with_link_paths()
+        } else {
+            self
+        }
     }
 
     /// Sets the flag on this file name to display mounted filesystem
@@ -385,6 +406,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                             is_a_tty: self.options.is_a_tty,
                             absolute: Absolute::Off,
                             short_nix: self.options.short_nix,
+                            show_symlink_targets: self.options.show_symlink_targets,
                         };
 
                         let target_name = FileName {
@@ -837,6 +859,7 @@ mod test {
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
         };
         let file_name = FileName {
@@ -879,6 +902,7 @@ mod test {
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
         };
         let file_name = FileName {
@@ -912,6 +936,7 @@ mod test {
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
         };
         let file_name = FileName {
@@ -947,6 +972,7 @@ mod test {
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
         };
         let file_name = FileName {
@@ -980,6 +1006,7 @@ mod test {
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
         };
         let file_name = FileName {
@@ -995,6 +1022,118 @@ mod test {
         assert!(
             !painted.contains("\x1B]8;;"),
             "No OSC 8 hyperlink sequence when hyperlinks disabled"
+        );
+    }
+
+    #[test]
+    fn symlink_target_displayed_when_enabled() {
+        let colours = TestColours;
+        let link_path = std::path::PathBuf::from("tests/itest/dir-symlink");
+        let target_path = std::path::PathBuf::from("vagrant/debug");
+        let link_file = File::from_args(link_path, None, None, false, false, None);
+        let target_file = File::from_args(target_path, None, None, false, false, None);
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &link_file,
+            colours: &colours,
+            target: Some(FileTarget::Ok(Box::new(target_file))),
+            link_style: LinkStyle::JustFilenames,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
+        }
+        .use_symlink_targets();
+
+        let painted = format!("{}", file_name.paint().strings());
+        assert!(painted.contains("->"), "Must contain arrow: {painted}");
+        assert!(
+            painted.contains("vagrant/debug") || painted.contains(r"vagrant\debug"),
+            "Must contain target: {painted}"
+        );
+    }
+
+    #[test]
+    fn symlink_target_suppressed_when_disabled() {
+        let colours = TestColours;
+        let link_path = std::path::PathBuf::from("tests/itest/dir-symlink");
+        let target_path = std::path::PathBuf::from("vagrant/debug");
+        let link_file = File::from_args(link_path, None, None, false, false, None);
+        let target_file = File::from_args(target_path, None, None, false, false, None);
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::NoSymlinkTargets,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &link_file,
+            colours: &colours,
+            target: Some(FileTarget::Ok(Box::new(target_file))),
+            link_style: LinkStyle::JustFilenames,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
+        }
+        .use_symlink_targets();
+
+        let painted = format!("{}", file_name.paint().strings());
+        assert!(!painted.contains("->"), "Must NOT contain arrow: {painted}");
+        assert!(
+            !painted.contains("vagrant/debug") && !painted.contains(r"vagrant\debug"),
+            "Must NOT contain target: {painted}"
+        );
+        assert!(
+            painted.contains("dir-symlink"),
+            "Must contain link name: {painted}"
+        );
+    }
+
+    #[test]
+    fn symlink_with_classify_and_no_symlink_targets() {
+        let colours = TestColours;
+        let link_path = std::path::PathBuf::from("tests/itest/dir-symlink");
+        let target_path = std::path::PathBuf::from("vagrant/debug");
+        let link_file = File::from_args(link_path, None, None, false, false, None);
+        let target_file = File::from_args(target_path, None, None, false, false, None);
+        let options = Options {
+            classify: Classify::AddFileIndicators,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::NoSymlinkTargets,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &link_file,
+            colours: &colours,
+            target: Some(FileTarget::Ok(Box::new(target_file))),
+            link_style: LinkStyle::JustFilenames,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
+        }
+        .use_symlink_targets();
+
+        let painted = format!("{}", file_name.paint().strings());
+        assert!(!painted.contains("->"), "Must NOT contain arrow: {painted}");
+        assert!(
+            painted.contains("dir-symlink@"),
+            "Must contain link name with @ indicator: {painted}"
         );
     }
 }
