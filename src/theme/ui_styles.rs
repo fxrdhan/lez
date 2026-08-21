@@ -57,6 +57,7 @@ pub struct UiStyles {
     pub filenames: Option<HashMap<String, FileNameStyle>>,
     pub extensions: Option<HashMap<String, FileNameStyle>>,
     pub directorynames: Option<HashMap<String, FileNameStyle>>,
+    pub mimetypes: Option<HashMap<String, FileNameStyle>>,
 }
 // Macro to generate .unwrap_or_default getters for each field to cut down boilerplate
 macro_rules! field_accessors {
@@ -558,6 +559,7 @@ impl UiStyles {
             filenames: None,
             extensions: None,
             directorynames: None,
+            mimetypes: None,
         }
     }
 }

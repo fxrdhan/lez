@@ -37,6 +37,7 @@ pub struct View {
     pub total_size: bool,
     pub total_entries: bool,
     pub summary: bool,
+    pub mime_read_contents: bool,
 }
 
 /// The **mode** is the “type” of output.

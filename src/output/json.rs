@@ -151,6 +151,7 @@ impl<'a> Render<'a> {
                 self.git_ignoring,
                 self.deref_links,
                 self.total_size,
+                self.view.mime_read_contents,
             )
             .collect();
 
@@ -195,6 +196,7 @@ impl<'a> Render<'a> {
                     self.git_ignoring,
                     self.deref_links,
                     self.total_size,
+                    self.view.mime_read_contents,
                 )
                 .collect();
 

@@ -179,7 +179,7 @@ fn update_information_recursively(
             match file.read_dir() {
                 Ok(dir) => {
                     let mut child_files: Vec<File<'_>> = dir
-                        .files(filter.dot_filter, git, git_ignoring, false, false)
+                        .files(filter.dot_filter, git, git_ignoring, false, false, false)
                         .collect();
 
                     filter.filter_child_files(r.is_some(), &mut child_files);
@@ -340,10 +340,24 @@ mod test {
             age: true,
         };
         // Use real existing files in repo to test size extraction
-        let file_cargo =
-            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
-        let file_readme =
-            File::from_args(PathBuf::from("README.md"), None, None, false, false, None);
+        let file_cargo = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let file_readme = File::from_args(
+            PathBuf::from("README.md"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
 
         let files = vec![file_cargo, file_readme];
 
@@ -376,9 +390,16 @@ mod test {
             size: true,
             age: true,
         };
-        let file_cargo =
-            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
-        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, None);
+        let file_cargo = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, false, None);
 
         let files = vec![file_cargo, dir_src];
 
@@ -405,9 +426,16 @@ mod test {
             size: true,
             age: true,
         };
-        let file_cargo =
-            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
-        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, None);
+        let file_cargo = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, false, None);
 
         let files = vec![file_cargo, dir_src];
 

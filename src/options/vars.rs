@@ -82,6 +82,10 @@ pub static EZA_ICONS_AUTO: &str = "EZA_ICONS_AUTO";
 pub static LSR_STDIN_SEPARATOR: &str = "LSR_STDIN_SEPARATOR";
 pub static EZA_STDIN_SEPARATOR: &str = "EZA_STDIN_SEPARATOR";
 
+/// Environment variable used to determine MIME types for styling decisions.
+pub static LSR_MIME_TYPES: &str = "LSR_MIME_TYPES";
+pub static EZA_MIME_TYPES: &str = "EZA_MIME_TYPES";
+
 /// Environment variable for user home directory.
 pub static HOME: &str = "HOME";
 
@@ -157,6 +161,9 @@ pub mod test {
         pub lsr_stdin_separator: OsString,
         pub eza_stdin_separator: OsString,
         pub stdin_separator: OsString,
+        pub lsr_mime_types: OsString,
+        pub eza_mime_types: OsString,
+        pub mimetypes: OsString,
         pub stdout_is_terminal: bool,
     }
 
@@ -219,6 +226,15 @@ pub mod test {
                 {
                     Some(self.stdin_separator.clone())
                 }
+                "LSR_MIME_TYPES" if !self.lsr_mime_types.is_empty() => {
+                    Some(self.lsr_mime_types.clone())
+                }
+                "EZA_MIME_TYPES" if !self.eza_mime_types.is_empty() => {
+                    Some(self.eza_mime_types.clone())
+                }
+                "LSR_MIME_TYPES" | "EZA_MIME_TYPES" if !self.mimetypes.is_empty() => {
+                    Some(self.mimetypes.clone())
+                }
                 _ => None,
             }
         }
@@ -251,6 +267,8 @@ pub mod test {
                 "HOME" => self.home = value.clone(),
                 "LSR_STDIN_SEPARATOR" => self.lsr_stdin_separator = value.clone(),
                 "EZA_STDIN_SEPARATOR" => self.eza_stdin_separator = value.clone(),
+                "LSR_MIME_TYPES" => self.lsr_mime_types = value.clone(),
+                "EZA_MIME_TYPES" => self.eza_mime_types = value.clone(),
                 _ => (),
             };
         }
@@ -309,5 +327,11 @@ pub mod test {
 
         vars.set(EZA_STDIN_SEPARATOR, &OsString::from(";"));
         assert_eq!(vars.get(EZA_STDIN_SEPARATOR), Some(OsString::from(";")));
+
+        vars.set(LSR_MIME_TYPES, &OsString::from("1"));
+        assert_eq!(vars.get(LSR_MIME_TYPES), Some(OsString::from("1")));
+
+        vars.set(EZA_MIME_TYPES, &OsString::from("1"));
+        assert_eq!(vars.get(EZA_MIME_TYPES), Some(OsString::from("1")));
     }
 }

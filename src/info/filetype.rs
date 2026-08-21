@@ -418,6 +418,53 @@ const EXTENSION_TYPES: Map<&'static str, FileType> = phf_map! {
     "zig"        => FileType::Source, // Zig
 };
 
+/// Mapping from specific MIME type to file type.
+const MIME_TYPES: Map<&'static str, FileType> = phf_map! {
+    "application/pdf"              => FileType::Document,
+    "application/postscript"       => FileType::Document,
+    "application/zip"              => FileType::Compressed,
+    "application/x-tar"            => FileType::Compressed,
+    "application/x-bzip"           => FileType::Compressed,
+    "application/x-bzip2"          => FileType::Compressed,
+    "application/gzip"             => FileType::Compressed,
+    "application/x-gzip"           => FileType::Compressed,
+    "application/x-lzip"           => FileType::Compressed,
+    "application/x-lzma"           => FileType::Compressed,
+    "application/x-lzop"           => FileType::Compressed,
+    "application/x-xz"             => FileType::Compressed,
+    "application/x-compress"       => FileType::Compressed,
+    "application/x-7z-compressed"  => FileType::Compressed,
+    "application/x-rar"            => FileType::Compressed,
+    "application/x-rar-compressed" => FileType::Compressed,
+    "application/x-rpm"            => FileType::Compressed,
+    "application/x-apple-diskimage"=> FileType::Compressed,
+    "application/x-deb"            => FileType::Compressed,
+    "application/zstd"             => FileType::Compressed,
+    "text/x-rust"                  => FileType::Source,
+    "text/x-c"                     => FileType::Source,
+    "text/x-csrc"                  => FileType::Source,
+    "text/x-c++"                   => FileType::Source,
+    "text/x-c++src"                => FileType::Source,
+    "text/x-python"                => FileType::Source,
+    "text/x-python3"               => FileType::Source,
+    "text/x-shellscript"           => FileType::Source,
+    "application/x-executable"     => FileType::Compiled,
+    "application/x-sharedlib"      => FileType::Compiled,
+    "application/x-pie-executable" => FileType::Compiled,
+    "application/x-mach-binary"    => FileType::Compiled,
+    "audio/flac"                   => FileType::Lossless,
+    "audio/x-wav"                  => FileType::Lossless,
+    "audio/x-aiff"                 => FileType::Lossless,
+    "audio/x-alac"                 => FileType::Lossless,
+};
+
+/// Mapping from top-level MIME wildcard category to file type.
+const MIME_WILDCARD_TYPES: Map<&'static str, FileType> = phf_map! {
+    "image" => FileType::Image,
+    "video" => FileType::Video,
+    "audio" => FileType::Music,
+};
+
 impl FileType {
     /// Lookup the file type based on the file's name, by the file name
     /// lowercase extension, or if the file could be compiled from related
@@ -432,6 +479,17 @@ impl FileType {
         }
         if let Some(file_type) = file.ext.as_ref().and_then(|ext| EXTENSION_TYPES.get(ext)) {
             return Some(file_type.clone());
+        }
+        if let Some(mimetype) = file.mimetype() {
+            if let Some(file_type) = MIME_TYPES.get(mimetype) {
+                return Some(file_type.clone());
+            }
+            if let Some(file_type) = mimetype
+                .split_once('/')
+                .and_then(|(mime, _)| MIME_WILDCARD_TYPES.get(mime))
+            {
+                return Some(file_type.clone());
+            }
         }
         if file.name.ends_with('~') || (file.name.starts_with('#') && file.name.ends_with('#')) {
             return Some(Self::Temp);
@@ -463,5 +521,24 @@ mod test {
     #[test]
     fn test_cb7_file_type() {
         assert_eq!(EXTENSION_TYPES.get("cb7"), Some(&FileType::Image));
+    }
+
+    #[test]
+    fn test_mime_types_mappings() {
+        assert_eq!(MIME_TYPES.get("application/pdf"), Some(&FileType::Document));
+        assert_eq!(
+            MIME_TYPES.get("application/zip"),
+            Some(&FileType::Compressed)
+        );
+        assert_eq!(MIME_TYPES.get("text/x-rust"), Some(&FileType::Source));
+        assert_eq!(
+            MIME_TYPES.get("application/x-executable"),
+            Some(&FileType::Compiled)
+        );
+        assert_eq!(MIME_TYPES.get("audio/flac"), Some(&FileType::Lossless));
+
+        assert_eq!(MIME_WILDCARD_TYPES.get("image"), Some(&FileType::Image));
+        assert_eq!(MIME_WILDCARD_TYPES.get("video"), Some(&FileType::Video));
+        assert_eq!(MIME_WILDCARD_TYPES.get("audio"), Some(&FileType::Music));
     }
 }

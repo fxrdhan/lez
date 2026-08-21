@@ -569,9 +569,16 @@ mod test_ignores {
     fn is_file_included_with_various_flags() {
         use std::path::PathBuf;
 
-        let file_cargo =
-            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
-        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, None);
+        let file_cargo = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, false, None);
 
         // Default filter includes both
         let filter_default = FileFilter {
@@ -636,12 +643,14 @@ mod test_ignores {
             None,
             false,
             false,
+            false,
             None,
         );
         let file_b = File::from_args(
             PathBuf::from("dir_b/alpha.txt"),
             None,
             None,
+            false,
             false,
             false,
             None,
@@ -665,12 +674,14 @@ mod test_ignores {
             None,
             false,
             false,
+            false,
             None,
         );
         let file_lower = File::from_args(
             PathBuf::from("dira/file.txt"),
             None,
             None,
+            false,
             false,
             false,
             None,
@@ -694,8 +705,15 @@ mod test_ignores {
         use std::path::PathBuf;
         use std::time::Duration;
 
-        let file_cargo =
-            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
+        let file_cargo = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
 
         // Filter with since: None includes all files
         let filter_none = FileFilter {
@@ -733,6 +751,7 @@ mod test_ignores {
             PathBuf::from("Cargo.toml"),
             None,
             None,
+            false,
             false,
             false,
             None,

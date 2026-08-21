@@ -150,6 +150,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 
 `automatic` or `auto` will display hyperlinks only when the standard output is connected to a real terminal. If `eza` is ran while in a `tty`, or the output of `eza` is either redirected to a file or piped into another program, hyperlinks will not be used. Setting this option to ‘`always`’ causes `eza` to always display hyperlinks, while ‘`never`’ disables the use of hyperlinks.
 
+`--mime-types`
+: Determine file MIME types to better inform styling decisions and icon selection (Unix only). Can also be enabled via the `LSR_MIME_TYPES` or `EZA_MIME_TYPES` environment variable.
+
 `-w`, `--width=COLS`
 : Set screen width in columns (clamped to the safe range `1..65535` to prevent integer overflow and division-by-zero).
 
