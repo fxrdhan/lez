@@ -35,6 +35,7 @@ __eza() {
         --group-directories-first"[Sort directories before other files]" \
         --group-directories-last"[Sort directories after other files]" \
         --git-ignore"[Ignore files mentioned in '.gitignore']" \
+        --since="[Filter and display only files created or modified within duration window]" \
         {-a,--all}"[Show hidden and 'dot' files. Use this twice to also show the '.' and '..' directories]" \
         {-A,--almost-all}"[Equivalent to --all; included for compatibility with \'ls -A\']" \
         {-d,--treat-dirs-as-files}"[List directories like regular files]" \
@@ -45,7 +46,7 @@ __eza() {
         {-L,--level}"+[Limit the depth of recursion]" \
         {-w,--width}"+[Limits column output of grid, 0 implies auto-width]" \
         {-r,--reverse}"[Reverse the sort order]" \
-        {-s,--sort}="[Which field to sort by]:(sort field):(accessed age block blocks blocksize changed created date extension Extension filename Filename inode modified oldest name Name newest none path Path size time type)" \
+        {-s,--sort}="[Which field to sort by]:(sort field):(accessed age block blocks blocksize changed created date extension Extension filename Filename inode mod modified name Name new newest none old oldest path Path size time type)" \
         {-I,--ignore-glob}"[Ignore files that match these glob patterns]" \
         {-b,--binary}"[List file sizes with binary prefixes]" \
         {-B,--bytes}"[List file sizes in bytes, without any prefixes]" \

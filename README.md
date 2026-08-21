@@ -123,6 +123,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 - **--no-symlinks**: don't show symbolic links
 - **--show-symlinks**: explicitly show links (with `--only-dirs`, `--only-files`, to show symlinks that match the filter)
 - **--git-ignore**: ignore files mentioned in `.gitignore`
+- **--since=(duration)**: filter and display only files created or modified within the specified duration window (e.g. 10m, 1h, 2d, 1w)
 - **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore
 - **--ignore-glob-case-insensitive**: match ignore globs case-insensitively
 
@@ -147,7 +148,7 @@ These options are available when running with `--long` (`-l`):
 - **--loc[=MODE]**: display language and lines-of-code columns (Janet, Odin, Rust, C/C++, Python, Go, etc.)
 - **-m**, **--modified**: use the modified timestamp field
 - **-M**, **--mounts**: Show mount details (Linux and MacOS only).
-- **-S**, **--blocksize**: show size of allocated file system blocks
+- **-S**, **--blocks**, **--blocksize**: show size of allocated file system blocks
 - **-t**, **--time=(field)**: which timestamp field to use (modified [aliases: mod, m, r], accessed [acc], changed [ch], created [cr])
 - **-u**, **--accessed**: use the accessed timestamp field
 - **-U**, **--created**: use the created timestamp field
@@ -171,7 +172,7 @@ These options are available when running with `--long` (`-l`):
 Some of the options accept parameters:
 
 - Valid **--colo\[u\]r** options are **always**, **automatic** (or **auto** for short), and **never**.
-- Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **modified**, **name**, **Name**, **path**, **Path**, **size**, **block**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, and **newest**, while its reverse has the aliases **age** and **oldest**. The **block** field has the aliases **blocks** and **blocksize**.
+- Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **modified**, **name**, **Name**, **path**, **Path**, **size**, **block**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, **mod**, **old**, and **oldest**, while its reverse has the aliases **age**, **new**, and **newest**. The **block** field has the aliases **blocks** and **blocksize**.
 - Valid time fields are **modified**, **changed**, **accessed**, and **created**.
 - Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, **relative**, and **relative-recent** (or **recent**).
 

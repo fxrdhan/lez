@@ -754,6 +754,7 @@ dependencies = [
  "dirs",
  "git2",
  "glob",
+ "humantime",
  "libc",
  "locale",
  "log",
