@@ -19,6 +19,7 @@ export extern "eza" [
     --no-quotes                # Don't quote file names with spaces
     --short-nix                # Abbreviate Nix store hashes in file names and paths
     --no-symlink-targets       # Do not show symlink targets
+    --summary                  # Display total summary statistics of entries
     --hyperlink                # When to display entries as hyperlinks
     --absolute                 # Display entries with their absolute path
     --follow-symlinks          # Drill down into symbolic links that point to directories

@@ -513,8 +513,19 @@ impl Exa<'_> {
     /// Prints the list of files using whichever view is selected.
     fn print_files(&mut self, dir: Option<&Dir>, mut files: Vec<File<'_>>) -> io::Result<()> {
         if files.is_empty() {
+            if dir.is_none() {
+                return Ok(());
+            }
             if self.options.view.total_entries {
                 writeln!(&mut self.writer, "total: 0")?;
+            }
+            if self.options.view.summary {
+                let show_icons = self.options.view.file_style.are_icons_enabled();
+                crate::output::summary::Summary::new().render(
+                    &self.theme,
+                    show_icons,
+                    &mut self.writer,
+                )?;
             }
             return Ok(());
         }
@@ -532,8 +543,21 @@ impl Exa<'_> {
             ref mode,
             ref file_style,
             ref total_entries,
+            summary,
             ..
         } = self.options.view;
+
+        let summary_stat = if summary
+            && self
+                .options
+                .dir_action
+                .recurse_options()
+                .is_none_or(|r| !r.tree)
+        {
+            Some(crate::output::summary::Summary::from_files(&files))
+        } else {
+            None
+        };
 
         let result = match (mode, self.console_width) {
             (Mode::Grid(opts), Some(console_width)) => {
@@ -591,6 +615,7 @@ impl Exa<'_> {
                     git_ignoring,
                     git,
                     git_repos,
+                    summary,
                 };
                 r.render(&mut self.writer)
             }
@@ -641,6 +666,7 @@ impl Exa<'_> {
                     git_ignoring,
                     git,
                     git_repos,
+                    summary,
                 };
                 r.render(&mut self.writer)
             }
@@ -655,6 +681,11 @@ impl Exa<'_> {
 
         if *total_entries {
             writeln!(&mut self.writer, "total: {files_count}")?;
+        }
+
+        if let Some(s) = summary_stat {
+            let show_icons = self.options.view.file_style.are_icons_enabled();
+            s.render(&self.theme, show_icons, &mut self.writer)?;
         }
 
         Ok(())

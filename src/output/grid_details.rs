@@ -208,6 +208,7 @@ impl<'a> Render<'a> {
                 git_ignoring,
                 git,
                 git_repos,
+                summary: false,
             };
             return r.render(w);
         }
