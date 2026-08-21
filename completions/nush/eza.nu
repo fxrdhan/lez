@@ -29,6 +29,7 @@ export extern "eza" [
     --since: string            # Filter and display only files created or modified within duration window
     --all(-a)                  # Show hidden and 'dot' files. Use this twice to also show the '.' and '..' directories
     --almost-all(-A)           # Equivalent to --all; included for compatibility with `ls -A`
+    --show-dotfiles            # Show dot-prefixed files without showing other hidden files
     --treat-dirs-as-files(-d)  # List directories like regular files
     --level(-L): string        # Limit the depth of recursion
     --width(-w)                # Limits column output of grid, 0 implies auto-width

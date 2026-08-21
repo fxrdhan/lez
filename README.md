@@ -112,6 +112,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- 
 <summary>Click to expand</summary>
 
 - **-a**, **--all**: show hidden and 'dot' files
+- **--show-dotfiles**: show dot-prefixed files without showing other hidden files
 - **-d**, **--treat-dirs-as-files**: list directories like regular files
 - **-L**, **--level=(depth)**: limit the depth of recursion
 - **-r**, **--reverse**: reverse the sort order
