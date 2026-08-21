@@ -29,6 +29,7 @@ pub static NO_COLOR: &str = "NO_COLOR";
 /// Environment variable used to colour exa’s interface when colours are
 /// enabled. This includes all the colours that `LS_COLORS` would recognise,
 /// overriding them if necessary. It can also contain exa-specific codes.
+pub static LSR_COLORS: &str = "LSR_COLORS";
 pub static EXA_COLORS: &str = "EXA_COLORS";
 pub static EZA_COLORS: &str = "EZA_COLORS";
 
@@ -61,10 +62,17 @@ pub static EZA_ICON_SPACING: &str = "EZA_ICON_SPACING";
 pub static EXA_OVERRIDE_GIT: &str = "EXA_OVERRIDE_GIT";
 pub static EZA_OVERRIDE_GIT: &str = "EZA_OVERRIDE_GIT";
 
-/// Enviroment variable used to set the minimum luminance in `color_scale`. It's value
+/// Environment variable used to set the minimum luminance in `color_scale`. Its value
 /// can be between -100 and 100
-pub static EXA_MIN_LUMINANCE: &str = "EXA_MIN_LUMINANCE";
+pub static LSR_MIN_LUMINANCE: &str = "LSR_MIN_LUMINANCE";
 pub static EZA_MIN_LUMINANCE: &str = "EZA_MIN_LUMINANCE";
+pub static EXA_MIN_LUMINANCE: &str = "EXA_MIN_LUMINANCE";
+
+/// Environment variable used to set the maximum luminance in `color_scale`. Its value
+/// can be between -100 and 100
+pub static LSR_MAX_LUMINANCE: &str = "LSR_MAX_LUMINANCE";
+pub static EZA_MAX_LUMINANCE: &str = "EZA_MAX_LUMINANCE";
+pub static EXA_MAX_LUMINANCE: &str = "EXA_MAX_LUMINANCE";
 
 /// Environment variable used to automate the same behavior as `--icons=auto` if set.
 /// Any explicit use of `--icons=WHEN` overrides this behavior.
@@ -122,12 +130,17 @@ pub mod test {
     pub struct MockVars {
         pub columns: OsString,
         pub colors: OsString,
+        pub lsr_colors: OsString,
+        pub eza_colors: OsString,
+        pub exa_colors: OsString,
+        pub ls_colors: OsString,
         pub no_colors: OsString,
         pub strict: OsString,
         pub debug: OsString,
         pub grid_rows: OsString,
         pub icon_spacing: OsString,
-        pub luminance: OsString,
+        pub min_luminance: OsString,
+        pub max_luminance: OsString,
         pub icons: OsString,
         pub time: OsString,
         pub lsr_config_dir: OsString,
@@ -140,7 +153,13 @@ pub mod test {
         fn get(&self, name: &'static str) -> Option<OsString> {
             match name {
                 "EXA_STRICT" | "EZA_STRICT" if !self.strict.is_empty() => Some(self.strict.clone()),
-                "EZA_COLORS" | "LS_COLORS" | "EXA_COLORS" if !self.colors.is_empty() => {
+                "LSR_COLORS" if !self.lsr_colors.is_empty() => Some(self.lsr_colors.clone()),
+                "EZA_COLORS" if !self.eza_colors.is_empty() => Some(self.eza_colors.clone()),
+                "EXA_COLORS" if !self.exa_colors.is_empty() => Some(self.exa_colors.clone()),
+                "LS_COLORS" if !self.ls_colors.is_empty() => Some(self.ls_colors.clone()),
+                "LSR_COLORS" | "EZA_COLORS" | "LS_COLORS" | "EXA_COLORS"
+                    if !self.colors.is_empty() =>
+                {
                     Some(self.colors.clone())
                 }
                 "EXA_DEBUG" | "EZA_DEBUG" if !self.debug.is_empty() => Some(self.debug.clone()),
@@ -150,8 +169,15 @@ pub mod test {
                 "EXA_ICON_SPACING" | "EZA_ICON_SPACING" if !self.icon_spacing.is_empty() => {
                     Some(self.icon_spacing.clone())
                 }
-                "EXA_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" if !self.luminance.is_empty() => {
-                    Some(self.luminance.clone())
+                "LSR_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE"
+                    if !self.min_luminance.is_empty() =>
+                {
+                    Some(self.min_luminance.clone())
+                }
+                "LSR_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE"
+                    if !self.max_luminance.is_empty() =>
+                {
+                    Some(self.max_luminance.clone())
                 }
                 "EZA_ICONS_AUTO" if !self.icons.is_empty() => Some(self.icons.clone()),
                 "COLUMNS" if !self.columns.is_empty() => Some(self.columns.clone()),
@@ -176,11 +202,19 @@ pub mod test {
         pub fn set(&mut self, var: &'static str, value: &OsString) {
             match var {
                 "EXA_STRICT" | "EZA_STRICT" => self.strict = value.clone(),
-                "EZA_COLORS" | "LS_COLORS" | "EXA_COLORS" => self.colors = value.clone(),
+                "LSR_COLORS" => self.lsr_colors = value.clone(),
+                "EZA_COLORS" => self.eza_colors = value.clone(),
+                "EXA_COLORS" => self.exa_colors = value.clone(),
+                "LS_COLORS" => self.ls_colors = value.clone(),
                 "EXA_DEBUG" | "EZA_DEBUG" => self.debug = value.clone(),
                 "EXA_GRID_ROWS" | "EZA_GRID_ROWS" => self.grid_rows = value.clone(),
                 "EXA_ICON_SPACING" | "EZA_ICON_SPACING" => self.icon_spacing = value.clone(),
-                "EXA_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" => self.luminance = value.clone(),
+                "LSR_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE" => {
+                    self.min_luminance = value.clone()
+                }
+                "LSR_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE" => {
+                    self.max_luminance = value.clone()
+                }
                 "EZA_ICONS_AUTO" => self.icons = value.clone(),
                 "COLUMNS" => self.columns = value.clone(),
                 "NO_COLOR" => self.no_colors = value.clone(),
@@ -203,6 +237,18 @@ pub mod test {
         vars.set(TIME_STYLE, &OsString::from("iso"));
         assert_eq!(vars.get(TIME_STYLE), Some(OsString::from("iso")));
 
+        vars.set(LSR_COLORS, &OsString::from("reset:da=32"));
+        assert_eq!(vars.get(LSR_COLORS), Some(OsString::from("reset:da=32")));
+
+        vars.set(EZA_COLORS, &OsString::from("da=33"));
+        assert_eq!(vars.get(EZA_COLORS), Some(OsString::from("da=33")));
+
+        vars.set(EXA_COLORS, &OsString::from("da=34"));
+        assert_eq!(vars.get(EXA_COLORS), Some(OsString::from("da=34")));
+
+        vars.set(LS_COLORS, &OsString::from("di=35"));
+        assert_eq!(vars.get(LS_COLORS), Some(OsString::from("di=35")));
+
         vars.set(LSR_CONFIG_DIR, &OsString::from("~/.config/lsr"));
         assert_eq!(
             vars.get(LSR_CONFIG_DIR),
@@ -223,5 +269,11 @@ pub mod test {
 
         vars.set(HOME, &OsString::from("/home/user"));
         assert_eq!(vars.get(HOME), Some(OsString::from("/home/user")));
+
+        vars.set(LSR_MIN_LUMINANCE, &OsString::from("25"));
+        assert_eq!(vars.get(LSR_MIN_LUMINANCE), Some(OsString::from("25")));
+
+        vars.set(LSR_MAX_LUMINANCE, &OsString::from("85"));
+        assert_eq!(vars.get(LSR_MAX_LUMINANCE), Some(OsString::from("85")));
     }
 }

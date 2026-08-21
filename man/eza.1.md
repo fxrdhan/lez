@@ -261,7 +261,7 @@ These options are available when running with `--long` (`-l`):
 `-t`, `--time=WORD`
 : Which timestamp field to list.
 
-: Valid timestamp fields are ‘`modified`’, ‘`changed`’, ‘`accessed`’, and ‘`created`’.
+: Valid timestamp fields are ‘`modified`’ (aliases: ‘`mod`’, ‘`m`’, ‘`r`’), ‘`changed`’ (alias: ‘`ch`’), ‘`accessed`’ (alias: ‘`acc`’), and ‘`created`’ (alias: ‘`cr`’).
 
 `--time-style=STYLE`
 : How to format timestamps.
@@ -381,6 +381,9 @@ Overrides any `--git` or `--git-repos` argument
 
 ## `EZA_MIN_LUMINANCE`
 Specifies the minimum luminance to use when color-scale is active. It's value can be between -100 to 100.
+
+## `EZA_MAX_LUMINANCE`
+Specifies the maximum luminance to use when color-scale is active. It's value can be between -100 to 100.
 
 ## `EZA_ICONS_AUTO`
 

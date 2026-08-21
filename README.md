@@ -146,7 +146,7 @@ These options are available when running with `--long` (`-l`):
 - **-m**, **--modified**: use the modified timestamp field
 - **-M**, **--mounts**: Show mount details (Linux and MacOS only).
 - **-S**, **--blocksize**: show size of allocated file system blocks
-- **-t**, **--time=(field)**: which timestamp field to use
+- **-t**, **--time=(field)**: which timestamp field to use (modified [aliases: mod, m, r], accessed [acc], changed [ch], created [cr])
 - **-u**, **--accessed**: use the accessed timestamp field
 - **-U**, **--created**: use the created timestamp field
 - **-X**, **--dereference**: dereference symlinks for file information and sorting

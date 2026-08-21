@@ -612,6 +612,13 @@ mod tests {
     }
 
     #[test]
+    fn deduce_sort_field_time_flag_clustered_ltr() {
+        let filter = FileFilter::deduce(&mock_cli(vec!["-ltr"]), false).unwrap();
+        assert_eq!(filter.sort_field, SortField::ModifiedAge);
+        assert!(filter.flags.contains(&FileFilterFlags::Reverse));
+    }
+
+    #[test]
     fn deduce_sort_field_time_flag_with_accessed() {
         assert_eq!(
             FileFilter::deduce(&mock_cli(vec!["-t", "-u"]), false)

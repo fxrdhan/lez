@@ -109,6 +109,9 @@ complete -c eza -l loc -d "Add lines-of-code and language columns" -x -a "lines 
 complete -c eza -s S -l blocksize -d "List each file's size of allocated file system blocks"
 complete -c eza -s t -l time -d "Which timestamp field to list" -x -a "
     modified\t'Display modified time'
+    mod\t'Display modified time'
+    m\t'Display modified time'
+    r\t'Display modified time'
     changed\t'Display changed time'
     accessed\t'Display accessed time'
     created\t'Display created time'
