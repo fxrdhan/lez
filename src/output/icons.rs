@@ -540,6 +540,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "asp"            => '\u{f121}',              // 
     "astro"          => '\u{e6b3}',              // 
     "ass"            => Icons::SUBTITLE,         // 󰨖
+    "aud"            => Icons::AUDIO,            // 
     "avi"            => Icons::VIDEO,            // 
     "avif"           => Icons::IMAGE,            // 
     "avro"           => Icons::JSON,             // 
@@ -613,6 +614,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "db3"            => Icons::SQLITE,           // 
     "dconf"          => Icons::DATABASE,         // 
     "deb"            => '\u{e77d}',              // 
+    "des"            => Icons::IMAGE,            // 
     "desktop"        => '\u{ebd1}',              // 
     "di"             => Icons::LANG_D,           // 
     "diff"           => Icons::DIFF,             // 
@@ -760,6 +762,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "info"           => Icons::INFO,             // 
     "ini"            => Icons::CONFIG,           // 󱁻
     "inl"            => Icons::LANG_C,           // 
+    "int"            => Icons::IMAGE,            // 
     "ipynb"          => Icons::NOTEBOOK,              // 
     "ino"            => Icons::LANG_ARDUINO,     // 
     "ipt"            => Icons::CAD,              // 󰻫
@@ -849,6 +852,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "mdb"            => Icons::DATABASE,         // 
     "mdx"            => Icons::MARKDOWN,         // 
     "mid"            => '\u{f08f2}',             // 󰣲
+    "mix"            => Icons::COMPRESSED,       // 
     "mjs"            => Icons::LANG_JAVASCRIPT,  // 
     "mk"             => Icons::MAKE,             // 
     "mka"            => Icons::AUDIO,            // 
@@ -1007,6 +1011,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "sha384"         => Icons::SHIELD_CHECK,     // 󰕥
     "sha512"         => Icons::SHIELD_CHECK,     // 󰕥
     "shell"          => Icons::SHELL_CMD,        // 
+    "shp"            => Icons::IMAGE,            // 
     "shtml"          => Icons::HTML5,            // 
     "sig"            => Icons::SIGNED_FILE,      // 󱧃
     "signature"      => Icons::SIGNED_FILE,      // 󱧃
@@ -1019,6 +1024,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "sln"            => '\u{e70c}',              // 
     "slnx"           => '\u{e70c}',              // 
     "slvs"           => Icons::CAD,              // 󰻫
+    "sno"            => Icons::IMAGE,            // 
     "so"             => Icons::OS_LINUX,         // 
     "sql"            => Icons::DATABASE,         // 
     "sqlite"         => Icons::SQLITE,           // 
@@ -1060,6 +1066,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "tbz2"           => Icons::COMPRESSED,       // 
     "tc"             => Icons::DISK_IMAGE,       // 
     "tcl"            => Icons::TCL,              // 󰛓
+    "tem"            => Icons::IMAGE,            // 
     "tex"            => Icons::LANG_TEX,         // 
     "tf"             => Icons::TERRAFORM,        // 󱁢
     "tfstate"        => Icons::TERRAFORM,        // 󱁢
@@ -1099,6 +1106,8 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "vim"            => Icons::VIM,              // 
     "vmdk"           => Icons::DISK_IMAGE,       // 
     "vob"            => Icons::VIDEO,            // 
+    "vqa"            => Icons::VIDEO,            // 
+    "vqp"            => Icons::VIDEO,            // 
     "vsix"           => '\u{f0a1e}',             // 󰨞
     "vue"            => '\u{f0844}',             // 󰡄
     "war"            => Icons::LANG_JAVA,        // 
@@ -1254,6 +1263,25 @@ mod test {
     #[test]
     fn test_cb7_icon_mapping() {
         assert_eq!(icon_for_name_ext("comic.cb7", Some("cb7")), Icons::IMAGE);
+    }
+
+    #[test]
+    fn test_westwood_extension_icons() {
+        assert_eq!(icon_for_name_ext("theme.aud", Some("aud")), Icons::AUDIO);
+        assert_eq!(icon_for_name_ext("model.des", Some("des")), Icons::IMAGE);
+        assert_eq!(
+            icon_for_name_ext("artwork.int", Some("int")),
+            Icons::IMAGE
+        );
+        assert_eq!(
+            icon_for_name_ext("pak.mix", Some("mix")),
+            Icons::COMPRESSED
+        );
+        assert_eq!(icon_for_name_ext("sprite.shp", Some("shp")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("tile.sno", Some("sno")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("tem.pal", Some("tem")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("movie.vqa", Some("vqa")), Icons::VIDEO);
+        assert_eq!(icon_for_name_ext("movie.vqp", Some("vqp")), Icons::VIDEO);
     }
 
     #[test]
