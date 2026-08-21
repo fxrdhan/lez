@@ -10,14 +10,19 @@ use clap::ArgMatches;
 
 use crate::fs::DotFilter;
 use crate::fs::filter::{
-    FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, SortCase, SortField,
+    FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, LocaleCollator, SortCase, SortField,
 };
 
 use crate::options::OptionsError;
+use crate::options::Vars;
 
 impl FileFilter {
     /// Determines which of all the file filter options to use.
-    pub fn deduce(matches: &ArgMatches, strict: bool) -> Result<Self, OptionsError> {
+    pub fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        strict: bool,
+        vars: &V,
+    ) -> Result<Self, OptionsError> {
         use crate::options::parser::TimeArgs;
         use FileFilterFlags as FFF;
         let mut filter_flags: Vec<FileFilterFlags> = vec![];
@@ -56,6 +61,7 @@ impl FileFilter {
         };
 
         let since = matches.get_one::<std::time::Duration>("since").copied();
+        let collator = LocaleCollator::deduce(vars);
 
         Ok(Self {
             no_symlinks: matches.get_flag("no-symlinks"),
@@ -67,6 +73,7 @@ impl FileFilter {
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
             git_ignore: GitIgnore::deduce(matches),
             since,
+            collator,
         })
     }
 }
@@ -204,6 +211,7 @@ mod tests {
 
     use super::*;
     use crate::options::parser::test::{mock_cli, mock_cli_try};
+    use crate::options::vars::test::MockVars;
 
     #[test]
     fn deduce_git_ignore_off() {
@@ -568,7 +576,7 @@ mod tests {
     #[test]
     fn deduce_file_filter_default() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec![""]), false),
+            FileFilter::deduce(&mock_cli(vec![""]), false, &MockVars::default()),
             Ok(FileFilter {
                 flags: vec![],
                 sort_field: SortField::default(),
@@ -579,6 +587,7 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                collator: None,
             })
         );
     }
@@ -586,7 +595,7 @@ mod tests {
     #[test]
     fn deduce_file_filter_reverse() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--reverse"]), false),
+            FileFilter::deduce(&mock_cli(vec!["--reverse"]), false, &MockVars::default()),
             Ok(FileFilter {
                 flags: vec![FileFilterFlags::Reverse],
                 sort_field: SortField::default(),
@@ -597,6 +606,7 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                collator: None,
             })
         );
     }
@@ -604,7 +614,7 @@ mod tests {
     #[test]
     fn deduce_file_filter_only_dirs() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--only-dirs"]), false),
+            FileFilter::deduce(&mock_cli(vec!["--only-dirs"]), false, &MockVars::default()),
             Ok(FileFilter {
                 flags: vec![FileFilterFlags::OnlyDirs],
                 sort_field: SortField::default(),
@@ -615,6 +625,7 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                collator: None,
             })
         );
     }
@@ -622,7 +633,7 @@ mod tests {
     #[test]
     fn deduce_file_filter_only_files() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--only-files"]), false),
+            FileFilter::deduce(&mock_cli(vec!["--only-files"]), false, &MockVars::default()),
             Ok(FileFilter {
                 flags: vec![FileFilterFlags::OnlyFiles],
                 sort_field: SortField::default(),
@@ -633,6 +644,7 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                collator: None,
             })
         );
     }
@@ -645,7 +657,11 @@ mod tests {
             ..glob::MatchOptions::new()
         });
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--ignore-glob-ci", "*.rs"]), false),
+            FileFilter::deduce(
+                &mock_cli(vec!["--ignore-glob-ci", "*.rs"]),
+                false,
+                &MockVars::default()
+            ),
             Ok(FileFilter {
                 flags: vec![],
                 sort_field: SortField::default(),
@@ -656,6 +672,7 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                collator: None,
             })
         );
     }
@@ -675,7 +692,9 @@ mod tests {
         ];
 
         for (arg, expected_duration) in cases {
-            let filter = FileFilter::deduce(&mock_cli(vec!["--since", arg]), false).unwrap();
+            let filter =
+                FileFilter::deduce(&mock_cli(vec!["--since", arg]), false, &MockVars::default())
+                    .unwrap();
             assert_eq!(
                 filter.since,
                 Some(expected_duration),
@@ -695,7 +714,7 @@ mod tests {
     #[test]
     fn deduce_sort_field_time_flag_defaults_to_age() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["-t"]), false)
+            FileFilter::deduce(&mock_cli(vec!["-t"]), false, &MockVars::default())
                 .unwrap()
                 .sort_field,
             SortField::ModifiedAge
@@ -704,14 +723,16 @@ mod tests {
 
     #[test]
     fn deduce_sort_field_time_flag_with_reverse() {
-        let filter = FileFilter::deduce(&mock_cli(vec!["-t", "-r"]), false).unwrap();
+        let filter =
+            FileFilter::deduce(&mock_cli(vec!["-t", "-r"]), false, &MockVars::default()).unwrap();
         assert_eq!(filter.sort_field, SortField::ModifiedAge);
         assert!(filter.flags.contains(&FileFilterFlags::Reverse));
     }
 
     #[test]
     fn deduce_sort_field_time_flag_clustered_ltr() {
-        let filter = FileFilter::deduce(&mock_cli(vec!["-ltr"]), false).unwrap();
+        let filter =
+            FileFilter::deduce(&mock_cli(vec!["-ltr"]), false, &MockVars::default()).unwrap();
         assert_eq!(filter.sort_field, SortField::ModifiedAge);
         assert!(filter.flags.contains(&FileFilterFlags::Reverse));
     }
@@ -719,7 +740,7 @@ mod tests {
     #[test]
     fn deduce_sort_field_time_flag_with_accessed() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["-t", "-u"]), false)
+            FileFilter::deduce(&mock_cli(vec!["-t", "-u"]), false, &MockVars::default())
                 .unwrap()
                 .sort_field,
             SortField::AccessedDate
@@ -729,9 +750,13 @@ mod tests {
     #[test]
     fn deduce_sort_field_time_flag_with_changed() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["-t", "--changed"]), false)
-                .unwrap()
-                .sort_field,
+            FileFilter::deduce(
+                &mock_cli(vec!["-t", "--changed"]),
+                false,
+                &MockVars::default()
+            )
+            .unwrap()
+            .sort_field,
             SortField::ChangedDate
         );
     }
@@ -739,7 +764,7 @@ mod tests {
     #[test]
     fn deduce_sort_field_time_flag_with_created() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["-t", "-U"]), false)
+            FileFilter::deduce(&mock_cli(vec!["-t", "-U"]), false, &MockVars::default())
                 .unwrap()
                 .sort_field,
             SortField::CreatedDate
@@ -749,15 +774,23 @@ mod tests {
     #[test]
     fn deduce_sort_field_explicit_sort_overrides_time_flag() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["-t", "--sort=size"]), false)
-                .unwrap()
-                .sort_field,
+            FileFilter::deduce(
+                &mock_cli(vec!["-t", "--sort=size"]),
+                false,
+                &MockVars::default()
+            )
+            .unwrap()
+            .sort_field,
             SortField::Size
         );
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--sort=size", "-t"]), false)
-                .unwrap()
-                .sort_field,
+            FileFilter::deduce(
+                &mock_cli(vec!["--sort=size", "-t"]),
+                false,
+                &MockVars::default()
+            )
+            .unwrap()
+            .sort_field,
             SortField::Size
         );
     }
@@ -765,10 +798,53 @@ mod tests {
     #[test]
     fn deduce_sort_field_explicit_time_arg_preserves_default_sort() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--time=accessed"]), false)
-                .unwrap()
-                .sort_field,
+            FileFilter::deduce(
+                &mock_cli(vec!["--time=accessed"]),
+                false,
+                &MockVars::default()
+            )
+            .unwrap()
+            .sort_field,
             SortField::default()
         );
+    }
+
+    #[test]
+    fn deduce_locale_collator_posix_precedence() {
+        // LC_ALL takes highest precedence
+        let vars_all = MockVars {
+            lc_all: OsString::from("hu_HU.UTF-8"),
+            lc_collate: OsString::from("sv_SE.UTF-8"),
+            lang: OsString::from("de_DE.UTF-8"),
+            ..MockVars::default()
+        };
+        let filter = FileFilter::deduce(&mock_cli(vec![""]), false, &vars_all).unwrap();
+        assert_eq!(filter.collator.as_ref().unwrap().locale_tag(), "hu_HU");
+
+        // LC_COLLATE takes precedence over LANG
+        let vars_collate = MockVars {
+            lc_collate: OsString::from("sv_SE.UTF-8"),
+            lang: OsString::from("de_DE.UTF-8"),
+            ..MockVars::default()
+        };
+        let filter = FileFilter::deduce(&mock_cli(vec![""]), false, &vars_collate).unwrap();
+        assert_eq!(filter.collator.as_ref().unwrap().locale_tag(), "sv_SE");
+
+        // LANG is used when LC_ALL and LC_COLLATE are unset
+        let vars_lang = MockVars {
+            lang: OsString::from("de_DE.UTF-8@euro"),
+            ..MockVars::default()
+        };
+        let filter = FileFilter::deduce(&mock_cli(vec![""]), false, &vars_lang).unwrap();
+        assert_eq!(filter.collator.as_ref().unwrap().locale_tag(), "de_DE");
+
+        // C / POSIX disables collator
+        let vars_posix = MockVars {
+            lc_all: OsString::from("POSIX.UTF-8"),
+            lang: OsString::from("hu_HU.UTF-8"),
+            ..MockVars::default()
+        };
+        let filter = FileFilter::deduce(&mock_cli(vec![""]), false, &vars_posix).unwrap();
+        assert!(filter.collator.is_none());
     }
 }

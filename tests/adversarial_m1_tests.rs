@@ -104,6 +104,7 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        collator: None,
     }
 }
 
