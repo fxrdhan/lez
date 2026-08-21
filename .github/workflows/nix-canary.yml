@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+name: Nix Cold Build Canary
+# Weekly sanity check that the flake still builds from a completely cold
+# Nix store with binary substitution disabled. Guards against cache-only
+# breakage (missing vendored inputs, sandbox issues) that Cachix hits in
+# the regular CI pipeline would otherwise mask.
+on:
+  schedule:
+    # Mondays 05:00 UTC — after the Thursday dependency-update PR has settled
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+jobs:
+  cold-build:
+    name: Cold build without binary cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v16
+      - name: Nix Flake Check (substituters disabled)
+        run: nix flake check -L --option substituters ""
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

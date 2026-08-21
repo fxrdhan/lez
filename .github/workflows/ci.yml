@@ -93,6 +93,15 @@ jobs:
         uses: actions/checkout@v4
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v16
+      # Activates once the repo variable CACHIX_CACHE and the secret
+      # CACHIX_AUTH_TOKEN are configured; skipped (plain cold build) before
+      # that. The action both pulls from and pushes to the cache.
+      - name: Restore and push Nix store cache (Cachix)
+        if: vars.CACHIX_CACHE != ''
+        uses: cachix/cachix-action@v16
+        with:
+          name: ${{ vars.CACHIX_CACHE }}
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - name: Nix Flake Check
         run: nix flake check -L
         env:
