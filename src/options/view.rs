@@ -621,14 +621,27 @@ impl TimeTypes {
 
 impl ColorScaleOptions {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
-        let min_luminance =
-            match vars.get_with_fallback(vars::EZA_MIN_LUMINANCE, vars::EXA_MIN_LUMINANCE) {
-                Some(var) => match var.to_string_lossy().parse() {
-                    Ok(luminance) if (-100..=100).contains(&luminance) => luminance,
-                    _ => 40,
-                },
-                None => 40,
-            };
+        let min_luminance = match vars
+            .get(vars::LSR_MIN_LUMINANCE)
+            .or_else(|| vars.get_with_fallback(vars::EZA_MIN_LUMINANCE, vars::EXA_MIN_LUMINANCE))
+        {
+            Some(var) => match var.to_string_lossy().parse() {
+                Ok(luminance) if (-100..=100).contains(&luminance) => luminance,
+                _ => 40,
+            },
+            None => 40,
+        };
+
+        let max_luminance = match vars
+            .get(vars::LSR_MAX_LUMINANCE)
+            .or_else(|| vars.get_with_fallback(vars::EZA_MAX_LUMINANCE, vars::EXA_MAX_LUMINANCE))
+        {
+            Some(var) => match var.to_string_lossy().parse() {
+                Ok(luminance) if (-100..=100).contains(&luminance) => luminance,
+                _ => 100,
+            },
+            None => 100,
+        };
 
         let mode = match matches.get_one("color-scale-mode").unwrap() {
             ColorScaleModeArgs::Fixed => ColorScaleMode::Fixed,
@@ -638,6 +651,7 @@ impl ColorScaleOptions {
         let mut options = ColorScaleOptions {
             mode,
             min_luminance,
+            max_luminance,
             size: false,
             age: false,
         };
@@ -697,6 +711,72 @@ mod tests {
     fn deduce_time_types_modified_word() {
         assert_eq!(
             TimeTypes::deduce(&mock_cli(vec!["--time=modified"])),
+            Ok(TimeTypes {
+                modified: true,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_modified_word_mod() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["--time=mod"])),
+            Ok(TimeTypes {
+                modified: true,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_modified_word_m() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["--time=m"])),
+            Ok(TimeTypes {
+                modified: true,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_modified_word_r() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["--time=r"])),
+            Ok(TimeTypes {
+                modified: true,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_short_time_r() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["-t=r"])),
+            Ok(TimeTypes {
+                modified: true,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_short_time_m() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["-t=m"])),
+            Ok(TimeTypes {
+                modified: true,
+                ..TimeTypes::default()
+            })
+        );
+    }
+
+    #[test]
+    fn deduce_time_types_short_time_mod() {
+        assert_eq!(
+            TimeTypes::deduce(&mock_cli(vec!["-t=mod"])),
             Ok(TimeTypes {
                 modified: true,
                 ..TimeTypes::default()
@@ -1151,6 +1231,7 @@ mod tests {
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
+                max_luminance: 100,
                 size: true,
                 age: true,
             }
@@ -1166,6 +1247,7 @@ mod tests {
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 60,
+                max_luminance: 100,
                 size: true,
                 age: false,
             }
@@ -1184,6 +1266,7 @@ mod tests {
             ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
                 min_luminance: 60,
+                max_luminance: 100,
                 size: false,
                 age: true,
             }
@@ -1207,8 +1290,116 @@ mod tests {
             ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
                 min_luminance: 99,
+                max_luminance: 100,
                 size: true,
                 age: true,
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_color_scale_max_luminance_80_gradient() {
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_MAX_LUMINANCE, &OsString::from("80"));
+        assert_eq!(
+            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale", "size"]), &vars),
+            ColorScaleOptions {
+                mode: ColorScaleMode::Gradient,
+                min_luminance: 40,
+                max_luminance: 80,
+                size: true,
+                age: false,
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_color_scale_lsr_max_luminance_precedence() {
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_MAX_LUMINANCE, &OsString::from("50"));
+        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("75"));
+        assert_eq!(
+            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale", "size"]), &vars),
+            ColorScaleOptions {
+                mode: ColorScaleMode::Gradient,
+                min_luminance: 40,
+                max_luminance: 75,
+                size: true,
+                age: false,
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_color_scale_lsr_min_luminance_precedence() {
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_MIN_LUMINANCE, &OsString::from("20"));
+        vars.set(vars::LSR_MIN_LUMINANCE, &OsString::from("35"));
+        assert_eq!(
+            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale", "size"]), &vars),
+            ColorScaleOptions {
+                mode: ColorScaleMode::Gradient,
+                min_luminance: 35,
+                max_luminance: 100,
+                size: true,
+                age: false,
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_color_scale_min_and_max_luminance() {
+        let mut vars = MockVars::default();
+        vars.set(vars::LSR_MIN_LUMINANCE, &OsString::from("30"));
+        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("70"));
+        assert_eq!(
+            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale", "all"]), &vars),
+            ColorScaleOptions {
+                mode: ColorScaleMode::Gradient,
+                min_luminance: 30,
+                max_luminance: 70,
+                size: true,
+                age: true,
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_color_scale_max_luminance_invalid_fallback() {
+        let mut vars = MockVars::default();
+        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("invalid_number"));
+        assert_eq!(
+            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale", "size"]), &vars),
+            ColorScaleOptions {
+                mode: ColorScaleMode::Gradient,
+                min_luminance: 40,
+                max_luminance: 100,
+                size: true,
+                age: false,
+            }
+        );
+
+        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("150")); // out of range
+        assert_eq!(
+            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale", "size"]), &vars),
+            ColorScaleOptions {
+                mode: ColorScaleMode::Gradient,
+                min_luminance: 40,
+                max_luminance: 100,
+                size: true,
+                age: false,
+            }
+        );
+
+        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("-150")); // out of range
+        assert_eq!(
+            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale", "size"]), &vars),
+            ColorScaleOptions {
+                mode: ColorScaleMode::Gradient,
+                min_luminance: 40,
+                max_luminance: 100,
+                size: true,
+                age: false,
             }
         );
     }
