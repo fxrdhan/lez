@@ -191,7 +191,7 @@ Valid sort fields are ‘`name`’, ‘`Name`’, ‘`extension`’, ‘`Extensi
 
 The ‘`block`’ sort field has the aliases ‘`blocks`’ and ‘`blocksize`’.
 
-The `modified` sort field has the aliases ‘`date`’, ‘`time`’, and ‘`newest`’, and its reverse order has the aliases ‘`age`’ and ‘`oldest`’.
+The `modified` sort field has the aliases ‘`date`’, ‘`time`’, ‘`mod`’, ‘`old`’, and ‘`oldest`’, and its reverse order has the aliases ‘`age`’, ‘`new`’, and ‘`newest`’.
 
 Sort fields starting with a capital letter will sort uppercase before lowercase: ‘A’ then ‘B’ then ‘a’ then ‘b’. Fields starting with a lowercase letter will mix them: ‘A’ then ‘a’ then ‘B’ then ‘b’.
 
@@ -203,6 +203,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 
 `--git-ignore` [if lsr was built with git support]
 : Do not list files that are ignored by Git.
+
+`--since=DURATION`
+: Filter and display only files created or modified within the specified duration window (e.g. `10m`, `1h`, `2d`, `1w`).
 
 `--group-directories-first`
 : List directories before other files.
@@ -274,7 +277,7 @@ These options are available when running with `--long` (`-l`):
 `-O`, `--flags`
 : List file flags on macOS and BSD systems and file attributes on Windows systems. By default, Windows attributes are displayed in a long form. To display in attributes as single character set the environment variable `LSR_WINDOWS_ATTRIBUTES=short`. On BSD systems see chflags(1) for a list of file flags and their meanings.
 
-`-S`, `--blocksize`
+`-S`, `--blocks`, `--blocksize`
 : List each file’s size of allocated file system blocks.
 
 `-t`, `--time=WORD`

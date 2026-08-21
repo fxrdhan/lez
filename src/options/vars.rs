@@ -5,6 +5,7 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use std::ffi::OsString;
+use std::io::{self, IsTerminal};
 
 // General variables
 
@@ -99,6 +100,11 @@ pub static EZA_WINDOWS_ATTRIBUTES: &str = "EZA_WINDOWS_ATTRIBUTES";
 pub trait Vars {
     fn get(&self, name: &'static str) -> Option<OsString>;
 
+    /// Check if stdout is connected to a terminal / TTY.
+    fn stdout_is_terminal(&self) -> bool {
+        io::stdout().is_terminal()
+    }
+
     /// Get the variable `name` and if not set get the variable `fallback`.
     fn get_with_fallback(&self, name: &'static str, fallback: &'static str) -> Option<OsString> {
         self.get(name).or_else(|| self.get(fallback))
@@ -147,9 +153,14 @@ pub mod test {
         pub eza_config_dir: OsString,
         pub xdg_config_home: OsString,
         pub home: OsString,
+        pub stdout_is_terminal: bool,
     }
 
     impl Vars for MockVars {
+        fn stdout_is_terminal(&self) -> bool {
+            self.stdout_is_terminal
+        }
+
         fn get(&self, name: &'static str) -> Option<OsString> {
             match name {
                 "EXA_STRICT" | "EZA_STRICT" if !self.strict.is_empty() => Some(self.strict.clone()),

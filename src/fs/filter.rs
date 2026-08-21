@@ -11,6 +11,8 @@ use std::iter::FromIterator;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use chrono::Utc;
+
 use crate::fs::DotFilter;
 use crate::fs::File;
 
@@ -89,6 +91,9 @@ pub struct FileFilter {
     /// Whether to ignore Git-ignored patterns.
     pub git_ignore: GitIgnore,
 
+    /// Filter files created or modified within the specified duration window.
+    pub since: Option<std::time::Duration>,
+
     /// Whether to ignore symlinks
     pub no_symlinks: bool,
 
@@ -97,11 +102,40 @@ pub struct FileFilter {
 }
 
 impl FileFilter {
+    /// Determines whether a file matches the `--since` duration filter window.
+    /// Returns true if `since` is None or if the file was created or modified
+    /// within the duration window ending at the current time.
+    #[must_use]
+    pub fn matches_since(&self, file: &File<'_>) -> bool {
+        let Some(since) = self.since else {
+            return true;
+        };
+        let Ok(duration) = chrono::Duration::from_std(since) else {
+            return false;
+        };
+        let now = Utc::now().naive_utc();
+        let Some(cutoff) = now.checked_sub_signed(duration) else {
+            return true;
+        };
+
+        if let Some(mtime) = file.modified_time() {
+            mtime >= cutoff
+        } else if let Some(ctime) = file.created_time() {
+            ctime >= cutoff
+        } else {
+            false
+        }
+    }
+
     /// Determines whether an individual file matches active filter rules
     /// (not considering directory recursion container status).
     #[must_use]
     pub fn is_file_included(&self, file: &File<'_>) -> bool {
         use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
+
+        if !self.matches_since(file) {
+            return false;
+        }
 
         if self.ignore_patterns.is_ignored(&file.name)
             || self.ignore_patterns_caseins.is_ignored(&file.name)
@@ -132,6 +166,7 @@ impl FileFilter {
     pub fn filter_child_files(&self, is_recurse: bool, files: &mut Vec<File<'_>>) {
         use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
 
+        files.retain(|f| self.matches_since(f));
         files.retain(|f| !self.ignore_patterns.is_ignored(&f.name) && !self.ignore_patterns_caseins.is_ignored(&f.name));
         files.retain(|f| {
             match (
@@ -163,7 +198,8 @@ impl FileFilter {
     /// from the glob, even though the globbing is done by the shell!
     pub fn filter_argument_files(&self, files: &mut Vec<File<'_>>) {
         files.retain(|f| {
-            !self.ignore_patterns.is_ignored(&f.name)
+            self.matches_since(f)
+                && !self.ignore_patterns.is_ignored(&f.name)
                 && !self.ignore_patterns_caseins.is_ignored(&f.name)
         });
     }
@@ -545,6 +581,7 @@ mod test_ignores {
             ignore_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
+            since: None,
             no_symlinks: false,
             show_symlinks: false,
         };
@@ -650,5 +687,61 @@ mod test_ignores {
             SortField::Path(SortCase::ABCabc).compare_files(&file_upper, &file_lower),
             Ordering::Less
         );
+    }
+
+    #[test]
+    fn test_matches_since_filtering() {
+        use std::path::PathBuf;
+        use std::time::Duration;
+
+        let file_cargo =
+            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
+
+        // Filter with since: None includes all files
+        let filter_none = FileFilter {
+            sort_field: SortField::Name(SortCase::ABCabc),
+            flags: vec![],
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+            git_ignore: GitIgnore::Off,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+        };
+        assert!(filter_none.matches_since(&file_cargo));
+        assert!(filter_none.is_file_included(&file_cargo));
+
+        // Filter with a very long duration (e.g., 100 years = 36500 days) includes existing file
+        let filter_huge = FileFilter {
+            since: Some(Duration::from_secs(36500 * 86400)),
+            ..filter_none.clone()
+        };
+        assert!(filter_huge.matches_since(&file_cargo));
+        assert!(filter_huge.is_file_included(&file_cargo));
+
+        // Filter with duration of 0 seconds (cutoff is right now) excludes files modified in past
+        let filter_zero = FileFilter {
+            since: Some(Duration::from_secs(0)),
+            ..filter_none.clone()
+        };
+        // Cargo.toml was modified in the past, so cutoff is now -> file modified time < now
+        // Note: Unless Cargo.toml was touched in this exact millisecond, it should be excluded
+        // To be deterministic, test with a temporary file with explicitly manipulated time if needed,
+        // but 0 duration cutoff = now, so older files are definitely excluded.
+        let mut child_files = vec![File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            None,
+        )];
+        filter_zero.filter_child_files(false, &mut child_files);
+        assert!(child_files.is_empty());
+
+        let mut arg_files = vec![file_cargo];
+        filter_zero.filter_argument_files(&mut arg_files);
+        assert!(arg_files.is_empty());
     }
 }

@@ -136,6 +136,8 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-I --"ignore-glob" <GLOBS> "glob patterns (pipe-separated) of files to ignore"))
         .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)"))
         .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'"))
+        .arg(arg!(--since <DURATION> "filter and display only files created or modified within the specified duration window")
+            .value_parser(humantime::parse_duration))
 
         .next_help_heading("SORTING OPTIONS")
         .arg(arg!(--"group-directories-first" "list directories before other files").id("dirs-first"))
@@ -164,7 +166,8 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-B --bytes "show file sizes in bytes, without any prefixes")
             .overrides_with("binary"))
         .arg(arg!(--"total-size" "show the size of a directory as the one of its content (unix only)"))
-        .arg(arg!(-S --blocksize "list size of allocated file system blocks"))
+        .arg(arg!(-S --blocksize "list size of allocated file system blocks")
+            .alias("blocks"))
         .arg(arg!(-g --group "list each file's group"))
         .arg(arg!(--"smart-group" "only show group if it has a different name from owner"))
         .arg(arg!(-n --numeric "show user and group as their numeric IDs"))
@@ -290,15 +293,12 @@ impl ValueEnum for SortField {
             Self::BlockSize => PossibleValue::new("blocks").aliases(vec!["block", "blocksize"]),
             Self::Extension(SortCase::AaBbCc) => PossibleValue::new("ext").alias("extension"),
             Self::Extension(SortCase::ABCabc) => PossibleValue::new("Ext").alias("Extension"),
-            // “new” sorts oldest at the top and newest at the bottom; “old” sorts newest at the
-            // top and oldest at the bottom. I think this is the right way round to do this:
-            // “size” puts the smallest at  the top and the largest at the bottom, doesn’t it?
+            // “old” and “oldest” sort oldest files at the top and newest at the bottom.
             Self::ModifiedDate => {
-                PossibleValue::new("date").aliases(vec!["time", "mod", "modified", "new", "newest"])
+                PossibleValue::new("date").aliases(vec!["time", "mod", "modified", "old", "oldest"])
             }
-            // Similarly, “age” means that files with the least age (the newest files) get sorted
-            //  at the top, and files with the most age (the oldest) at the bottom.
-            Self::ModifiedAge => PossibleValue::new("age").aliases(vec!["old", "oldest"]),
+            // “age”, “new”, and “newest” sort files with least age (the newest files) at the top.
+            Self::ModifiedAge => PossibleValue::new("age").aliases(vec!["new", "newest"]),
             Self::ChangedDate => PossibleValue::new("changed").alias("ch"),
             Self::AccessedDate => PossibleValue::new("accessed").alias("acc"),
             Self::CreatedDate => PossibleValue::new("created").alias("cr"),
@@ -735,5 +735,12 @@ pub mod test {
         assert!(cli.get_flag("long"));
         assert_eq!(cli.get_one::<TimeArgs>("time"), Some(&TimeArgs::Default));
         assert!(cli.get_flag("reverse"));
+    }
+
+    #[test]
+    fn blocks_aliases_and_short_flag_parsed_correctly() {
+        assert!(mock_cli(vec!["-S"]).get_flag("blocksize"));
+        assert!(mock_cli(vec!["--blocksize"]).get_flag("blocksize"));
+        assert!(mock_cli(vec!["--blocks"]).get_flag("blocksize"));
     }
 }

@@ -55,6 +55,8 @@ impl FileFilter {
             _ => *matches.get_one("sort").unwrap(),
         };
 
+        let since = matches.get_one::<std::time::Duration>("since").copied();
+
         Ok(Self {
             no_symlinks: matches.get_flag("no-symlinks"),
             show_symlinks: matches.get_flag("show-symlinks"),
@@ -64,6 +66,7 @@ impl FileFilter {
             ignore_patterns: IgnorePatterns::deduce(matches)?,
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
             git_ignore: GitIgnore::deduce(matches),
+            since,
         })
     }
 }
@@ -471,6 +474,46 @@ mod tests {
     fn deduce_sort_field_old() {
         assert_eq!(
             mock_cli(vec!["--sort", "old"]).get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedDate)
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_oldest() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "oldest"]).get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedDate)
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_mod() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "mod"]).get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedDate)
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_modified() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "modified"]).get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedDate)
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_new() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "new"]).get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedAge)
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_newest() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "newest"]).get_one::<SortField>("sort"),
             Some(&SortField::ModifiedAge)
         );
     }
@@ -515,6 +558,7 @@ mod tests {
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
+                since: None,
                 no_symlinks: false,
                 show_symlinks: false,
             })
@@ -532,6 +576,7 @@ mod tests {
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
+                since: None,
                 no_symlinks: false,
                 show_symlinks: false,
             })
@@ -549,6 +594,7 @@ mod tests {
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
+                since: None,
                 no_symlinks: false,
                 show_symlinks: false,
             })
@@ -566,6 +612,7 @@ mod tests {
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
+                since: None,
                 no_symlinks: false,
                 show_symlinks: false,
             })
@@ -588,10 +635,43 @@ mod tests {
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: ci_patterns,
                 git_ignore: GitIgnore::Off,
+                since: None,
                 no_symlinks: false,
                 show_symlinks: false,
             })
         );
+    }
+
+    #[test]
+    fn deduce_file_filter_since_valid_durations() {
+        use std::time::Duration;
+
+        let cases = [
+            ("30s", Duration::from_secs(30)),
+            ("10m", Duration::from_secs(600)),
+            ("1h", Duration::from_secs(3600)),
+            ("2d", Duration::from_secs(172800)),
+            ("1w", Duration::from_secs(604800)),
+            ("1day", Duration::from_secs(86400)),
+            ("2hours", Duration::from_secs(7200)),
+        ];
+
+        for (arg, expected_duration) in cases {
+            let filter = FileFilter::deduce(&mock_cli(vec!["--since", arg]), false).unwrap();
+            assert_eq!(
+                filter.since,
+                Some(expected_duration),
+                "Failed for --since {arg}"
+            );
+        }
+    }
+
+    #[test]
+    fn deduce_file_filter_since_invalid_durations() {
+        assert!(mock_cli_try(vec!["--since", "invalid"]).is_err());
+        assert!(mock_cli_try(vec!["--since", "-10m"]).is_err());
+        assert!(mock_cli_try(vec!["--since", "10xyz"]).is_err());
+        assert!(mock_cli_try(vec!["--since", ""]).is_err());
     }
 
     #[test]

@@ -5,7 +5,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
     $ArrayWhen           = @('always', 'auto', 'never')
-    $ArraySort           = @('name', 'Name', 'extension', 'Extension', 'path', 'Path', 'size', 'block', 'blocks', 'blocksize', 'type', 'created', 'modified', 'accessed', 'changed', 'inode', 'none')
+    $ArraySort           = @('name', 'Name', 'extension', 'Extension', 'path', 'Path', 'size', 'block', 'blocks', 'blocksize', 'type', 'created', 'modified', 'mod', 'date', 'time', 'old', 'oldest', 'age', 'new', 'newest', 'accessed', 'changed', 'inode', 'none')
     $ArrayColorScaleMode = @('fixed', 'gradient')
     $ArrayColorScale     = @('all', 'age', 'size')
     $ArrayAbsolute       = @('on', 'follow', 'off')
@@ -122,6 +122,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--flags'                    ,'flags'               , [CompletionResultType]::ParameterName, 'list file flags (Mac, BSD, and Windows only)') 
         #   [CompletionResult]::new('-S'                         ,'blocksize'           , [CompletionResultType]::ParameterName, 'show size of allocated file system blocks')
             [CompletionResult]::new('--blocksize'                ,'blocksize'           , [CompletionResultType]::ParameterName, 'show size of allocated file system blocks') 
+            [CompletionResult]::new('--blocks'                   ,'blocks'              , [CompletionResultType]::ParameterName, 'show size of allocated file system blocks') 
         #   [CompletionResult]::new('-t'                         ,'time'                , [CompletionResultType]::ParameterName, 'which timestamp field to list (modified, accessed, created)')
             [CompletionResult]::new('--time'                     ,'time'                , [CompletionResultType]::ParameterName, 'which timestamp field to list (modified, accessed, created)') 
         #   [CompletionResult]::new('-m'                         ,'modified'            , [CompletionResultType]::ParameterName, 'use the modified timestamp field')
@@ -206,6 +207,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('-I'                         ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--ignore-glob'              ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--git-ignore'               ,'git-ignore'          , [CompletionResultType]::ParameterName, 'ignore files mentioned in ''.gitignore''')
+            [CompletionResult]::new('--since'                    ,'since'               , [CompletionResultType]::ParameterName, 'filter and display only files created or modified within duration window')
             [CompletionResult]::new('--print-total'              ,'print-total'         , [CompletionResultType]::ParameterName, 'display total number of entries')
             break
         }
