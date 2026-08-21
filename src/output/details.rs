@@ -353,7 +353,7 @@ impl<'a> Render<'a> {
             let file_name = self
                 .file_style
                 .for_file(egg.file, self.theme)
-                .with_link_paths()
+                .use_symlink_targets()
                 .with_mount_details(self.opts.mounts)
                 .with_tags(self.opts.tags)
                 .paint()

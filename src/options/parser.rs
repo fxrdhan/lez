@@ -120,6 +120,7 @@ pub fn get_command() -> clap::Command {
             .default_missing_value("auto"))
         .arg(arg!(--"no-quotes" "don't quote file names with spaces"))
         .arg(arg!(--"short-nix" "abbreviate Nix store hashes in file names and paths"))
+        .arg(arg!(--"no-symlink-targets" "do not show symlink targets (the `-> ...`)"))
 
         .next_help_heading("FILTERING OPTIONS")
         .arg(arg!(-a --all... "show hidden files. Use this twice to also show the '.' and '..' directories"))

@@ -8,7 +8,9 @@ use crate::options::parser::ShowWhen;
 use crate::options::vars::{self, Vars};
 use crate::options::{NumberSource, OptionsError};
 
-use crate::output::file_name::{Classify, EmbedHyperlinks, Options, QuoteStyle, ShowIcons};
+use crate::output::file_name::{
+    Classify, EmbedHyperlinks, Options, QuoteStyle, ShowIcons, ShowSymlinkTargets,
+};
 
 use clap::ArgMatches;
 
@@ -26,6 +28,7 @@ impl Options {
 
         let absolute = *matches.get_one("absolute").unwrap();
         let short_nix = matches.get_flag("short-nix");
+        let show_symlink_targets = ShowSymlinkTargets::deduce(matches);
 
         Ok(Self {
             classify,
@@ -34,6 +37,7 @@ impl Options {
             embed_hyperlinks,
             absolute,
             short_nix,
+            show_symlink_targets,
             is_a_tty,
         })
     }
@@ -101,6 +105,16 @@ impl EmbedHyperlinks {
             Some(ShowWhen::Never) | None => Self::Never,
             Some(ShowWhen::Always) => Self::Always,
             Some(ShowWhen::Auto) => Self::Automatic,
+        }
+    }
+}
+
+impl ShowSymlinkTargets {
+    pub fn deduce(matches: &ArgMatches) -> Self {
+        if matches.get_flag("no-symlink-targets") {
+            Self::NoSymlinkTargets
+        } else {
+            Self::ShowSymlinkTargets
         }
     }
 }
@@ -403,6 +417,7 @@ mod tests {
                 embed_hyperlinks: EmbedHyperlinks::Never,
                 absolute: Absolute::Off,
                 short_nix: false,
+                show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
                 is_a_tty: true,
             })
         );
@@ -414,6 +429,32 @@ mod tests {
             Options::deduce(&mock_cli(vec!["--short-nix"]), &MockVars::default(), true)
                 .unwrap()
                 .short_nix
+        );
+    }
+
+    #[test]
+    fn deduce_options_no_symlink_targets() {
+        assert_eq!(
+            Options::deduce(
+                &mock_cli(vec!["--no-symlink-targets"]),
+                &MockVars::default(),
+                true
+            )
+            .unwrap()
+            .show_symlink_targets,
+            ShowSymlinkTargets::NoSymlinkTargets
+        );
+    }
+
+    #[test]
+    fn deduce_show_symlink_targets() {
+        assert_eq!(
+            ShowSymlinkTargets::deduce(&mock_cli(vec!["--no-symlink-targets"])),
+            ShowSymlinkTargets::NoSymlinkTargets
+        );
+        assert_eq!(
+            ShowSymlinkTargets::deduce(&mock_cli(vec![""])),
+            ShowSymlinkTargets::ShowSymlinkTargets
         );
     }
 }
