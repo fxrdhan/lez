@@ -169,7 +169,7 @@
             pre-commit-hooks.lib.${system}.run {
               src = ./.;
               hooks = treefmtFormatters // {
-                nixfmt-rfc-style.enable = true;
+                nixfmt.enable = true;
                 convco.enable = true;
                 reuse = {
                   enable = true;
