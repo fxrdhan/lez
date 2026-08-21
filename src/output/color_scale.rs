@@ -294,6 +294,7 @@ mod test {
             since: None,
             no_symlinks: false,
             show_symlinks: false,
+            collator: None,
         }
     }
 

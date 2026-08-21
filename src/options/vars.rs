@@ -25,6 +25,11 @@ pub static TIME_STYLE: &str = "TIME_STYLE";
 /// See: <https://no-color.org/>
 pub static NO_COLOR: &str = "NO_COLOR";
 
+/// Environment variables for POSIX locale collation.
+pub static LC_ALL: &str = "LC_ALL";
+pub static LC_COLLATE: &str = "LC_COLLATE";
+pub static LANG: &str = "LANG";
+
 // exa-specific variables
 
 /// Environment variable used to colour exa’s interface when colours are
@@ -105,6 +110,11 @@ pub static EZA_WINDOWS_ATTRIBUTES: &str = "EZA_WINDOWS_ATTRIBUTES";
 pub trait Vars {
     fn get(&self, name: &'static str) -> Option<OsString>;
 
+    /// Return system locale if available.
+    fn get_locale(&self) -> Option<String> {
+        sys_locale::get_locale()
+    }
+
     /// Check if stdout is connected to a terminal / TTY.
     fn stdout_is_terminal(&self) -> bool {
         io::stdout().is_terminal()
@@ -164,10 +174,18 @@ pub mod test {
         pub lsr_mime_types: OsString,
         pub eza_mime_types: OsString,
         pub mimetypes: OsString,
+        pub lc_all: OsString,
+        pub lc_collate: OsString,
+        pub lang: OsString,
+        pub sys_locale: Option<String>,
         pub stdout_is_terminal: bool,
     }
 
     impl Vars for MockVars {
+        fn get_locale(&self) -> Option<String> {
+            self.sys_locale.clone()
+        }
+
         fn stdout_is_terminal(&self) -> bool {
             self.stdout_is_terminal
         }
@@ -235,6 +253,9 @@ pub mod test {
                 "LSR_MIME_TYPES" | "EZA_MIME_TYPES" if !self.mimetypes.is_empty() => {
                     Some(self.mimetypes.clone())
                 }
+                "LC_ALL" if !self.lc_all.is_empty() => Some(self.lc_all.clone()),
+                "LC_COLLATE" if !self.lc_collate.is_empty() => Some(self.lc_collate.clone()),
+                "LANG" if !self.lang.is_empty() => Some(self.lang.clone()),
                 _ => None,
             }
         }
@@ -269,6 +290,9 @@ pub mod test {
                 "EZA_STDIN_SEPARATOR" => self.eza_stdin_separator = value.clone(),
                 "LSR_MIME_TYPES" => self.lsr_mime_types = value.clone(),
                 "EZA_MIME_TYPES" => self.eza_mime_types = value.clone(),
+                "LC_ALL" => self.lc_all = value.clone(),
+                "LC_COLLATE" => self.lc_collate = value.clone(),
+                "LANG" => self.lang = value.clone(),
                 _ => (),
             };
         }
