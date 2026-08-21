@@ -47,12 +47,20 @@ pub fn escape(
 
 const HYPERLINK_ESCAPE_CHARS: &AsciiSet = &CONTROLS
     .add(b' ')
-    .add(b'?')
+    .add(b'"')
     .add(b'#')
     .add(b'%')
+    .add(b'<')
+    .add(b'>')
+    .add(b'?')
     .add(b'[')
+    .add(b'\\')
     .add(b']')
-    .add(b'\\');
+    .add(b'^')
+    .add(b'`')
+    .add(b'{')
+    .add(b'|')
+    .add(b'}');
 
 const HYPERLINK_ESCAPE_CHARS_WINDOWS: &AsciiSet = &CONTROLS
     .add(b' ')
@@ -166,6 +174,19 @@ mod test {
         assert_eq!(
             get_hyperlink_start_tag("/path/100%_done"),
             format!("{HYPERLINK_OPENING_START}file:///path/100%25_done{HYPERLINK_OPENING_END}"),
+        );
+    }
+
+    // The Unix escape set is a superset of the Windows one; the extra
+    // characters below are only encoded on non-Windows targets.
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn hyperlink_start_tag_escapes_uri_path_characters() {
+        assert_eq!(
+            get_hyperlink_start_tag(r#"/folder/file#?%[]\"<>^`{|}.txt"#),
+            format!(
+                "{HYPERLINK_OPENING_START}file:///folder/file%23%3F%25%5B%5D%5C%22%3C%3E%5E%60%7B%7C%7D.txt{HYPERLINK_OPENING_END}"
+            ),
         );
     }
 
