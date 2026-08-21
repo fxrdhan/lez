@@ -79,6 +79,7 @@ pub static EXA_MAX_LUMINANCE: &str = "EXA_MAX_LUMINANCE";
 /// Any explicit use of `--icons=WHEN` overrides this behavior.
 pub static EZA_ICONS_AUTO: &str = "EZA_ICONS_AUTO";
 
+pub static LSR_STDIN_SEPARATOR: &str = "LSR_STDIN_SEPARATOR";
 pub static EZA_STDIN_SEPARATOR: &str = "EZA_STDIN_SEPARATOR";
 
 /// Environment variable for user home directory.
@@ -153,6 +154,9 @@ pub mod test {
         pub eza_config_dir: OsString,
         pub xdg_config_home: OsString,
         pub home: OsString,
+        pub lsr_stdin_separator: OsString,
+        pub eza_stdin_separator: OsString,
+        pub stdin_separator: OsString,
         pub stdout_is_terminal: bool,
     }
 
@@ -204,6 +208,17 @@ pub mod test {
                     Some(self.xdg_config_home.clone())
                 }
                 "HOME" if !self.home.is_empty() => Some(self.home.clone()),
+                "LSR_STDIN_SEPARATOR" if !self.lsr_stdin_separator.is_empty() => {
+                    Some(self.lsr_stdin_separator.clone())
+                }
+                "EZA_STDIN_SEPARATOR" if !self.eza_stdin_separator.is_empty() => {
+                    Some(self.eza_stdin_separator.clone())
+                }
+                "LSR_STDIN_SEPARATOR" | "EZA_STDIN_SEPARATOR"
+                    if !self.stdin_separator.is_empty() =>
+                {
+                    Some(self.stdin_separator.clone())
+                }
                 _ => None,
             }
         }
@@ -234,6 +249,8 @@ pub mod test {
                 "EZA_CONFIG_DIR" => self.eza_config_dir = value.clone(),
                 "XDG_CONFIG_HOME" => self.xdg_config_home = value.clone(),
                 "HOME" => self.home = value.clone(),
+                "LSR_STDIN_SEPARATOR" => self.lsr_stdin_separator = value.clone(),
+                "EZA_STDIN_SEPARATOR" => self.eza_stdin_separator = value.clone(),
                 _ => (),
             };
         }
@@ -286,5 +303,11 @@ pub mod test {
 
         vars.set(LSR_MAX_LUMINANCE, &OsString::from("85"));
         assert_eq!(vars.get(LSR_MAX_LUMINANCE), Some(OsString::from("85")));
+
+        vars.set(LSR_STDIN_SEPARATOR, &OsString::from(","));
+        assert_eq!(vars.get(LSR_STDIN_SEPARATOR), Some(OsString::from(",")));
+
+        vars.set(EZA_STDIN_SEPARATOR, &OsString::from(";"));
+        assert_eq!(vars.get(EZA_STDIN_SEPARATOR), Some(OsString::from(";")));
     }
 }
