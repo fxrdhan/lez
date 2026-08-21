@@ -28,7 +28,7 @@ impl Icons {
     const CLOCK: char           = '\u{f43a}';  // 
     const COMPRESSED: char      = '\u{f410}';  // 
     const CONFIG: char          = '\u{f107b}'; // 󱁻
-    const CSS3: char            = '\u{e749}';  // 
+    const LANG_CSS: char        = '\u{e749}';  // 
     const DATABASE: char        = '\u{f1c0}';  // 
     const DIFF: char            = '\u{f440}';  // 
     const DISK_IMAGE: char      = '\u{e271}';  // 
@@ -78,7 +78,7 @@ impl Icons {
     const GRUNT: char           = '\u{e611}';  // 
     const GTK: char             = '\u{f362}';  // 
     const GULP: char            = '\u{e610}';  // 
-    const HTML5: char           = '\u{f13b}';  // 
+    const LANG_HTML: char       = '\u{f13b}';  // 
     const IMAGE: char           = '\u{f1c5}';  // 
     const INFO: char            = '\u{f129}';  // 
     const INTELLIJ: char        = '\u{e7b5}';  // 
@@ -134,7 +134,7 @@ impl Icons {
     const MUSTACHE: char        = '\u{e60f}';  // 
     const NEWS: char            = '\u{f1ea}';  // 
     const NODEJS: char          = '\u{e718}';  // 
-    const NOTEBOOK: char          = '\u{e678}';  // 
+    const NOTEBOOK: char        = '\u{e678}';  // 
     const NPM: char             = '\u{e71e}';  // 
     const OS_ANDROID: char      = '\u{e70e}';  // 
     const OS_APPLE: char        = '\u{f179}';  // 
@@ -601,7 +601,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "csh"            => Icons::SHELL_CMD,        // 
     "cshtml"         => Icons::RAZOR,            // 
     "csproj"         => Icons::LANG_CSHARP,      // 󰌛
-    "css"            => Icons::CSS3,             // 
+    "css"            => Icons::LANG_CSS,        // 
     "csv"            => '\u{eefc}',              // 
     "csx"            => Icons::LANG_CSHARP,      // 󰌛
     "cts"            => Icons::LANG_TYPESCRIPT,  // 
@@ -743,8 +743,8 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "hpp"            => Icons::LANG_CPP,         // 
     "hrl"            => '\u{e7b1}',              // 
     "hs"             => Icons::LANG_HASKELL,     // 
-    "htm"            => Icons::HTML5,            // 
-    "html"           => Icons::HTML5,            // 
+    "htm"            => Icons::LANG_HTML,       // 
+    "html"           => Icons::LANG_HTML,       // 
     "hxx"            => Icons::LANG_CPP,         // 
     "iam"            => Icons::CAD,              // 󰻫
     "ical"           => Icons::CALENDAR,         // 
@@ -1012,7 +1012,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "sha512"         => Icons::SHIELD_CHECK,     // 󰕥
     "shell"          => Icons::SHELL_CMD,        // 
     "shp"            => Icons::IMAGE,            // 
-    "shtml"          => Icons::HTML5,            // 
+    "shtml"          => Icons::LANG_HTML,       // 
     "sig"            => Icons::SIGNED_FILE,      // 󱧃
     "signature"      => Icons::SIGNED_FILE,      // 󱧃
     "sld"            => Icons::LANG_SCHEME,      // 
@@ -1128,7 +1128,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "xcf"            => Icons::GIMP,             // 
     "xci"            => '\u{F07E1}',             // 󰟡
     "xcplayground"   => '\u{e755}',              // 
-    "xhtml"          => Icons::HTML5,            // 
+    "xhtml"          => Icons::LANG_HTML,       // 
     "xlr"            => Icons::SHEET,            // 
     "xls"            => Icons::SHEET,            // 
     "xlsm"           => Icons::SHEET,            // 
@@ -1266,17 +1266,28 @@ mod test {
     }
 
     #[test]
+    fn test_lang_html_and_css_icon_consts() {
+        // Renamed from HTML5/CSS3 to match the LANG_* naming convention.
+        assert_eq!(Icons::LANG_HTML, '\u{f13b}');
+        assert_eq!(Icons::LANG_CSS, '\u{e749}');
+        assert_eq!(
+            icon_for_name_ext("index.html", Some("html")),
+            Icons::LANG_HTML
+        );
+        assert_eq!(icon_for_name_ext("page.htm", Some("htm")), Icons::LANG_HTML);
+        assert_eq!(
+            icon_for_name_ext("site.xhtml", Some("xhtml")),
+            Icons::LANG_HTML
+        );
+        assert_eq!(icon_for_name_ext("style.css", Some("css")), Icons::LANG_CSS);
+    }
+
+    #[test]
     fn test_westwood_extension_icons() {
         assert_eq!(icon_for_name_ext("theme.aud", Some("aud")), Icons::AUDIO);
         assert_eq!(icon_for_name_ext("model.des", Some("des")), Icons::IMAGE);
-        assert_eq!(
-            icon_for_name_ext("artwork.int", Some("int")),
-            Icons::IMAGE
-        );
-        assert_eq!(
-            icon_for_name_ext("pak.mix", Some("mix")),
-            Icons::COMPRESSED
-        );
+        assert_eq!(icon_for_name_ext("artwork.int", Some("int")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("pak.mix", Some("mix")), Icons::COMPRESSED);
         assert_eq!(icon_for_name_ext("sprite.shp", Some("shp")), Icons::IMAGE);
         assert_eq!(icon_for_name_ext("tile.sno", Some("sno")), Icons::IMAGE);
         assert_eq!(icon_for_name_ext("tem.pal", Some("tem")), Icons::IMAGE);
