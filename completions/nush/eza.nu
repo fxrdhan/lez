@@ -26,6 +26,7 @@ export extern "eza" [
     --group-directories-first  # Sort directories before other files
     --group-directories-last   # Sort directories after other files
     --git-ignore               # Ignore files mentioned in '.gitignore'
+    --since: string            # Filter and display only files created or modified within duration window
     --all(-a)                  # Show hidden and 'dot' files. Use this twice to also show the '.' and '..' directories
     --almost-all(-A)           # Equivalent to --all; included for compatibility with `ls -A`
     --treat-dirs-as-files(-d)  # List directories like regular files
@@ -46,6 +47,7 @@ export extern "eza" [
     --loc: string              # Add lines-of-code and language columns (lines, percent, both)
     --code: string             # Summarise lines of code by language (lines, percent, both)
     --blocksize(-S)            # List each file's size of allocated file system blocks
+    --blocks                   # List each file's size of allocated file system blocks
     --time(-t) -d              # Which timestamp field to list
     --modified(-m)             # Use the modified timestamp field
     --numeric(-n)              # List numeric user and group IDs.
