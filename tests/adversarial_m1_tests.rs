@@ -17,6 +17,7 @@ use lsr::output::color_scale::{
 };
 use lsr::output::file_name::{
     Absolute, Classify, EmbedHyperlinks, Options as FileStyleOptions, QuoteStyle, ShowIcons,
+    ShowSymlinkTargets,
 };
 use lsr::output::table::SizeFormat;
 use lsr::output::{Mode, TerminalWidth};
@@ -135,6 +136,7 @@ fn test_r1_hyperlink_painting_with_special_characters() {
         embed_hyperlinks: EmbedHyperlinks::Always,
         absolute: Absolute::Off,
         short_nix: false,
+        show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
         is_a_tty: true,
     };
 
@@ -657,6 +659,7 @@ fn test_r1_adversarial_hyperlink_edge_cases() {
         embed_hyperlinks: EmbedHyperlinks::Always,
         absolute: Absolute::Off,
         short_nix: false,
+        show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
         is_a_tty: true,
     };
 
