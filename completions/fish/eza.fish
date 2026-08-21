@@ -58,6 +58,7 @@ complete -c eza -l smart-group -d "Only show group if it has a different name fr
 complete -c eza -l group-directories-first -d "Sort directories before other files"
 complete -c eza -l group-directories-last -d "Sort directories after other files"
 complete -c eza -l git-ignore -d "Ignore files mentioned in '.gitignore'"
+complete -c eza -l since -d "Filter and display only files created or modified within duration window" -r
 complete -c eza -s a -l all -d "Show hidden and 'dot' files. Use this twice to also show the '.' and '..' directories"
 complete -c eza -s A -l almost-all -d "Equivalent to --all; included for compatibility with `ls -A`"
 complete -c eza -s d -l treat-dirs-as-files -d "List directories like regular files"
@@ -78,11 +79,14 @@ complete -c eza -s s -l sort -d "Which field to sort by" -x -a "
     filename\t'Sort by filename'
     Filename\t'Sort by filename (uppercase first)'
     inode\t'Sort by file inode'
+    mod\t'Sort by file modified time'
     modified\t'Sort by file modified time'
     name\t'Sort by filename'
     Name\t'Sort by filename (uppercase first)'
+    new\t'Sort by file modified time (newest first)'
     newest\t'Sort by file modified time (newest first)'
     none\t'Do not sort files at all'
+    old\t'Sort by file modified time'
     oldest\t'Sort by file modified time'
     path\t'Sort by file path'
     Path\t'Sort by file path (uppercase first)'
