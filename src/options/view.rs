@@ -323,6 +323,7 @@ impl TableOptions {
         let user_format = UserFormat::deduce(matches);
         let group_format = GroupFormat::deduce(matches);
         let columns = Columns::deduce(matches, vars)?;
+        let use_utc = matches.get_flag("utc");
         Ok(Self {
             size_format,
             time_format,
@@ -330,6 +331,7 @@ impl TableOptions {
             group_format,
             flags_format,
             columns,
+            use_utc,
             spaces,
         })
     }
@@ -690,6 +692,20 @@ mod tests {
     use std::num::ParseIntError;
 
     use super::*;
+
+    #[test]
+    fn deduce_table_options_utc_flag() {
+        let cli = mock_cli(vec!["--long", "--utc"]);
+        let opts = TableOptions::deduce(&cli, &MockVars::default(), 2).unwrap();
+        assert!(opts.use_utc);
+    }
+
+    #[test]
+    fn deduce_table_options_utc_default_off() {
+        let cli = mock_cli(vec!["--long"]);
+        let opts = TableOptions::deduce(&cli, &MockVars::default(), 2).unwrap();
+        assert!(!opts.use_utc);
+    }
 
     #[test]
     fn deduce_time_types_no_time() {

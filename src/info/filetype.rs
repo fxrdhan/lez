@@ -99,6 +99,7 @@ const EXTENSION_TYPES: Map<&'static str, FileType> = phf_map! {
     "bmp"        => FileType::Image,
     "cbr"        => FileType::Image,
     "cbz"        => FileType::Image,
+    "cb7"        => FileType::Image,
     "cr2"        => FileType::Image,
     "dvi"        => FileType::Image,
     "eps"        => FileType::Image,
@@ -457,5 +458,10 @@ mod test {
         assert_eq!(EXTENSION_TYPES.get("adb"), Some(&FileType::Source));
         assert_eq!(EXTENSION_TYPES.get("ads"), Some(&FileType::Source));
         assert_eq!(EXTENSION_TYPES.get("gpr"), Some(&FileType::Build));
+    }
+
+    #[test]
+    fn test_cb7_file_type() {
+        assert_eq!(EXTENSION_TYPES.get("cb7"), Some(&FileType::Image));
     }
 }

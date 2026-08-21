@@ -28,7 +28,7 @@ impl Icons {
     const CLOCK: char           = '\u{f43a}';  // 
     const COMPRESSED: char      = '\u{f410}';  // 
     const CONFIG: char          = '\u{f107b}'; // 󱁻
-    const CSS3: char            = '\u{e749}';  // 
+    const LANG_CSS: char        = '\u{e749}';  // 
     const DATABASE: char        = '\u{f1c0}';  // 
     const DIFF: char            = '\u{f440}';  // 
     const DISK_IMAGE: char      = '\u{e271}';  // 
@@ -78,7 +78,7 @@ impl Icons {
     const GRUNT: char           = '\u{e611}';  // 
     const GTK: char             = '\u{f362}';  // 
     const GULP: char            = '\u{e610}';  // 
-    const HTML5: char           = '\u{f13b}';  // 
+    const LANG_HTML: char       = '\u{f13b}';  // 
     const IMAGE: char           = '\u{f1c5}';  // 
     const INFO: char            = '\u{f129}';  // 
     const INTELLIJ: char        = '\u{e7b5}';  // 
@@ -134,7 +134,7 @@ impl Icons {
     const MUSTACHE: char        = '\u{e60f}';  // 
     const NEWS: char            = '\u{f1ea}';  // 
     const NODEJS: char          = '\u{e718}';  // 
-    const NOTEBOOK: char          = '\u{e678}';  // 
+    const NOTEBOOK: char        = '\u{e678}';  // 
     const NPM: char             = '\u{e71e}';  // 
     const OS_ANDROID: char      = '\u{e70e}';  // 
     const OS_APPLE: char        = '\u{f179}';  // 
@@ -540,6 +540,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "asp"            => '\u{f121}',              // 
     "astro"          => '\u{e6b3}',              // 
     "ass"            => Icons::SUBTITLE,         // 󰨖
+    "aud"            => Icons::AUDIO,            // 
     "avi"            => Icons::VIDEO,            // 
     "avif"           => Icons::IMAGE,            // 
     "avro"           => Icons::JSON,             // 
@@ -571,6 +572,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "catproduct"     => Icons::CAD,              // 󰻫
     "cbr"            => Icons::IMAGE,            // 
     "cbz"            => Icons::IMAGE,            // 
+    "cb7"            => Icons::IMAGE,            // 
     "cc"             => Icons::LANG_CPP,         // 
     "cert"           => Icons::GIST_SECRET,      // 
     "cfg"            => Icons::CONFIG,           // 󱁻
@@ -599,7 +601,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "csh"            => Icons::SHELL_CMD,        // 
     "cshtml"         => Icons::RAZOR,            // 
     "csproj"         => Icons::LANG_CSHARP,      // 󰌛
-    "css"            => Icons::CSS3,             // 
+    "css"            => Icons::LANG_CSS,        // 
     "csv"            => '\u{eefc}',              // 
     "csx"            => Icons::LANG_CSHARP,      // 󰌛
     "cts"            => Icons::LANG_TYPESCRIPT,  // 
@@ -612,6 +614,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "db3"            => Icons::SQLITE,           // 
     "dconf"          => Icons::DATABASE,         // 
     "deb"            => '\u{e77d}',              // 
+    "des"            => Icons::IMAGE,            // 
     "desktop"        => '\u{ebd1}',              // 
     "di"             => Icons::LANG_D,           // 
     "diff"           => Icons::DIFF,             // 
@@ -740,8 +743,8 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "hpp"            => Icons::LANG_CPP,         // 
     "hrl"            => '\u{e7b1}',              // 
     "hs"             => Icons::LANG_HASKELL,     // 
-    "htm"            => Icons::HTML5,            // 
-    "html"           => Icons::HTML5,            // 
+    "htm"            => Icons::LANG_HTML,       // 
+    "html"           => Icons::LANG_HTML,       // 
     "hxx"            => Icons::LANG_CPP,         // 
     "iam"            => Icons::CAD,              // 󰻫
     "ical"           => Icons::CALENDAR,         // 
@@ -759,6 +762,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "info"           => Icons::INFO,             // 
     "ini"            => Icons::CONFIG,           // 󱁻
     "inl"            => Icons::LANG_C,           // 
+    "int"            => Icons::IMAGE,            // 
     "ipynb"          => Icons::NOTEBOOK,              // 
     "ino"            => Icons::LANG_ARDUINO,     // 
     "ipt"            => Icons::CAD,              // 󰻫
@@ -848,6 +852,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "mdb"            => Icons::DATABASE,         // 
     "mdx"            => Icons::MARKDOWN,         // 
     "mid"            => '\u{f08f2}',             // 󰣲
+    "mix"            => Icons::COMPRESSED,       // 
     "mjs"            => Icons::LANG_JAVASCRIPT,  // 
     "mk"             => Icons::MAKE,             // 
     "mka"            => Icons::AUDIO,            // 
@@ -1006,7 +1011,8 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "sha384"         => Icons::SHIELD_CHECK,     // 󰕥
     "sha512"         => Icons::SHIELD_CHECK,     // 󰕥
     "shell"          => Icons::SHELL_CMD,        // 
-    "shtml"          => Icons::HTML5,            // 
+    "shp"            => Icons::IMAGE,            // 
+    "shtml"          => Icons::LANG_HTML,       // 
     "sig"            => Icons::SIGNED_FILE,      // 󱧃
     "signature"      => Icons::SIGNED_FILE,      // 󱧃
     "sld"            => Icons::LANG_SCHEME,      // 
@@ -1018,6 +1024,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "sln"            => '\u{e70c}',              // 
     "slnx"           => '\u{e70c}',              // 
     "slvs"           => Icons::CAD,              // 󰻫
+    "sno"            => Icons::IMAGE,            // 
     "so"             => Icons::OS_LINUX,         // 
     "sql"            => Icons::DATABASE,         // 
     "sqlite"         => Icons::SQLITE,           // 
@@ -1059,6 +1066,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "tbz2"           => Icons::COMPRESSED,       // 
     "tc"             => Icons::DISK_IMAGE,       // 
     "tcl"            => Icons::TCL,              // 󰛓
+    "tem"            => Icons::IMAGE,            // 
     "tex"            => Icons::LANG_TEX,         // 
     "tf"             => Icons::TERRAFORM,        // 󱁢
     "tfstate"        => Icons::TERRAFORM,        // 󱁢
@@ -1098,6 +1106,8 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "vim"            => Icons::VIM,              // 
     "vmdk"           => Icons::DISK_IMAGE,       // 
     "vob"            => Icons::VIDEO,            // 
+    "vqa"            => Icons::VIDEO,            // 
+    "vqp"            => Icons::VIDEO,            // 
     "vsix"           => '\u{f0a1e}',             // 󰨞
     "vue"            => '\u{f0844}',             // 󰡄
     "war"            => Icons::LANG_JAVA,        // 
@@ -1118,7 +1128,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "xcf"            => Icons::GIMP,             // 
     "xci"            => '\u{F07E1}',             // 󰟡
     "xcplayground"   => '\u{e755}',              // 
-    "xhtml"          => Icons::HTML5,            // 
+    "xhtml"          => Icons::LANG_HTML,       // 
     "xlr"            => Icons::SHEET,            // 
     "xls"            => Icons::SHEET,            // 
     "xlsm"           => Icons::SHEET,            // 
@@ -1248,6 +1258,41 @@ mod test {
             icon_for_name_ext("project.jdn", Some("jdn")),
             Icons::LANG_JANET
         );
+    }
+
+    #[test]
+    fn test_cb7_icon_mapping() {
+        assert_eq!(icon_for_name_ext("comic.cb7", Some("cb7")), Icons::IMAGE);
+    }
+
+    #[test]
+    fn test_lang_html_and_css_icon_consts() {
+        // Renamed from HTML5/CSS3 to match the LANG_* naming convention.
+        assert_eq!(Icons::LANG_HTML, '\u{f13b}');
+        assert_eq!(Icons::LANG_CSS, '\u{e749}');
+        assert_eq!(
+            icon_for_name_ext("index.html", Some("html")),
+            Icons::LANG_HTML
+        );
+        assert_eq!(icon_for_name_ext("page.htm", Some("htm")), Icons::LANG_HTML);
+        assert_eq!(
+            icon_for_name_ext("site.xhtml", Some("xhtml")),
+            Icons::LANG_HTML
+        );
+        assert_eq!(icon_for_name_ext("style.css", Some("css")), Icons::LANG_CSS);
+    }
+
+    #[test]
+    fn test_westwood_extension_icons() {
+        assert_eq!(icon_for_name_ext("theme.aud", Some("aud")), Icons::AUDIO);
+        assert_eq!(icon_for_name_ext("model.des", Some("des")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("artwork.int", Some("int")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("pak.mix", Some("mix")), Icons::COMPRESSED);
+        assert_eq!(icon_for_name_ext("sprite.shp", Some("shp")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("tile.sno", Some("sno")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("tem.pal", Some("tem")), Icons::IMAGE);
+        assert_eq!(icon_for_name_ext("movie.vqa", Some("vqa")), Icons::VIDEO);
+        assert_eq!(icon_for_name_ext("movie.vqp", Some("vqp")), Icons::VIDEO);
     }
 
     #[test]
