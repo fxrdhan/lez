@@ -11,17 +11,34 @@ use chrono::prelude::*;
 use nu_ansi_term::Style;
 
 pub trait Render {
-    fn render(self, style: Style, time_offset: FixedOffset, time_format: TimeFormat) -> TextCell;
-    fn render_json(self, time_offset: FixedOffset, time_format: TimeFormat) -> Option<String>;
+    fn render(
+        self,
+        style: Style,
+        time_offset: FixedOffset,
+        time_format: TimeFormat,
+        use_utc: bool,
+    ) -> TextCell;
+    fn render_json(
+        self,
+        time_offset: FixedOffset,
+        time_format: TimeFormat,
+        use_utc: bool,
+    ) -> Option<String>;
 }
 
 impl Render for Option<NaiveDateTime> {
-    fn render(self, style: Style, time_offset: FixedOffset, time_format: TimeFormat) -> TextCell {
+    fn render(
+        self,
+        style: Style,
+        time_offset: FixedOffset,
+        time_format: TimeFormat,
+        use_utc: bool,
+    ) -> TextCell {
         let datestamp = if let Some(time) = self {
-            time_format.format(&DateTime::<FixedOffset>::from_naive_utc_and_offset(
-                time,
-                time_offset,
-            ))
+            time_format.format(
+                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, time_offset),
+                use_utc,
+            )
         } else {
             String::from("-")
         };
@@ -29,12 +46,17 @@ impl Render for Option<NaiveDateTime> {
         TextCell::paint(style, datestamp)
     }
 
-    fn render_json(self, time_offset: FixedOffset, time_format: TimeFormat) -> Option<String> {
+    fn render_json(
+        self,
+        time_offset: FixedOffset,
+        time_format: TimeFormat,
+        use_utc: bool,
+    ) -> Option<String> {
         self.map(|time| {
-            time_format.format(&DateTime::<FixedOffset>::from_naive_utc_and_offset(
-                time,
-                time_offset,
-            ))
+            time_format.format(
+                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, time_offset),
+                use_utc,
+            )
         })
     }
 }

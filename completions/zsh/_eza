@@ -71,6 +71,7 @@ __eza() {
         --no-time"[Suppress the time field]" \
         {-u,--accessed}"[Use the accessed timestamp field]" \
         {-U,--created}"[Use the created timestamp field]" \
+        --utc="[Show the time in the UTC timezone]" \
         --git"[List each file's Git status, if tracked]" \
         --no-git"[Suppress Git status]" \
         --git-repos"[List each git-repos status and branch name]" \
