@@ -571,6 +571,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "catproduct"     => Icons::CAD,              // 󰻫
     "cbr"            => Icons::IMAGE,            // 
     "cbz"            => Icons::IMAGE,            // 
+    "cb7"            => Icons::IMAGE,            // 
     "cc"             => Icons::LANG_CPP,         // 
     "cert"           => Icons::GIST_SECRET,      // 
     "cfg"            => Icons::CONFIG,           // 󱁻
@@ -1248,6 +1249,11 @@ mod test {
             icon_for_name_ext("project.jdn", Some("jdn")),
             Icons::LANG_JANET
         );
+    }
+
+    #[test]
+    fn test_cb7_icon_mapping() {
+        assert_eq!(icon_for_name_ext("comic.cb7", Some("cb7")), Icons::IMAGE);
     }
 
     #[test]
