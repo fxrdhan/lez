@@ -101,6 +101,7 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
         ignore_patterns,
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
+        since: None,
         no_symlinks: false,
         show_symlinks: false,
     }
