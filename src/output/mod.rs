@@ -18,6 +18,7 @@ pub mod icons;
 pub mod json;
 pub mod lines;
 pub mod render;
+pub mod summary;
 pub mod table;
 pub mod time;
 
@@ -35,6 +36,7 @@ pub struct View {
     pub follow_links: bool,
     pub total_size: bool,
     pub total_entries: bool,
+    pub summary: bool,
 }
 
 /// The **mode** is the “type” of output.
