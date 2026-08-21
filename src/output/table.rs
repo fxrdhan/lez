@@ -40,6 +40,7 @@ pub struct Options {
     pub group_format: GroupFormat,
     pub flags_format: FlagsFormat,
     pub columns: Columns,
+    pub use_utc: bool,
     pub spaces: usize,
 }
 
@@ -443,6 +444,7 @@ pub struct Table<'a> {
     group_format: GroupFormat,
     flags_format: FlagsFormat,
     git: Option<&'a GitCache>,
+    use_utc: bool,
 
     /// The grand total of code lines used as the denominator for `--loc`
     /// percentage columns. `None` until computed by the details renderer.
@@ -482,6 +484,7 @@ impl<'a> Table<'a> {
             #[cfg(unix)]
             group_format: options.group_format,
             flags_format: options.flags_format,
+            use_utc: options.use_utc,
             loc_total: None,
             spaces: options.spaces,
         }
@@ -615,8 +618,13 @@ impl<'a> Table<'a> {
                 } else {
                     self.theme.ui.date.unwrap_or_default()
                 },
-                self.env.time_offset,
+                if self.use_utc {
+                    FixedOffset::east_opt(0).unwrap()
+                } else {
+                    self.env.time_offset
+                },
                 self.time_format.clone(),
+                self.use_utc,
             ),
         }
     }

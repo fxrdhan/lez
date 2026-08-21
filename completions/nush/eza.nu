@@ -55,6 +55,7 @@ export extern "eza" [
     --changed                  # Use the changed timestamp field
     --accessed(-u)             # Use the accessed timestamp field
     --created(-U)              # Use the created timestamp field
+    --utc                      # Show the time in the UTC timezone
     --time-style               # How to format timestamps
     --total-size               # Show recursive directory size (unix only)
     --no-permissions           # Suppress the permissions field

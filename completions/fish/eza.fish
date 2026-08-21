@@ -128,6 +128,7 @@ complete -c eza -s n -l numeric -d "List numeric user and group IDs."
 complete -c eza -l changed -d "Use the changed timestamp field"
 complete -c eza -s u -l accessed -d "Use the accessed timestamp field"
 complete -c eza -s U -l created -d "Use the created timestamp field"
+complete -c eza -l utc -d "Show the time in the UTC timezone"
 complete -c eza -l time-style -d "How to format timestamps" -x -a "
     default\t'Use the default time style'
     iso\t'Display brief ISO timestamps'

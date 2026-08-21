@@ -71,6 +71,7 @@ LONG VIEW OPTIONS:
   -u, --accessed             show the accessed timestamp field (replace default field, combinable)
       --changed              show the changed timestamp field (replace default field, combinable)
   -U, --created              show the created timestamp field (replace default field, combinable)
+      --utc                   show the time in the UTC timezone
       --time-style <STYLE>   how to format timestamps [possible values:
                                default, iso, long-iso, full-iso, relative, "+<CUSTOM_FORMAT>"]
   -O, --flags                list file flags (Mac, BSD, and Windows only)

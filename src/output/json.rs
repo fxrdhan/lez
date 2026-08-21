@@ -363,9 +363,15 @@ impl<'a> JsonFileObject<'a> {
     fn get_column(&self, f: &File, c: &Column, env: &Environment, xattrs: bool) -> Option<String> {
         match c {
             Column::Permissions => f.permissions_plus(xattrs).render_json(),
-            Column::Timestamp(time_type) => time_type
-                .get_corresponding_time(f)
-                .render_json(env.time_offset, self.options.time_format.clone()),
+            Column::Timestamp(time_type) => time_type.get_corresponding_time(f).render_json(
+                if self.options.use_utc {
+                    chrono::FixedOffset::east_opt(0).unwrap()
+                } else {
+                    env.time_offset
+                },
+                self.options.time_format.clone(),
+                self.options.use_utc,
+            ),
             Column::FileSize => f.size().render_json(self.options.size_format, &env.numeric),
             #[cfg(unix)]
             Column::User => f
