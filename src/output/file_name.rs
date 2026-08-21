@@ -109,6 +109,16 @@ fn shorten_nix_segments(name: &str) -> Vec<NameSegment> {
 }
 
 impl Options {
+    /// Whether icons should actually be displayed based on configuration and tty state.
+    #[must_use]
+    pub fn are_icons_enabled(&self) -> bool {
+        match self.show_icons {
+            ShowIcons::Always(_) => true,
+            ShowIcons::Automatic(_) => self.is_a_tty,
+            ShowIcons::Never => false,
+        }
+    }
+
     /// Create a new `FileName` that prints the given file’s name, painting it
     /// with the remaining arguments.
     pub fn for_file<'a, 'dir, C>(
