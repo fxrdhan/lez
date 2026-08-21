@@ -132,6 +132,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('-U'                         ,'created'             , [CompletionResultType]::ParameterName, 'use the created timestamp field')
             [CompletionResult]::new('--changed'                  ,'changed'             , [CompletionResultType]::ParameterName, 'use the changed timestamp field') 
             [CompletionResult]::new('--created'                  ,'created'             , [CompletionResultType]::ParameterName, 'use the created timestamp field')
+            [CompletionResult]::new('--utc'                      ,'utc'                  , [CompletionResultType]::ParameterName, 'show the time in the UTC timezone')
             [CompletionResult]::new('--time-style'               ,'time-style'          , [CompletionResultType]::ParameterName, 'how to format timestamps (default, iso, long-iso,full-iso, relative, or a custom style ''+<FORMAT>'' like ''+%Y-%m-%d %H:%M'')')
         #   [CompletionResult]::new('--total-size'               ,'total-size'          , [CompletionResultType]::ParameterName, 'show the size of a directory as the size of all files and directories inside (unix only)')
         #   [CompletionResult]::new('-o'                         ,'octal-permissions'   , [CompletionResultType]::ParameterName, 'list each file''s permission in octal format')

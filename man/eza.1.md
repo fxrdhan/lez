@@ -293,6 +293,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `-U`, `--created`
 : Use the created timestamp field.
 
+`--utc`
+: Show the time in the UTC timezone.
+
 `--no-permissions`
 : Suppress the permissions field.
 

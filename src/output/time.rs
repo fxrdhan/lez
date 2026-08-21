@@ -67,17 +67,17 @@ pub enum TimeFormat {
 
 impl TimeFormat {
     #[must_use]
-    pub fn format(self, time: &DateTime<FixedOffset>) -> String {
+    pub fn format(self, time: &DateTime<FixedOffset>, use_utc: bool) -> String {
         #[rustfmt::skip]
         return match self {
             Self::DefaultFormat                 => default(time),
             Self::ISOFormat                     => iso(time),
             Self::LongISO                       => long(time),
-            Self::FullISO                       => full(time),
+            Self::FullISO                       => full(time, use_utc),
             Self::Relative                      => relative(time),
             Self::RelativeRecent { recent_window_days } => relative_recent(time, recent_window_days),
             Self::Custom { non_recent, recent } => custom(
-                time, non_recent.as_str(), recent.as_deref()
+                time, non_recent.as_str(), recent.as_deref(), use_utc
             ),
         };
     }
@@ -143,21 +143,87 @@ fn relative_recent(time: &DateTime<FixedOffset>, recent_window_days: Option<u32>
     }
 }
 
-fn full(time: &DateTime<FixedOffset>) -> String {
-    time.format("%Y-%m-%d %H:%M:%S.%f %z").to_string()
+fn full(time: &DateTime<FixedOffset>, use_utc: bool) -> String {
+    format_with_tz(time, "%Y-%m-%d %H:%M:%S.%f %z", use_utc)
 }
 
-fn custom(time: &DateTime<FixedOffset>, non_recent_fmt: &str, recent_fmt: Option<&str>) -> String {
-    if let Some(recent_fmt) = recent_fmt {
+fn custom(
+    time: &DateTime<FixedOffset>,
+    non_recent_fmt: &str,
+    recent_fmt: Option<&str>,
+    use_utc: bool,
+) -> String {
+    let format = if let Some(recent_fmt) = recent_fmt {
         if time.year() == *CURRENT_YEAR {
-            time.format(recent_fmt).to_string()
+            recent_fmt
         } else {
-            time.format(non_recent_fmt).to_string()
+            non_recent_fmt
         }
     } else {
-        time.format(non_recent_fmt).to_string()
+        non_recent_fmt
+    };
+
+    format_with_tz(time, format, use_utc)
+}
+
+fn format_with_tz(time: &DateTime<FixedOffset>, format: &str, use_utc: bool) -> String {
+    if !format.contains("%Z") {
+        return time.format(format).to_string();
+    }
+
+    let tz_name = if use_utc {
+        String::from("UTC")
+    } else {
+        TZ_HANDLER.get_abbreviation(time.timestamp())
+    };
+    let mut result = String::new();
+    let mut last_end = 0;
+    for (start, part) in format.match_indices("%Z") {
+        result.push_str(&time.format(&format[last_end..start]).to_string());
+        result.push_str(&tz_name);
+        last_end = start + part.len();
+    }
+    result.push_str(&time.format(&format[last_end..]).to_string());
+    result
+}
+
+struct TimezoneHandler;
+
+impl TimezoneHandler {
+    #[cfg(unix)]
+    fn get_abbreviation(&self, timestamp: i64) -> String {
+        unsafe {
+            unsafe extern "C" {
+                fn tzset();
+                fn localtime_r(timep: *const libc::time_t, result: *mut libc::tm) -> *mut libc::tm;
+                static tzname: [*const libc::c_char; 2];
+            }
+
+            tzset();
+            let mut tm: libc::tm = std::mem::zeroed();
+            #[allow(trivial_numeric_casts)]
+            let t = timestamp as libc::time_t;
+            if localtime_r(&t, &mut tm).is_null() {
+                return String::new();
+            }
+
+            let idx = usize::from(tm.tm_isdst > 0);
+            let ptr = tzname[idx];
+            if ptr.is_null() {
+                return String::new();
+            }
+
+            std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned()
+        }
+    }
+
+    #[cfg(not(unix))]
+    fn get_abbreviation(&self, _timestamp: i64) -> String {
+        String::new()
     }
 }
+
+static TZ_HANDLER: LazyLock<TimezoneHandler> = LazyLock::new(|| TimezoneHandler);
 
 static CURRENT_YEAR: LazyLock<i32> = LazyLock::new(|| Local::now().year());
 
@@ -179,6 +245,76 @@ mod test {
     use super::*;
 
     #[test]
+    fn custom_format_with_utc_flag_renders_utc_abbreviation() {
+        // 12:00 UTC+2 == 10:00 UTC; with --utc the %Z slot must read "UTC"
+        // and the clock must be shifted to the UTC wall time.
+        let time = DateTime::<FixedOffset>::from_naive_utc_and_offset(
+            NaiveDate::from_ymd_opt(2024, 6, 1)
+                .unwrap()
+                .and_hms_opt(10, 0, 0)
+                .unwrap(),
+            FixedOffset::east_opt(0).unwrap(),
+        );
+        let fmt = TimeFormat::Custom {
+            non_recent: String::from("%H:%M %Z"),
+            recent: None,
+        };
+        assert_eq!(fmt.format(&time, true), "10:00 UTC");
+    }
+
+    #[test]
+    fn full_iso_with_utc_flag_uses_utc_zone_designator() {
+        // The caller (table/json rendering) passes a zero offset when --utc
+        // is set; format() then labels %Z-style output as UTC.
+        let utc_time = DateTime::<FixedOffset>::from_naive_utc_and_offset(
+            NaiveDate::from_ymd_opt(2024, 6, 1)
+                .unwrap()
+                .and_hms_opt(10, 0, 0)
+                .unwrap(),
+            FixedOffset::east_opt(0).unwrap(),
+        );
+        let rendered = TimeFormat::FullISO.format(&utc_time, true);
+        assert!(rendered.starts_with("2024-06-01 10:00:00"), "{rendered}");
+        assert!(rendered.ends_with("+0000"), "{rendered}");
+    }
+
+    #[test]
+    fn formats_without_z_ignore_use_utc() {
+        let time = DateTime::<FixedOffset>::from_naive_utc_and_offset(
+            NaiveDate::from_ymd_opt(2024, 6, 1)
+                .unwrap()
+                .and_hms_opt(10, 0, 0)
+                .unwrap(),
+            FixedOffset::east_opt(2 * 3600).unwrap(),
+        );
+        let fmt = TimeFormat::Custom {
+            non_recent: String::from("%Y-%m-%d %H:%M"),
+            recent: None,
+        };
+        assert_eq!(fmt.clone().format(&time, true), "2024-06-01 12:00");
+        assert_eq!(fmt.format(&time, false), "2024-06-01 12:00");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_timezone_abbreviation_is_resolved_without_utc_flag() {
+        // With use_utc=false, %Z resolves through libc tzname; it must be
+        // non-empty for any valid timestamp on a configured system.
+        let time = DateTime::<FixedOffset>::from_naive_utc_and_offset(
+            NaiveDate::from_ymd_opt(2024, 6, 1)
+                .unwrap()
+                .and_hms_opt(10, 0, 0)
+                .unwrap(),
+            FixedOffset::east_opt(0).unwrap(),
+        );
+        let fmt = TimeFormat::Custom {
+            non_recent: String::from("%Z"),
+            recent: None,
+        };
+        assert!(!fmt.format(&time, false).is_empty());
+    }
+
+    #[test]
     fn relative_recent_time_format_default_window() {
         let now = Local::now();
 
@@ -187,8 +323,8 @@ mod test {
         let formatted_recent = TimeFormat::RelativeRecent {
             recent_window_days: None,
         }
-        .format(&recent_time);
-        let formatted_relative = TimeFormat::Relative.format(&recent_time);
+        .format(&recent_time, false);
+        let formatted_relative = TimeFormat::Relative.format(&recent_time, false);
         assert_eq!(formatted_recent, formatted_relative);
 
         // 10 days ago (> 7 days default window): should be formatted default calendar
@@ -196,8 +332,8 @@ mod test {
         let formatted_old = TimeFormat::RelativeRecent {
             recent_window_days: None,
         }
-        .format(&old_time);
-        let formatted_default = TimeFormat::DefaultFormat.format(&old_time);
+        .format(&old_time, false);
+        let formatted_default = TimeFormat::DefaultFormat.format(&old_time, false);
         assert_eq!(formatted_old, formatted_default);
 
         // Future timestamp (1 day in future): should fall back to default calendar
@@ -205,10 +341,10 @@ mod test {
         let formatted_future = TimeFormat::RelativeRecent {
             recent_window_days: None,
         }
-        .format(&future_time);
+        .format(&future_time, false);
         assert_eq!(
             formatted_future,
-            TimeFormat::DefaultFormat.format(&future_time)
+            TimeFormat::DefaultFormat.format(&future_time, false)
         );
     }
 
@@ -221,10 +357,10 @@ mod test {
         let formatted_custom_recent = TimeFormat::RelativeRecent {
             recent_window_days: Some(3),
         }
-        .format(&two_days_ago);
+        .format(&two_days_ago, false);
         assert_eq!(
             formatted_custom_recent,
-            TimeFormat::Relative.format(&two_days_ago)
+            TimeFormat::Relative.format(&two_days_ago, false)
         );
 
         // 4 days ago (> 3 days custom window): should be default calendar
@@ -232,10 +368,10 @@ mod test {
         let formatted_custom_old = TimeFormat::RelativeRecent {
             recent_window_days: Some(3),
         }
-        .format(&four_days_ago);
+        .format(&four_days_ago, false);
         assert_eq!(
             formatted_custom_old,
-            TimeFormat::DefaultFormat.format(&four_days_ago)
+            TimeFormat::DefaultFormat.format(&four_days_ago, false)
         );
 
         // Window = 0 days: all times formatted default
@@ -243,10 +379,10 @@ mod test {
         let formatted_zero_window = TimeFormat::RelativeRecent {
             recent_window_days: Some(0),
         }
-        .format(&one_hour_ago);
+        .format(&one_hour_ago, false);
         assert_eq!(
             formatted_zero_window,
-            TimeFormat::DefaultFormat.format(&one_hour_ago)
+            TimeFormat::DefaultFormat.format(&one_hour_ago, false)
         );
     }
 
