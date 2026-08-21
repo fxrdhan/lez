@@ -98,6 +98,7 @@ impl Dir {
         git_ignoring: bool,
         deref_links: bool,
         total_size: bool,
+        mime_read_contents: bool,
     ) -> Files<'dir, 'ig> {
         Files {
             inner: self.contents.iter(),
@@ -110,6 +111,7 @@ impl Dir {
             git_ignoring,
             deref_links,
             total_size,
+            mime_read_contents,
         }
     }
 
@@ -157,6 +159,9 @@ pub struct Files<'dir, 'ig> {
 
     /// Whether to calculate the directory size recursively
     total_size: bool,
+
+    /// Whether to determine MIME types for styling decisions.
+    mime_read_contents: bool,
 }
 
 impl<'dir> Files<'dir, '_> {
@@ -200,6 +205,7 @@ impl<'dir> Files<'dir, '_> {
                     filename,
                     self.deref_links,
                     self.total_size,
+                    self.mime_read_contents,
                     entry.file_type().ok(),
                 );
 
@@ -238,7 +244,11 @@ impl<'dir> Iterator for Files<'dir, '_> {
         match self.dots {
             DotsNext::Dot => {
                 self.dots = DotsNext::DotDot;
-                Some(File::new_aa_current(self.dir, self.total_size))
+                Some(File::new_aa_current(
+                    self.dir,
+                    self.total_size,
+                    self.mime_read_contents,
+                ))
             }
 
             DotsNext::DotDot => {
@@ -247,6 +257,7 @@ impl<'dir> Iterator for Files<'dir, '_> {
                     self.parent(),
                     self.dir,
                     self.total_size,
+                    self.mime_read_contents,
                 ))
             }
 
@@ -346,7 +357,7 @@ mod windows_tests {
         set_hidden(&path.join("hidden.txt"));
         let dir = Dir::read_dir(path.clone()).unwrap();
         let names: Vec<_> = dir
-            .files(DotFilter::DotfilesByName, None, false, false, false)
+            .files(DotFilter::DotfilesByName, None, false, false, false, false)
             .map(|file| file.name)
             .collect();
         assert!(names.contains(&".dotfile".to_string()));

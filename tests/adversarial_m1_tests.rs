@@ -145,7 +145,7 @@ fn test_r1_hyperlink_painting_with_special_characters() {
         let file_path = temp.path.join(name);
         fs::write(&file_path, b"test content").expect("Write test file");
 
-        let file = File::from_args(file_path.clone(), None, None, false, false, None);
+        let file = File::from_args(file_path.clone(), None, None, false, false, false, None);
         let abs = file.absolute_path();
         let file_name = file_style_opts.for_file(&file, &theme);
         let cell_contents = file_name.paint();
@@ -228,8 +228,24 @@ fn test_r2_color_scale_all_files_ignored_returns_none_extremes() {
         size: true,
         age: true,
     };
-    let file_cargo = File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
-    let file_readme = File::from_args(PathBuf::from("README.md"), None, None, false, false, None);
+    let file_cargo = File::from_args(
+        PathBuf::from("Cargo.toml"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+    let file_readme = File::from_args(
+        PathBuf::from("README.md"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
     let files = vec![file_cargo, file_readme];
 
     // Ignore both files
@@ -259,7 +275,15 @@ fn test_r2_color_scale_single_file_min_equals_max_style_safety() {
         size: true,
         age: true,
     };
-    let file_cargo = File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
+    let file_cargo = File::from_args(
+        PathBuf::from("Cargo.toml"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
     let files = vec![file_cargo];
 
     let filter = make_filter(vec![], vec![]);
@@ -291,9 +315,25 @@ fn test_r2_color_scale_combined_only_files_and_ignore_glob() {
         size: true,
         age: true,
     };
-    let file_cargo = File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
-    let file_readme = File::from_args(PathBuf::from("README.md"), None, None, false, false, None);
-    let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, None);
+    let file_cargo = File::from_args(
+        PathBuf::from("Cargo.toml"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+    let file_readme = File::from_args(
+        PathBuf::from("README.md"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+    let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, false, None);
 
     let files = vec![file_cargo, file_readme, dir_src];
 
@@ -331,9 +371,9 @@ fn test_r2_color_scale_nested_directory_tree_exclusion() {
     fs::write(&f4, vec![0u8; 50000]).unwrap();
 
     let root_files = vec![
-        File::from_args(f1.clone(), None, None, false, false, None),
-        File::from_args(f2.clone(), None, None, false, false, None),
-        File::from_args(subdir.clone(), None, None, false, false, None),
+        File::from_args(f1.clone(), None, None, false, false, false, None),
+        File::from_args(f2.clone(), None, None, false, false, false, None),
+        File::from_args(subdir.clone(), None, None, false, false, false, None),
     ];
 
     let opts = ColorScaleOptions {
@@ -672,7 +712,7 @@ fn test_r1_adversarial_hyperlink_edge_cases() {
         let file_path = temp.path.join(name);
         fs::write(&file_path, b"data").expect("write");
 
-        let file = File::from_args(file_path.clone(), None, None, false, false, None);
+        let file = File::from_args(file_path.clone(), None, None, false, false, false, None);
         let file_name = file_style_opts.for_file(&file, &theme);
         let cell_contents = file_name.paint();
         let rendered_str = format!("{}", cell_contents.strings());
@@ -742,9 +782,9 @@ fn test_r2_adversarial_deep_hierarchy_with_multiple_filters() {
     fs::write(&f_tmp, vec![0u8; 5000]).unwrap();
 
     let root_files = vec![
-        File::from_args(f1.clone(), None, None, false, false, None),
-        File::from_args(f_bak.clone(), None, None, false, false, None),
-        File::from_args(l1.clone(), None, None, false, false, None),
+        File::from_args(f1.clone(), None, None, false, false, false, None),
+        File::from_args(f_bak.clone(), None, None, false, false, false, None),
+        File::from_args(l1.clone(), None, None, false, false, false, None),
     ];
 
     let opts = ColorScaleOptions {

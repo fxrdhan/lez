@@ -105,6 +105,9 @@ pub struct File<'dir> {
     /// instead.
     pub deref_links: bool,
 
+    /// Whether to determine MIME types for styling decisions.
+    pub mime_read_contents: bool,
+
     /// The recursive directory size when `total_size` is used.
     recursive_size: RecursiveSize,
 
@@ -113,6 +116,9 @@ pub struct File<'dir> {
 
     /// The absolute value of this path, used to look up mount points.
     absolute_path: OnceLock<Option<PathBuf>>,
+
+    /// The MIME type of this file.
+    mimetype: OnceLock<Option<&'static str>>,
 }
 
 impl<'dir> File<'dir> {
@@ -122,6 +128,7 @@ impl<'dir> File<'dir> {
         filename: FN,
         deref_links: bool,
         total_size: bool,
+        mime_read_contents: bool,
         filetype: Option<std::fs::FileType>,
     ) -> File<'dir>
     where
@@ -157,9 +164,11 @@ impl<'dir> File<'dir> {
             deref_links,
             recursive_size,
             filetype,
+            mime_read_contents,
             metadata: OnceLock::new(),
             extended_attributes: OnceLock::new(),
             absolute_path: OnceLock::new(),
+            mimetype: OnceLock::new(),
         };
 
         if total_size {
@@ -174,6 +183,7 @@ impl<'dir> File<'dir> {
         parent_dir: &'dir Dir,
         name: &'static str,
         total_size: bool,
+        mime_read_contents: bool,
     ) -> File<'dir> {
         let ext = File::ext(&path);
 
@@ -193,10 +203,12 @@ impl<'dir> File<'dir> {
             is_all_all,
             deref_links: false,
             recursive_size,
+            mime_read_contents,
             metadata: OnceLock::new(),
             absolute_path: OnceLock::new(),
             extended_attributes: OnceLock::new(),
             filetype: OnceLock::new(),
+            mimetype: OnceLock::new(),
         };
 
         if total_size {
@@ -207,13 +219,28 @@ impl<'dir> File<'dir> {
     }
 
     #[must_use]
-    pub fn new_aa_current(parent_dir: &'dir Dir, total_size: bool) -> File<'dir> {
-        File::new_aa(parent_dir.path.clone(), parent_dir, ".", total_size)
+    pub fn new_aa_current(
+        parent_dir: &'dir Dir,
+        total_size: bool,
+        mime_read_contents: bool,
+    ) -> File<'dir> {
+        File::new_aa(
+            parent_dir.path.clone(),
+            parent_dir,
+            ".",
+            total_size,
+            mime_read_contents,
+        )
     }
 
     #[must_use]
-    pub fn new_aa_parent(path: PathBuf, parent_dir: &'dir Dir, total_size: bool) -> File<'dir> {
-        File::new_aa(path, parent_dir, "..", total_size)
+    pub fn new_aa_parent(
+        path: PathBuf,
+        parent_dir: &'dir Dir,
+        total_size: bool,
+        mime_read_contents: bool,
+    ) -> File<'dir> {
+        File::new_aa(path, parent_dir, "..", total_size, mime_read_contents)
     }
 
     /// A file’s name is derived from its string. This needs to handle directories
@@ -272,6 +299,21 @@ impl<'dir> File<'dir> {
         self.filetype
             .get_or_init(|| self.metadata().as_ref().ok().map(|md| md.file_type()))
             .as_ref()
+    }
+
+    pub fn mimetype(&self) -> Option<&'static str> {
+        *self.mimetype.get_or_init(|| {
+            if let Some(filetype) = self.filetype()
+                && filetype.is_file()
+                && self.mime_read_contents
+            {
+                debug!("Mimetype reading file {:?}", self.path);
+                return tree_magic_mini::from_filepath(&self.path).inspect(|mimetype| {
+                    debug!("Mimetype {:?} file {:?}", mimetype, self.path);
+                });
+            }
+            None
+        })
     }
 
     pub fn metadata(&self) -> Result<&std::fs::Metadata, &io::Error> {
@@ -513,6 +555,8 @@ impl<'dir> File<'dir> {
                     extended_attributes,
                     absolute_path: absolute_path_cell,
                     recursive_size: RecursiveSize::None,
+                    mime_read_contents: self.mime_read_contents,
+                    mimetype: OnceLock::new(),
                 };
                 FileTarget::Ok(Box::new(file))
             }
@@ -684,7 +728,14 @@ impl<'dir> File<'dir> {
             Dir::read_dir(self.path.clone()).map_or(RecursiveSize::Unknown, |dir| {
                 let mut size = 0;
                 let mut blocks = 0;
-                for file in dir.files(super::DotFilter::Dotfiles, None, false, false, true) {
+                for file in dir.files(
+                    super::DotFilter::Dotfiles,
+                    None,
+                    false,
+                    false,
+                    true,
+                    self.mime_read_contents,
+                ) {
                     match file.recursive_directory_size() {
                         RecursiveSize::Some(bytes, blks) => {
                             size += bytes;
@@ -788,7 +839,7 @@ impl<'dir> File<'dir> {
         match Dir::read_dir(self.path.clone()) {
             // . & .. are skipped, if the returned iterator has .next(), it's not empty
             Ok(has_files) => has_files
-                .files(super::DotFilter::Dotfiles, None, false, false, false)
+                .files(super::DotFilter::Dotfiles, None, false, false, false, false)
                 .next()
                 .is_none(),
             Err(_) => false,
@@ -1210,8 +1261,9 @@ mod length_test {
 
         std::os::unix::fs::symlink(&target_path, &link_path).unwrap();
 
-        let link_no_deref = File::from_args(link_path.clone(), None, None, false, false, None);
-        let link_deref = File::from_args(link_path, None, None, true, false, None);
+        let link_no_deref =
+            File::from_args(link_path.clone(), None, None, false, false, false, None);
+        let link_deref = File::from_args(link_path, None, None, true, false, false, None);
 
         assert_eq!(
             link_no_deref.length(),
@@ -1279,7 +1331,7 @@ mod broken_symlink_test {
     use std::path::PathBuf;
 
     fn make_file(path: PathBuf) -> File<'static> {
-        File::from_args(path, None, None, false, false, None)
+        File::from_args(path, None, None, false, false, false, None)
     }
 
     /// A symlink with an empty target should be treated as broken, not as
@@ -1388,12 +1440,12 @@ mod recursive_size_test {
         fs::write(dir.join("one.bin"), vec![0u8; 4096]).unwrap();
         fs::write(dir.join("two.bin"), vec![0u8; 1024]).unwrap();
 
-        let file = File::from_args(dir.clone(), None, None, false, true, None);
+        let file = File::from_args(dir.clone(), None, None, false, true, false, None);
         let first = file.length();
         assert!(first >= 5120, "recursive size {first} below file bytes");
 
         // Second construction must hit DIRECTORY_SIZE_CACHE and agree.
-        let file2 = File::from_args(dir.clone(), None, None, false, true, None);
+        let file2 = File::from_args(dir.clone(), None, None, false, true, false, None);
         assert_eq!(first, file2.length());
 
         let _ = fs::remove_dir_all(dir);
@@ -1404,8 +1456,49 @@ mod recursive_size_test {
         let dir = temp_dir("plain");
         fs::write(dir.join("file.txt"), b"data").unwrap();
 
-        let file = File::from_args(dir.join("file.txt"), None, None, false, true, None);
+        let file = File::from_args(dir.join("file.txt"), None, None, false, true, false, None);
         assert_eq!(file.length(), 4);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+}
+
+#[cfg(all(test, unix))]
+mod mime_type_test {
+    use super::File;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn temp_dir(label: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "lsr_mime_test_{label}_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn test_file_mimetype_detection_when_enabled() {
+        let dir = temp_dir("enabled");
+        let png_no_ext = dir.join("png_no_ext");
+        fs::write(
+            &png_no_ext,
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4",
+        )
+        .unwrap();
+
+        let file_with_mime =
+            File::from_args(png_no_ext.clone(), None, None, false, false, true, None);
+        assert_eq!(file_with_mime.mimetype(), Some("image/png"));
+
+        let file_without_mime = File::from_args(png_no_ext, None, None, false, false, false, None);
+        assert_eq!(file_without_mime.mimetype(), None);
 
         let _ = fs::remove_dir_all(dir);
     }

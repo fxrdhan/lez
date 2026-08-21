@@ -547,6 +547,13 @@ impl FileNameColours for Theme {
             {
                 return Some(file_override.clone());
             }
+
+            if let Some(ref mime_overrides) = self.ui.mimetypes
+                && let Some(mimetype) = file.mimetype()
+                && let Some(file_override) = mime_overrides.get(mimetype)
+            {
+                return Some(file_override.clone());
+            }
         }
 
         None

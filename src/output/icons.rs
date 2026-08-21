@@ -92,6 +92,7 @@ impl Icons {
     const LANG_ARDUINO: char    = '\u{f34b}';  // 
     const LANG_ASSEMBLY: char   = '\u{e637}';  // 
     const LANG_C: char          = '\u{e61e}';  // 
+    const LANG_CLOJURE: char    = '\u{e768}';  // 
     const LANG_CPP: char        = '\u{e61d}';  // 
     const LANG_CSHARP: char     = '\u{f031b}'; // 󰌛
     const LANG_D: char          = '\u{e7af}';  // 
@@ -109,6 +110,7 @@ impl Icons {
     const LANG_JAVA: char       = '\u{e256}';  // 
     const LANG_JAVASCRIPT: char = '\u{e74e}';  // 
     const LANG_KOTLIN: char     = '\u{e634}';  // 
+    const LANG_LISP: char       = '\u{e6b0}';  // 
     const LANG_LUA: char        = '\u{e620}';  // 
     const LANG_NIM: char        = '\u{e677}';  // 
     const LANG_OCAML: char      = '\u{e67a}';  // 
@@ -120,15 +122,18 @@ impl Icons {
     const LANG_RUBYRAILS: char  = '\u{e73b}';  // 
     const LANG_RUST: char       = '\u{e68b}';  // 
     const LANG_SASS: char       = '\u{e603}';  // 
+    const LANG_SCALA: char      = '\u{e737}';  // 
     const LANG_SCHEME: char     = '\u{e6b1}';  // 
     const LANG_STYLUS: char     = '\u{e600}';  // 
     const LANG_TEX: char        = '\u{e69b}';  // 
     const LANG_TYPESCRIPT: char = '\u{e628}';  // 
     const LANG_V: char          = '\u{e6ac}';  // 
+    const LANG_ZIG: char        = '\u{e6a9}';  // 
     const LIBRARY: char         = '\u{eb9c}';  // 
     const LICENSE: char         = '\u{f02d}';  // 
     const LOCK: char            = '\u{f023}';  // 
     const LOG: char             = '\u{f18d}';  // 
+    const MAIL: char            = '\u{f003}';  // 
     const MAKE: char            = '\u{e673}';  // 
     const MARKDOWN: char        = '\u{f48a}';  // 
     const MUSTACHE: char        = '\u{e60f}';  // 
@@ -141,6 +146,7 @@ impl Icons {
     const OS_LINUX: char        = '\u{f17c}';  // 
     const OS_WINDOWS: char      = '\u{f17a}';  // 
     const OS_WINDOWS_CMD: char  = '\u{ebc4}';  // 
+    const PDF: char             = '\u{f1c1}';  // 
     const PLAYLIST: char        = '\u{f0cb9}'; // 󰲹
     const POWERSHELL: char      = '\u{ebc7}';  // 
     const PRIVATE_KEY: char     = '\u{f0306}'; // 󰌆
@@ -1220,6 +1226,58 @@ fn load_special_dirs() -> HashMap<PathBuf, char> {
     map
 }
 
+/// Mapping from specific MIME type to icon.
+const MIME_ICONS: Map<&'static str, char> = phf_map! {
+    "application/pdf"              => Icons::PDF,
+    "application/postscript"       => Icons::DOCUMENT,
+    "application/zip"              => Icons::COMPRESSED,
+    "application/x-tar"            => Icons::COMPRESSED,
+    "application/x-bzip"           => Icons::COMPRESSED,
+    "application/x-bzip2"          => Icons::COMPRESSED,
+    "application/gzip"             => Icons::COMPRESSED,
+    "application/x-gzip"           => Icons::COMPRESSED,
+    "application/x-lzip"           => Icons::COMPRESSED,
+    "application/x-lzma"           => Icons::COMPRESSED,
+    "application/x-lzop"           => Icons::COMPRESSED,
+    "application/x-xz"             => Icons::COMPRESSED,
+    "application/x-compress"       => Icons::COMPRESSED,
+    "application/x-7z-compressed"  => Icons::COMPRESSED,
+    "application/x-rar"            => Icons::COMPRESSED,
+    "application/x-rar-compressed" => Icons::COMPRESSED,
+    "application/x-rpm"            => Icons::COMPRESSED,
+    "application/x-apple-diskimage"=> Icons::DISK_IMAGE,
+    "application/x-deb"            => Icons::COMPRESSED,
+    "application/zstd"             => Icons::COMPRESSED,
+    "text/x-rust"                  => Icons::LANG_RUST,
+    "text/x-c"                     => Icons::LANG_C,
+    "text/x-csrc"                  => Icons::LANG_C,
+    "text/x-c++"                   => Icons::LANG_CPP,
+    "text/x-c++src"                => Icons::LANG_CPP,
+    "text/x-python"                => Icons::LANG_PYTHON,
+    "text/x-python3"               => Icons::LANG_PYTHON,
+    "text/x-shellscript"           => Icons::SHELL,
+    "text/markdown"                => Icons::MARKDOWN,
+    "text/html"                    => Icons::LANG_HTML,
+    "text/css"                     => Icons::LANG_CSS,
+    "text/x-lisp"                  => Icons::LANG_LISP,
+    "text/x-clojure"               => Icons::LANG_CLOJURE,
+    "text/x-scala"                 => Icons::LANG_SCALA,
+    "text/x-zig"                   => Icons::LANG_ZIG,
+    "application/x-executable"     => Icons::BINARY,
+    "application/x-sharedlib"      => Icons::LIBRARY,
+    "application/x-pie-executable" => Icons::BINARY,
+    "application/x-mach-binary"    => Icons::BINARY,
+    "message/rfc822"               => Icons::MAIL,
+};
+
+/// Mapping from top-level MIME wildcard category to icon.
+const MIME_WILDCARD_ICONS: Map<&'static str, char> = phf_map! {
+    "image" => Icons::IMAGE,
+    "video" => Icons::VIDEO,
+    "audio" => Icons::AUDIO,
+    "font"  => Icons::FONT,
+};
+
 /// Lookup the icon for a file based on the file's name, if the entry is a
 /// directory, or by the lowercase file extension.
 pub fn icon_for_file(file: &File<'_>) -> char {
@@ -1237,8 +1295,27 @@ pub fn icon_for_file(file: &File<'_>) -> char {
         }
     } else if let Some(icon) = FILENAME_ICONS.get(file.name.as_str()) {
         *icon
-    } else if let Some(ext) = file.ext.as_ref() {
-        *EXTENSION_ICONS.get(ext.as_str()).unwrap_or(&Icons::FILE) // 
+    } else if let Some(icon) = file
+        .ext
+        .as_ref()
+        .and_then(|ext| EXTENSION_ICONS.get(ext.as_str()))
+    {
+        *icon
+    } else if let Some(mimetype) = file.mimetype() {
+        if let Some(icon) = MIME_ICONS.get(mimetype) {
+            *icon
+        } else if let Some(icon) = mimetype
+            .split_once('/')
+            .and_then(|(mime, _)| MIME_WILDCARD_ICONS.get(mime))
+        {
+            *icon
+        } else if file.ext.is_some() {
+            Icons::FILE
+        } else {
+            Icons::FILE_UNKNOW
+        }
+    } else if file.ext.is_some() {
+        Icons::FILE // 
     } else {
         Icons::FILE_UNKNOW // 󰡯
     }
@@ -1334,5 +1411,22 @@ mod test {
             Icons::FILE
         );
         assert_eq!(icon_for_name_ext("noextension", None), Icons::FILE_UNKNOW);
+    }
+
+    #[test]
+    fn test_mime_icons_mapping() {
+        assert_eq!(MIME_ICONS.get("application/pdf"), Some(&Icons::PDF));
+        assert_eq!(MIME_ICONS.get("application/zip"), Some(&Icons::COMPRESSED));
+        assert_eq!(MIME_ICONS.get("text/x-rust"), Some(&Icons::LANG_RUST));
+        assert_eq!(MIME_ICONS.get("text/x-clojure"), Some(&Icons::LANG_CLOJURE));
+        assert_eq!(MIME_ICONS.get("text/x-lisp"), Some(&Icons::LANG_LISP));
+        assert_eq!(MIME_ICONS.get("text/x-scala"), Some(&Icons::LANG_SCALA));
+        assert_eq!(MIME_ICONS.get("text/x-zig"), Some(&Icons::LANG_ZIG));
+        assert_eq!(MIME_ICONS.get("message/rfc822"), Some(&Icons::MAIL));
+
+        assert_eq!(MIME_WILDCARD_ICONS.get("image"), Some(&Icons::IMAGE));
+        assert_eq!(MIME_WILDCARD_ICONS.get("video"), Some(&Icons::VIDEO));
+        assert_eq!(MIME_WILDCARD_ICONS.get("audio"), Some(&Icons::AUDIO));
+        assert_eq!(MIME_WILDCARD_ICONS.get("font"), Some(&Icons::FONT));
     }
 }

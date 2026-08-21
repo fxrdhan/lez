@@ -861,7 +861,7 @@ mod test {
     fn hyperlink_wraps_full_explicit_path() {
         let colours = TestColours;
         let path = std::path::PathBuf::from("tests/itest/index.svg");
-        let file = File::from_args(path, None, None, false, false, None);
+        let file = File::from_args(path, None, None, false, false, false, None);
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
@@ -904,7 +904,7 @@ mod test {
     fn hyperlink_with_icons_keeps_icon_outside_tags() {
         let colours = TestColours;
         let path = std::path::PathBuf::from("tests/itest/index.svg");
-        let file = File::from_args(path, None, None, false, false, None);
+        let file = File::from_args(path, None, None, false, false, false, None);
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Always(1),
@@ -938,7 +938,7 @@ mod test {
     fn hyperlink_with_classifier_keeps_classifier_outside_tags() {
         let colours = TestColours;
         let path = std::path::PathBuf::from("tests/itest");
-        let file = File::from_args(path, None, None, false, false, None);
+        let file = File::from_args(path, None, None, false, false, false, None);
         let options = Options {
             classify: Classify::AddFileIndicators,
             show_icons: ShowIcons::Never,
@@ -973,8 +973,8 @@ mod test {
         let colours = TestColours;
         let link_path = std::path::PathBuf::from("tests/itest/dir-symlink");
         let target_path = std::path::PathBuf::from("vagrant/debug");
-        let link_file = File::from_args(link_path, None, None, false, false, None);
-        let target_file = File::from_args(target_path, None, None, false, false, None);
+        let link_file = File::from_args(link_path, None, None, false, false, false, None);
+        let target_file = File::from_args(target_path, None, None, false, false, false, None);
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
@@ -1008,7 +1008,7 @@ mod test {
     fn hyperlink_disabled_emits_no_osc8_sequences() {
         let colours = TestColours;
         let path = std::path::PathBuf::from("tests/itest/index.svg");
-        let file = File::from_args(path, None, None, false, false, None);
+        let file = File::from_args(path, None, None, false, false, false, None);
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
@@ -1040,8 +1040,8 @@ mod test {
         let colours = TestColours;
         let link_path = std::path::PathBuf::from("tests/itest/dir-symlink");
         let target_path = std::path::PathBuf::from("vagrant/debug");
-        let link_file = File::from_args(link_path, None, None, false, false, None);
-        let target_file = File::from_args(target_path, None, None, false, false, None);
+        let link_file = File::from_args(link_path, None, None, false, false, false, None);
+        let target_file = File::from_args(target_path, None, None, false, false, false, None);
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
@@ -1076,8 +1076,8 @@ mod test {
         let colours = TestColours;
         let link_path = std::path::PathBuf::from("tests/itest/dir-symlink");
         let target_path = std::path::PathBuf::from("vagrant/debug");
-        let link_file = File::from_args(link_path, None, None, false, false, None);
-        let target_file = File::from_args(target_path, None, None, false, false, None);
+        let link_file = File::from_args(link_path, None, None, false, false, false, None);
+        let target_file = File::from_args(target_path, None, None, false, false, false, None);
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
@@ -1116,8 +1116,8 @@ mod test {
         let colours = TestColours;
         let link_path = std::path::PathBuf::from("tests/itest/dir-symlink");
         let target_path = std::path::PathBuf::from("vagrant/debug");
-        let link_file = File::from_args(link_path, None, None, false, false, None);
-        let target_file = File::from_args(target_path, None, None, false, false, None);
+        let link_file = File::from_args(link_path, None, None, false, false, false, None);
+        let target_file = File::from_args(target_path, None, None, false, false, false, None);
         let options = Options {
             classify: Classify::AddFileIndicators,
             show_icons: ShowIcons::Never,

@@ -120,6 +120,7 @@ That is a **~19.5× speedup** for warm runs, with zero correctness trade-off —
 - **--hyperlink[=(when)]**: when to display entries as hyperlinks (always, auto, never; requires '=' if value provided)
 - **--absolute=(mode)**: display entries with their absolute path (on, follow, off)
 - **--print-total**: print the total number of files and directories listed
+- **--mime-types**: determine file MIME types to better inform styling decisions (unix only)
 - **-w**, **--width=(columns)**: set screen width in columns (clamped to `1..65535`)
 
 </details>
