@@ -33,8 +33,9 @@ impl View {
         strict: bool,
     ) -> Result<Self, OptionsError> {
         let width = TerminalWidth::deduce(matches, vars)?;
-        let is_tty = width.actual_terminal_width().is_some();
-        let mode = Mode::deduce(matches, vars, is_tty, strict)?;
+        let width_is_known = width.actual_terminal_width().is_some();
+        let is_tty = vars.stdout_is_terminal();
+        let mode = Mode::deduce(matches, vars, width_is_known, strict)?;
         let deref_links = matches.get_flag("dereference");
         let follow_links = matches.get_flag("follow-symlinks");
         let total_size = matches.get_flag("total-size");
@@ -1817,6 +1818,25 @@ mod tests {
     }
 
     #[test]
+    fn strict_and_non_strict_blocks_alias_without_long() {
+        let matches = mock_cli(vec!["--blocks"]);
+        assert_eq!(
+            Mode::strict_check_long_flags(&matches),
+            Err(OptionsError::Useless("blocksize", false, "long")),
+        );
+        assert_eq!(
+            Mode::deduce(&matches, &MockVars::default(), false, true),
+            Err(OptionsError::Useless("blocksize", false, "long")),
+        );
+        // In non-strict mode without --long, it should succeed and ignore the flag
+        assert!(Mode::deduce(&matches, &MockVars::default(), false, false).is_ok());
+
+        // With --long, it should succeed in strict mode
+        let matches_long = mock_cli(vec!["--long", "--blocks"]);
+        assert!(Mode::deduce(&matches_long, &MockVars::default(), false, true).is_ok());
+    }
+
+    #[test]
     fn deduce_view_print_total_flag() {
         let matches = mock_cli(vec!["--print-total"]);
         let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
@@ -1882,5 +1902,46 @@ mod tests {
             }
             _ => panic!("Expected Mode::Json"),
         }
+    }
+
+    #[test]
+    fn deduce_view_does_not_treat_columns_as_tty() {
+        let mut vars = MockVars::default();
+        vars.set(vars::COLUMNS, &OsString::from("200"));
+        vars.stdout_is_terminal = false;
+
+        let view = View::deduce(&mock_cli(vec!["--icons=auto"]), &vars, false).unwrap();
+
+        assert_eq!(view.width, Set(200));
+        assert_eq!(
+            view.mode,
+            Mode::Grid(grid::Options {
+                across: false,
+                spaces: 2
+            })
+        );
+        assert_eq!(
+            view.file_style.show_icons,
+            crate::output::file_name::ShowIcons::Automatic(1)
+        );
+        assert!(!view.file_style.is_a_tty);
+        assert!(!view.file_style.are_icons_enabled());
+    }
+
+    #[test]
+    fn deduce_view_enables_icons_when_stdout_is_terminal() {
+        let vars = MockVars {
+            stdout_is_terminal: true,
+            ..MockVars::default()
+        };
+
+        let view = View::deduce(&mock_cli(vec!["--icons=auto"]), &vars, false).unwrap();
+
+        assert_eq!(
+            view.file_style.show_icons,
+            crate::output::file_name::ShowIcons::Automatic(1)
+        );
+        assert!(view.file_style.is_a_tty);
+        assert!(view.file_style.are_icons_enabled());
     }
 }
