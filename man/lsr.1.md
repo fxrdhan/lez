@@ -351,6 +351,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `--no-extended`
 : Don’t show the `@` marker that a file has extended attributes.
 
+`--inspect-archives` [if built with inspect-archives support]
+: In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files.
+
 `-Z`, `--context`
 : List each file's security context.
 
