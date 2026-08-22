@@ -530,6 +530,7 @@ impl FileNameColours for Theme {
     fn nix_hash(&self)            -> Style { self.ui.punctuation() }
     fn executable_file(&self)     -> Style { self.ui.filekinds.unwrap_or_default().executable() }
     fn mount_point(&self)         -> Style { self.ui.filekinds.unwrap_or_default().mount_point() }
+    fn classify_char(&self)       -> Style { self.ui.punctuation() }
 
     fn colour_file(&self, file: &File<'_>) -> Style {
         self.exts
