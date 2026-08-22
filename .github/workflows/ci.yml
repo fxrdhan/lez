@@ -15,8 +15,38 @@ env:
   RUSTFLAGS: --deny warnings
   MSRV: "1.90"
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      nix: ${{ steps.filter.outputs.nix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Classify changed files
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'src/**'
+              - 'tests/**'
+              - 'benches/**'
+              - 'build.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.github/workflows/ci.yml'
+            nix:
+              - 'flake.nix'
+              - 'flake.lock'
+              - 'nix/**'
+              - 'Cargo.lock'
   lint-and-format:
     name: Lint & Format (Rustfmt & Clippy)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -47,6 +77,8 @@ jobs:
           reuse lint
   unit-and-integration-tests:
     name: Tests (${{ matrix.os }} - Rust ${{ matrix.rust }})
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -87,6 +119,8 @@ jobs:
         run: cargo build --release --all-features
   nix-flake-check:
     name: Nix Flake Validation
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.nix == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
