@@ -165,7 +165,7 @@ CLI Input (Args & Env)
 | Generated snapshots (nix-gated) | `tests/gen/` | nix build (`just itest`) |
 | Powertest corpus (feature-gated) | `tests/ptests/` | built via powertest tool (`just regen`) |
 
-Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `just regen` (regenerate powertest cases). See [TESTING.md](TESTING.md) and [TEST_INFRA.md](TEST_INFRA.md).
+Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `just regen` (regenerate powertest cases). See [TESTING.md](TESTING.md).
 
 ### Nix Environment (Optional)
 ```bash
