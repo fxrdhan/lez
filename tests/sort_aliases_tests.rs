@@ -179,3 +179,75 @@ fn test_sort_newest_reverse_matches_oldest() {
 
     assert_eq!(lines_newest_rev, lines_oldest);
 }
+
+#[test]
+fn test_gnu_ls_style_t_sorts_newest_first() {
+    let temp = TempTestDir::new("sort_gnu_t");
+    temp.create_file("older.txt", b"older");
+    temp.create_file("newer.txt", b"newer");
+
+    let now = SystemTime::now();
+    temp.set_mtime("older.txt", now - Duration::from_secs(100));
+    temp.set_mtime("newer.txt", now - Duration::from_secs(10));
+
+    let temp_str = temp.path.to_str().unwrap();
+
+    // lsr -1 -t temp_dir should sort newest first
+    let output_t = run_lsr(&["-1", "-t", "--color=never", temp_str]);
+    assert!(output_t.status.success());
+    let stdout_t = String::from_utf8_lossy(&output_t.stdout);
+    let lines_t: Vec<&str> = stdout_t.lines().collect();
+    assert_eq!(lines_t, vec!["newer.txt", "older.txt"]);
+
+    // lsr -1tr temp_dir should sort oldest first
+    let output_1tr = run_lsr(&["-1tr", "--color=never", temp_str]);
+    assert!(output_1tr.status.success());
+    let stdout_1tr = String::from_utf8_lossy(&output_1tr.stdout);
+    let lines_1tr: Vec<&str> = stdout_1tr.lines().collect();
+    assert_eq!(lines_1tr, vec!["older.txt", "newer.txt"]);
+
+    // lsr -ltra temp_dir should succeed and contain reversed mtime order
+    let output_ltra = run_lsr(&["-ltra", "--color=never", temp_str]);
+    assert!(output_ltra.status.success());
+
+    // Precedence: lsr -1 -t --sort=name -> sorts by name
+    let output_prec_name = run_lsr(&["-1", "-t", "--sort=name", "--color=never", temp_str]);
+    assert!(output_prec_name.status.success());
+    let stdout_prec_name = String::from_utf8_lossy(&output_prec_name.stdout);
+    let lines_prec_name: Vec<&str> = stdout_prec_name.lines().collect();
+    assert_eq!(lines_prec_name, vec!["newer.txt", "older.txt"]); // 'newer' < 'older' alphabetically
+
+    // Precedence: lsr -1 --sort=name -t -> sorts by mtime
+    let output_prec_t = run_lsr(&["-1", "--sort=name", "-t", "--color=never", temp_str]);
+    assert!(output_prec_t.status.success());
+    let stdout_prec_t = String::from_utf8_lossy(&output_prec_t.stdout);
+    let lines_prec_t: Vec<&str> = stdout_prec_t.lines().collect();
+    assert_eq!(lines_prec_t, vec!["newer.txt", "older.txt"]);
+}
+
+#[test]
+fn test_gnu_ls_style_t_with_explicit_positional_files() {
+    let temp = TempTestDir::new("sort_gnu_t_files");
+    let file_older = temp.create_file("file_older.txt", b"older");
+    let file_newer = temp.create_file("file_newer.txt", b"newer");
+
+    let now = SystemTime::now();
+    temp.set_mtime("file_older.txt", now - Duration::from_secs(100));
+    temp.set_mtime("file_newer.txt", now - Duration::from_secs(10));
+
+    let path_older = file_older.to_str().unwrap();
+    let path_newer = file_newer.to_str().unwrap();
+
+    // lsr -1 -t file_older file_newer -> both files listed, newest first
+    let output = run_lsr(&["-1", "-t", "--color=never", path_older, path_newer]);
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 2);
+    assert!(lines[0].contains("file_newer.txt"));
+    assert!(lines[1].contains("file_older.txt"));
+}

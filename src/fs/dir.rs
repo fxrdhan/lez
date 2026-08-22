@@ -464,4 +464,19 @@ mod tests {
         let dir = Dir::read_dir(test_dir.path.clone()).unwrap();
         assert!(!dir.contains(&test_dir.path.join("anything.txt")));
     }
+
+    #[test]
+    fn test_dir_contains_multiple_lookups() {
+        let test_dir = TestDir::new("multiple_lookups");
+        let file_a = test_dir.create_file("main.tex");
+        let file_b = test_dir.create_file("main.log");
+        let file_c = test_dir.create_file("main.aux");
+
+        let dir = Dir::read_dir(test_dir.path.clone()).unwrap();
+        assert!(dir.contains(&file_a));
+        assert!(dir.contains(&file_b));
+        assert!(dir.contains(&file_c));
+        assert!(!dir.contains(&test_dir.path.join("main.toc")));
+        assert!(!dir.contains(&test_dir.path.join("other.tex")));
+    }
 }

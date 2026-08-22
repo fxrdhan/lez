@@ -4,8 +4,8 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
+use clap::ArgMatches;
 use clap::parser::ValueSource;
-use clap::{ArgMatches, ValueEnum};
 
 use crate::output::TerminalWidth::Automatic;
 
@@ -163,9 +163,7 @@ impl Mode {
             }
         }
 
-        if let Some(word) = matches.get_one::<TimeArgs>("time")
-            && *word != TimeArgs::Default
-        {
+        if let Some(_word) = matches.get_one::<TimeArgs>("time") {
             return Err(OptionsError::Useless("time", false, "long"));
         }
 
@@ -584,18 +582,7 @@ impl TimeTypes {
                 created: false,
             }
         } else if let Some(word) = possible_word {
-            if *word == TimeArgs::Default {
-                if modified || changed || accessed || created {
-                    Self {
-                        modified,
-                        changed,
-                        accessed,
-                        created,
-                    }
-                } else {
-                    Self::default()
-                }
-            } else if modified {
+            if modified {
                 return Err(OptionsError::Useless("modified", true, "time"));
             } else if changed {
                 return Err(OptionsError::Useless("changed", true, "time"));
@@ -603,16 +590,13 @@ impl TimeTypes {
                 return Err(OptionsError::Useless("accessed", true, "time"));
             } else if created {
                 return Err(OptionsError::Useless("created", true, "time"));
-            } else if *word == TimeArgs::Modified  {
-                Self { modified: true,  changed: false, accessed: false, created: false }
-            } else if *word == TimeArgs::Changed {
-                Self { modified: false, changed: true,  accessed: false, created: false }
-            } else if *word == TimeArgs::Accessed {
-                Self { modified: false, changed: false, accessed: true,  created: false }
-            } else if *word == TimeArgs::Created {
-                Self { modified: false, changed: false, accessed: false, created: true  }
             } else {
-                return Err(OptionsError::BadArgument("time", word.to_possible_value().unwrap().get_name().into()));
+                match *word {
+                    TimeArgs::Modified => Self { modified: true,  changed: false, accessed: false, created: false },
+                    TimeArgs::Changed => Self { modified: false, changed: true,  accessed: false, created: false },
+                    TimeArgs::Accessed => Self { modified: false, changed: false, accessed: true,  created: false },
+                    TimeArgs::Created => Self { modified: false, changed: false, accessed: false, created: true  },
+                }
             }
         } else if modified || changed || accessed || created {
             Self {
@@ -793,28 +777,6 @@ mod tests {
     fn deduce_time_types_modified_word_m() {
         assert_eq!(
             TimeTypes::deduce(&mock_cli(vec!["--time=m"])),
-            Ok(TimeTypes {
-                modified: true,
-                ..TimeTypes::default()
-            })
-        );
-    }
-
-    #[test]
-    fn deduce_time_types_modified_word_r() {
-        assert_eq!(
-            TimeTypes::deduce(&mock_cli(vec!["--time=r"])),
-            Ok(TimeTypes {
-                modified: true,
-                ..TimeTypes::default()
-            })
-        );
-    }
-
-    #[test]
-    fn deduce_time_types_short_time_r() {
-        assert_eq!(
-            TimeTypes::deduce(&mock_cli(vec!["-t=r"])),
             Ok(TimeTypes {
                 modified: true,
                 ..TimeTypes::default()

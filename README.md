@@ -136,6 +136,7 @@ That is a **~19.5× speedup** for warm runs, with zero correctness trade-off —
 - **-L**, **--level=(depth)**: limit the depth of recursion
 - **-r**, **--reverse**: reverse the sort order
 - **-s**, **--sort=(field)**: which field to sort by
+- **-t**: sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`)
 - **--group-directories-first**: list directories before other files
 - **--group-directories-last**: list directories after other files
 - **-D**, **--only-dirs**: list only directories
@@ -169,7 +170,7 @@ These options are available when running with `--long` (`-l`):
 - **-m**, **--modified**: use the modified timestamp field
 - **-M**, **--mounts**: Show mount details (Linux and MacOS only).
 - **-S**, **--blocks**, **--blocksize**: show size of allocated file system blocks
-- **-t**, **--time=(field)**: which timestamp field to use (modified [aliases: mod, m, r], accessed [acc], changed [ch], created [cr])
+- **-t**, **--time=(field)**: which timestamp field to use (modified [aliases: mod, m], accessed [acc], changed [ch], created [cr])
 - **-u**, **--accessed**: use the accessed timestamp field
 - **-U**, **--created**: use the created timestamp field
 - **--utc**: show the time in the UTC timezone
