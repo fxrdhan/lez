@@ -113,7 +113,7 @@ That is a **~19.5× speedup** for warm runs, with zero correctness trade-off —
 - **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
 - **--colo[u]r=(when)**: when to use terminal colours (always, auto, never)
 - **--colo[u]r-scale=(field)**: highlight levels of `field` distinctly (all, age, size)
-- **--color-scale-mode=(mode)**: use gradient or fixed colors in --color-scale. valid options are `fixed` or `gradient`
+- **--color-scale-mode=(mode)**: use gradient or fixed colors in --color-scale. valid options are `fixed` (disables the color scale) or `gradient` (darker for old/small, lighter for recent/big)
 - **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
 - **--quotes=(when)**: when to quote file names (always, auto, never; requires '=' if value provided)
@@ -145,7 +145,9 @@ That is a **~19.5× speedup** for warm runs, with zero correctness trade-off —
 - **--no-symlinks**: don't show symbolic links
 - **--show-symlinks**: explicitly show links (with `--only-dirs`, `--only-files`, to show symlinks that match the filter)
 - **--git-ignore**: ignore files mentioned in `.gitignore`
+- **-W**, **--warn-hidden**: print a tally of hidden and gitignored entries; give twice to always print it
 - **--cachedir-ignore**: ignore directories with a `CACHEDIR.TAG` file
+- **--ignore-submodule-contents**: don't list the contents of Git submodules
 - **--since=(duration)**: filter and display only files created or modified within the specified duration window (e.g. 10m, 1h, 2d, 1w)
 - **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore
 - **--ignore-glob-case-insensitive**: match ignore globs case-insensitively

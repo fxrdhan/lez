@@ -175,6 +175,8 @@ impl<'a> AsRef<File<'a>> for Egg<'a> {
 
 impl<'a> Render<'a> {
     pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<()> {
+        let mut hidden_count =
+            crate::output::hidden_count::HiddenCount::new(self.filter.warn_hidden);
         let mut rows = Vec::new();
         let is_tree = self.recurse.is_some_and(|r| r.tree);
         let mut summary = if self.summary && is_tree {
@@ -233,6 +235,7 @@ impl<'a> Render<'a> {
                 TreeDepth::root(),
                 color_scale_info,
                 &mut summary,
+                hidden_count.as_mut(),
             );
 
             for row in self.iterate_with_table(table.unwrap(), rows) {
@@ -246,6 +249,7 @@ impl<'a> Render<'a> {
                 TreeDepth::root(),
                 color_scale_info,
                 &mut summary,
+                hidden_count.as_mut(),
             );
 
             for row in self.iterate(rows) {
@@ -256,6 +260,12 @@ impl<'a> Render<'a> {
         if let Some(summary) = summary {
             let show_icons = self.file_style.are_icons_enabled();
             summary.render(self.theme, show_icons, w)?;
+        }
+
+        if let Some(hc) = &hidden_count
+            && let Some(warn_line) = hc.render(self.theme.ui.hidden_warning.unwrap_or_default())
+        {
+            writeln!(w, "{warn_line}")?;
         }
 
         Ok(())
@@ -273,6 +283,7 @@ impl<'a> Render<'a> {
 
     /// Adds files to the table, possibly recursively. This is easily
     /// parallelisable, and uses a pool of threads.
+    #[allow(clippy::too_many_arguments)]
     fn add_files_to_table<'dir>(
         &self,
         table: &mut Option<Table<'a>>,
@@ -281,6 +292,7 @@ impl<'a> Render<'a> {
         depth: TreeDepth,
         color_scale_info: Option<ColorScaleInformation>,
         summary: &mut Option<crate::output::summary::Summary>,
+        mut hidden_count: Option<&mut crate::output::hidden_count::HiddenCount>,
     ) {
         use crate::fs::feature::xattr;
 
@@ -327,6 +339,10 @@ impl<'a> Render<'a> {
 
                 let mut dir = None;
                 let follow_links = self.opts.follow_links;
+                let in_submodule = self.filter.ignore_submodule_contents
+                    && self
+                        .git
+                        .is_some_and(|git| git.is_submodule_path(&file.path));
                 if let Some(r) = self.recurse
                     && (if follow_links {
                         file.points_to_directory()
@@ -336,6 +352,7 @@ impl<'a> Render<'a> {
                     && r.tree
                     && !r.is_too_deep(depth.0)
                     && !file.is_all_all
+                    && !in_submodule
                 {
                     trace!("matching on read_dir");
                     match file.read_dir() {
@@ -405,6 +422,7 @@ impl<'a> Render<'a> {
                     egg.file.deref_links,
                     egg.file.is_recursive_size(),
                     egg.file.mime_read_contents,
+                    hidden_count.as_deref_mut(),
                 ) {
                     files.push(file_to_add);
                 }
@@ -433,6 +451,7 @@ impl<'a> Render<'a> {
                         depth.deeper(),
                         color_scale_info,
                         summary,
+                        hidden_count.as_deref_mut(),
                     );
                     continue;
                 }

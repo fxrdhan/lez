@@ -252,6 +252,9 @@ LIST OF CODES
 `mp`
 : a mount point
 
+`sv`
+: a Btrfs subvolume (Linux only)
+
 `im`
 : a regular file that is an image
 

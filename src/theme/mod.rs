@@ -542,6 +542,7 @@ impl FileNameColours for Theme {
     fn nix_hash(&self)            -> Style { self.ui.punctuation() }
     fn executable_file(&self)     -> Style { self.ui.filekinds.unwrap_or_default().executable() }
     fn mount_point(&self)         -> Style { self.ui.filekinds.unwrap_or_default().mount_point() }
+    fn btrfs_subvol(&self)        -> Style { self.ui.filekinds.unwrap_or_default().btrfs_subvol() }
     fn classify_char(&self)       -> Style { self.ui.punctuation() }
 
     fn colour_file(&self, file: &File<'_>) -> Style {
@@ -752,6 +753,7 @@ mod customs_test {
     test!(ls_cd:   ls "cd=35", exa ""  =>  colours c -> { c.filekinds().char_device  = Some(Purple.normal()); });
     test!(ls_ln:   ls "ln=34", exa ""  =>  colours c -> { c.filekinds().symlink      = Some(LinkStyle::AnsiStyle(Blue.normal())); });
     test!(ls_ln_target: ls "ln=target", exa ""  =>  colours c -> { c.filekinds().symlink      = Some(LinkStyle::Target); });
+    test!(exa_sv:   ls "", exa "sv=36"  =>  colours c -> { c.filekinds().btrfs_subvol = Some(Cyan.normal()); });
     test!(ls_or:   ls "or=33", exa ""  =>  colours c -> { c.broken_symlink         = Some(Yellow.normal()); });
 
     // EZA_COLORS can affect all those colours too:

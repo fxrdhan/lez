@@ -124,7 +124,7 @@ When used without a value, defaults to ‘`all`’.
 `--color-scale-mode=MODE`, `--colour-scale-mode=MODE`
 : Mode of color scale.
 
-Valid options are `fixed` or `gradient`.
+Valid options are `fixed` to use a fixed color (disabling color scale), or `gradient` to use an automatic darker (old/small file) to lighter (recent/big file) gradient of colors.
 When used without a value, defaults to `gradient`.
 
 `--icons[=WHEN]`
@@ -215,6 +215,12 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 
 `--cachedir-ignore`
 : Do not list directories that contain a `CACHEDIR.TAG` file carrying the correct signature (see <https://bford.info/cachedir/>).
+
+`--ignore-submodule-contents` [if built with git support]
+: Do not list the contents of Git submodules.
+
+`-W`, `--warn-hidden`
+: After the listing, print a tally of hidden and Git-ignored entries. Give the option twice (`-WW`) to always print the tally, even when nothing was filtered.
 
 `--since=DURATION`
 : Filter and display only files created or modified within the specified duration window (e.g. `10m`, `1h`, `2d`, `1w`).

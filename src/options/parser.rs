@@ -148,6 +148,9 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)"))
         .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'"))
         .arg(arg!(--"cachedir-ignore" "ignore directories with a 'CACHEDIR.TAG' file"))
+        .arg(arg!(-'W' --"warn-hidden" "print a message showing the number of hidden and ignored items; give twice to always print")
+            .action(clap::ArgAction::Count))
+        .arg(arg!(--"ignore-submodule-contents" "do not list contents of submodules"))
         .arg(arg!(--since <DURATION> "filter and display only files created or modified within the specified duration window")
             .value_parser(humantime::parse_duration))
 
