@@ -3,7 +3,6 @@
 
 #![allow(unused_imports, dead_code)]
 
-use lsr::output::hidden_count::WarnHiddenMode;
 use lsr::fs::fields::Size;
 use lsr::fs::filter::{
     FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase, SortField,
@@ -20,6 +19,7 @@ use lsr::output::file_name::{
     Absolute, Classify, EmbedHyperlinks, Options as FileStyleOptions, QuoteStyle, ShowIcons,
     ShowSymlinkTargets,
 };
+use lsr::output::hidden_count::WarnHiddenMode;
 use lsr::output::table::SizeFormat;
 use lsr::output::{Mode, TerminalWidth};
 use lsr::theme::Theme;
@@ -104,6 +104,7 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
         warn_hidden: WarnHiddenMode::default(),
+        ignore_submodule_contents: false,
         since: None,
         no_symlinks: false,
         show_symlinks: false,

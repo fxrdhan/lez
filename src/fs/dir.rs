@@ -92,6 +92,7 @@ impl Dir {
     /// Produce an iterator of IO results of trying to read all the files in
     /// this directory.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn files<'dir, 'ig, 'hc>(
         &'dir self,
         dots: DotFilter,
@@ -337,7 +338,7 @@ mod windows_tests {
     use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
     use windows_sys::Win32::Storage::FileSystem::{
-        GetFileAttributesW, SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN,
+        FILE_ATTRIBUTE_HIDDEN, GetFileAttributesW, SetFileAttributesW,
     };
 
     fn unique_temp_dir() -> std::path::PathBuf {
@@ -375,7 +376,15 @@ mod windows_tests {
         set_hidden(&path.join("hidden.txt"));
         let dir = Dir::read_dir(path.clone()).unwrap();
         let names: Vec<_> = dir
-            .files(DotFilter::DotfilesByName, None, false, false, false, false)
+            .files(
+                DotFilter::DotfilesByName,
+                None,
+                false,
+                false,
+                false,
+                false,
+                None,
+            )
             .map(|file| file.name)
             .collect();
         assert!(names.contains(&".dotfile".to_string()));

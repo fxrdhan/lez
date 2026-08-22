@@ -204,6 +204,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--cachedir-ignore`
 : Do not list directories that contain a `CACHEDIR.TAG` file carrying the correct signature (see <https://bford.info/cachedir/>).
 
+`--ignore-submodule-contents` [if built with git support]
+: Do not list the contents of Git submodules.
+
 `-W`, `--warn-hidden`
 : After the listing, print a tally of hidden and Git-ignored entries. Give the option twice (`-WW`) to always print the tally, even when nothing was filtered.
 

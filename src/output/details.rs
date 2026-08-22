@@ -263,8 +263,7 @@ impl<'a> Render<'a> {
         }
 
         if let Some(hc) = &hidden_count
-            && let Some(warn_line) =
-                hc.render(self.theme.ui.hidden_warning.unwrap_or_default())
+            && let Some(warn_line) = hc.render(self.theme.ui.hidden_warning.unwrap_or_default())
         {
             writeln!(w, "{warn_line}")?;
         }
@@ -284,6 +283,7 @@ impl<'a> Render<'a> {
 
     /// Adds files to the table, possibly recursively. This is easily
     /// parallelisable, and uses a pool of threads.
+    #[allow(clippy::too_many_arguments)]
     fn add_files_to_table<'dir>(
         &self,
         table: &mut Option<Table<'a>>,
@@ -339,6 +339,10 @@ impl<'a> Render<'a> {
 
                 let mut dir = None;
                 let follow_links = self.opts.follow_links;
+                let in_submodule = self.filter.ignore_submodule_contents
+                    && self
+                        .git
+                        .is_some_and(|git| git.is_submodule_path(&file.path));
                 if let Some(r) = self.recurse
                     && (if follow_links {
                         file.points_to_directory()
@@ -348,6 +352,7 @@ impl<'a> Render<'a> {
                     && r.tree
                     && !r.is_too_deep(depth.0)
                     && !file.is_all_all
+                    && !in_submodule
                 {
                     trace!("matching on read_dir");
                     match file.read_dir() {

@@ -458,7 +458,8 @@ impl<'dir> File<'dir> {
 
         const BTRFS_FSTYPE_NAME: &str = "btrfs";
 
-        for part in self.absolute_path().ancestors() {
+        let start = self.absolute_path().unwrap_or(&self.path);
+        for part in start.ancestors() {
             if let Some(mount) = all_mounts().get(part) {
                 return mount.fstype == BTRFS_FSTYPE_NAME;
             }
@@ -904,7 +905,15 @@ impl<'dir> File<'dir> {
         match Dir::read_dir(self.path.clone()) {
             // . & .. are skipped, if the returned iterator has .next(), it's not empty
             Ok(has_files) => has_files
-                .files(super::DotFilter::Dotfiles, None, false, false, false, false, None)
+                .files(
+                    super::DotFilter::Dotfiles,
+                    None,
+                    false,
+                    false,
+                    false,
+                    false,
+                    None,
+                )
                 .next()
                 .is_none(),
             Err(_) => false,
