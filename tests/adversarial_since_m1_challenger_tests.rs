@@ -60,6 +60,8 @@ impl Drop for TempTestDir {
 fn run_lsr(args: &[&str]) -> Output {
     let bin_path = env!("CARGO_BIN_EXE_lsr");
     Command::new(bin_path)
+        // Assertions match on bare entry names; never let colour escape in.
+        .arg("--color=never")
         .args(args)
         .output()
         .expect("Failed to execute lsr binary")

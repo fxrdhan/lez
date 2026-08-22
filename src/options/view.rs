@@ -511,11 +511,35 @@ impl TimeFormat {
             recent => recent.map(std::string::ToString::to_string),
         };
 
+        // chrono only errors when lazily formatting a DateTime, which happens
+        // inside the rayon pool and surfaces as a context-free panic; iterate
+        // the items up front to reject invalid directives during parsing.
+        validate_custom_format(non_recent)
+            .map_err(|error_middle| format!("{error_header}{error_middle}{error_footer}"))?;
+        if let Some(recent) = &recent {
+            validate_custom_format(recent)
+                .map_err(|error_middle| format!("{error_header}{error_middle}{error_footer}"))?;
+        }
+
         Ok(TimeFormat::Custom {
             non_recent: String::from(non_recent),
             recent,
         })
     }
+}
+
+/// Checks that a custom strftime format string contains no directives chrono
+/// would reject at formatting time.
+fn validate_custom_format(fmt: &str) -> Result<(), String> {
+    use chrono::format::{Item, StrftimeItems};
+
+    if StrftimeItems::new(fmt).any(|item| matches!(item, Item::Error)) {
+        return Err(format!(
+            "Invalid custom timestamp format \"{fmt}\", \
+             please supply a valid chrono format string after the +."
+        ));
+    }
+    Ok(())
 }
 
 impl TimeFormat {
@@ -1200,6 +1224,28 @@ mod tests {
         assert!(TimeFormat::try_from_str("relative-recent:abc").is_err());
         assert!(TimeFormat::try_from_str("relative-recent:-5").is_err());
         assert!(TimeFormat::try_from_str("relative-recent:3.14").is_err());
+    }
+
+    #[test]
+    fn try_from_str_custom_accepts_valid_strftime() {
+        assert_eq!(
+            TimeFormat::try_from_str("+%Y-%m-%d %H:%M:%S"),
+            Ok(TimeFormat::Custom {
+                non_recent: String::from("%Y-%m-%d %H:%M:%S"),
+                recent: None
+            })
+        );
+    }
+
+    #[test]
+    fn try_from_str_custom_rejects_invalid_strftime() {
+        assert!(TimeFormat::try_from_str("+%Q").is_err());
+        assert!(TimeFormat::try_from_str("+%Y-%Q\n%H:%M").is_err());
+        assert!(
+            TimeFormat::try_from_str("+%Y\n%v%Q").is_err(),
+            "the recent line must be validated too"
+        );
+        assert!(TimeFormat::try_from_str("+valid %b but %Q invalid").is_err());
     }
 
     #[test]
