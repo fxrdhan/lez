@@ -15,8 +15,8 @@ use crate::fs::filter::{
 };
 
 use crate::options::OptionsError;
-use crate::output::hidden_count::WarnHiddenMode;
 use crate::options::Vars;
+use crate::output::hidden_count::WarnHiddenMode;
 
 impl FileFilter {
     /// Determines which of all the file filter options to use.
@@ -58,6 +58,7 @@ impl FileFilter {
             git_ignore: GitIgnore::deduce(matches),
             ignore_cachedir: IgnoreCacheDir::deduce(matches),
             warn_hidden: WarnHiddenMode::deduce(matches),
+            ignore_submodule_contents: matches.get_flag("ignore-submodule-contents"),
             since,
             collator,
         })
@@ -584,6 +585,8 @@ mod tests {
         assert_eq!(
             FileFilter::deduce(&mock_cli(vec![""]), false, &MockVars::default()),
             Ok(FileFilter {
+                warn_hidden: WarnHiddenMode::Never,
+                ignore_submodule_contents: false,
                 flags: vec![],
                 sort_field: SortField::default(),
                 dot_filter: DotFilter::JustFiles,
@@ -604,6 +607,8 @@ mod tests {
         assert_eq!(
             FileFilter::deduce(&mock_cli(vec!["--reverse"]), false, &MockVars::default()),
             Ok(FileFilter {
+                warn_hidden: WarnHiddenMode::Never,
+                ignore_submodule_contents: false,
                 flags: vec![FileFilterFlags::Reverse],
                 sort_field: SortField::default(),
                 dot_filter: DotFilter::JustFiles,
@@ -624,6 +629,8 @@ mod tests {
         assert_eq!(
             FileFilter::deduce(&mock_cli(vec!["--only-dirs"]), false, &MockVars::default()),
             Ok(FileFilter {
+                warn_hidden: WarnHiddenMode::Never,
+                ignore_submodule_contents: false,
                 flags: vec![FileFilterFlags::OnlyDirs],
                 sort_field: SortField::default(),
                 dot_filter: DotFilter::JustFiles,
@@ -644,6 +651,8 @@ mod tests {
         assert_eq!(
             FileFilter::deduce(&mock_cli(vec!["--only-files"]), false, &MockVars::default()),
             Ok(FileFilter {
+                warn_hidden: WarnHiddenMode::Never,
+                ignore_submodule_contents: false,
                 flags: vec![FileFilterFlags::OnlyFiles],
                 sort_field: SortField::default(),
                 dot_filter: DotFilter::JustFiles,
@@ -673,6 +682,8 @@ mod tests {
                 &MockVars::default()
             ),
             Ok(FileFilter {
+                warn_hidden: WarnHiddenMode::Never,
+                ignore_submodule_contents: false,
                 flags: vec![],
                 sort_field: SortField::default(),
                 ignore_cachedir: IgnoreCacheDir::Off,
