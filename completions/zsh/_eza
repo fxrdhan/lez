@@ -61,7 +61,7 @@ __eza() {
         {-m,--modified}"[Use the modified timestamp field]" \
         {-n,--numeric}"[List numeric user and group IDs.]" \
         {-S,--blocksize}"[List each file's size of allocated file system blocks.]" \
-        {-t,--time}="[Which time field to show]:(time field):(accessed acc changed ch created cr modified mod m r)" \
+        {-t,--time}="[Which time field to show]:(time field):(accessed acc changed ch created cr modified mod m)" \
         --time-style="[How to format timestamps]:(time style):(default iso long-iso full-iso relative +FORMAT)" \
         --total-size"[Show recursive directory size (unix only)]" \
         --no-permissions"[Suppress the permissions field]" \

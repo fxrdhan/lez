@@ -119,7 +119,6 @@ complete -c eza -s t -l time -d "Which timestamp field to list" -x -a "
     modified\t'Display modified time'
     mod\t'Display modified time'
     m\t'Display modified time'
-    r\t'Display modified time'
     changed\t'Display changed time'
     accessed\t'Display accessed time'
     created\t'Display created time'

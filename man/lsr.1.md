@@ -201,6 +201,9 @@ The `modified` sort field has the aliases ‘`date`’, ‘`time`’, ‘`mod`�
 
 Sort fields starting with a capital letter will sort uppercase before lowercase: ‘A’ then ‘B’ then ‘a’ then ‘b’. Fields starting with a lowercase letter will mix them: ‘A’ then ‘a’ then ‘B’ then ‘b’.
 
+`-t`
+: Sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`). When passed with a field argument (e.g. `-t modified`), it selects the timestamp field to display instead.
+
 `-I`, `--ignore-glob=GLOBS`
 : Glob patterns, pipe-separated, of files to ignore.
 
@@ -289,7 +292,7 @@ These options are available when running with `--long` (`-l`):
 `-t`, `--time=WORD`
 : Which timestamp field to list.
 
-: Valid timestamp fields are ‘`modified`’ (aliases: ‘`mod`’, ‘`m`’, ‘`r`’), ‘`changed`’ (alias: ‘`ch`’), ‘`accessed`’ (alias: ‘`acc`’), and ‘`created`’ (alias: ‘`cr`’).
+: Valid timestamp fields are ‘`modified`’ (aliases: ‘`mod`’, ‘`m`’), ‘`changed`’ (alias: ‘`ch`’), ‘`accessed`’ (alias: ‘`acc`’), and ‘`created`’ (alias: ‘`cr`’).
 
 `--time-style=STYLE`
 : How to format timestamps.
