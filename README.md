@@ -27,7 +27,7 @@ SPDX-License-Identifier: EUPL-1.2
 - 🎨 **Rich Visuals:** Syntax highlighting, colored CLI help output, Nerd Font icons, and automatic color scaling.
 - 🌿 **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
 - 🌲 **Built-in Tree View:** Hierarchical directory tree out of the box (`lsr --tree`).
-- 🚀 **Extended Capabilities:** Rich file classification, custom themes, and archive inspection.
+- 🚀 **Extended Capabilities:** Rich file classification, custom themes, and lines-of-code summaries.
 
 ---
 
