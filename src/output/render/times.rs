@@ -30,7 +30,10 @@ impl Render for Option<NaiveDateTime> {
     fn render(self, style: Style, time_format: TimeFormat, use_utc: bool) -> TextCell {
         let datestamp = if let Some(time) = self {
             let offset = local_offset_for(time, use_utc);
-            time_format.format(&DateTime::<FixedOffset>::from_naive_utc_and_offset(time, offset), use_utc)
+            time_format.format(
+                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, offset),
+                use_utc,
+            )
         } else {
             String::from("-")
         };
@@ -41,7 +44,10 @@ impl Render for Option<NaiveDateTime> {
     fn render_json(self, time_format: TimeFormat, use_utc: bool) -> Option<String> {
         self.map(|time| {
             let offset = local_offset_for(time, use_utc);
-            time_format.format(&DateTime::<FixedOffset>::from_naive_utc_and_offset(time, offset), use_utc)
+            time_format.format(
+                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, offset),
+                use_utc,
+            )
         })
     }
 }
