@@ -23,7 +23,7 @@ impl Options {
         let classify = Classify::deduce(matches);
         let show_icons = ShowIcons::deduce(matches, vars)?;
 
-        let quote_style = QuoteStyle::deduce(matches);
+        let quote_style = QuoteStyle::deduce(matches, vars);
         let embed_hyperlinks = EmbedHyperlinks::deduce(matches);
 
         let absolute = *matches.get_one("absolute").unwrap();
@@ -90,12 +90,33 @@ impl ShowIcons {
 }
 
 impl QuoteStyle {
-    pub fn deduce(matches: &ArgMatches) -> Self {
-        if matches.get_flag("no-quotes") {
-            Self::NoQuotes
-        } else {
-            Self::QuoteSpaces
+    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
+        // Environment default; `LSR_QUOTING_STYLE` wins over `EZA_QUOTING_STYLE`.
+        let from_env = vars
+            .get_with_fallback(vars::LSR_QUOTING_STYLE, vars::EZA_QUOTING_STYLE)
+            .and_then(
+                |value| match value.to_string_lossy().to_ascii_lowercase().as_str() {
+                    "always" => Some(Self::Always),
+                    "never" => Some(Self::Never),
+                    "auto" | "automatic" => Some(Self::Auto),
+                    _ => None,
+                },
+            )
+            .unwrap_or_default();
+
+        if let Some(when) = matches.get_one::<ShowWhen>("quotes") {
+            return match when {
+                ShowWhen::Always => Self::Always,
+                ShowWhen::Never => Self::Never,
+                ShowWhen::Auto => Self::Auto,
+            };
         }
+
+        if matches.get_flag("no-quotes") {
+            return Self::Never;
+        }
+
+        from_env
     }
 }
 
@@ -279,16 +300,80 @@ mod tests {
     #[test]
     fn deduce_quote_style_no_quotes() {
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec!["--no-quotes"])),
-            QuoteStyle::NoQuotes
+            QuoteStyle::deduce(&mock_cli(vec!["--no-quotes"]), &MockVars::default()),
+            QuoteStyle::Never
         );
     }
 
     #[test]
     fn deduce_quote_style_quote_spaces() {
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec![""])),
-            QuoteStyle::QuoteSpaces
+            QuoteStyle::deduce(&mock_cli(vec![""]), &MockVars::default()),
+            QuoteStyle::Auto
+        );
+    }
+
+    #[test]
+    fn deduce_quote_style_flag_values() {
+        for (word, expected) in [
+            ("always", QuoteStyle::Always),
+            ("never", QuoteStyle::Never),
+            ("auto", QuoteStyle::Auto),
+            ("automatic", QuoteStyle::Auto),
+        ] {
+            assert_eq!(
+                QuoteStyle::deduce(
+                    &mock_cli(vec![&format!("--quotes={word}")]),
+                    &MockVars::default()
+                ),
+                expected,
+                "--quotes={word}"
+            );
+        }
+        // Bare --quotes defaults to auto.
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec!["--quotes"]), &MockVars::default()),
+            QuoteStyle::Auto
+        );
+    }
+
+    #[test]
+    fn deduce_quote_style_env_defaults() {
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_QUOTING_STYLE, &OsString::from("always"));
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars),
+            QuoteStyle::Always
+        );
+
+        let mut vars = MockVars::default();
+        vars.set(vars::LSR_QUOTING_STYLE, &OsString::from("never"));
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars),
+            QuoteStyle::Never
+        );
+
+        // Invalid values fall back to the default.
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_QUOTING_STYLE, &OsString::from("bogus"));
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars),
+            QuoteStyle::Auto
+        );
+    }
+
+    #[test]
+    fn deduce_quote_style_flag_overrides_env() {
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_QUOTING_STYLE, &OsString::from("never"));
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec!["--quotes=always"]), &vars),
+            QuoteStyle::Always
+        );
+        // The legacy flag still wins over the environment too.
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec!["--no-quotes"]), &vars),
+            QuoteStyle::Never
         );
     }
 
@@ -413,7 +498,7 @@ mod tests {
             Ok(Options {
                 classify: Classify::JustFilenames,
                 show_icons: ShowIcons::Never,
-                quote_style: QuoteStyle::QuoteSpaces,
+                quote_style: QuoteStyle::Auto,
                 embed_hyperlinks: EmbedHyperlinks::Never,
                 absolute: Absolute::Off,
                 short_nix: false,

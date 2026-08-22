@@ -18,6 +18,11 @@ _eza() {
             return
             ;;
 
+        --quotes)
+            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never --' -- "$cur")
+            return
+            ;;
+
         --hyperlink)
             mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never' -- "$cur")
             return

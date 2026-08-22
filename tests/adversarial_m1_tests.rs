@@ -134,7 +134,7 @@ fn test_r1_hyperlink_painting_with_special_characters() {
     let file_style_opts = FileStyleOptions {
         classify: Classify::JustFilenames,
         show_icons: ShowIcons::Never,
-        quote_style: QuoteStyle::NoQuotes,
+        quote_style: QuoteStyle::Never,
         embed_hyperlinks: EmbedHyperlinks::Always,
         absolute: Absolute::Off,
         short_nix: false,
@@ -701,7 +701,7 @@ fn test_r1_adversarial_hyperlink_edge_cases() {
     let file_style_opts = FileStyleOptions {
         classify: Classify::JustFilenames,
         show_icons: ShowIcons::Never,
-        quote_style: QuoteStyle::NoQuotes,
+        quote_style: QuoteStyle::Never,
         embed_hyperlinks: EmbedHyperlinks::Always,
         absolute: Absolute::Off,
         short_nix: false,

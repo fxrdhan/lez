@@ -18,7 +18,7 @@ use crate::output::cell::TextCellContents;
 use crate::output::escape;
 use crate::output::icons::{icon_for_file, iconify_style};
 use crate::output::render::FiletypeColours;
-use crate::theme::{LinkStyle as LinkColouring, FileNameStyle};
+use crate::theme::{FileNameStyle, LinkStyle as LinkColouring};
 
 /// Basically a file name factory.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -225,15 +225,31 @@ pub enum Absolute {
     Off,
 }
 
-/// Whether or not to wrap file names with spaces in quotes.
-#[derive(PartialEq, Debug, Copy, Clone)]
+/// When to wrap file names in quotes.
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
 pub enum QuoteStyle {
-    /// Don't ever quote file names.
-    NoQuotes,
+    /// Quote every file name, space or not.
+    Always,
 
     /// Use single quotes for file names that contain spaces and no single quotes
     /// Use double quotes for file names that contain single quotes.
-    QuoteSpaces,
+    #[default]
+    Auto,
+
+    /// Don't ever quote file names.
+    Never,
+}
+
+impl QuoteStyle {
+    /// Whether the given name needs to be quoted under this style.
+    #[must_use]
+    pub fn quotes_needed(self, name_has_spaces: bool) -> bool {
+        match self {
+            Self::Always => true,
+            Self::Auto => name_has_spaces,
+            Self::Never => false,
+        }
+    }
 }
 
 /// Whether to show symlink targets.
@@ -410,7 +426,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     if !target.name.is_empty() {
                         let target_options = Options {
                             classify: Classify::JustFilenames,
-                            quote_style: QuoteStyle::QuoteSpaces,
+                            quote_style: QuoteStyle::Auto,
                             show_icons: ShowIcons::Never,
                             embed_hyperlinks: EmbedHyperlinks::Never,
                             is_a_tty: self.options.is_a_tty,
@@ -885,7 +901,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
@@ -928,7 +944,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Always(1),
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
@@ -962,7 +978,7 @@ mod test {
         let options = Options {
             classify: Classify::AddFileIndicators,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
@@ -997,7 +1013,7 @@ mod test {
         let options = Options {
             classify: Classify::AddFileIndicators,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1031,7 +1047,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1065,7 +1081,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1098,7 +1114,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1134,7 +1150,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1174,7 +1190,7 @@ mod test {
         let options = Options {
             classify: Classify::AddFileIndicators,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1298,7 +1314,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: crate::output::file_name::QuoteStyle::NoQuotes,
+            quote_style: crate::output::file_name::QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1340,7 +1356,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: crate::output::file_name::QuoteStyle::NoQuotes,
+            quote_style: crate::output::file_name::QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
