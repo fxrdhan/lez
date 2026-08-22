@@ -436,6 +436,45 @@ impl<'dir> File<'dir> {
         }
     }
 
+    /// Whether this directory is a Btrfs subvolume: subvolumes always carry
+    /// inode number 256 (BTRFS_FIRST_FREE_OBJECTID) and live on a btrfs
+    /// filesystem. Non-Linux platforms never report one.
+    #[cfg(target_os = "linux")]
+    pub fn is_btrfs_subvolume(&self) -> bool {
+        const BTRFS_FIRST_FREE_OBJECTID: u64 = 256;
+        self.is_directory() && self.inode().0 == BTRFS_FIRST_FREE_OBJECTID && self.is_btrfs()
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn is_btrfs_subvolume(&self) -> bool {
+        false
+    }
+
+    /// Walks up the ancestor chain against the mount table, then falls back
+    /// to `statfs`, to decide whether this path lives on btrfs.
+    #[cfg(target_os = "linux")]
+    fn is_btrfs(&self) -> bool {
+        use std::os::unix::ffi::OsStrExt;
+
+        const BTRFS_FSTYPE_NAME: &str = "btrfs";
+
+        for part in self.absolute_path().ancestors() {
+            if let Some(mount) = all_mounts().get(part) {
+                return mount.fstype == BTRFS_FSTYPE_NAME;
+            }
+        }
+
+        let mut out = std::mem::MaybeUninit::<libc::statfs>::uninit();
+        let path = match std::ffi::CString::new(self.path.as_os_str().as_bytes()) {
+            Ok(path) => path,
+            Err(_) => return false,
+        };
+        // SAFETY: `out` is a valid, correctly-sized location for statfs to
+        // initialise; errno is the only error channel.
+        let result = unsafe { libc::statfs(path.as_ptr(), out.as_mut_ptr()) };
+        result == 0 && unsafe { out.assume_init() }.f_type == libc::BTRFS_SUPER_MAGIC
+    }
+
     /// Whether this file is a symlink on the filesystem.
     pub fn is_link(&self) -> bool {
         self.filetype().is_some_and(FileType::is_symlink)
