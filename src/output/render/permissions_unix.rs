@@ -205,7 +205,9 @@ pub mod test {
         fn normal(&self)       -> Style { Fixed(1).normal() }
         fn directory(&self)    -> Style { Fixed(2).bold() }
         fn pipe(&self)         -> Style { Fixed(3).normal() }
-        fn symlink(&self)      -> Style { Fixed(4).normal() }
+        fn symlink(&self) -> crate::theme::LinkStyle {
+            crate::theme::LinkStyle::AnsiStyle(Fixed(4).normal())
+        }
         fn block_device(&self) -> Style { Fixed(5).normal() }
         fn char_device(&self)  -> Style { Fixed(6).normal() }
         fn socket(&self)       -> Style { Fixed(7).normal() }
