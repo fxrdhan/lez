@@ -181,7 +181,7 @@ fn update_information_recursively(
             match file.read_dir() {
                 Ok(dir) => {
                     let mut child_files: Vec<File<'_>> = dir
-                        .files(filter.dot_filter, git, git_ignoring, false, false, false)
+                        .files(filter.dot_filter, git, git_ignoring, false, false, false, None)
                         .collect();
 
                     filter.filter_child_files(r.is_some(), &mut child_files);
@@ -297,6 +297,7 @@ mod test {
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
             since: None,
             no_symlinks: false,
             show_symlinks: false,

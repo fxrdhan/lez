@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+use lsr::output::hidden_count::WarnHiddenMode;
 use lsr::fs::filter::{
     FileFilter, GitIgnore, IgnoreCacheDir, IgnorePatterns, LocaleCollator, SortCase, SortField,
 };
@@ -52,6 +53,7 @@ fn test_hungarian_unicode_collation() {
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         since: None,
         no_symlinks: false,
         show_symlinks: false,
@@ -84,6 +86,7 @@ fn test_swedish_unicode_collation() {
         ignore_patterns: IgnorePatterns::empty(),
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         git_ignore: GitIgnore::Off,
         since: None,
         no_symlinks: false,
@@ -117,6 +120,7 @@ fn test_german_unicode_collation() {
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         since: None,
         no_symlinks: false,
         show_symlinks: false,
@@ -154,6 +158,7 @@ fn test_spanish_unicode_collation() {
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         since: None,
         no_symlinks: false,
         show_symlinks: false,
@@ -182,6 +187,7 @@ fn test_natural_numeric_ordering_preserved() {
         sort_field: SortField::Name(SortCase::AaBbCc),
         flags: vec![],
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         dot_filter: DotFilter::JustFiles,
         ignore_patterns: IgnorePatterns::empty(),
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
@@ -223,6 +229,7 @@ fn test_mixed_accent_and_number_sorting() {
     let filter = FileFilter {
         sort_field: SortField::Name(SortCase::AaBbCc),
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         flags: vec![],
         dot_filter: DotFilter::JustFiles,
         ignore_patterns: IgnorePatterns::empty(),
@@ -265,6 +272,7 @@ fn test_case_sensitivity_and_insensitivity() {
     // Case-insensitive sort
     let filter_insensitive = FileFilter {
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         sort_field: SortField::Name(SortCase::AaBbCc),
         flags: vec![],
         dot_filter: DotFilter::JustFiles,
@@ -379,6 +387,7 @@ fn test_fallback_to_natord_when_collator_none() {
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         since: None,
         no_symlinks: false,
         show_symlinks: false,

@@ -135,6 +135,7 @@ impl Default for UiStyles {
             octal: Some(Purple.normal()),
             flags: Some(Style::default()),
             header: Some(Style::default().underline()),
+            hidden_warning: Some(Red.bold()),
 
             symlink_path: Some(Cyan.normal()),
             control_char: Some(Red.normal()),

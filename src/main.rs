@@ -25,7 +25,8 @@ use crate::fs::{Dir, File};
 use crate::options::stdin::FilesInput;
 use crate::options::{Options, Vars, vars};
 use crate::output::{
-    Mode, View, code, details, escape, file_name, grid, grid_details, json, lines,
+    Mode, View, code, details, escape, file_name, grid, grid_details, hidden_count::HiddenCount,
+    json, lines,
 };
 use crate::theme::Theme;
 use log::*;
@@ -458,6 +459,8 @@ impl Exa<'_> {
 
             let mut children = Vec::new();
             let git_ignore = self.options.filter.git_ignore == GitIgnore::CheckAndIgnore;
+            let mut hidden_count =
+                HiddenCount::new(self.options.filter.warn_hidden);
             for file in dir.files(
                 self.options.filter.dot_filter,
                 self.git.as_ref(),
@@ -465,6 +468,7 @@ impl Exa<'_> {
                 self.options.view.deref_links,
                 self.options.view.total_size,
                 self.options.view.mime_read_contents,
+                hidden_count.as_mut(),
             ) {
                 children.push(file);
             }
@@ -492,6 +496,12 @@ impl Exa<'_> {
                         .collect::<Vec<Dir>>();
 
                     self.print_files(Some(dir), children)?;
+                    if let Some(warn_line) = hidden_count
+                        .as_ref()
+                        .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
+                    {
+                        writeln!(&mut self.writer, "{warn_line}")?;
+                    }
                     match self.print_dirs(child_dirs, false, false, exit_status, child_depth) {
                         Ok(_) => (),
                         Err(e) => return Err(e),
@@ -501,6 +511,12 @@ impl Exa<'_> {
             }
 
             self.print_files(Some(dir), children)?;
+            if let Some(warn_line) = hidden_count
+                .as_ref()
+                .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
+            {
+                writeln!(&mut self.writer, "{warn_line}")?;
+            }
         }
 
         if !denied_dirs.is_empty() {

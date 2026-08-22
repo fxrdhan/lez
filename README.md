@@ -145,6 +145,7 @@ That is a **~19.5× speedup** for warm runs, with zero correctness trade-off —
 - **--no-symlinks**: don't show symbolic links
 - **--show-symlinks**: explicitly show links (with `--only-dirs`, `--only-files`, to show symlinks that match the filter)
 - **--git-ignore**: ignore files mentioned in `.gitignore`
+- **-W**, **--warn-hidden**: print a tally of hidden and gitignored entries; give twice to always print it
 - **--cachedir-ignore**: ignore directories with a `CACHEDIR.TAG` file
 - **--since=(duration)**: filter and display only files created or modified within the specified duration window (e.g. 10m, 1h, 2d, 1w)
 - **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore

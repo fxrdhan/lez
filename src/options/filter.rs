@@ -15,6 +15,7 @@ use crate::fs::filter::{
 };
 
 use crate::options::OptionsError;
+use crate::output::hidden_count::WarnHiddenMode;
 use crate::options::Vars;
 
 impl FileFilter {
@@ -56,6 +57,7 @@ impl FileFilter {
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
             git_ignore: GitIgnore::deduce(matches),
             ignore_cachedir: IgnoreCacheDir::deduce(matches),
+            warn_hidden: WarnHiddenMode::deduce(matches),
             since,
             collator,
         })
@@ -185,6 +187,16 @@ impl GitIgnore {
             Self::CheckAndIgnore
         } else {
             Self::Off
+        }
+    }
+}
+
+impl WarnHiddenMode {
+    pub fn deduce(matches: &ArgMatches) -> Self {
+        match matches.get_count("warn-hidden") {
+            0 => Self::Never,
+            1 => Self::Auto,
+            _ => Self::Always,
         }
     }
 }

@@ -26,6 +26,7 @@ export extern "eza" [
     --follow-symlinks          # Drill down into symbolic links that point to directories
     --group-directories-first  # Sort directories before other files
     --group-directories-last   # Sort directories after other files
+    -W                         # Print a tally of hidden and ignored items; twice to always print
     --no-extended              # Do not show a marker if a file's extended attributes exist
     --git-ignore               # Ignore files mentioned in '.gitignore'
     --cachedir-ignore          # Ignore directories with a 'CACHEDIR.TAG' file
