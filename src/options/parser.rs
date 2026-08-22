@@ -100,11 +100,13 @@ pub fn get_command() -> clap::Command {
             .default_missing_value("auto")
             .default_value("auto"))
         .arg(arg!(--"color-scale" <FIELDS> "highlight value of FIELDS distinctly")
+            .alias("colour-scale")
             .num_args(0..)
             .value_parser(value_parser!(ColorScaleArgs))
             .default_missing_value("all")
             .value_delimiter(','))
         .arg(arg!(--"color-scale-mode" <MODE> "mode for --color-scale")
+            .alias("colour-scale-mode")
             .num_args(1)
             .value_parser(value_parser!(ColorScaleModeArgs))
             .default_value("gradient"))
@@ -497,6 +499,27 @@ pub mod test {
                 .map(OsString::as_os_str)
                 .collect::<Vec<_>>(),
             ["file1", "file2"]
+        );
+    }
+
+    #[test]
+    fn accepts_automatic_color_value() {
+        let cli = mock_cli_try(["--color=automatic"]).unwrap();
+        assert_eq!(cli.get_one::<ShowWhen>("color"), Some(&ShowWhen::Auto));
+    }
+
+    #[test]
+    fn accepts_colour_scale_aliases() {
+        let cli = mock_cli_try(["--colour-scale=size", "--colour-scale-mode=fixed"]).unwrap();
+        assert_eq!(
+            cli.get_many::<ColorScaleArgs>("color-scale")
+                .unwrap()
+                .collect::<Vec<_>>(),
+            [&ColorScaleArgs::Size]
+        );
+        assert_eq!(
+            cli.get_one::<ColorScaleModeArgs>("color-scale-mode"),
+            Some(&ColorScaleModeArgs::Fixed)
         );
     }
 
