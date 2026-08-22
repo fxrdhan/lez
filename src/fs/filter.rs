@@ -218,6 +218,9 @@ pub struct FileFilter {
     /// Whether to ignore `CACHEDIR.TAG` directories.
     pub ignore_cachedir: IgnoreCacheDir,
 
+    /// Whether (and how eagerly) to report filtered-out entries.
+    pub warn_hidden: crate::output::hidden_count::WarnHiddenMode,
+
     /// Filter files created or modified within the specified duration window.
     pub since: Option<std::time::Duration>,
 
@@ -847,6 +850,7 @@ mod test_ignores {
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
             since: None,
             no_symlinks: false,
             show_symlinks: false,
@@ -983,6 +987,7 @@ mod test_ignores {
             ignore_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
             git_ignore: GitIgnore::Off,
             since: None,
             no_symlinks: false,
@@ -1035,6 +1040,7 @@ mod test_ignores {
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
             ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             since: None,

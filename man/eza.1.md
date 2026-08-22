@@ -204,6 +204,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--cachedir-ignore`
 : Do not list directories that contain a `CACHEDIR.TAG` file carrying the correct signature (see <https://bford.info/cachedir/>).
 
+`-W`, `--warn-hidden`
+: After the listing, print a tally of hidden and Git-ignored entries. Give the option twice (`-WW`) to always print the tally, even when nothing was filtered.
+
 `--since=DURATION`
 : Filter and display only files created or modified within the specified duration window (e.g. `10m`, `1h`, `2d`, `1w`).
 

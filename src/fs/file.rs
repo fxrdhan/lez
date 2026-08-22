@@ -799,6 +799,7 @@ impl<'dir> File<'dir> {
                     false,
                     true,
                     self.mime_read_contents,
+                    None,
                 ) {
                     match file.recursive_directory_size() {
                         RecursiveSize::Some(bytes, blks) => {
@@ -903,7 +904,7 @@ impl<'dir> File<'dir> {
         match Dir::read_dir(self.path.clone()) {
             // . & .. are skipped, if the returned iterator has .next(), it's not empty
             Ok(has_files) => has_files
-                .files(super::DotFilter::Dotfiles, None, false, false, false, false)
+                .files(super::DotFilter::Dotfiles, None, false, false, false, false, None)
                 .next()
                 .is_none(),
             Err(_) => false,
