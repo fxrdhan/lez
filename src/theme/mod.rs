@@ -509,6 +509,17 @@ impl render::UserColours for Theme {
     fn no_user(&self)       -> Style { self.ui.punctuation() }
 }
 
+#[derive(Debug)]
+pub(crate) struct FileDefaults;
+
+#[rustfmt::skip]
+impl FileDefaults {
+    pub const DIRECTORY: &'static str       = ".default_directory";
+    pub const DIRECTORY_EMPTY: &'static str = ".default_directory_empty";
+    pub const FILE: &'static str            = ".default_file";
+    pub const FILE_UNKNOWN: &'static str    = ".default_file_unknown";
+}
+
 #[rustfmt::skip]
 impl FileNameColours for Theme {
     fn symlink_path(&self)        -> Style { self.ui.symlink_path() }
@@ -534,6 +545,19 @@ impl FileNameColours for Theme {
             {
                 return Some(dir_override.clone());
             }
+
+            if let Some(ref ext_overrides) = self.ui.extensions {
+                if file.is_empty_dir() {
+                    if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY_EMPTY) {
+                        return Some(file_override.clone());
+                    }
+                    if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY) {
+                        return Some(file_override.clone());
+                    }
+                } else if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY) {
+                    return Some(file_override.clone());
+                }
+            }
         } else {
             if let Some(ref name_overrides) = self.ui.filenames
                 && let Some(file_override) = name_overrides.get(&file.name)
@@ -546,6 +570,28 @@ impl FileNameColours for Theme {
                 && let Some(file_override) = ext_overrides.get(&ext)
             {
                 return Some(file_override.clone());
+            }
+
+            if let Some(ref mime_overrides) = self.ui.mimetypes
+                && let Some(mimetype) = file.mimetype()
+                && let Some(file_override) = mime_overrides.get(mimetype)
+            {
+                return Some(file_override.clone());
+            }
+
+            if let Some(ref ext_overrides) = self.ui.extensions {
+                if file.ext.is_some() {
+                    if let Some(file_override) = ext_overrides.get(FileDefaults::FILE) {
+                        return Some(file_override.clone());
+                    }
+                } else {
+                    if let Some(file_override) = ext_overrides.get(FileDefaults::FILE_UNKNOWN) {
+                        return Some(file_override.clone());
+                    }
+                    if let Some(file_override) = ext_overrides.get(FileDefaults::FILE) {
+                        return Some(file_override.clone());
+                    }
+                }
             }
         }
 
@@ -938,5 +984,149 @@ mod customs_test {
         let mut expected = UiStyles::plain();
         expected.filekinds().normal = Some(Red.normal());
         assert_eq!(theme.ui, expected);
+    }
+
+    #[test]
+    fn test_file_defaults_constants() {
+        assert_eq!(FileDefaults::DIRECTORY, ".default_directory");
+        assert_eq!(FileDefaults::DIRECTORY_EMPTY, ".default_directory_empty");
+        assert_eq!(FileDefaults::FILE, ".default_file");
+        assert_eq!(FileDefaults::FILE_UNKNOWN, ".default_file_unknown");
+    }
+
+    #[test]
+    fn test_style_override_default_icons() {
+        use crate::theme::{FileNameStyle, IconStyle};
+        use std::path::PathBuf;
+
+        let mut ui = UiStyles::default();
+        let mut extensions = HashMap::new();
+        extensions.insert(
+            FileDefaults::FILE.to_string(),
+            FileNameStyle {
+                icon: Some(IconStyle {
+                    glyph: Some("📄".to_string()),
+                    style: None,
+                }),
+                filename: None,
+            },
+        );
+        extensions.insert(
+            FileDefaults::FILE_UNKNOWN.to_string(),
+            FileNameStyle {
+                icon: Some(IconStyle {
+                    glyph: Some("❓".to_string()),
+                    style: None,
+                }),
+                filename: None,
+            },
+        );
+        extensions.insert(
+            FileDefaults::DIRECTORY.to_string(),
+            FileNameStyle {
+                icon: Some(IconStyle {
+                    glyph: Some("📁".to_string()),
+                    style: None,
+                }),
+                filename: None,
+            },
+        );
+        extensions.insert(
+            FileDefaults::DIRECTORY_EMPTY.to_string(),
+            FileNameStyle {
+                icon: Some(IconStyle {
+                    glyph: Some("📂".to_string()),
+                    style: None,
+                }),
+                filename: None,
+            },
+        );
+        ui.extensions = Some(extensions);
+
+        let theme = Theme {
+            ui,
+            exts: Box::new(NoFileStyle),
+        };
+
+        // 1. File with unmapped extension -> .default_file (📄)
+        let file_unmapped = File::from_args(
+            PathBuf::from("document.unmapped_extension"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let style = theme
+            .style_override(&file_unmapped)
+            .expect("style override for unmapped file");
+        assert_eq!(style.icon.unwrap().glyph.as_deref(), Some("📄"));
+
+        // 2. Extensionless file -> .default_file_unknown (❓)
+        let file_noext = File::from_args(
+            PathBuf::from("extensionless_file"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let style = theme
+            .style_override(&file_noext)
+            .expect("style override for extensionless file");
+        assert_eq!(style.icon.unwrap().glyph.as_deref(), Some("❓"));
+    }
+
+    #[test]
+    fn test_style_override_default_fallbacks() {
+        use crate::theme::{FileNameStyle, IconStyle};
+        use std::path::PathBuf;
+
+        // When only .default_file and .default_directory are defined
+        let mut ui = UiStyles::default();
+        let mut extensions = HashMap::new();
+        extensions.insert(
+            FileDefaults::FILE.to_string(),
+            FileNameStyle {
+                icon: Some(IconStyle {
+                    glyph: Some("📄".to_string()),
+                    style: None,
+                }),
+                filename: None,
+            },
+        );
+        extensions.insert(
+            FileDefaults::DIRECTORY.to_string(),
+            FileNameStyle {
+                icon: Some(IconStyle {
+                    glyph: Some("📁".to_string()),
+                    style: None,
+                }),
+                filename: None,
+            },
+        );
+        ui.extensions = Some(extensions);
+
+        let theme = Theme {
+            ui,
+            exts: Box::new(NoFileStyle),
+        };
+
+        // Extensionless file falls back to .default_file when .default_file_unknown is not set
+        let file_noext = File::from_args(
+            PathBuf::from("bare_file"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let style = theme
+            .style_override(&file_noext)
+            .expect("fallback to .default_file");
+        assert_eq!(style.icon.unwrap().glyph.as_deref(), Some("📄"));
     }
 }

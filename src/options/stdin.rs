@@ -7,49 +7,82 @@
 use clap::ArgMatches;
 
 use crate::options::Vars;
-use crate::options::vars::EZA_STDIN_SEPARATOR;
+use crate::options::vars::{EZA_STDIN_SEPARATOR, LSR_STDIN_SEPARATOR};
 use std::ffi::OsString;
-use std::io;
-use std::io::IsTerminal;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FilesInput {
     Stdin(OsString),
     Args,
 }
 
-// Check if stdin is redirected to /dev/null.
-// /dev/null is commonly used in sandboxes and background processes to mean "no input",
-// so we should not try to read from it unless --stdin was explicitly requested.
-#[cfg(unix)]
-fn is_stdin_dev_null() -> bool {
-    use std::os::unix::fs::MetadataExt;
-
-    let Ok(stdin_meta) = std::fs::metadata("/dev/stdin") else {
-        return false;
-    };
-    let Ok(null_meta) = std::fs::metadata("/dev/null") else {
-        return false;
-    };
-
-    // Compare device and inode numbers to check if stdin is /dev/null
-    stdin_meta.dev() == null_meta.dev() && stdin_meta.ino() == null_meta.ino()
-}
-
-#[cfg(not(unix))]
-fn is_stdin_dev_null() -> bool {
-    false
-}
-
 impl FilesInput {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
-        if matches.get_flag("stdin") || (!io::stdin().is_terminal() && !is_stdin_dev_null()) {
+        if matches.get_flag("stdin") {
             let separator = vars
-                .get(EZA_STDIN_SEPARATOR)
+                .get_with_fallback(LSR_STDIN_SEPARATOR, EZA_STDIN_SEPARATOR)
                 .unwrap_or(OsString::from("\n"));
             FilesInput::Stdin(separator)
         } else {
             FilesInput::Args
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::options::parser::test::mock_cli;
+    use crate::options::vars::test::MockVars;
+
+    #[test]
+    fn deduce_stdin_disabled_by_default() {
+        let cli = mock_cli(vec!["file1", "file2"]);
+        let vars = MockVars::default();
+        assert_eq!(FilesInput::deduce(&cli, &vars), FilesInput::Args);
+    }
+
+    #[test]
+    fn deduce_stdin_enabled_with_flag() {
+        let cli = mock_cli(vec!["--stdin"]);
+        let vars = MockVars::default();
+        assert_eq!(
+            FilesInput::deduce(&cli, &vars),
+            FilesInput::Stdin(OsString::from("\n"))
+        );
+    }
+
+    #[test]
+    fn deduce_stdin_custom_separator_lsr() {
+        let cli = mock_cli(vec!["--stdin"]);
+        let mut vars = MockVars::default();
+        vars.set(LSR_STDIN_SEPARATOR, &OsString::from("\0"));
+        assert_eq!(
+            FilesInput::deduce(&cli, &vars),
+            FilesInput::Stdin(OsString::from("\0"))
+        );
+    }
+
+    #[test]
+    fn deduce_stdin_custom_separator_eza_fallback() {
+        let cli = mock_cli(vec!["--stdin"]);
+        let mut vars = MockVars::default();
+        vars.set(EZA_STDIN_SEPARATOR, &OsString::from(","));
+        assert_eq!(
+            FilesInput::deduce(&cli, &vars),
+            FilesInput::Stdin(OsString::from(","))
+        );
+    }
+
+    #[test]
+    fn deduce_stdin_lsr_takes_precedence_over_eza() {
+        let cli = mock_cli(vec!["--stdin"]);
+        let mut vars = MockVars::default();
+        vars.set(LSR_STDIN_SEPARATOR, &OsString::from(":"));
+        vars.set(EZA_STDIN_SEPARATOR, &OsString::from(";"));
+        assert_eq!(
+            FilesInput::deduce(&cli, &vars),
+            FilesInput::Stdin(OsString::from(":"))
+        );
     }
 }

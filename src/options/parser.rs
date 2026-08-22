@@ -122,6 +122,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"short-nix" "abbreviate Nix store hashes in file names and paths"))
         .arg(arg!(--"no-symlink-targets" "do not show symlink targets (the `-> ...`)"))
         .arg(arg!(--summary "display total summary statistics of entries"))
+        .arg(arg!(--"mime-types" "determine file MIME types to better inform styling decisions (unix only)"))
 
         .next_help_heading("FILTERING OPTIONS")
         .arg(arg!(-a --all... "show hidden files. Use this twice to also show the '.' and '..' directories"))

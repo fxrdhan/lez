@@ -119,6 +119,11 @@ same-file = "1.0.6"
 serde_norway = "0.9"
 backtrace = "0.3"
 clap = { version = "4.5.38", features = ["cargo", "derive", "wrap_help"] }
+icu_collator = "1.5"
+icu_locid = "1.5"
+icu_provider = { version = "1.5", features = ["sync"] }
+sys-locale = "0.3"
+tree_magic_mini = { version = "3.2.0", features = ["with-gpl-data"] }
 
 [dependencies.git2]
 version = "0.21"

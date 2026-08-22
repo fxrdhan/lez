@@ -25,6 +25,11 @@ pub static TIME_STYLE: &str = "TIME_STYLE";
 /// See: <https://no-color.org/>
 pub static NO_COLOR: &str = "NO_COLOR";
 
+/// Environment variables for POSIX locale collation.
+pub static LC_ALL: &str = "LC_ALL";
+pub static LC_COLLATE: &str = "LC_COLLATE";
+pub static LANG: &str = "LANG";
+
 // exa-specific variables
 
 /// Environment variable used to colour exa’s interface when colours are
@@ -79,7 +84,12 @@ pub static EXA_MAX_LUMINANCE: &str = "EXA_MAX_LUMINANCE";
 /// Any explicit use of `--icons=WHEN` overrides this behavior.
 pub static EZA_ICONS_AUTO: &str = "EZA_ICONS_AUTO";
 
+pub static LSR_STDIN_SEPARATOR: &str = "LSR_STDIN_SEPARATOR";
 pub static EZA_STDIN_SEPARATOR: &str = "EZA_STDIN_SEPARATOR";
+
+/// Environment variable used to determine MIME types for styling decisions.
+pub static LSR_MIME_TYPES: &str = "LSR_MIME_TYPES";
+pub static EZA_MIME_TYPES: &str = "EZA_MIME_TYPES";
 
 /// Environment variable for user home directory.
 pub static HOME: &str = "HOME";
@@ -99,6 +109,11 @@ pub static EZA_WINDOWS_ATTRIBUTES: &str = "EZA_WINDOWS_ATTRIBUTES";
 /// Mockable wrapper for `std::env::var_os`.
 pub trait Vars {
     fn get(&self, name: &'static str) -> Option<OsString>;
+
+    /// Return system locale if available.
+    fn get_locale(&self) -> Option<String> {
+        sys_locale::get_locale()
+    }
 
     /// Check if stdout is connected to a terminal / TTY.
     fn stdout_is_terminal(&self) -> bool {
@@ -153,10 +168,24 @@ pub mod test {
         pub eza_config_dir: OsString,
         pub xdg_config_home: OsString,
         pub home: OsString,
+        pub lsr_stdin_separator: OsString,
+        pub eza_stdin_separator: OsString,
+        pub stdin_separator: OsString,
+        pub lsr_mime_types: OsString,
+        pub eza_mime_types: OsString,
+        pub mimetypes: OsString,
+        pub lc_all: OsString,
+        pub lc_collate: OsString,
+        pub lang: OsString,
+        pub sys_locale: Option<String>,
         pub stdout_is_terminal: bool,
     }
 
     impl Vars for MockVars {
+        fn get_locale(&self) -> Option<String> {
+            self.sys_locale.clone()
+        }
+
         fn stdout_is_terminal(&self) -> bool {
             self.stdout_is_terminal
         }
@@ -204,6 +233,29 @@ pub mod test {
                     Some(self.xdg_config_home.clone())
                 }
                 "HOME" if !self.home.is_empty() => Some(self.home.clone()),
+                "LSR_STDIN_SEPARATOR" if !self.lsr_stdin_separator.is_empty() => {
+                    Some(self.lsr_stdin_separator.clone())
+                }
+                "EZA_STDIN_SEPARATOR" if !self.eza_stdin_separator.is_empty() => {
+                    Some(self.eza_stdin_separator.clone())
+                }
+                "LSR_STDIN_SEPARATOR" | "EZA_STDIN_SEPARATOR"
+                    if !self.stdin_separator.is_empty() =>
+                {
+                    Some(self.stdin_separator.clone())
+                }
+                "LSR_MIME_TYPES" if !self.lsr_mime_types.is_empty() => {
+                    Some(self.lsr_mime_types.clone())
+                }
+                "EZA_MIME_TYPES" if !self.eza_mime_types.is_empty() => {
+                    Some(self.eza_mime_types.clone())
+                }
+                "LSR_MIME_TYPES" | "EZA_MIME_TYPES" if !self.mimetypes.is_empty() => {
+                    Some(self.mimetypes.clone())
+                }
+                "LC_ALL" if !self.lc_all.is_empty() => Some(self.lc_all.clone()),
+                "LC_COLLATE" if !self.lc_collate.is_empty() => Some(self.lc_collate.clone()),
+                "LANG" if !self.lang.is_empty() => Some(self.lang.clone()),
                 _ => None,
             }
         }
@@ -234,6 +286,13 @@ pub mod test {
                 "EZA_CONFIG_DIR" => self.eza_config_dir = value.clone(),
                 "XDG_CONFIG_HOME" => self.xdg_config_home = value.clone(),
                 "HOME" => self.home = value.clone(),
+                "LSR_STDIN_SEPARATOR" => self.lsr_stdin_separator = value.clone(),
+                "EZA_STDIN_SEPARATOR" => self.eza_stdin_separator = value.clone(),
+                "LSR_MIME_TYPES" => self.lsr_mime_types = value.clone(),
+                "EZA_MIME_TYPES" => self.eza_mime_types = value.clone(),
+                "LC_ALL" => self.lc_all = value.clone(),
+                "LC_COLLATE" => self.lc_collate = value.clone(),
+                "LANG" => self.lang = value.clone(),
                 _ => (),
             };
         }
@@ -286,5 +345,17 @@ pub mod test {
 
         vars.set(LSR_MAX_LUMINANCE, &OsString::from("85"));
         assert_eq!(vars.get(LSR_MAX_LUMINANCE), Some(OsString::from("85")));
+
+        vars.set(LSR_STDIN_SEPARATOR, &OsString::from(","));
+        assert_eq!(vars.get(LSR_STDIN_SEPARATOR), Some(OsString::from(",")));
+
+        vars.set(EZA_STDIN_SEPARATOR, &OsString::from(";"));
+        assert_eq!(vars.get(EZA_STDIN_SEPARATOR), Some(OsString::from(";")));
+
+        vars.set(LSR_MIME_TYPES, &OsString::from("1"));
+        assert_eq!(vars.get(LSR_MIME_TYPES), Some(OsString::from("1")));
+
+        vars.set(EZA_MIME_TYPES, &OsString::from("1"));
+        assert_eq!(vars.get(EZA_MIME_TYPES), Some(OsString::from("1")));
     }
 }

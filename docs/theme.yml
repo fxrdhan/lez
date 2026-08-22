@@ -42,3 +42,8 @@ extensions:
   rs: {filename: {foreground: Red}, icon: {glyph: 🦀}}
   # Change the icon glyph and color
   nix: {icon: {glyph: ❄, style: {foreground: White}}}
+  # Default fallback icon overrides for unmapped files and directories
+  .default_file: {icon: {glyph: 📄}}
+  .default_file_unknown: {icon: {glyph: ❓}}
+  .default_directory: {icon: {glyph: 📁}}
+  .default_directory_empty: {icon: {glyph: 📂}}

@@ -211,6 +211,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--git-ignore'               ,'git-ignore'          , [CompletionResultType]::ParameterName, 'ignore files mentioned in ''.gitignore''')
             [CompletionResult]::new('--since'                    ,'since'               , [CompletionResultType]::ParameterName, 'filter and display only files created or modified within duration window')
             [CompletionResult]::new('--print-total'              ,'print-total'         , [CompletionResultType]::ParameterName, 'display total number of entries')
+            [CompletionResult]::new('--mime-types'               ,'mimetypes'           , [CompletionResultType]::ParameterName, 'determine file MIME types to better inform styling decisions (unix only)')
             break
         }
         

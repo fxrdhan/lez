@@ -494,12 +494,14 @@ fn test_m4_sort_by_path_unit_comparisons() {
         None,
         false,
         false,
+        false,
         None,
     );
     let file_b = File::from_args(
         PathBuf::from("beta/sub/a_file.txt"),
         None,
         None,
+        false,
         false,
         false,
         None,
@@ -522,12 +524,14 @@ fn test_m4_sort_by_path_case_sensitivity() {
         None,
         false,
         false,
+        false,
         None,
     );
     let file_lower = File::from_args(
         PathBuf::from("folder_a/file.txt"),
         None,
         None,
+        false,
         false,
         false,
         None,
@@ -550,12 +554,14 @@ fn test_m4_sort_by_path_natural_number_ordering() {
         None,
         false,
         false,
+        false,
         None,
     );
     let file_10 = File::from_args(
         PathBuf::from("dir/10/item.txt"),
         None,
         None,
+        false,
         false,
         false,
         None,
