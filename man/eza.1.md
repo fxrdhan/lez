@@ -201,6 +201,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--git-ignore` [if eza was built with git support]
 : Do not list files that are ignored by Git.
 
+`--cachedir-ignore`
+: Do not list directories that contain a `CACHEDIR.TAG` file carrying the correct signature (see <https://bford.info/cachedir/>).
+
 `--since=DURATION`
 : Filter and display only files created or modified within the specified duration window (e.g. `10m`, `1h`, `2d`, `1w`).
 
@@ -322,6 +325,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 
 `-@`, `--extended`
 : List each file’s extended attributes and sizes.
+
+`--no-extended`
+: Don’t show the `@` marker that a file has extended attributes.
 
 `-Z`, `--context`
 : List each file's security context.

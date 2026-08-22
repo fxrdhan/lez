@@ -121,6 +121,8 @@ pub struct Options {
 
     /// Whether to show each file's security attribute.
     pub secattr: bool,
+    /// Whether to show the `@` marker for files with extended attributes.
+    pub indicate_xattr: bool,
 
     /// Whether to show a directory's mounted filesystem details
     pub mounts: bool,
@@ -318,7 +320,7 @@ impl<'a> Render<'a> {
                 let table_row = table.as_ref().map(|t| {
                     t.row_for_file(
                         file,
-                        show_xattr_hint(self.opts.secattr, file),
+                        show_xattr_hint(self.opts.secattr && self.opts.indicate_xattr, file),
                         color_scale_info,
                     )
                 });
@@ -409,6 +411,7 @@ impl<'a> Render<'a> {
 
                 self.filter
                     .filter_child_files(self.recurse.is_some(), &mut files);
+                self.filter.filter_cachedirs(&mut files);
 
                 if !files.is_empty() {
                     for xattr in egg.xattrs {

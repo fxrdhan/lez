@@ -5,7 +5,7 @@
 
 use lsr::fs::fields::Size;
 use lsr::fs::filter::{
-    FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, SortCase, SortField,
+    FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase, SortField,
 };
 use lsr::fs::{DotFilter, File};
 use lsr::loc::{LocCounts, count_roots, language_for};
@@ -101,6 +101,7 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
         ignore_patterns,
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
+        ignore_cachedir: IgnoreCacheDir::Off,
         since: None,
         no_symlinks: false,
         show_symlinks: false,

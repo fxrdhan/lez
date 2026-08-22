@@ -472,6 +472,7 @@ impl Exa<'_> {
             self.options
                 .filter
                 .filter_child_files(recursing, &mut children);
+            self.options.filter.filter_cachedirs(&mut children);
             self.options.filter.sort_files(&mut children);
 
             if let Some(recurse_opts) = self.options.dir_action.recurse_options() {

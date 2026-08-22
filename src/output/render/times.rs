@@ -11,32 +11,27 @@ use chrono::prelude::*;
 use nu_ansi_term::Style;
 
 pub trait Render {
-    fn render(
-        self,
-        style: Style,
-        time_offset: FixedOffset,
-        time_format: TimeFormat,
-        use_utc: bool,
-    ) -> TextCell;
-    fn render_json(
-        self,
-        time_offset: FixedOffset,
-        time_format: TimeFormat,
-        use_utc: bool,
-    ) -> Option<String>;
+    fn render(self, style: Style, time_format: TimeFormat, use_utc: bool) -> TextCell;
+    fn render_json(self, time_format: TimeFormat, use_utc: bool) -> Option<String>;
+}
+
+/// Resolves the zone offset that was in effect at this very timestamp, so
+/// DST transitions render with their historical wall-clock time instead of
+/// whatever offset "now" happens to have.
+fn local_offset_for(time: chrono::NaiveDateTime, use_utc: bool) -> FixedOffset {
+    if use_utc {
+        FixedOffset::east_opt(0).unwrap()
+    } else {
+        *Local.from_utc_datetime(&time).offset()
+    }
 }
 
 impl Render for Option<NaiveDateTime> {
-    fn render(
-        self,
-        style: Style,
-        time_offset: FixedOffset,
-        time_format: TimeFormat,
-        use_utc: bool,
-    ) -> TextCell {
+    fn render(self, style: Style, time_format: TimeFormat, use_utc: bool) -> TextCell {
         let datestamp = if let Some(time) = self {
+            let offset = local_offset_for(time, use_utc);
             time_format.format(
-                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, time_offset),
+                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, offset),
                 use_utc,
             )
         } else {
@@ -46,15 +41,11 @@ impl Render for Option<NaiveDateTime> {
         TextCell::paint(style, datestamp)
     }
 
-    fn render_json(
-        self,
-        time_offset: FixedOffset,
-        time_format: TimeFormat,
-        use_utc: bool,
-    ) -> Option<String> {
+    fn render_json(self, time_format: TimeFormat, use_utc: bool) -> Option<String> {
         self.map(|time| {
+            let offset = local_offset_for(time, use_utc);
             time_format.format(
-                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, time_offset),
+                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, offset),
                 use_utc,
             )
         })

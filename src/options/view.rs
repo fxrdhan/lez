@@ -214,6 +214,7 @@ impl details::Options {
             xattr: xattr::ENABLED && matches.get_flag("extended"),
             tags: xattr::ENABLED && matches.get_flag("tags"),
             secattr: xattr::ENABLED && matches.get_flag("security-context"),
+            indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             mounts: matches.get_flag("mounts"),
             color_scale: ColorScaleOptions::deduce(matches, vars),
             follow_links: matches.get_flag("follow-symlinks"),
@@ -231,6 +232,7 @@ impl details::Options {
             xattr: xattr::ENABLED && matches.get_flag("extended"),
             tags: xattr::ENABLED && matches.get_flag("tags"),
             secattr: xattr::ENABLED && matches.get_flag("security-context"),
+            indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             mounts: matches.get_flag("mounts"),
             color_scale: ColorScaleOptions::default(),
             follow_links: matches.get_flag("follow-symlinks"),
@@ -257,6 +259,7 @@ impl details::Options {
             xattr: xattr::ENABLED && matches.get_flag("extended"),
             tags: xattr::ENABLED && matches.get_flag("tags"),
             secattr: xattr::ENABLED && matches.get_flag("security-context"),
+            indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             mounts: matches.get_flag("mounts"),
             color_scale: ColorScaleOptions::deduce(matches, vars),
             follow_links: matches.get_flag("follow-symlinks"),
@@ -1514,6 +1517,7 @@ mod tests {
                 xattr: false,
                 tags: false,
                 secattr: false,
+                indicate_xattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1532,6 +1536,7 @@ mod tests {
                 xattr: false,
                 tags: false,
                 secattr: false,
+                indicate_xattr: xattr::ENABLED,
                 mounts: true,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1550,6 +1555,7 @@ mod tests {
                 xattr: xattr::ENABLED,
                 tags: false,
                 secattr: false,
+                indicate_xattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1568,6 +1574,7 @@ mod tests {
                 xattr: false,
                 tags: xattr::ENABLED,
                 secattr: false,
+                indicate_xattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1586,6 +1593,7 @@ mod tests {
                 xattr: false,
                 tags: false,
                 secattr: xattr::ENABLED,
+                indicate_xattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1927,6 +1935,21 @@ mod tests {
         let matches = mock_cli(vec![""]);
         let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
         assert!(!view.summary);
+    }
+
+    #[test]
+    fn deduce_details_indicates_xattrs_by_default() {
+        for (args, expected) in [
+            (vec!["-l"], xattr::ENABLED),
+            (vec!["-l", "--no-extended"], false),
+        ] {
+            let matches = mock_cli(args);
+            let mode = Mode::deduce(&matches, &MockVars::default(), false, false).unwrap();
+            match mode {
+                Mode::Details(opts) => assert_eq!(opts.indicate_xattr, expected),
+                _ => panic!("Expected Mode::Details"),
+            }
+        }
     }
 
     #[test]
