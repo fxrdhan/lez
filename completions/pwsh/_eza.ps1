@@ -9,7 +9,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
     $ArrayColorScaleMode = @('fixed', 'gradient')
     $ArrayColorScale     = @('all', 'age', 'size')
     $ArrayAbsolute       = @('on', 'follow', 'off')
-    $ArrayTime           = @('modified', 'mod', 'm', 'r', 'accessed', 'acc', 'changed', 'ch', 'created', 'cr')
+    $ArrayTime           = @('modified', 'mod', 'm', 'accessed', 'acc', 'changed', 'ch', 'created', 'cr')
     $ArrayTimeStyle      = @('default', 'iso', 'long-iso', 'full-iso', 'relative', '+%Y-%m-%d %H:%M', '+%Y.%m.%d %H:$M:$s')
     $ArrayCodeMode       = @('lines', 'percent', 'both')
 
