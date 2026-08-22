@@ -107,14 +107,14 @@ fn main() {
                 }
 
                 Err(e) => {
-                    eprintln!("{e}");
+                    let _ = writeln!(io::stderr(), "{e}");
                     trace!("exa.run: exit RUNTIME_ERROR");
                     exit(exits::RUNTIME_ERROR);
                 }
             }
         }
         Err(error) => {
-            eprintln!("lsr: {error}");
+            let _ = writeln!(io::stderr(), "lsr: {error}");
             exit(exits::OPTIONS_ERROR);
         }
     }
@@ -421,7 +421,8 @@ impl Exa<'_> {
                 Ok(dir) => dir,
                 Err(e) => {
                     if e.kind() == ErrorKind::PermissionDenied {
-                        eprintln!(
+                        let _ = writeln!(
+                            io::stderr(),
                             "Permission denied: {} - code: {}",
                             dir.path.display(),
                             exits::PERMISSION_DENIED
@@ -430,7 +431,7 @@ impl Exa<'_> {
                         continue;
                     }
 
-                    eprintln!("{}: {}", dir.path.display(), e);
+                    let _ = writeln!(io::stderr(), "{}: {}", dir.path.display(), e);
                     continue;
                 }
             };
@@ -502,12 +503,13 @@ impl Exa<'_> {
         }
 
         if !denied_dirs.is_empty() {
-            eprintln!(
+            let _ = writeln!(
+                io::stderr(),
                 "\nSkipped {} directories due to permission denied: ",
                 denied_dirs.len()
             );
             for path in denied_dirs {
-                eprintln!("  {}", path.display());
+                let _ = writeln!(io::stderr(), "  {}", path.display());
             }
         }
 
@@ -535,7 +537,14 @@ impl Exa<'_> {
         }
         let recursing = self.options.dir_action.recurse_options().is_some();
         let only_files = self.options.filter.flags.contains(&OnlyFiles);
-        if recursing && only_files {
+        // In tree mode directories are hidden by the details renderer instead,
+        // so the recursion still descends into them and the edges stay intact.
+        let tree = self
+            .options
+            .dir_action
+            .recurse_options()
+            .is_some_and(|r| r.tree);
+        if recursing && only_files && !tree {
             files = files
                 .into_iter()
                 .filter(|f| !f.is_directory())
