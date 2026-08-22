@@ -399,5 +399,4 @@ Lineage: `exa` (by Benjamin Sago) ➔ `eza` (community fork) ➔ `lsr` (by fxrdh
 SEE ALSO
 ========
 
-- [**lsr**(1)](lsr.1.md)
-- [**lsr_colors-explanation**(5)](lsr_colors-explanation.5.md)
+**lsr**(1), **lsr_colors-explanation**(5)

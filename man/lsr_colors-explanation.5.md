@@ -243,5 +243,4 @@ You must name the file `theme.yml`, no matter the directory you specify.
 
 ## See also
 
-- [**lsr**(1)](lsr.1.md)
-- [**lsr_colors**(5)](lsr_colors.5.md)
+**lsr**(1), **lsr_colors**(5)
