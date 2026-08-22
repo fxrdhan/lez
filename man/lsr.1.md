@@ -124,7 +124,7 @@ When used without a value, defaults to ‘`all`’.
 `--color-scale-mode=MODE`, `--colour-scale-mode=MODE`
 : Mode of color scale.
 
-Valid options are `fixed` or `gradient`.
+Valid options are `fixed` to use a fixed color (disabling color scale), or `gradient` to use an automatic darker (old/small file) to lighter (recent/big file) gradient of colors.
 When used without a value, defaults to `gradient`.
 
 `--icons[=WHEN]`
