@@ -35,6 +35,7 @@ __eza() {
         --follow-symlinks"[Drill down into symbolic links that point to directories]" \
         --group-directories-first"[Sort directories before other files]" \
         --group-directories-last"[Sort directories after other files]" \
+        --inspect-archives"[List contents of supported archives in long view]" \
         --ignore-submodule-contents"[Do not list contents of submodules]" \
         -W'[Print a tally of hidden and ignored items]' \
         --git-ignore"[Ignore files mentioned in '.gitignore']" \

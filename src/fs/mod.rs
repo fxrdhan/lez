@@ -7,6 +7,7 @@
 mod dir;
 pub use self::dir::{Dir, DotFilter};
 
+pub mod archives;
 mod file;
 pub use self::file::{File, FileTarget};
 

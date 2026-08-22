@@ -182,6 +182,7 @@ These options are available when running with `--long` (`-l`):
 - **-Z**, **--context**: list each file’s security context
 - **-@**, **--extended**: list each file’s extended attributes and sizes
 - **--no-extended**: don't show the `@` marker that a file has extended attributes
+- **--inspect-archives**: list the contents of supported archives (.tar) in long view
 - **--changed**: use the changed timestamp field
 - **--git**: list each file’s Git status, if tracked or ignored
 - **--git-repos**: list each directory’s Git status, if tracked

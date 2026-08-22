@@ -128,6 +128,7 @@ icu_locid = "1.5"
 icu_provider = { version = "1.5", features = ["sync"] }
 sys-locale = "0.3"
 tree_magic_mini = { version = "3.2.0", features = ["with-gpl-data"] }
+tar = { version = "0.4", optional = true }
 
 [dependencies.git2]
 version = "0.21"
@@ -156,8 +157,9 @@ criterion = { version = "0.8.2", features = ["html_reports"] }
 trycmd = "1.0"
 
 [features]
-default = ["git"]
+default = ["git", "inspect-archives"]
 git = ["git2"]
+inspect-archives = ["dep:tar"]
 vendored-openssl = ["git2/vendored-openssl"]
 vendored-libgit2 = ["git2/vendored-libgit2"]
 # Should only be used inside of flake.nix
