@@ -16,6 +16,7 @@ export extern "eza" [
     --color-scale-mode         # Use gradient or fixed colors in --color-scale
     --colour-scale-mode        # Use gradient or fixed colors in --colour-scale
     --icons                    # When to display icons
+    --quotes                   # When to quote filenames (always, auto, never)
     --no-quotes                # Don't quote file names with spaces
     --short-nix                # Abbreviate Nix store hashes in file names and paths
     --no-symlink-targets       # Do not show symlink targets

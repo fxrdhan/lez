@@ -18,8 +18,8 @@ use crate::output::render;
 
 mod ui_styles;
 pub(crate) use self::ui_styles::FileType as ThemeFileType;
-pub use self::ui_styles::{LinkStyle, UiStyles};
 pub(crate) use self::ui_styles::*;
+pub use self::ui_styles::{LinkStyle, UiStyles};
 
 mod lsc;
 pub use self::lsc::LSColors;

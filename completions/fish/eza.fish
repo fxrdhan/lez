@@ -36,6 +36,12 @@ complete -c eza -l icons -d "When to display icons" -x -a "
   automatic\t'Display icons if standard output is a terminal'
   never\t'Never display icons'
 "
+complete -c eza -l quotes -d "When to quote filenames" -x -a "
+  always\t'Quote every filename'
+  auto\t'Quote filenames that contain spaces or quotes'
+  automatic\t'Quote filenames that contain spaces or quotes'
+  never\t'Never quote filenames'
+"
 complete -c eza -l no-quotes -d "Don't quote file names with spaces"
 complete -c eza -l short-nix -d "Abbreviate Nix store hashes in file names and paths"
 complete -c eza -l no-symlink-targets -d "Do not show symlink targets"
