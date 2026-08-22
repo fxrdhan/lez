@@ -435,7 +435,7 @@ impl<C: Colours> FileName<'_, '_, C> {
 
                         if should_add_classify_char && let Some(class) = self.classify_char(target)
                         {
-                            bits.push(Style::default().paint(class));
+                            bits.push(self.colours.classify_char().paint(class));
                         }
                     }
                 }
@@ -459,7 +459,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                 }
             }
         } else if should_add_classify_char && let Some(class) = self.classify_char(self.file) {
-            bits.push(Style::default().paint(class));
+            bits.push(self.colours.classify_char().paint(class));
         }
 
         if self.mount_style == MountStyle::MountInfo
@@ -711,6 +711,9 @@ pub trait Colours: FiletypeColours {
     /// The style to paint a directory that has a filesystem mounted on it.
     fn mount_point(&self) -> Style;
 
+    /// The style to paint a file kind indicator.
+    fn classify_char(&self) -> Style;
+
     fn colour_file(&self, file: &File<'_>) -> Style;
 
     fn style_override(&self, file: &File<'_>) -> Option<FileNameStyle>;
@@ -848,6 +851,9 @@ mod test {
         fn mount_point(&self) -> Style {
             Style::default()
         }
+        fn classify_char(&self) -> Style {
+            nu_ansi_term::Color::Fixed(244).normal()
+        }
         fn colour_file(&self, _file: &File<'_>) -> Style {
             Style::default()
         }
@@ -935,8 +941,7 @@ mod test {
     }
 
     #[test]
-    fn hyperlink_with_classifier_keeps_classifier_outside_tags() {
-        let colours = TestColours;
+    fn hyperlink_with_classifier_keeps_classifier_outside_tags() {        let colours = TestColours;
         let path = std::path::PathBuf::from("tests/itest");
         let file = File::from_args(path, None, None, false, false, false, None);
         let options = Options {
@@ -962,9 +967,42 @@ mod test {
         let closing_tag = "\x1B]8;;\x1B\\";
         let closing_pos = painted.rfind(closing_tag).expect("closing tag present");
         let after_closing = &painted[closing_pos + closing_tag.len()..];
+        let styled_slash = format!("{}", nu_ansi_term::Color::Fixed(244).normal().paint("/"));
         assert_eq!(
-            after_closing, "/",
+            after_closing, styled_slash,
             "Classifier character must follow the hyperlink closing tag"
+        );
+    }
+
+    #[test]
+    fn classify_char_is_painted_with_the_classify_colour() {
+        let colours = TestColours;
+        let path = std::path::PathBuf::from("tests/itest");
+        let file = File::from_args(path, None, None, false, false, false, None);
+        let options = Options {
+            classify: Classify::AddFileIndicators,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::NoQuotes,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &file,
+            colours: &colours,
+            target: None,
+            link_style: LinkStyle::JustFilenames,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        let styled_slash = format!("{}", nu_ansi_term::Color::Fixed(244).normal().paint("/"));
+        assert!(
+            painted.ends_with(&styled_slash),
+            "classifier must use colours.classify_char(), got {painted:?}"
         );
     }
 
@@ -1140,9 +1178,10 @@ mod test {
         .use_symlink_targets();
 
         let painted = format!("{}", file_name.paint().strings());
+        let styled_at = format!("{}", nu_ansi_term::Color::Fixed(244).normal().paint("@"));
         assert!(!painted.contains("->"), "Must NOT contain arrow: {painted}");
         assert!(
-            painted.contains("dir-symlink@"),
+            painted.contains(&format!("dir-symlink{styled_at}")),
             "Must contain link name with @ indicator: {painted}"
         );
     }
