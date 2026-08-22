@@ -320,10 +320,7 @@ impl<'a> Render<'a> {
                 let table_row = table.as_ref().map(|t| {
                     t.row_for_file(
                         file,
-                        show_xattr_hint(
-                            self.opts.secattr && self.opts.indicate_xattr,
-                            file,
-                        ),
+                        show_xattr_hint(self.opts.secattr && self.opts.indicate_xattr, file),
                         color_scale_info,
                     )
                 });

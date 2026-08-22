@@ -1517,7 +1517,7 @@ mod tests {
                 xattr: false,
                 tags: false,
                 secattr: false,
-                indicate_xattr: true,
+                indicate_xattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1536,7 +1536,7 @@ mod tests {
                 xattr: false,
                 tags: false,
                 secattr: false,
-                indicate_xattr: true,
+                indicate_xattr: xattr::ENABLED,
                 mounts: true,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1555,7 +1555,7 @@ mod tests {
                 xattr: xattr::ENABLED,
                 tags: false,
                 secattr: false,
-                indicate_xattr: true,
+                indicate_xattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1574,7 +1574,7 @@ mod tests {
                 xattr: false,
                 tags: xattr::ENABLED,
                 secattr: false,
-                indicate_xattr: true,
+                indicate_xattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1593,7 +1593,7 @@ mod tests {
                 xattr: false,
                 tags: false,
                 secattr: xattr::ENABLED,
-                indicate_xattr: true,
+                indicate_xattr: xattr::ENABLED,
                 mounts: false,
                 color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
                 follow_links: false,
@@ -1939,7 +1939,10 @@ mod tests {
 
     #[test]
     fn deduce_details_indicates_xattrs_by_default() {
-        for (args, expected) in [(vec!["-l"], true), (vec!["-l", "--no-extended"], false)] {
+        for (args, expected) in [
+            (vec!["-l"], xattr::ENABLED),
+            (vec!["-l", "--no-extended"], false),
+        ] {
             let matches = mock_cli(args);
             let mode = Mode::deduce(&matches, &MockVars::default(), false, false).unwrap();
             match mode {

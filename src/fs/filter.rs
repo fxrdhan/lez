@@ -294,9 +294,7 @@ impl FileFilter {
     /// correct magic number; a no-op unless `ignore_cachedir` is active.
     pub fn filter_cachedirs(&self, files: &mut Vec<File<'_>>) {
         if self.ignore_cachedir == IgnoreCacheDir::CheckAndIgnore {
-            files.retain(|f| {
-                !f.is_directory() || !Self::dir_contains_cachedir_tag(&f.path)
-            });
+            files.retain(|f| !f.is_directory() || !Self::dir_contains_cachedir_tag(&f.path));
         }
     }
 
@@ -315,9 +313,7 @@ impl FileFilter {
     fn is_cachedir_tag(path: &std::path::Path) -> bool {
         use std::io::Read;
 
-        if path.file_name() != Some(std::ffi::OsStr::new("CACHEDIR.TAG"))
-            || path.is_symlink()
-        {
+        if path.file_name() != Some(std::ffi::OsStr::new("CACHEDIR.TAG")) || path.is_symlink() {
             return false;
         }
         let Ok(mut reader) = std::fs::File::open(path) else {

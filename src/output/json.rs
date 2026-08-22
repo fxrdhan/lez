@@ -294,9 +294,10 @@ impl<'a> Render<'a> {
                 columns,
                 self.environment,
                 show_xattr_hint(
-                    self.opts.details.as_ref().is_some_and(|d| {
-                        d.secattr && d.indicate_xattr
-                    }),
+                    self.opts
+                        .details
+                        .as_ref()
+                        .is_some_and(|d| d.secattr && d.indicate_xattr),
                     f,
                 ),
                 self.git,
@@ -372,10 +373,7 @@ impl<'a> JsonFileObject<'a> {
             Column::Permissions => f.permissions_plus(xattrs).render_json(),
             Column::Timestamp(time_type) => time_type
                 .get_corresponding_time(f)
-                .render_json(
-                self.options.time_format.clone(),
-                self.options.use_utc,
-            ),
+                .render_json(self.options.time_format.clone(), self.options.use_utc),
             Column::FileSize => f.size().render_json(self.options.size_format, &env.numeric),
             #[cfg(unix)]
             Column::User => f

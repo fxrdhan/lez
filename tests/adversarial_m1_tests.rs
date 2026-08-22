@@ -3,7 +3,6 @@
 
 #![allow(unused_imports, dead_code)]
 
-use crate::fs::filter::IgnoreCacheDir;
 use lsr::fs::fields::Size;
 use lsr::fs::filter::{
     FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase, SortField,

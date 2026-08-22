@@ -7,9 +7,9 @@
 
 #![cfg(unix)]
 
+use std::fs::FileTimes;
 use std::fs::{self, File as StdFile};
 use std::io::Write;
-use std::fs::FileTimes;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -46,8 +46,8 @@ impl Drop for TempTestDir {
     }
 }
 
-/// 12:00 UTC on each date; Europe/Amsterdam is CET (+1) in January and
-/// CEST (+2) in July.
+/// 12:00 UTC on each date; the POSIX TZ rule below is CET (+1) in winter
+/// and CEST (+2) in summer, without needing a zoneinfo database.
 fn jan_utc() -> SystemTime {
     UNIX_EPOCH + Duration::from_secs(1_705_320_000)
 }
@@ -64,7 +64,7 @@ fn timestamps_use_the_offset_in_effect_at_their_own_time() {
     fixture.create_file_at("jul.txt", jul_utc());
 
     let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
-        .env("TZ", "Europe/Amsterdam")
+        .env("TZ", "CET-1CEST,M3.5.0,M10.5.0")
         .args([
             "-1",
             "-l",
@@ -97,7 +97,7 @@ fn utc_flag_still_renders_utc_wall_clock() {
     fixture.create_file_at("jan.txt", jan_utc());
 
     let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
-        .env("TZ", "Europe/Amsterdam")
+        .env("TZ", "CET-1CEST,M3.5.0,M10.5.0")
         .args([
             "-1",
             "-l",
