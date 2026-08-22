@@ -124,6 +124,9 @@ pub struct Options {
     /// Whether to show the `@` marker for files with extended attributes.
     pub indicate_xattr: bool,
 
+    /// Whether to list the entries of supported archives below them.
+    pub inspect_archives: bool,
+
     /// Whether to show a directory's mounted filesystem details
     pub mounts: bool,
 
@@ -412,6 +415,25 @@ impl<'a> Render<'a> {
                 };
 
                 rows.push(row);
+
+                #[cfg(feature = "inspect-archives")]
+                if self.opts.inspect_archives
+                    && egg.file.is_file()
+                    && crate::fs::archives::is_archive_name(&egg.file.name)
+                    && !egg.file.is_all_all
+                {
+                    // Silent-fail policy: unreadable archives are simply left
+                    // as they are.
+                    if let Ok(entries) = crate::fs::archives::read_entries(&egg.file.path) {
+                        for entry in &entries {
+                            rows.push(self.render_archive_entry(
+                                egg.file,
+                                entry,
+                                TreeParams::new(depth.deeper(), false),
+                            ));
+                        }
+                    }
+                }
             }
 
             if let Some(ref dir) = egg.dir {
@@ -495,6 +517,29 @@ impl<'a> Render<'a> {
         // TODO: broken_symlink() doesn’t quite seem like the right name for
         // the style that’s being used here. Maybe split it in two?
         let name = TextCell::paint(self.theme.broken_symlink(), error_message);
+        Row {
+            cells: None,
+            name,
+            tree,
+        }
+    }
+
+    /// A name-only row listing one entry of an inspected archive.
+    fn render_archive_entry(
+        &self,
+        archive: &File<'_>,
+        entry: &crate::fs::archives::ArchiveEntry,
+        tree: TreeParams,
+    ) -> Row {
+        let name = TextCell::paint(
+            self.theme.ui.punctuation.unwrap_or_default(),
+            format!(
+                "{}/{} ({})",
+                archive.name,
+                entry.path,
+                crate::fs::archives::format_size(entry.size)
+            ),
+        );
         Row {
             cells: None,
             name,

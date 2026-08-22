@@ -30,6 +30,18 @@ pub struct ArchiveEntry {
     pub size: u64,
 }
 
+/// Human-readable byte count for archive entry annotations.
+#[cfg(feature = "inspect-archives")]
+#[must_use]
+pub fn format_size(size: u64) -> String {
+    match unit_prefix::NumberPrefix::binary(size as f64) {
+        unit_prefix::NumberPrefix::Standalone(b) => format!("{b} B"),
+        unit_prefix::NumberPrefix::Prefixed(p, n) => {
+            format!("{n:.1} {}B", p.symbol())
+        }
+    }
+}
+
 /// Safety valve so a pathological archive cannot flood the listing.
 const MAX_ENTRIES: usize = 500;
 
