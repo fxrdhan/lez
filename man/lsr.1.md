@@ -342,6 +342,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `-@`, `--extended`
 : List each file’s extended attributes and sizes.
 
+`--no-extended`
+: Don’t show the `@` marker that a file has extended attributes.
+
 `-Z`, `--context`
 : List each file's security context.
 
