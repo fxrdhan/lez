@@ -941,7 +941,8 @@ mod test {
     }
 
     #[test]
-    fn hyperlink_with_classifier_keeps_classifier_outside_tags() {        let colours = TestColours;
+    fn hyperlink_with_classifier_keeps_classifier_outside_tags() {
+        let colours = TestColours;
         let path = std::path::PathBuf::from("tests/itest");
         let file = File::from_args(path, None, None, false, false, false, None);
         let options = Options {
