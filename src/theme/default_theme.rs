@@ -143,6 +143,7 @@ impl Default for UiStyles {
             filenames: None,
             extensions: None,
             directorynames: None,
+            mimetypes: None,
         }
     }
 }

@@ -4,7 +4,7 @@ _eza() {
     prev=${COMP_WORDS[COMP_CWORD-1]}
 
     case "$prev" in
-        --help|-v|--version|--smart-group|--show-dotfiles)
+        --help|-v|--version|--smart-group|--show-dotfiles|--mime-types)
             return
             ;;
 

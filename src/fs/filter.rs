@@ -10,11 +10,135 @@ use std::cmp::Ordering;
 use std::iter::FromIterator;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+use std::sync::Arc;
 
 use chrono::Utc;
+use icu_collator::{Collator, CollatorOptions, Numeric, Strength};
+use icu_locid::Locale;
 
 use crate::fs::DotFilter;
 use crate::fs::File;
+
+/// Locale-aware collation for sorting filenames with multilingual Unicode rules
+/// and natural numeric ordering.
+#[derive(Debug, Clone)]
+pub struct LocaleCollator {
+    locale_tag: String,
+    sensitive: Arc<Collator>,
+    insensitive: Arc<Collator>,
+}
+
+impl PartialEq for LocaleCollator {
+    fn eq(&self, other: &Self) -> bool {
+        self.locale_tag == other.locale_tag
+    }
+}
+
+impl Eq for LocaleCollator {}
+
+impl LocaleCollator {
+    /// Attempt to initialize collators for the given locale identifier string.
+    /// Returns `None` if the locale is "C" / "POSIX", invalid, or unsupported.
+    pub fn try_from_locale_str(locale_str: &str) -> Option<Self> {
+        let clean = Self::clean_locale_str(locale_str)?;
+        let locale: Locale = clean.replace('_', "-").parse().ok()?;
+
+        let mut sens_opt = CollatorOptions::new();
+        sens_opt.numeric = Some(Numeric::On);
+        sens_opt.strength = Some(Strength::Tertiary);
+
+        let mut insens_opt = CollatorOptions::new();
+        insens_opt.numeric = Some(Numeric::On);
+        insens_opt.strength = Some(Strength::Secondary);
+
+        let sensitive = Collator::try_new(&locale.clone().into(), sens_opt).ok()?;
+        let insensitive = Collator::try_new(&locale.into(), insens_opt).ok()?;
+
+        Some(Self {
+            locale_tag: clean,
+            sensitive: Arc::new(sensitive),
+            insensitive: Arc::new(insensitive),
+        })
+    }
+
+    /// Deduce the active collation locale from environment variables following POSIX
+    /// precedence (`LC_ALL` -> `LC_COLLATE` -> `LANG`) with `sys_locale` fallback.
+    pub fn deduce<V: crate::options::Vars>(vars: &V) -> Option<Self> {
+        // POSIX precedence hierarchy: LC_ALL -> LC_COLLATE -> LANG
+        for var_name in &[
+            crate::options::vars::LC_ALL,
+            crate::options::vars::LC_COLLATE,
+            crate::options::vars::LANG,
+        ] {
+            if let Some(val) = vars.get(var_name) {
+                let s = val.to_string_lossy();
+                if let Some(collator) = Self::try_from_locale_str(&s) {
+                    return Some(collator);
+                } else if Self::is_c_or_posix(&s) {
+                    // Explicit C/POSIX locale means standard byte/ASCII collation without ICU
+                    return None;
+                }
+            }
+        }
+
+        // OS-level fallback via vars.get_locale() (defaults to sys_locale::get_locale())
+        vars.get_locale()
+            .as_deref()
+            .and_then(Self::try_from_locale_str)
+    }
+
+    /// Clean/normalize a locale string by stripping encoding (.UTF-8) and modifiers (@euro).
+    /// Returns None if empty or if it represents a C/POSIX locale.
+    pub fn clean_locale_str(raw: &str) -> Option<String> {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() || Self::is_c_or_posix(trimmed) {
+            return None;
+        }
+
+        // Strip encoding suffix (e.g. .UTF-8, .utf8, .iso88591)
+        let without_encoding = match trimmed.split_once('.') {
+            Some((prefix, _)) => prefix,
+            None => trimmed,
+        };
+
+        // Strip modifier (e.g. @euro, @latin)
+        let without_modifier = match without_encoding.split_once('@') {
+            Some((prefix, _)) => prefix,
+            None => without_encoding,
+        };
+
+        let cleaned = without_modifier.trim();
+        if cleaned.is_empty() || Self::is_c_or_posix(cleaned) {
+            None
+        } else {
+            Some(cleaned.to_string())
+        }
+    }
+
+    /// Check if string indicates standard C or POSIX collation.
+    pub fn is_c_or_posix(s: &str) -> bool {
+        let lower = s.trim().to_ascii_lowercase();
+        lower == "c"
+            || lower == "posix"
+            || lower.starts_with("c.")
+            || lower.starts_with("posix.")
+            || lower.starts_with("c@")
+            || lower.starts_with("posix@")
+    }
+
+    /// Returns the normalized locale tag (e.g. "hu_HU", "sv-SE", "de").
+    pub fn locale_tag(&self) -> &str {
+        &self.locale_tag
+    }
+
+    /// Compare two strings according to the configured collation and case-sensitivity rules.
+    pub fn compare(&self, a: &str, b: &str, case: SortCase) -> Ordering {
+        match case {
+            SortCase::ABCabc => self.sensitive.compare(a, b),
+            SortCase::AaBbCc => self.insensitive.compare(a, b),
+        }
+    }
+}
 
 /// Flags used to manage the **file filter** process
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -99,6 +223,9 @@ pub struct FileFilter {
 
     /// Whether to explicitly show symlinks
     pub show_symlinks: bool,
+
+    /// Optional locale-aware collator for Unicode sorting.
+    pub collator: Option<LocaleCollator>,
 }
 
 impl FileFilter {
@@ -204,12 +331,18 @@ impl FileFilter {
         });
     }
 
-    /// Sort the files in the given vector based on the sort field option.
+    /// Sort the files in the given vector based on the sort field option and locale collator.
     pub fn sort_files<'a, F>(&self, files: &mut [F])
     where
         F: AsRef<File<'a>>,
     {
-        files.sort_by(|a, b| self.sort_field.compare_files(a.as_ref(), b.as_ref()));
+        files.sort_by(|a, b| {
+            self.sort_field.compare_files_with_collator(
+                a.as_ref(),
+                b.as_ref(),
+                self.collator.as_ref(),
+            )
+        });
 
         if self.flags.contains(&FileFilterFlags::Reverse) {
             files.reverse();
@@ -230,6 +363,13 @@ impl FileFilter {
                     .cmp(&b.as_ref().points_to_directory())
             });
         }
+    }
+
+    /// Compares two files using the active sort field and locale collator.
+    #[must_use]
+    pub fn compare_files(&self, a: &File<'_>, b: &File<'_>) -> Ordering {
+        self.sort_field
+            .compare_files_with_collator(a, b, self.collator.as_ref())
     }
 }
 
@@ -333,66 +473,106 @@ pub enum SortCase {
 
 impl SortField {
     /// Compares two files to determine the order they should be listed in,
-    /// depending on the search field.
-    ///
-    /// The `natord` crate is used here to provide a more *natural* sorting
-    /// order than just sorting character-by-character. This splits filenames
-    /// into groups between letters and numbers, and then sorts those blocks
-    /// together, so `file10` will sort after `file9`, instead of before it
-    /// because of the `1`.
+    /// falling back to standard `natord` natural sorting when no locale collator is present.
     pub fn compare_files(self, a: &File<'_>, b: &File<'_>) -> Ordering {
+        self.compare_files_with_collator(a, b, None)
+    }
+
+    /// Compares two files using the given locale collator if available,
+    /// otherwise falling back to `natord` natural sorting.
+    pub fn compare_files_with_collator(
+        self,
+        a: &File<'_>,
+        b: &File<'_>,
+        collator: Option<&LocaleCollator>,
+    ) -> Ordering {
         use self::SortCase::{ABCabc, AaBbCc};
 
-        #[rustfmt::skip]
-        return match self {
-            Self::Unsorted  => Ordering::Equal,
+        match self {
+            Self::Unsorted => Ordering::Equal,
 
-            Self::Name(ABCabc)  => natord::compare(&a.name, &b.name),
-            Self::Name(AaBbCc)  => natord::compare_ignore_case(&a.name, &b.name),
+            Self::Name(case) => match collator {
+                Some(c) => c.compare(&a.name, &b.name, case),
+                None => match case {
+                    ABCabc => natord::compare(&a.name, &b.name),
+                    AaBbCc => natord::compare_ignore_case(&a.name, &b.name),
+                },
+            },
 
-            Self::Path(ABCabc) => natord::compare(a.path.to_string_lossy().as_ref(), b.path.to_string_lossy().as_ref()),
-            Self::Path(AaBbCc) => natord::compare_ignore_case(a.path.to_string_lossy().as_ref(), b.path.to_string_lossy().as_ref()),
-
-            Self::Size          => a.length().cmp(&b.length()),
-
-            #[cfg(unix)]
-            Self::BlockSize     => a.blocksize().bytes().cmp(&b.blocksize().bytes()),
-
-            #[cfg(unix)]
-            Self::FileInode     => {
-                a.metadata().map_or(0, MetadataExt::ino)
-                    .cmp(&b.metadata().map_or(0, MetadataExt::ino))
+            Self::Path(case) => {
+                let a_str = a.path.to_string_lossy();
+                let b_str = b.path.to_string_lossy();
+                match collator {
+                    Some(c) => c.compare(a_str.as_ref(), b_str.as_ref(), case),
+                    None => match case {
+                        ABCabc => natord::compare(a_str.as_ref(), b_str.as_ref()),
+                        AaBbCc => natord::compare_ignore_case(a_str.as_ref(), b_str.as_ref()),
+                    },
+                }
             }
-            Self::ModifiedDate  => a.modified_time().cmp(&b.modified_time()),
-            Self::AccessedDate  => a.accessed_time().cmp(&b.accessed_time()),
-            Self::ChangedDate   => a.changed_time().cmp(&b.changed_time()),
-            Self::CreatedDate   => a.created_time().cmp(&b.created_time()),
-            Self::ModifiedAge   => b.modified_time().cmp(&a.modified_time()),  // flip b and a
-            Self::FileType => match a.type_char().cmp(&b.type_char()) { // todo: this recomputes
-                Ordering::Equal  => natord::compare(&a.name, &b.name),
-                order            => order,
+
+            Self::Size => a.length().cmp(&b.length()),
+
+            #[cfg(unix)]
+            Self::BlockSize => a.blocksize().bytes().cmp(&b.blocksize().bytes()),
+
+            #[cfg(unix)]
+            Self::FileInode => a
+                .metadata()
+                .map_or(0, MetadataExt::ino)
+                .cmp(&b.metadata().map_or(0, MetadataExt::ino)),
+            Self::ModifiedDate => a.modified_time().cmp(&b.modified_time()),
+            Self::AccessedDate => a.accessed_time().cmp(&b.accessed_time()),
+            Self::ChangedDate => a.changed_time().cmp(&b.changed_time()),
+            Self::CreatedDate => a.created_time().cmp(&b.created_time()),
+            Self::ModifiedAge => b.modified_time().cmp(&a.modified_time()), // flip b and a
+            Self::FileType => match a.type_char().cmp(&b.type_char()) {
+                Ordering::Equal => match collator {
+                    Some(c) => c.compare(&a.name, &b.name, SortCase::ABCabc),
+                    None => natord::compare(&a.name, &b.name),
+                },
+                order => order,
             },
 
             Self::Extension(case) => {
                 // Ignore extensions for directories when sorting.
                 let left = if a.is_directory() { &None } else { &a.ext };
                 let right = if b.is_directory() { &None } else { &b.ext };
-                match (left.cmp(right), case) {
-                    (Ordering::Equal, ABCabc)  => natord::compare(&a.name, &b.name),
-                    (Ordering::Equal, AaBbCc)  => natord::compare_ignore_case(&a.name, &b.name),
-                    (order, _)                 => order,
+                let ext_order = match (left, right) {
+                    (None, None) => Ordering::Equal,
+                    (None, Some(_)) => Ordering::Less,
+                    (Some(_), None) => Ordering::Greater,
+                    (Some(l), Some(r)) => match collator {
+                        Some(c) => c.compare(l, r, case),
+                        None => match case {
+                            ABCabc => natord::compare(l, r),
+                            AaBbCc => natord::compare_ignore_case(l, r),
+                        },
+                    },
+                };
+                match ext_order {
+                    Ordering::Equal => match collator {
+                        Some(c) => c.compare(&a.name, &b.name, case),
+                        None => match case {
+                            ABCabc => natord::compare(&a.name, &b.name),
+                            AaBbCc => natord::compare_ignore_case(&a.name, &b.name),
+                        },
+                    },
+                    order => order,
                 }
-            },
+            }
 
-            Self::NameMixHidden(ABCabc) => natord::compare(
-                Self::strip_dot(&a.name),
-                Self::strip_dot(&b.name)
-            ),
-            Self::NameMixHidden(AaBbCc) => natord::compare_ignore_case(
-                Self::strip_dot(&a.name),
-                Self::strip_dot(&b.name)
-            ),
-        };
+            Self::NameMixHidden(case) => match collator {
+                Some(c) => c.compare(Self::strip_dot(&a.name), Self::strip_dot(&b.name), case),
+                None => match case {
+                    ABCabc => natord::compare(Self::strip_dot(&a.name), Self::strip_dot(&b.name)),
+                    AaBbCc => natord::compare_ignore_case(
+                        Self::strip_dot(&a.name),
+                        Self::strip_dot(&b.name),
+                    ),
+                },
+            },
+        }
     }
 
     fn strip_dot(n: &str) -> &str {
@@ -517,6 +697,37 @@ pub enum GitIgnore {
 }
 
 #[cfg(test)]
+mod test_collation_traits {
+    use icu_collator::{Collator, CollatorOptions, Numeric, Strength};
+    use icu_locid::Locale;
+
+    #[test]
+    fn test_case_collation() {
+        let mut sens_opt = CollatorOptions::new();
+        sens_opt.numeric = Some(Numeric::On);
+        sens_opt.strength = Some(Strength::Tertiary);
+
+        let mut insens_opt = CollatorOptions::new();
+        insens_opt.numeric = Some(Numeric::On);
+        insens_opt.strength = Some(Strength::Secondary);
+
+        let loc: Locale = "en".parse().unwrap();
+        let sens = Collator::try_new(&loc.clone().into(), sens_opt).unwrap();
+        let insens = Collator::try_new(&loc.into(), insens_opt).unwrap();
+
+        // Case-sensitive distinguishes "apple" and "Apple"
+        assert_ne!(sens.compare("apple", "Apple"), std::cmp::Ordering::Equal);
+
+        // Case-insensitive treats "apple" and "Apple" as equal
+        assert_eq!(insens.compare("apple", "Apple"), std::cmp::Ordering::Equal);
+
+        // Both sort numbers naturally
+        assert_eq!(insens.compare("FILE2", "file10"), std::cmp::Ordering::Less);
+        assert_eq!(sens.compare("file2", "file10"), std::cmp::Ordering::Less);
+    }
+}
+
+#[cfg(test)]
 mod test_ignores {
     use super::*;
 
@@ -569,9 +780,16 @@ mod test_ignores {
     fn is_file_included_with_various_flags() {
         use std::path::PathBuf;
 
-        let file_cargo =
-            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
-        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, None);
+        let file_cargo = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, false, None);
 
         // Default filter includes both
         let filter_default = FileFilter {
@@ -584,6 +802,7 @@ mod test_ignores {
             since: None,
             no_symlinks: false,
             show_symlinks: false,
+            collator: None,
         };
         assert!(filter_default.is_file_included(&file_cargo));
         assert!(filter_default.is_file_included(&dir_src));
@@ -636,12 +855,14 @@ mod test_ignores {
             None,
             false,
             false,
+            false,
             None,
         );
         let file_b = File::from_args(
             PathBuf::from("dir_b/alpha.txt"),
             None,
             None,
+            false,
             false,
             false,
             None,
@@ -665,12 +886,14 @@ mod test_ignores {
             None,
             false,
             false,
+            false,
             None,
         );
         let file_lower = File::from_args(
             PathBuf::from("dira/file.txt"),
             None,
             None,
+            false,
             false,
             false,
             None,
@@ -694,8 +917,15 @@ mod test_ignores {
         use std::path::PathBuf;
         use std::time::Duration;
 
-        let file_cargo =
-            File::from_args(PathBuf::from("Cargo.toml"), None, None, false, false, None);
+        let file_cargo = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
 
         // Filter with since: None includes all files
         let filter_none = FileFilter {
@@ -708,6 +938,7 @@ mod test_ignores {
             since: None,
             no_symlinks: false,
             show_symlinks: false,
+            collator: None,
         };
         assert!(filter_none.matches_since(&file_cargo));
         assert!(filter_none.is_file_included(&file_cargo));
@@ -720,28 +951,130 @@ mod test_ignores {
         assert!(filter_huge.matches_since(&file_cargo));
         assert!(filter_huge.is_file_included(&file_cargo));
 
-        // Filter with duration of 0 seconds (cutoff is right now) excludes files modified in past
-        let filter_zero = FileFilter {
-            since: Some(Duration::from_secs(0)),
-            ..filter_none.clone()
-        };
-        // Cargo.toml was modified in the past, so cutoff is now -> file modified time < now
-        // Note: Unless Cargo.toml was touched in this exact millisecond, it should be excluded
-        // To be deterministic, test with a temporary file with explicitly manipulated time if needed,
-        // but 0 duration cutoff = now, so older files are definitely excluded.
         let mut child_files = vec![File::from_args(
             PathBuf::from("Cargo.toml"),
             None,
             None,
             false,
             false,
+            false,
             None,
         )];
+        let filter_zero = FileFilter {
+            since: Some(Duration::from_secs(0)),
+            ..filter_none.clone()
+        };
         filter_zero.filter_child_files(false, &mut child_files);
         assert!(child_files.is_empty());
 
         let mut arg_files = vec![file_cargo];
         filter_zero.filter_argument_files(&mut arg_files);
         assert!(arg_files.is_empty());
+    }
+
+    #[test]
+    fn test_locale_collator_deduce_and_sort() {
+        use std::path::PathBuf;
+
+        // Hungarian collation test: "alma", "álom", "fa", "zene"
+        let hu_collator = LocaleCollator::try_from_locale_str("hu_HU.UTF-8").unwrap();
+        assert_eq!(hu_collator.locale_tag(), "hu_HU");
+
+        let filter_hu = FileFilter {
+            sort_field: SortField::Name(SortCase::AaBbCc),
+            flags: vec![],
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+            git_ignore: GitIgnore::Off,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+            collator: Some(hu_collator),
+        };
+
+        let file_zene =
+            File::from_args(PathBuf::from("zene"), None, None, false, false, false, None);
+        let file_alom =
+            File::from_args(PathBuf::from("álom"), None, None, false, false, false, None);
+        let file_alma =
+            File::from_args(PathBuf::from("alma"), None, None, false, false, false, None);
+        let file_fa = File::from_args(PathBuf::from("fa"), None, None, false, false, false, None);
+
+        let mut files = vec![file_zene, file_alom, file_alma, file_fa];
+        filter_hu.sort_files(&mut files);
+
+        let names: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["alma", "álom", "fa", "zene"]);
+
+        // Swedish collation test: "zebra", "åska", "äpple", "öken"
+        let sv_collator = LocaleCollator::try_from_locale_str("sv_SE.UTF-8").unwrap();
+        let filter_sv = FileFilter {
+            collator: Some(sv_collator),
+            ..filter_hu.clone()
+        };
+
+        let file_zebra = File::from_args(
+            PathBuf::from("zebra"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let file_aska =
+            File::from_args(PathBuf::from("åska"), None, None, false, false, false, None);
+        let file_apple = File::from_args(
+            PathBuf::from("äpple"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let file_oken =
+            File::from_args(PathBuf::from("öken"), None, None, false, false, false, None);
+
+        let mut sv_files = vec![file_oken, file_apple, file_zebra, file_aska];
+        filter_sv.sort_files(&mut sv_files);
+
+        let sv_names: Vec<&str> = sv_files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(sv_names, vec!["zebra", "åska", "äpple", "öken"]);
+
+        // Numeric ordering preservation
+        let file_2 = File::from_args(
+            PathBuf::from("file2.txt"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let file_10 = File::from_args(
+            PathBuf::from("file10.txt"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let file_1 = File::from_args(
+            PathBuf::from("file1.txt"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+
+        let mut num_files = vec![file_10, file_2, file_1];
+        filter_hu.sort_files(&mut num_files);
+        let num_names: Vec<&str> = num_files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(num_names, vec!["file1.txt", "file2.txt", "file10.txt"]);
     }
 }

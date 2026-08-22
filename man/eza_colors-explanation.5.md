@@ -202,7 +202,7 @@ security_context:
       is_hidden: true
 ```
 
-Icons can now be customized as well in the `filenames` and `extensions` fields
+Icons can now be customized as well in the `filenames`, `extensions`, `directorynames`, and `mimetypes` fields:
 
 ```yaml
 
@@ -213,8 +213,23 @@ filenames:
 
 extensions:
   rs: {  filename: {foreground: Red}, icon: {glyph: 🦀}}
+  # Default fallback icon overrides (dot-prefixed sentinel keys)
+  .default_file: { icon: {glyph: 📄} }
+  .default_file_unknown: { icon: {glyph: ❓} }
+  .default_directory: { icon: {glyph: 📁} }
+  .default_directory_empty: { icon: {glyph: 📂} }
+
+mimetypes:
+  application/pdf: { filename: {foreground: Red}, icon: {glyph: 📕} }
+  text/x-rust: { filename: {foreground: Yellow} }
 
 ```
+
+You can customize default fallback icons for unmapped files and directories under the `extensions` section using reserved dot-prefixed keys:
+- `.default_file`: Default glyph and style for files with an unmapped extension.
+- `.default_file_unknown`: Default glyph and style for extensionless files (falls back to `.default_file` if unset).
+- `.default_directory`: Default glyph and style for non-empty or generic directories.
+- `.default_directory_empty`: Default glyph and style for empty directories (falls back to `.default_directory` if unset).
 
 **NOTES:** 
 

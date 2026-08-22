@@ -41,6 +41,10 @@ impl View {
         let total_size = matches.get_flag("total-size");
         let total_entries = matches.get_flag("print-total");
         let summary = matches.get_flag("summary");
+        let mime_read_contents = matches.get_flag("mime-types")
+            || vars
+                .get_with_fallback(vars::LSR_MIME_TYPES, vars::EZA_MIME_TYPES)
+                .is_some();
         let file_style = FileStyle::deduce(matches, vars, is_tty)?;
         Ok(Self {
             mode,
@@ -51,6 +55,7 @@ impl View {
             total_size,
             total_entries,
             summary,
+            mime_read_contents,
         })
     }
 }
@@ -698,6 +703,42 @@ mod tests {
         let cli = mock_cli(vec!["--long", "--utc"]);
         let opts = TableOptions::deduce(&cli, &MockVars::default(), 2).unwrap();
         assert!(opts.use_utc);
+    }
+
+    #[test]
+    fn deduce_view_mime_types_flag() {
+        let cli = mock_cli(vec!["--mime-types"]);
+        let view = View::deduce(&cli, &MockVars::default(), false).unwrap();
+        assert!(view.mime_read_contents);
+    }
+
+    #[test]
+    fn deduce_view_mime_types_lsr_env() {
+        let cli = mock_cli(vec![""]);
+        let vars = MockVars {
+            lsr_mime_types: OsString::from("1"),
+            ..MockVars::default()
+        };
+        let view = View::deduce(&cli, &vars, false).unwrap();
+        assert!(view.mime_read_contents);
+    }
+
+    #[test]
+    fn deduce_view_mime_types_eza_env() {
+        let cli = mock_cli(vec![""]);
+        let vars = MockVars {
+            eza_mime_types: OsString::from("1"),
+            ..MockVars::default()
+        };
+        let view = View::deduce(&cli, &vars, false).unwrap();
+        assert!(view.mime_read_contents);
+    }
+
+    #[test]
+    fn deduce_view_mime_types_default_off() {
+        let cli = mock_cli(vec![""]);
+        let view = View::deduce(&cli, &MockVars::default(), false).unwrap();
+        assert!(!view.mime_read_contents);
     }
 
     #[test]

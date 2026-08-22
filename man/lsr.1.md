@@ -155,6 +155,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
 When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--hyperlink=WHEN`).
 
+`--mime-types`
+: Determine file MIME types to better inform styling decisions and icon selection (Unix only). Can also be enabled via the `LSR_MIME_TYPES` or `EZA_MIME_TYPES` environment variable.
+
 `-w`, `--width=COLS`
 : Set screen width in columns (clamped to the safe range `1..65535` to prevent integer overflow and division-by-zero).
 
