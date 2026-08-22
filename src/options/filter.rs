@@ -8,10 +8,11 @@
 
 use clap::ArgMatches;
 
-use crate::fs::DotFilter;
 use crate::fs::filter::{
-    FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, LocaleCollator, SortCase, SortField,
+    FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, LocaleCollator,
+    SortCase, SortField,
 };
+use crate::fs::DotFilter;
 
 use crate::options::OptionsError;
 use crate::options::Vars;
@@ -54,6 +55,7 @@ impl FileFilter {
             ignore_patterns: IgnorePatterns::deduce(matches)?,
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
             git_ignore: GitIgnore::deduce(matches),
+            ignore_cachedir: IgnoreCacheDir::deduce(matches),
             since,
             collator,
         })
@@ -180,6 +182,16 @@ impl IgnorePatterns {
 impl GitIgnore {
     pub fn deduce(matches: &ArgMatches) -> Self {
         if matches.get_flag("git-ignore") {
+            Self::CheckAndIgnore
+        } else {
+            Self::Off
+        }
+    }
+}
+
+impl IgnoreCacheDir {
+    pub fn deduce(matches: &ArgMatches) -> Self {
+        if matches.get_flag("cachedir-ignore") {
             Self::CheckAndIgnore
         } else {
             Self::Off

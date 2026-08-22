@@ -215,6 +215,9 @@ pub struct FileFilter {
     /// Whether to ignore Git-ignored patterns.
     pub git_ignore: GitIgnore,
 
+    /// Whether to ignore `CACHEDIR.TAG` directories.
+    pub ignore_cachedir: IgnoreCacheDir,
+
     /// Filter files created or modified within the specified duration window.
     pub since: Option<std::time::Duration>,
 
@@ -285,6 +288,43 @@ impl FileFilter {
             (false, false, true, false) => !file.is_link(),
             _ => true,
         }
+    }
+
+    /// Removes directories that contain a `CACHEDIR.TAG` file carrying the
+    /// correct magic number; a no-op unless `ignore_cachedir` is active.
+    pub fn filter_cachedirs(&self, files: &mut Vec<File<'_>>) {
+        if self.ignore_cachedir == IgnoreCacheDir::CheckAndIgnore {
+            files.retain(|f| {
+                !f.is_directory() || !Self::dir_contains_cachedir_tag(&f.path)
+            });
+        }
+    }
+
+    /// Checks whether a directory directly contains a valid `CACHEDIR.TAG`.
+    fn dir_contains_cachedir_tag(dir: &std::path::Path) -> bool {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return false;
+        };
+        entries
+            .flatten()
+            .any(|entry| Self::is_cachedir_tag(&entry.path()))
+    }
+
+    /// Checks whether `path` is named "CACHEDIR.TAG" and starts with the
+    /// correct magic number. Symlinks never count.
+    fn is_cachedir_tag(path: &std::path::Path) -> bool {
+        use std::io::Read;
+
+        if path.file_name() != Some(std::ffi::OsStr::new("CACHEDIR.TAG"))
+            || path.is_symlink()
+        {
+            return false;
+        }
+        let Ok(mut reader) = std::fs::File::open(path) else {
+            return false;
+        };
+        let mut buf = [0u8; CACHEDIR_MAGIC.len()];
+        matches!(reader.read_exact(&mut buf), Ok(())) && &buf == CACHEDIR_MAGIC
     }
 
     /// Remove every file in the given vector that does *not* pass the
@@ -696,6 +736,17 @@ pub enum GitIgnore {
     Off,
 }
 
+/// Whether to ignore directories that contain a `CACHEDIR.TAG` file with the
+/// correct signature, as defined by https://bford.info/cachedir/.
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum IgnoreCacheDir {
+    CheckAndIgnore,
+    Off,
+}
+
+/// Magic number of `CACHEDIR.TAG` files.
+const CACHEDIR_MAGIC: &[u8; 43] = b"Signature: 8a477f597d28d172789f06886806bc55";
+
 #[cfg(test)]
 mod test_collation_traits {
     use icu_collator::{Collator, CollatorOptions, Numeric, Strength};
@@ -799,6 +850,7 @@ mod test_ignores {
             ignore_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
+            ignore_cachedir: IgnoreCacheDir::Off,
             since: None,
             no_symlinks: false,
             show_symlinks: false,
@@ -935,6 +987,7 @@ mod test_ignores {
             ignore_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
+            ignore_cachedir: IgnoreCacheDir::Off,
             since: None,
             no_symlinks: false,
             show_symlinks: false,
@@ -987,6 +1040,7 @@ mod test_ignores {
             ignore_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
+            ignore_cachedir: IgnoreCacheDir::Off,
             since: None,
             no_symlinks: false,
             show_symlinks: false,

@@ -278,7 +278,10 @@ mod test {
     use super::*;
     use crate::fs::{
         DotFilter,
-        filter::{FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, SortCase, SortField},
+        filter::{
+            FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase,
+            SortField,
+        },
     };
     use std::path::PathBuf;
 
@@ -291,6 +294,7 @@ mod test {
             ignore_patterns,
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
+            ignore_cachedir: IgnoreCacheDir::Off,
             since: None,
             no_symlinks: false,
             show_symlinks: false,

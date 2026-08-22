@@ -5,7 +5,7 @@
 
 use lsr::fs::fields::Size;
 use lsr::fs::filter::{
-    FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, SortCase, SortField,
+    FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase, SortField,
 };
 use lsr::fs::{DotFilter, File};
 use lsr::loc::{LocCounts, count_roots, language_for};
