@@ -165,7 +165,7 @@ CLI Input (Args & Env)
 | Generated snapshots (nix-gated) | `tests/gen/` | nix build (`just itest`) |
 | Powertest corpus (feature-gated) | `tests/ptests/` | built via powertest tool (`just regen`) |
 
-Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `just regen` (regenerate powertest cases). See [TESTING.md](TESTING.md) and [TEST_INFRA.md](TEST_INFRA.md).
+Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `just regen` (regenerate powertest cases). See [TESTING.md](TESTING.md).
 
 ### Nix Environment (Optional)
 ```bash
@@ -218,3 +218,52 @@ If adding a new CLI flag:
 - **Granular Atomic Commits (1 Upstream Task = 1 Commit)**: Never bundle multiple independent upstream PRs or features into a single monolithic commit. Each upstream port or distinct feature must have its own separate, atomic commit with unit tests and clear commit messages. Batch PRs in `lsr` must contain at least 5 granular commits (one per item).
 - Ensure all licenses comply with REUSE / SPDX guidelines (`EUPL-1.2` or `MIT`).
 - Run `cargo clippy` and `cargo test --lib` before committing.
+
+### 6. Hard-Won Lessons from Multi-OS Porting (PR #27–#32 era)
+
+Rules distilled from three rounds of CI failures during PR #32. Follow them
+proactively instead of rediscovering them in the Actions matrix.
+
+#### Environment & CI Matrix
+
+- **Timezone-dependent tests MUST use POSIX TZ strings** — e.g.
+  `TZ=CET-1CEST,M3.5.0,M10.5.0` — never named zones like `Europe/Amsterdam`.
+  The Nix sandbox has no zoneinfo database, so chrono silently falls back to
+  UTC there even though the test passes on macOS.
+- **Never hardcode platform-sensitive expectations.** Anything touching
+  extended attributes must gate on `xattr::ENABLED` (false on Windows) in both
+  deduce assertions *and* struct literals compared via `assert_eq!`.
+- **Format with the toolchain CI uses**: run `rustup run stable cargo fmt`
+  before pushing. The pinned 1.90 toolchain emits different import ordering
+  than stable (style-edition drift), which fails the Lint & Format job despite
+  a locally-green `cargo fmt --check`.
+
+#### Structural Changes
+
+- **Adding a field to a widely-constructed struct?** (`FileFilter`,
+  `details::Options`, …) Enumerate every initializer first — `grep -rn
+  'StructName {' src tests` — and patch them in one mechanical pass.
+  Ad-hoc per-file edits invite duplicate-field / missing-import whack-a-mole
+  across ~20 test fixtures.
+
+#### Git & Gate Discipline
+
+- **Never pipe quality-gate output through `tail`/`head` inside `&&` chains.**
+  `cargo test … | tail -4 && git commit` commits even when tests fail, because
+  the chain sees `tail`'s exit status. Check failures separately or capture
+  output to a file first.
+- **Stage explicit paths, not `-A`.** The working tree can carry unrelated
+  churn (editor import reorders, leftover experiments) that breaks commit
+  atomicity; it happened once and had to be rebuilt via fixup + autosquash.
+- **Pre-commit hooks stash unstaged files around every run.** After any
+  failed-hook sequence, re-read `git status` before staging anything.
+- **Fixups targeting mid-branch commits will conflict in files that later
+  commits touched.** Resolve toward the final intended state (take the fixup's
+  content), then re-run the full gate suite after `rebase --continue`.
+
+#### Editor Interference
+
+- A format-on-save LSP layer can rewrite files between scripted edits — its
+  edition-2024 import style diverges from rustfmt. After bulk edits, diff
+  against HEAD before staging; if unexpected churn appears, restore the file
+  and re-apply only the intended change.
