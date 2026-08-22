@@ -18,7 +18,7 @@ use crate::output::cell::TextCellContents;
 use crate::output::escape;
 use crate::output::icons::{icon_for_file, iconify_style};
 use crate::output::render::FiletypeColours;
-use crate::theme::FileNameStyle;
+use crate::theme::{FileNameStyle, LinkStyle as LinkColouring};
 
 /// Basically a file name factory.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -225,15 +225,31 @@ pub enum Absolute {
     Off,
 }
 
-/// Whether or not to wrap file names with spaces in quotes.
-#[derive(PartialEq, Debug, Copy, Clone)]
+/// When to wrap file names in quotes.
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
 pub enum QuoteStyle {
-    /// Don't ever quote file names.
-    NoQuotes,
+    /// Quote every file name, space or not.
+    Always,
 
     /// Use single quotes for file names that contain spaces and no single quotes
     /// Use double quotes for file names that contain single quotes.
-    QuoteSpaces,
+    #[default]
+    Auto,
+
+    /// Don't ever quote file names.
+    Never,
+}
+
+impl QuoteStyle {
+    /// Whether the given name needs to be quoted under this style.
+    #[must_use]
+    pub fn quotes_needed(self, name_has_spaces: bool) -> bool {
+        match self {
+            Self::Always => true,
+            Self::Auto => name_has_spaces,
+            Self::Never => false,
+        }
+    }
 }
 
 /// Whether to show symlink targets.
@@ -410,7 +426,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     if !target.name.is_empty() {
                         let target_options = Options {
                             classify: Classify::JustFilenames,
-                            quote_style: QuoteStyle::QuoteSpaces,
+                            quote_style: QuoteStyle::Auto,
                             show_icons: ShowIcons::Never,
                             embed_hyperlinks: EmbedHyperlinks::Never,
                             is_a_tty: self.options.is_a_tty,
@@ -641,13 +657,27 @@ impl<C: Colours> FileName<'_, '_, C> {
             return self.colours.broken_symlink();
         }
 
+        self.style_for_file(self.file)
+    }
+
+    /// Resolves the colour for a single file, without any symlink-target
+    /// handling; `ln=target` links recurse into their target through here.
+    fn style_for_file(&self, file: &File<'_>) -> Style {
         #[rustfmt::skip]
-        return match self.file {
+        return match file {
             f if f.is_mount_point()      => self.colours.mount_point(),
             f if f.is_directory()        => self.colours.directory(),
             #[cfg(unix)]
             f if f.is_executable_file()  => self.colours.executable_file(),
-            f if f.is_link()             => self.colours.symlink(),
+            f if f.is_link()             => match self.colours.symlink() {
+                LinkColouring::AnsiStyle(style) => style,
+                LinkColouring::Target => match self.target.as_ref() {
+                    // ln=target borrows the colour of the pointed-to file.
+                    Some(FileTarget::Ok(target)) => self.style_for_file(target),
+                    Some(FileTarget::Broken(_)) => self.colours.broken_symlink(),
+                    _ => Style::default(),
+                },
+            },
             #[cfg(unix)]
             f if f.is_pipe()             => self.colours.pipe(),
             #[cfg(unix)]
@@ -657,7 +687,7 @@ impl<C: Colours> FileName<'_, '_, C> {
             #[cfg(unix)]
             f if f.is_socket()           => self.colours.socket(),
             f if ! f.is_file()           => self.colours.special(),
-            _                            => self.colours.colour_file(self.file),
+            _                            => self.colours.colour_file(file),
         };
     }
 
@@ -804,8 +834,8 @@ mod test {
         fn pipe(&self) -> Style {
             Style::default()
         }
-        fn symlink(&self) -> Style {
-            Style::default()
+        fn symlink(&self) -> LinkColouring {
+            LinkColouring::AnsiStyle(Style::default())
         }
         fn block_device(&self) -> Style {
             Style::default()
@@ -871,7 +901,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
@@ -914,7 +944,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Always(1),
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
@@ -948,7 +978,7 @@ mod test {
         let options = Options {
             classify: Classify::AddFileIndicators,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
@@ -983,7 +1013,7 @@ mod test {
         let options = Options {
             classify: Classify::AddFileIndicators,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1017,7 +1047,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Always,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1051,7 +1081,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1084,7 +1114,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1120,7 +1150,7 @@ mod test {
         let options = Options {
             classify: Classify::JustFilenames,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1160,7 +1190,7 @@ mod test {
         let options = Options {
             classify: Classify::AddFileIndicators,
             show_icons: ShowIcons::Never,
-            quote_style: QuoteStyle::NoQuotes,
+            quote_style: QuoteStyle::Never,
             embed_hyperlinks: EmbedHyperlinks::Never,
             absolute: Absolute::Off,
             short_nix: false,
@@ -1184,6 +1214,169 @@ mod test {
         assert!(
             painted.contains(&format!("dir-symlink{styled_at}")),
             "Must contain link name with @ indicator: {painted}"
+        );
+    }
+
+    /// Colours where `ln=target` is active: links borrow the target's colour.
+    struct TargetLinkColours;
+
+    impl FiletypeColours for TargetLinkColours {
+        fn normal(&self) -> Style {
+            Style::default()
+        }
+        fn directory(&self) -> Style {
+            nu_ansi_term::Color::Fixed(2).bold()
+        }
+        fn pipe(&self) -> Style {
+            Style::default()
+        }
+        fn symlink(&self) -> LinkColouring {
+            LinkColouring::Target
+        }
+        fn block_device(&self) -> Style {
+            Style::default()
+        }
+        fn char_device(&self) -> Style {
+            Style::default()
+        }
+        fn socket(&self) -> Style {
+            Style::default()
+        }
+        fn special(&self) -> Style {
+            Style::default()
+        }
+        fn tag(&self, _tag: &crate::fs::fields::TagColor) -> Style {
+            Style::default()
+        }
+    }
+
+    impl Colours for TargetLinkColours {
+        fn symlink_path(&self) -> Style {
+            Style::default()
+        }
+        fn normal_arrow(&self) -> Style {
+            Style::default()
+        }
+        fn broken_symlink(&self) -> Style {
+            nu_ansi_term::Color::Fixed(7).normal()
+        }
+        fn broken_filename(&self) -> Style {
+            Style::default()
+        }
+        fn control_char(&self) -> Style {
+            Style::default()
+        }
+        fn broken_control_char(&self) -> Style {
+            Style::default()
+        }
+        fn nix_hash(&self) -> Style {
+            Style::default()
+        }
+        fn executable_file(&self) -> Style {
+            Style::default()
+        }
+        fn mount_point(&self) -> Style {
+            Style::default()
+        }
+        fn classify_char(&self) -> Style {
+            Style::default()
+        }
+        fn colour_file(&self, _file: &File<'_>) -> Style {
+            Style::default()
+        }
+        fn style_override(&self, _file: &File<'_>) -> Option<FileNameStyle> {
+            None
+        }
+    }
+
+    #[test]
+    fn ln_target_borrows_the_target_colour() {
+        let colours = TargetLinkColours;
+        let target_file = File::from_args(
+            std::path::PathBuf::from("tests/itest"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        assert!(target_file.is_directory());
+        let link_file = File::from_args(
+            std::path::PathBuf::from("tests/itest/dir-symlink"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: crate::output::file_name::QuoteStyle::Never,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &link_file,
+            colours: &colours,
+            target: Some(FileTarget::Ok(Box::new(target_file))),
+            link_style: LinkStyle::JustFilenames,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        let expected = format!(
+            "{}",
+            nu_ansi_term::Color::Fixed(2).bold().paint("dir-symlink")
+        );
+        assert!(
+            painted.contains(&expected),
+            "ln=target must borrow the target directory colour: {painted:?}"
+        );
+    }
+
+    #[test]
+    fn ln_target_falls_back_to_broken_colour_for_orphans() {
+        let colours = TargetLinkColours;
+        let link_file = File::from_args(
+            std::path::PathBuf::from("no-such-link-target"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: crate::output::file_name::QuoteStyle::Never,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
+            is_a_tty: true,
+        };
+        let file_name = FileName {
+            file: &link_file,
+            colours: &colours,
+            target: Some(FileTarget::Broken(std::path::PathBuf::from("/gone"))),
+            link_style: LinkStyle::JustFilenames,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
+        };
+        // A broken target resolves through the broken-path early return.
+        let painted = format!("{}", file_name.paint().strings());
+        assert!(
+            painted.contains("no-such-link-target"),
+            "orphan name still renders: {painted:?}"
         );
     }
 }

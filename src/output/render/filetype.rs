@@ -7,6 +7,7 @@
 use nu_ansi_term::{AnsiString as ANSIString, Style};
 
 use crate::fs::fields as f;
+use crate::theme::LinkStyle;
 
 impl f::Type {
     pub fn render<C: Colours>(self, colours: &C, mount: bool) -> ANSIString<'static> {
@@ -15,7 +16,12 @@ impl f::Type {
             Self::File         => colours.normal().paint("."),
             Self::Directory    => colours.directory().paint(if mount { "D" } else { "d" }),
             Self::Pipe         => colours.pipe().paint("|"),
-            Self::Link         => colours.symlink().paint("l"),
+            Self::Link         => match colours.symlink() {
+                LinkStyle::AnsiStyle(style) => style.paint("l"),
+                // With ln=target the indicator has no colour of its own; it
+                // borrows nothing here since the type char is shared.
+                LinkStyle::Target           => colours.normal().paint("l"),
+            },
             Self::BlockDevice  => colours.block_device().paint("b"),
             Self::CharDevice   => colours.char_device().paint("c"),
             Self::Socket       => colours.socket().paint("s"),
@@ -44,7 +50,7 @@ pub trait Colours {
     fn normal(&self) -> Style;
     fn directory(&self) -> Style;
     fn pipe(&self) -> Style;
-    fn symlink(&self) -> Style;
+    fn symlink(&self) -> LinkStyle;
     fn block_device(&self) -> Style;
     fn char_device(&self) -> Style;
     fn socket(&self) -> Style;
@@ -64,7 +70,7 @@ mod test {
         fn normal(&self)       -> Style { Fixed(1).normal() }
         fn directory(&self)    -> Style { Fixed(2).bold() }
         fn pipe(&self)         -> Style { Fixed(3).normal() }
-        fn symlink(&self)      -> Style { Fixed(4).normal() }
+        fn symlink(&self)      -> LinkStyle { LinkStyle::AnsiStyle(Fixed(4).normal()) }
         fn block_device(&self) -> Style { Fixed(5).normal() }
         fn char_device(&self)  -> Style { Fixed(6).normal() }
         fn socket(&self)       -> Style { Fixed(7).normal() }

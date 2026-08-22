@@ -119,12 +119,27 @@ field_accessors!(
     broken_path_overlay: Option<Style>
 );
 
+/// How symbolic links should be coloured: with a fixed style, or by
+/// following `ln=target` and borrowing the target file's colour instead.
+#[rustfmt::skip]
+#[derive(Clone, Eq, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum LinkStyle {
+    AnsiStyle(Style),
+    Target,
+}
+
+impl Default for LinkStyle {
+    fn default() -> Self {
+        Self::AnsiStyle(Style::default())
+    }
+}
+
 #[rustfmt::skip]
 #[derive(Clone, Eq, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FileKinds {
     pub normal: Option<Style>,        // fi
     pub directory: Option<Style>,     // di
-    pub symlink: Option<Style>,       // ln
+    pub symlink: Option<LinkStyle>,   // ln
     pub pipe: Option<Style>,          // pi
     pub block_device: Option<Style>,  // bd
     pub char_device: Option<Style>,   // cd
@@ -139,7 +154,7 @@ impl Default for FileKinds {
         Self {
             normal: Some(Style::default()),
             directory: Some(Blue.bold()),
-            symlink: Some(Cyan.normal()),
+            symlink: Some(LinkStyle::AnsiStyle(Cyan.normal())),
             pipe: Some(Yellow.normal()),
             block_device: Some(Yellow.bold()),
             char_device: Some(Yellow.bold()),
@@ -154,7 +169,7 @@ field_accessors!(
     FileKinds,
     normal: Option<Style>,
     directory: Option<Style>,
-    symlink: Option<Style>,
+    symlink: Option<LinkStyle>,
     pipe: Option<Style>,
     block_device: Option<Style>,
     char_device: Option<Style>,
@@ -437,7 +452,7 @@ impl UiStyles {
             filekinds: Some(FileKinds {
             normal: Some(Style::default()),
             directory: Some(Style::default()),
-            symlink: Some(Style::default()),
+            symlink: Some(LinkStyle::AnsiStyle(Style::default())),
             pipe: Some(Style::default()),
             block_device: Some(Style::default()),
             char_device: Some(Style::default()),
@@ -612,7 +627,12 @@ impl UiStyles {
             "so" => self.filekinds().socket       = Some(pair.to_style()),  // SOCK
             "bd" => self.filekinds().block_device = Some(pair.to_style()),  // BLK
             "cd" => self.filekinds().char_device  = Some(pair.to_style()),  // CHR
-            "ln" => self.filekinds().symlink      = Some(pair.to_style()),  // LINK
+            "ln" => {
+                self.filekinds().symlink = match pair.value {
+                    "target" => Some(LinkStyle::Target),
+                    _ => Some(LinkStyle::AnsiStyle(pair.to_style())),
+                } // LINK
+            }
             "or" => self.broken_symlink         = Some(pair.to_style()),  // ORPHAN
              _   => return false,
              // Codes we don’t do anything with:

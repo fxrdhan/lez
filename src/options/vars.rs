@@ -101,6 +101,11 @@ pub static XDG_CONFIG_HOME: &str = "XDG_CONFIG_HOME";
 pub static LSR_CONFIG_DIR: &str = "LSR_CONFIG_DIR";
 pub static EZA_CONFIG_DIR: &str = "EZA_CONFIG_DIR";
 
+/// Environment variable used to choose when file names are quoted:
+/// `always`, `auto`, or `never`.
+pub static LSR_QUOTING_STYLE: &str = "LSR_QUOTING_STYLE";
+pub static EZA_QUOTING_STYLE: &str = "EZA_QUOTING_STYLE";
+
 /// Environment variable used to choose how windows attributes are displayed.
 /// Short will display a single character for each set attribute, long will
 /// display a comma separated list of descriptions.
@@ -166,6 +171,7 @@ pub mod test {
         pub time: OsString,
         pub lsr_config_dir: OsString,
         pub eza_config_dir: OsString,
+        pub quoting_style: OsString,
         pub xdg_config_home: OsString,
         pub home: OsString,
         pub lsr_stdin_separator: OsString,
@@ -229,6 +235,9 @@ pub mod test {
                 "EZA_CONFIG_DIR" if !self.eza_config_dir.is_empty() => {
                     Some(self.eza_config_dir.clone())
                 }
+                "LSR_QUOTING_STYLE" | "EZA_QUOTING_STYLE" if !self.quoting_style.is_empty() => {
+                    Some(self.quoting_style.clone())
+                }
                 "XDG_CONFIG_HOME" if !self.xdg_config_home.is_empty() => {
                     Some(self.xdg_config_home.clone())
                 }
@@ -284,6 +293,7 @@ pub mod test {
                 "TIME_STYLE" => self.time = value.clone(),
                 "LSR_CONFIG_DIR" => self.lsr_config_dir = value.clone(),
                 "EZA_CONFIG_DIR" => self.eza_config_dir = value.clone(),
+                "LSR_QUOTING_STYLE" | "EZA_QUOTING_STYLE" => self.quoting_style = value.clone(),
                 "XDG_CONFIG_HOME" => self.xdg_config_home = value.clone(),
                 "HOME" => self.home = value.clone(),
                 "LSR_STDIN_SEPARATOR" => self.lsr_stdin_separator = value.clone(),
