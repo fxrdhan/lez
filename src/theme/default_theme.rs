@@ -10,8 +10,8 @@ use std::default::Default;
 
 use crate::output::color_scale::{ColorScaleMode, ColorScaleOptions};
 use crate::theme::ui_styles::{
-    FileKinds, FileType, Git, GitRepo, Links, Permissions, SELinuxContext, SecurityContext, Size,
-    Tags, UiStyles, Users,
+    FileKinds, FileType, Git, GitRepo, LinkStyle, Links, Permissions, SELinuxContext,
+    SecurityContext, Size, Tags, UiStyles, Users,
 };
 impl UiStyles {
     #[must_use]
@@ -32,7 +32,7 @@ impl Default for UiStyles {
             filekinds: Some(FileKinds {
             normal: Some(Style::default()),
             directory: Some(Blue.bold()),
-            symlink: Some(Cyan.normal()),
+            symlink: Some(LinkStyle::AnsiStyle(Cyan.normal())),
             pipe: Some(Yellow.normal()),
             block_device: Some(Yellow.bold()),
             char_device: Some(Yellow.bold()),
