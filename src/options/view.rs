@@ -4,14 +4,15 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
-use clap::parser::ValueSource;
 use clap::ArgMatches;
+use clap::parser::ValueSource;
 
 use crate::output::TerminalWidth::Automatic;
 
 use crate::fs::feature::xattr;
 use crate::options::parser::{CodeContent, ColorScaleModeArgs};
-use crate::options::{vars, NumberSource, OptionsError, Vars};
+use crate::options::{NumberSource, OptionsError, Vars, vars};
+use crate::output::TerminalWidth::Set;
 use crate::output::color_scale::{ColorScaleMode, ColorScaleOptions};
 use crate::output::file_name::Options as FileStyle;
 use crate::output::grid_details::{self, RowThreshold};
@@ -19,9 +20,8 @@ use crate::output::table::{
     Columns, FlagsFormat, GroupFormat, Options as TableOptions, SizeFormat, TimeTypes, UserFormat,
 };
 use crate::output::time::TimeFormat;
-use crate::output::TerminalWidth::Set;
 use crate::output::{
-    code, details, grid, json, Mode, SpacingBetweenColumns, SpacingMode, TerminalWidth, View,
+    Mode, SpacingBetweenColumns, SpacingMode, TerminalWidth, View, code, details, grid, json,
 };
 
 use super::parser::{ColorScaleArgs, TimeArgs};
