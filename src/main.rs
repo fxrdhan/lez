@@ -537,7 +537,14 @@ impl Exa<'_> {
         }
         let recursing = self.options.dir_action.recurse_options().is_some();
         let only_files = self.options.filter.flags.contains(&OnlyFiles);
-        if recursing && only_files {
+        // In tree mode directories are hidden by the details renderer instead,
+        // so the recursion still descends into them and the edges stay intact.
+        let tree = self
+            .options
+            .dir_action
+            .recurse_options()
+            .is_some_and(|r| r.tree);
+        if recursing && only_files && !tree {
             files = files
                 .into_iter()
                 .filter(|f| !f.is_directory())

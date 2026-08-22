@@ -79,6 +79,7 @@ use crate::fs::feature::git::GitCache;
 use crate::fs::feature::xattr::Attribute;
 use crate::fs::fields::SecurityContextType;
 use crate::fs::filter::FileFilter;
+use crate::fs::filter::FileFilterFlags::OnlyFiles;
 use crate::fs::{Dir, File};
 use crate::options::parser::CodeContent;
 use crate::output::cell::TextCell;
@@ -366,28 +367,33 @@ impl<'a> Render<'a> {
             let mut files = Vec::new();
             let errors = egg.errors;
 
-            if let (Some(ref mut t), Some(row)) = (table.as_mut(), egg.table_row.as_ref()) {
-                t.add_widths(row);
+            // With --only-files, directories still get recursed into but are
+            // not listed themselves; skipping before add_widths keeps the
+            // table columns and tree edges aligned.
+            if !(egg.file.is_directory() && self.filter.flags.contains(&OnlyFiles)) {
+                if let (Some(ref mut t), Some(row)) = (table.as_mut(), egg.table_row.as_ref()) {
+                    t.add_widths(row);
+                }
+
+                let file_name = self
+                    .file_style
+                    .for_file(egg.file, self.theme)
+                    .use_symlink_targets()
+                    .with_mount_details(self.opts.mounts)
+                    .with_tags(self.opts.tags)
+                    .paint()
+                    .promote();
+
+                debug!("file_name {file_name:?}");
+
+                let row = Row {
+                    tree: tree_params,
+                    cells: egg.table_row,
+                    name: file_name,
+                };
+
+                rows.push(row);
             }
-
-            let file_name = self
-                .file_style
-                .for_file(egg.file, self.theme)
-                .use_symlink_targets()
-                .with_mount_details(self.opts.mounts)
-                .with_tags(self.opts.tags)
-                .paint()
-                .promote();
-
-            debug!("file_name {file_name:?}");
-
-            let row = Row {
-                tree: tree_params,
-                cells: egg.table_row,
-                name: file_name,
-            };
-
-            rows.push(row);
 
             if let Some(ref dir) = egg.dir {
                 for file_to_add in dir.files(
