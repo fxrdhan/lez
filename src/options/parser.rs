@@ -207,6 +207,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-M --mounts "show mount details (Linux and macOS only)"))
         .arg(arg!(-'@' --extended "list each file's extended attributes and sizes"))
         .arg(arg!(--"no-extended" "don't show the marker that a file has extended attributes"))
+        .arg(arg!(--"inspect-archives" "list the contents of supported archives (.tar) in long view"))
         .arg(arg!(-e --tags "list each file's color tags stored in extended attributes"))
         .arg(arg!(--"no-permissions" "suppress the permissions field"))
         .arg(arg!(--"no-filesize" "suppress the filesize field"))
