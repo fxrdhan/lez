@@ -210,6 +210,8 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('-I'                         ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--ignore-glob'              ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--cachedir-ignore'           ,'cachedir-ignore'     , [CompletionResultType]::ParameterName, 'ignore directories with a ''CACHEDIR.TAG'' file')
+            [CompletionResult]::new('--ignore-submodule-contents' ,'ignore-submodule-contents', [CompletionResultType]::ParameterName, 'do not list contents of submodules')
+            [CompletionResult]::new('-W'                        ,'W'                  , [CompletionResultType]::ParameterName, 'print a tally of hidden and ignored items')
             [CompletionResult]::new('--no-extended'             ,'no-extended'         , [CompletionResultType]::ParameterName, 'do not show a marker if extended attributes exist')
             [CompletionResult]::new('--git-ignore'               ,'git-ignore'          , [CompletionResultType]::ParameterName, 'ignore files mentioned in ''.gitignore''')
             [CompletionResult]::new('--since'                    ,'since'               , [CompletionResultType]::ParameterName, 'filter and display only files created or modified within duration window')

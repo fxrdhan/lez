@@ -319,6 +319,7 @@ pub struct FileKindsOverride {
     pub special: Option<StyleOverride>,       // sp
     pub executable: Option<StyleOverride>,    // ex
     pub mount_point: Option<StyleOverride>,   // mp
+    pub btrfs_subvol: Option<StyleOverride>,  // sv
 }
 
 impl FromOverride<FileKindsOverride> for FileKinds {
@@ -334,6 +335,7 @@ impl FromOverride<FileKindsOverride> for FileKinds {
             special: FromOverride::from(value.special, default.special),
             executable: FromOverride::from(value.executable, default.executable),
             mount_point: FromOverride::from(value.mount_point, default.mount_point),
+            btrfs_subvol: FromOverride::from(value.btrfs_subvol, default.btrfs_subvol),
         }
     }
 }
@@ -635,6 +637,7 @@ pub struct UiStylesOverride {
     pub header:       Option<StyleOverride>,          // hd
     pub octal:        Option<StyleOverride>,          // oc
     pub flags:        Option<StyleOverride>,          // ff
+    pub hidden_warning: Option<StyleOverride>,        // hw
 
     pub symlink_path:         Option<StyleOverride>,  // lp
     pub control_char:         Option<StyleOverride>,  // cc
@@ -668,6 +671,7 @@ impl FromOverride<UiStylesOverride> for UiStyles {
             inode: FromOverride::from(value.inode, default.inode),
             blocks: FromOverride::from(value.blocks, default.blocks),
             header: FromOverride::from(value.header, default.header),
+            hidden_warning: FromOverride::from(value.hidden_warning, default.hidden_warning),
             octal: FromOverride::from(value.octal, default.octal),
             flags: FromOverride::from(value.flags, default.flags),
 

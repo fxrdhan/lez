@@ -37,6 +37,7 @@ pub enum FileType {
 /// Mapping from full filenames to file type.
 const FILENAME_TYPES: Map<&'static str, FileType> = phf_map! {
     /* Immediate file - kick off the build of a project */
+    "Android.bp"         => FileType::Build, // Android build
     "Brewfile"           => FileType::Build,
     "bsconfig.json"      => FileType::Build,
     "BUILD"              => FileType::Build,
@@ -280,6 +281,11 @@ const EXTENSION_TYPES: Map<&'static str, FileType> = phf_map! {
     "tmp"        => FileType::Temp,
     /* Compiler output files */
     "a"          => FileType::Compiled, // Unix static library
+    "aab"        => FileType::Compiled, // Android App Bundle
+    "aar"        => FileType::Compiled, // Android Archive
+    "apk"        => FileType::Compiled, // Android PacKage
+    "dex"        => FileType::Compiled, // Dalvik bytecode object, for Android apps
+    "odex"       => FileType::Compiled, // Optimized DEX bytecode, for Android apps
     "bundle"     => FileType::Compiled, // macOS application bundle
     "class"      => FileType::Compiled, // Java class file
     "cma"        => FileType::Compiled, // OCaml bytecode library
@@ -301,6 +307,9 @@ const EXTENSION_TYPES: Map<&'static str, FileType> = phf_map! {
     "zwc"        => FileType::Compiled, // zsh compiled file
     /* Source code files */
     "ada"        => FileType::Source, // Ada source
+    "aidl"       => FileType::Source, // Android Interface Definition Language
+    "hidl"       => FileType::Source, // Android Hardware Interface Definition
+    "xml"        => FileType::Source, // eXtensible Markup Language
     "adb"        => FileType::Source, // Ada body
     "ads"        => FileType::Source, // Ada specification
     "applescript"=> FileType::Source, // Apple script
@@ -521,6 +530,25 @@ mod test {
     #[test]
     fn test_cb7_file_type() {
         assert_eq!(EXTENSION_TYPES.get("cb7"), Some(&FileType::Image));
+    }
+
+    #[test]
+    fn test_android_file_types() {
+        assert_eq!(FILENAME_TYPES.get("Android.bp"), Some(&FileType::Build));
+        for compiled in ["aab", "aar", "apk", "dex", "odex"] {
+            assert_eq!(
+                EXTENSION_TYPES.get(compiled),
+                Some(&FileType::Compiled),
+                "{compiled}"
+            );
+        }
+        for source in ["aidl", "hidl", "xml"] {
+            assert_eq!(
+                EXTENSION_TYPES.get(source),
+                Some(&FileType::Source),
+                "{source}"
+            );
+        }
     }
 
     #[test]

@@ -44,6 +44,16 @@ impl GitCache {
             .map(|repo| repo.search(index, prefix_lookup))
             .unwrap_or_default()
     }
+
+    /// Whether `path` sits inside a submodule working tree of any known
+    /// repository.
+    #[must_use]
+    pub fn is_submodule_path(&self, path: &Path) -> bool {
+        self.repos
+            .iter()
+            .find(|repo| repo.has_path(path))
+            .is_some_and(|repo| repo.is_submodule_path(path))
+    }
 }
 
 use std::iter::FromIterator;
@@ -122,6 +132,11 @@ pub struct GitRepo {
     /// Any other paths that were checked only to result in this same
     /// repository.
     extra_paths: Vec<PathBuf>,
+
+    /// Cached relative paths of this repository's submodules, used by
+    /// `--ignore-submodule-contents` to prune recursion. `None` until the
+    /// first query.
+    submodules: Mutex<Option<Vec<PathBuf>>>,
 }
 
 /// A repository’s queried state.
@@ -139,6 +154,30 @@ enum GitContents {
 }
 
 impl GitRepo {
+    /// Whether `path` lies inside one of this repository's submodule
+    /// working trees. The list is discovered lazily via git2 and cached.
+    pub fn is_submodule_path(&self, path: &Path) -> bool {
+        let Ok(relative) = path.strip_prefix(&self.workdir) else {
+            return false;
+        };
+        let Ok(mut guard) = self.submodules.lock() else {
+            return false;
+        };
+        let workdir = self.workdir.clone();
+        let submodules = guard.get_or_insert_with(|| {
+            let mut out = Vec::new();
+            if let Ok(repo) = git2::Repository::open(&workdir)
+                && let Ok(submodules) = repo.submodules()
+            {
+                for sm in submodules {
+                    out.push(sm.path().to_path_buf());
+                }
+            }
+            out
+        });
+        submodules.iter().any(|sm| relative.starts_with(sm))
+    }
+
     /// Searches through this repository for a path (to a file or directory,
     /// depending on the prefix-lookup flag) and returns its Git status.
     ///
@@ -208,6 +247,7 @@ impl GitRepo {
                 workdir,
                 original_path: path,
                 extra_paths: Vec::new(),
+                submodules: Mutex::new(None),
             })
         } else {
             warn!("Repository has no workdir?");
@@ -566,6 +606,7 @@ mod tests {
             workdir: test_repo.path.clone(),
             original_path: sub_a.clone(),
             extra_paths: vec![sub_b.clone()],
+            submodules: Mutex::new(None),
         };
 
         let roots = repo.listing_roots();

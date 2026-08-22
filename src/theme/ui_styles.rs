@@ -48,6 +48,7 @@ pub struct UiStyles {
     pub header:       Option<Style>,          // hd
     pub octal:        Option<Style>,          // oc
     pub flags:        Option<Style>,          // ff
+    pub hidden_warning: Option<Style>,        // hw
 
     pub symlink_path:         Option<Style>,  // lp
     pub control_char:         Option<Style>,  // cc
@@ -113,6 +114,7 @@ field_accessors!(
     header: Option<Style>,
     octal: Option<Style>,
     flags: Option<Style>,
+    hidden_warning: Option<Style>,
     symlink_path: Option<Style>,
     control_char: Option<Style>,
     broken_symlink: Option<Style>,
@@ -147,6 +149,7 @@ pub struct FileKinds {
     pub special: Option<Style>,       // sp
     pub executable: Option<Style>,    // ex
     pub mount_point: Option<Style>,   // mp
+    pub btrfs_subvol: Option<Style>,  // sv
 }
 
 impl Default for FileKinds {
@@ -162,6 +165,7 @@ impl Default for FileKinds {
             special: Some(Yellow.normal()),
             executable: Some(Green.bold()),
             mount_point: Some(Blue.bold().underline()),
+            btrfs_subvol: Some(Blue.underline()),
         }
     }
 }
@@ -176,7 +180,8 @@ field_accessors!(
     socket: Option<Style>,
     special: Option<Style>,
     executable: Option<Style>,
-    mount_point: Option<Style>
+    mount_point: Option<Style>,
+    btrfs_subvol: Option<Style>
 );
 
 #[rustfmt::skip]
@@ -460,6 +465,7 @@ impl UiStyles {
             special: Some(Style::default()),
             executable: Some(Style::default()),
             mount_point: Some(Style::default()),
+            btrfs_subvol: Some(Style::default()),
             }),
 
             #[rustfmt::skip]
@@ -565,6 +571,7 @@ impl UiStyles {
             octal: Some(Style::default()),
             flags: Some(Style::default()),
             header: Some(Style::default()),
+            hidden_warning: Some(Style::default()),
 
             symlink_path: Some(Style::default()),
             control_char: Some(Style::default()),
@@ -706,12 +713,14 @@ impl UiStyles {
             "bl" => self.blocks                          = Some(pair.to_style()),
             "hd" => self.header                          = Some(pair.to_style()),
             "oc" => self.octal                           = Some(pair.to_style()),
+            "hw" => self.hidden_warning                  = Some(pair.to_style()),
             "ff" => self.flags                           = Some(pair.to_style()),
             "lp" => self.symlink_path                    = Some(pair.to_style()),
             "cc" => self.control_char                    = Some(pair.to_style()),
             "bO" => self.broken_path_overlay             = Some(pair.to_style()),
 
             "mp" => self.filekinds().mount_point          = Some(pair.to_style()),
+            "sv" => self.filekinds().btrfs_subvol        = Some(pair.to_style()),
             "sp" => self.filekinds().special              = Some(pair.to_style()),  // Catch-all for unrecognized file kind
 
             "im" => self.file_type().image                = Some(pair.to_style()),

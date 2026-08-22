@@ -6,6 +6,10 @@ filekinds:
     foreground: Blue
   symlink:
     foreground: Cyan
+  # Colour for Btrfs subvolume directories (Linux)
+  btrfs_subvol:
+    foreground: Blue
+    underline: true
   executable:
     foreground: Green
 perms:

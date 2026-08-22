@@ -40,6 +40,7 @@ impl Default for UiStyles {
             special: Some(Yellow.normal()),
             executable: Some(Green.bold()),
             mount_point: Some(Blue.bold().underline()),
+            btrfs_subvol: Some(Blue.underline()),
             }),
 
             #[rustfmt::skip]
@@ -134,6 +135,7 @@ impl Default for UiStyles {
             octal: Some(Purple.normal()),
             flags: Some(Style::default()),
             header: Some(Style::default().underline()),
+            hidden_warning: Some(Red.bold()),
 
             symlink_path: Some(Cyan.normal()),
             control_char: Some(Red.normal()),
@@ -150,7 +152,7 @@ impl Default for UiStyles {
 
 impl Size {
     pub fn colourful(scale: ColorScaleOptions) -> Self {
-        if scale.size && scale.mode == ColorScaleMode::Fixed {
+        if scale.mode == ColorScaleMode::Fixed {
             Self::colourful_fixed()
         } else {
             Self::colourful_gradient()

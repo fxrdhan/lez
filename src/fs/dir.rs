@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: MIT
 use crate::fs::feature::git::GitCache;
 use crate::fs::fields::GitStatus;
+use crate::output::hidden_count::HiddenCount;
 use std::collections::HashSet;
 use std::fs;
 use std::fs::DirEntry;
@@ -91,7 +92,8 @@ impl Dir {
     /// Produce an iterator of IO results of trying to read all the files in
     /// this directory.
     #[must_use]
-    pub fn files<'dir, 'ig>(
+    #[allow(clippy::too_many_arguments)]
+    pub fn files<'dir, 'ig, 'hc>(
         &'dir self,
         dots: DotFilter,
         git: Option<&'ig GitCache>,
@@ -99,10 +101,12 @@ impl Dir {
         deref_links: bool,
         total_size: bool,
         mime_read_contents: bool,
-    ) -> Files<'dir, 'ig> {
+        hidden_count: Option<&'hc mut HiddenCount>,
+    ) -> Files<'dir, 'ig, 'hc> {
         Files {
             inner: self.contents.iter(),
             dir: self,
+            hidden_count,
             dotfiles: dots.shows_dotfiles(),
             #[cfg(windows)]
             windows_hidden: dots.shows_windows_hidden(),
@@ -132,7 +136,7 @@ impl Dir {
 
 /// Iterator over reading the contents of a directory as `File` objects.
 #[allow(clippy::struct_excessive_bools)]
-pub struct Files<'dir, 'ig> {
+pub struct Files<'dir, 'ig, 'hc> {
     /// The internal iterator over the paths that have been read already.
     inner: SliceIter<'dir, DirEntry>,
 
@@ -150,6 +154,9 @@ pub struct Files<'dir, 'ig> {
     /// any files have been listed.
     dots: DotsNext,
 
+    /// Where to tally entries skipped by the visibility filters.
+    hidden_count: Option<&'hc mut HiddenCount>,
+
     git: Option<&'ig GitCache>,
 
     git_ignoring: bool,
@@ -164,7 +171,7 @@ pub struct Files<'dir, 'ig> {
     mime_read_contents: bool,
 }
 
-impl<'dir> Files<'dir, '_> {
+impl<'dir> Files<'dir, '_, '_> {
     fn parent(&self) -> PathBuf {
         // We can’t use `Path#parent` here because all it does is remove the
         // last path component, which is no good for us if the path is
@@ -182,6 +189,9 @@ impl<'dir> Files<'dir, '_> {
                 let path = entry.path();
                 let filename = File::filename(&path);
                 if !self.dotfiles && filename.starts_with('.') {
+                    if let Some(count) = &mut self.hidden_count {
+                        count.inc_hidden();
+                    }
                     continue;
                 }
 
@@ -189,12 +199,18 @@ impl<'dir> Files<'dir, '_> {
                 // as an alternative to dot-prefix files.
                 #[cfg(windows)]
                 if !self.dotfiles && filename.starts_with('_') {
+                    if let Some(count) = &mut self.hidden_count {
+                        count.inc_hidden();
+                    }
                     continue;
                 }
 
                 if self.git_ignoring {
                     let git_status = self.git.map(|g| g.get(&path, false)).unwrap_or_default();
                     if git_status.unstaged == GitStatus::Ignored {
+                        if let Some(count) = &mut self.hidden_count {
+                            count.inc_ignored();
+                        }
                         continue;
                     }
                 }
@@ -213,6 +229,9 @@ impl<'dir> Files<'dir, '_> {
                 // hidden Windows hidden files should also be filtered out
                 #[cfg(windows)]
                 if !self.windows_hidden && file.attributes().is_some_and(|a| a.hidden) {
+                    if let Some(count) = &mut self.hidden_count {
+                        count.inc_hidden();
+                    }
                     continue;
                 }
 
@@ -237,7 +256,7 @@ enum DotsNext {
     Files,
 }
 
-impl<'dir> Iterator for Files<'dir, '_> {
+impl<'dir, 'hc> Iterator for Files<'dir, '_, 'hc> {
     type Item = File<'dir>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -357,7 +376,15 @@ mod windows_tests {
         set_hidden(&path.join("hidden.txt"));
         let dir = Dir::read_dir(path.clone()).unwrap();
         let names: Vec<_> = dir
-            .files(DotFilter::DotfilesByName, None, false, false, false, false)
+            .files(
+                DotFilter::DotfilesByName,
+                None,
+                false,
+                false,
+                false,
+                false,
+                None,
+            )
             .map(|file| file.name)
             .collect();
         assert!(names.contains(&".dotfile".to_string()));

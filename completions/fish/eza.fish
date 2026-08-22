@@ -64,6 +64,8 @@ complete -c eza -l mime-types -d "Determine file MIME types to better inform sty
 # Filtering and sorting options
 complete -c eza -l group-directories-first -d "Sort directories before other files"
 complete -c eza -l group-directories-last -d "Sort directories after other files"
+complete -c eza -l ignore-submodule-contents -d "Do not list contents of submodules"
+complete -c eza -s W -l warn-hidden -d "Print a tally of hidden and ignored items; twice to always print"
 complete -c eza -l no-extended -d "Do not show a marker if a file's extended attributes exist"
 complete -c eza -l git-ignore -d "Ignore files mentioned in '.gitignore'"
 complete -c eza -l cachedir-ignore -d "Ignore directories with a 'CACHEDIR.TAG' file"

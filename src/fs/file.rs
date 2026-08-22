@@ -411,6 +411,71 @@ impl<'dir> File<'dir> {
         (md.permissions().mode() & bit) == bit
     }
 
+    /// Windows edition: a regular file is “executable” when its extension
+    /// appears in the `PATHEXT` environment variable (defaulting to the
+    /// usual `.COM;.EXE;.BAT;…` list when unset).
+    #[cfg(windows)]
+    pub fn is_executable_file(&self) -> bool {
+        use std::collections::HashSet;
+        use std::sync::LazyLock;
+
+        static PATHEXT: LazyLock<HashSet<String>> = LazyLock::new(|| {
+            std::env::var("PATHEXT")
+                .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
+                .split(';')
+                .filter_map(|s| s.strip_prefix('.').map(|s| s.to_ascii_uppercase()))
+                .collect()
+        });
+
+        if !self.is_file() {
+            return false;
+        }
+        match self.ext.as_ref() {
+            Some(ext) => PATHEXT.contains(&ext.to_ascii_uppercase()),
+            None => false,
+        }
+    }
+
+    /// Whether this directory is a Btrfs subvolume: subvolumes always carry
+    /// inode number 256 (BTRFS_FIRST_FREE_OBJECTID) and live on a btrfs
+    /// filesystem. Non-Linux platforms never report one.
+    #[cfg(target_os = "linux")]
+    pub fn is_btrfs_subvolume(&self) -> bool {
+        const BTRFS_FIRST_FREE_OBJECTID: u64 = 256;
+        self.is_directory() && self.inode().0 == BTRFS_FIRST_FREE_OBJECTID && self.is_btrfs()
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn is_btrfs_subvolume(&self) -> bool {
+        false
+    }
+
+    /// Walks up the ancestor chain against the mount table, then falls back
+    /// to `statfs`, to decide whether this path lives on btrfs.
+    #[cfg(target_os = "linux")]
+    fn is_btrfs(&self) -> bool {
+        use std::os::unix::ffi::OsStrExt;
+
+        const BTRFS_FSTYPE_NAME: &str = "btrfs";
+
+        let start = self.absolute_path().unwrap_or(&self.path);
+        for part in start.ancestors() {
+            if let Some(mount) = all_mounts().get(part) {
+                return mount.fstype == BTRFS_FSTYPE_NAME;
+            }
+        }
+
+        let mut out = std::mem::MaybeUninit::<libc::statfs>::uninit();
+        let path = match std::ffi::CString::new(self.path.as_os_str().as_bytes()) {
+            Ok(path) => path,
+            Err(_) => return false,
+        };
+        // SAFETY: `out` is a valid, correctly-sized location for statfs to
+        // initialise; errno is the only error channel.
+        let result = unsafe { libc::statfs(path.as_ptr(), out.as_mut_ptr()) };
+        result == 0 && unsafe { out.assume_init() }.f_type == libc::BTRFS_SUPER_MAGIC
+    }
+
     /// Whether this file is a symlink on the filesystem.
     pub fn is_link(&self) -> bool {
         self.filetype().is_some_and(FileType::is_symlink)
@@ -735,6 +800,7 @@ impl<'dir> File<'dir> {
                     false,
                     true,
                     self.mime_read_contents,
+                    None,
                 ) {
                     match file.recursive_directory_size() {
                         RecursiveSize::Some(bytes, blks) => {
@@ -839,7 +905,15 @@ impl<'dir> File<'dir> {
         match Dir::read_dir(self.path.clone()) {
             // . & .. are skipped, if the returned iterator has .next(), it's not empty
             Ok(has_files) => has_files
-                .files(super::DotFilter::Dotfiles, None, false, false, false, false)
+                .files(
+                    super::DotFilter::Dotfiles,
+                    None,
+                    false,
+                    false,
+                    false,
+                    false,
+                    None,
+                )
                 .next()
                 .is_none(),
             Err(_) => false,
@@ -1499,6 +1573,21 @@ mod mime_type_test {
 
         let file_without_mime = File::from_args(png_no_ext, None, None, false, false, false, None);
         assert_eq!(file_without_mime.mimetype(), None);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_executable_detection_uses_pathext() {
+        let dir = std::env::temp_dir().join(format!("lsr_pathext_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let exe = File::from_args(dir.join("app.EXE"), None, None, false, false, false, None);
+        assert!(exe.is_executable_file(), "PATHEXT lists .EXE");
+
+        let txt = File::from_args(dir.join("notes.txt"), None, None, false, false, false, None);
+        assert!(!txt.is_executable_file());
 
         let _ = fs::remove_dir_all(dir);
     }

@@ -218,6 +218,12 @@ pub struct FileFilter {
     /// Whether to ignore `CACHEDIR.TAG` directories.
     pub ignore_cachedir: IgnoreCacheDir,
 
+    /// Whether (and how eagerly) to report filtered-out entries.
+    pub warn_hidden: crate::output::hidden_count::WarnHiddenMode,
+
+    /// Whether to skip descending into Git submodule working trees.
+    pub ignore_submodule_contents: bool,
+
     /// Filter files created or modified within the specified duration window.
     pub since: Option<std::time::Duration>,
 
@@ -777,6 +783,7 @@ mod test_collation_traits {
 #[cfg(test)]
 mod test_ignores {
     use super::*;
+    use crate::output::hidden_count::WarnHiddenMode;
 
     #[test]
     fn empty_matches_nothing() {
@@ -847,6 +854,8 @@ mod test_ignores {
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
             since: None,
             no_symlinks: false,
             show_symlinks: false,
@@ -983,6 +992,8 @@ mod test_ignores {
             ignore_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
             git_ignore: GitIgnore::Off,
             since: None,
             no_symlinks: false,
@@ -1035,6 +1046,8 @@ mod test_ignores {
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
             ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             since: None,

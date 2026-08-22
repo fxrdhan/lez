@@ -10,6 +10,7 @@ use lsr::fs::filter::{
 };
 use lsr::fs::{DotFilter, File};
 use lsr::options::Vars;
+use lsr::output::hidden_count::WarnHiddenMode;
 
 #[derive(Default)]
 struct TestVars {
@@ -45,6 +46,7 @@ fn test_hungarian_unicode_collation() {
     assert_eq!(collator.locale_tag(), "hu_HU");
 
     let filter = FileFilter {
+        ignore_submodule_contents: false,
         sort_field: SortField::Name(SortCase::AaBbCc),
         flags: vec![],
         dot_filter: DotFilter::JustFiles,
@@ -52,6 +54,7 @@ fn test_hungarian_unicode_collation() {
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         since: None,
         no_symlinks: false,
         show_symlinks: false,
@@ -84,11 +87,13 @@ fn test_swedish_unicode_collation() {
         ignore_patterns: IgnorePatterns::empty(),
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         git_ignore: GitIgnore::Off,
         since: None,
         no_symlinks: false,
         show_symlinks: false,
         collator: Some(collator),
+        ignore_submodule_contents: false,
     };
 
     // In Swedish, å, ä, ö are distinct letters at the end of the alphabet (after z)
@@ -117,10 +122,12 @@ fn test_german_unicode_collation() {
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         since: None,
         no_symlinks: false,
         show_symlinks: false,
         collator: Some(collator),
+        ignore_submodule_contents: false,
     };
 
     // In German: Äpfel is sorted adjacent to Apfel and before Banane, Über < Uhr
@@ -147,6 +154,7 @@ fn test_spanish_unicode_collation() {
         .expect("Spanish locale collator should initialize");
 
     let filter = FileFilter {
+        ignore_submodule_contents: false,
         sort_field: SortField::Name(SortCase::AaBbCc),
         flags: vec![],
         dot_filter: DotFilter::JustFiles,
@@ -154,6 +162,7 @@ fn test_spanish_unicode_collation() {
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         since: None,
         no_symlinks: false,
         show_symlinks: false,
@@ -182,6 +191,7 @@ fn test_natural_numeric_ordering_preserved() {
         sort_field: SortField::Name(SortCase::AaBbCc),
         flags: vec![],
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         dot_filter: DotFilter::JustFiles,
         ignore_patterns: IgnorePatterns::empty(),
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
@@ -190,6 +200,7 @@ fn test_natural_numeric_ordering_preserved() {
         no_symlinks: false,
         show_symlinks: false,
         collator: Some(collator),
+        ignore_submodule_contents: false,
     };
 
     let mut files = vec![
@@ -221,8 +232,10 @@ fn test_mixed_accent_and_number_sorting() {
     let collator = LocaleCollator::try_from_locale_str("hu_HU.UTF-8").unwrap();
 
     let filter = FileFilter {
+        ignore_submodule_contents: false,
         sort_field: SortField::Name(SortCase::AaBbCc),
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         flags: vec![],
         dot_filter: DotFilter::JustFiles,
         ignore_patterns: IgnorePatterns::empty(),
@@ -264,7 +277,9 @@ fn test_case_sensitivity_and_insensitivity() {
 
     // Case-insensitive sort
     let filter_insensitive = FileFilter {
+        ignore_submodule_contents: false,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         sort_field: SortField::Name(SortCase::AaBbCc),
         flags: vec![],
         dot_filter: DotFilter::JustFiles,
@@ -286,6 +301,8 @@ fn test_case_sensitivity_and_insensitivity() {
 
     // Case-sensitive sort
     let filter_sensitive = FileFilter {
+        warn_hidden: WarnHiddenMode::Never,
+        ignore_submodule_contents: false,
         sort_field: SortField::Name(SortCase::ABCabc),
         collator: Some(collator),
         ..filter_insensitive
@@ -372,6 +389,7 @@ fn test_posix_precedence_and_clean_strings() {
 #[test]
 fn test_fallback_to_natord_when_collator_none() {
     let filter = FileFilter {
+        ignore_submodule_contents: false,
         sort_field: SortField::Name(SortCase::AaBbCc),
         flags: vec![],
         dot_filter: DotFilter::JustFiles,
@@ -379,6 +397,7 @@ fn test_fallback_to_natord_when_collator_none() {
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
         ignore_cachedir: IgnoreCacheDir::Off,
+        warn_hidden: WarnHiddenMode::default(),
         since: None,
         no_symlinks: false,
         show_symlinks: false,

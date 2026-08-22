@@ -152,6 +152,7 @@ impl<'a> Render<'a> {
                 self.deref_links,
                 self.total_size,
                 self.view.mime_read_contents,
+                None,
             )
             .collect();
 
@@ -197,6 +198,7 @@ impl<'a> Render<'a> {
                     self.deref_links,
                     self.total_size,
                     self.view.mime_read_contents,
+                    None,
                 )
                 .collect();
 

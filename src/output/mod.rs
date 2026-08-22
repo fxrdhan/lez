@@ -14,6 +14,7 @@ pub mod details;
 pub mod file_name;
 pub mod grid;
 pub mod grid_details;
+pub mod hidden_count;
 pub mod icons;
 pub mod json;
 pub mod lines;
