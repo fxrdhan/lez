@@ -23,7 +23,6 @@ impl FileFilter {
         strict: bool,
         vars: &V,
     ) -> Result<Self, OptionsError> {
-        use crate::options::parser::TimeArgs;
         use FileFilterFlags as FFF;
         let mut filter_flags: Vec<FileFilterFlags> = vec![];
 
@@ -41,24 +40,7 @@ impl FileFilter {
             }
         }
 
-        let sort_field = match (
-            matches.value_source("sort"),
-            matches.get_one::<TimeArgs>("time"),
-        ) {
-            (Some(clap::parser::ValueSource::CommandLine), _) => *matches.get_one("sort").unwrap(),
-            (_, Some(TimeArgs::Default)) => {
-                if matches.get_flag("accessed") {
-                    SortField::AccessedDate
-                } else if matches.get_flag("changed") {
-                    SortField::ChangedDate
-                } else if matches.get_flag("created") {
-                    SortField::CreatedDate
-                } else {
-                    SortField::ModifiedAge
-                }
-            }
-            _ => *matches.get_one("sort").unwrap(),
-        };
+        let sort_field = *matches.get_one("sort").unwrap();
 
         let since = matches.get_one::<std::time::Duration>("since").copied();
         let collator = LocaleCollator::deduce(vars);
@@ -738,37 +720,11 @@ mod tests {
     }
 
     #[test]
-    fn deduce_sort_field_time_flag_with_accessed() {
-        assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["-t", "-u"]), false, &MockVars::default())
-                .unwrap()
-                .sort_field,
-            SortField::AccessedDate
-        );
-    }
-
-    #[test]
-    fn deduce_sort_field_time_flag_with_changed() {
-        assert_eq!(
-            FileFilter::deduce(
-                &mock_cli(vec!["-t", "--changed"]),
-                false,
-                &MockVars::default()
-            )
-            .unwrap()
-            .sort_field,
-            SortField::ChangedDate
-        );
-    }
-
-    #[test]
-    fn deduce_sort_field_time_flag_with_created() {
-        assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["-t", "-U"]), false, &MockVars::default())
-                .unwrap()
-                .sort_field,
-            SortField::CreatedDate
-        );
+    fn deduce_sort_field_time_flag_clustered_1tr() {
+        let filter =
+            FileFilter::deduce(&mock_cli(vec!["-1tr"]), false, &MockVars::default()).unwrap();
+        assert_eq!(filter.sort_field, SortField::ModifiedAge);
+        assert!(filter.flags.contains(&FileFilterFlags::Reverse));
     }
 
     #[test]
@@ -791,7 +747,7 @@ mod tests {
             )
             .unwrap()
             .sort_field,
-            SortField::Size
+            SortField::ModifiedAge
         );
     }
 

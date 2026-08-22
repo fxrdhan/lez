@@ -35,7 +35,7 @@ const SORT_FIELDS_HELP: &str = "[default: name] [possible values:
   size, inode, type, none]";
 
 const TIME_FIELDS_HELP: &str = "[possible values:
-  mod|m|r|modified, acc|accessed, ch|changed, cr|created]";
+  mod|m|modified, acc|accessed, ch|changed, cr|created]";
 
 const FORMAT_STYLE_FIELDS_HELP: &str = "[possible values:
   default, iso, long-iso, full-iso, relative, relative-recent, \"+<CUSTOM_FORMAT>\"]";
@@ -173,11 +173,9 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-g --group "list each file's group"))
         .arg(arg!(--"smart-group" "only show group if it has a different name from owner"))
         .arg(arg!(-n --numeric "show user and group as their numeric IDs"))
-        .arg(arg!(-t --time [FIELD]).help(format!("which timestamp field to show {TIME_FIELDS_HELP}"))
-            .num_args(0..=1)
-            .require_equals(true)
+        .arg(arg!(-t --time <FIELD>)
+            .help(format!("which timestamp field to show {TIME_FIELDS_HELP}"))
             .value_parser(value_parser!(TimeArgs))
-            .default_missing_value("default")
             .hide_possible_values(true))
         .arg(arg!(-m --modified "show the modified timestamp field (replace default field, combinable)"))
         .arg(arg!(-u --accessed "show the accessed timestamp field (replace default field, combinable)"))
@@ -319,27 +317,19 @@ pub enum TimeArgs {
     Changed,
     Accessed,
     Created,
-    Default,
 }
 
 impl ValueEnum for TimeArgs {
     fn value_variants<'a>() -> &'a [Self] {
-        &[
-            Self::Modified,
-            Self::Changed,
-            Self::Accessed,
-            Self::Created,
-            Self::Default,
-        ]
+        &[Self::Modified, Self::Changed, Self::Accessed, Self::Created]
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
         Some(match self {
-            Self::Modified => PossibleValue::new("modified").aliases(vec!["mod", "m", "r"]),
+            Self::Modified => PossibleValue::new("modified").aliases(vec!["mod", "m"]),
             Self::Changed => PossibleValue::new("changed").alias("ch"),
             Self::Accessed => PossibleValue::new("accessed").alias("acc"),
             Self::Created => PossibleValue::new("created").alias("cr"),
-            Self::Default => PossibleValue::new("default").hide(true),
         })
     }
 }
@@ -392,6 +382,88 @@ impl ValueEnum for Absolute {
     }
 }
 
+fn is_value_free_short(command: &clap::Command, short: char) -> bool {
+    command
+        .get_arguments()
+        .find(|arg| arg.get_short() == Some(short))
+        .is_some_and(|arg| !arg.get_action().takes_values())
+}
+
+fn is_time_value(value: &OsString) -> bool {
+    value
+        .to_str()
+        .is_some_and(|value| TimeArgs::from_str(value, false).is_ok())
+}
+
+fn normalize_short_time_arg(
+    arg: &OsString,
+    next: Option<&OsString>,
+    command: &clap::Command,
+) -> Option<Vec<OsString>> {
+    let arg_str = arg.to_str()?;
+    if !arg_str.starts_with('-') || arg_str.starts_with("--") || arg_str == "-" {
+        return None;
+    }
+
+    let (before_t, after_t) = arg_str[1..].split_once('t')?;
+
+    if !before_t.chars().all(|c| is_value_free_short(command, c)) {
+        return None;
+    }
+
+    if after_t.is_empty() {
+        if let Some(next) = next
+            && is_time_value(next)
+        {
+            return None;
+        }
+        let mut res = Vec::new();
+        if !before_t.is_empty() {
+            res.push(OsString::from(format!("-{before_t}")));
+        }
+        res.push(OsString::from("--sort=age"));
+        Some(res)
+    } else if after_t.starts_with('=') || is_time_value(&OsString::from(after_t)) {
+        None
+    } else if after_t.chars().all(|c| is_value_free_short(command, c)) {
+        let mut res = Vec::new();
+        if !before_t.is_empty() {
+            res.push(OsString::from(format!("-{before_t}")));
+        }
+        res.push(OsString::from("--sort=age"));
+        res.push(OsString::from(format!("-{after_t}")));
+        Some(res)
+    } else {
+        None
+    }
+}
+
+pub fn normalize_args<I, T>(itr: I, command: &clap::Command) -> Vec<OsString>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString>,
+{
+    let args: Vec<OsString> = itr.into_iter().map(Into::into).collect();
+    let mut normalized = Vec::with_capacity(args.len());
+    let mut iter = args.into_iter().peekable();
+
+    while let Some(arg) = iter.next() {
+        if arg == "--" {
+            normalized.push(arg);
+            normalized.extend(iter);
+            break;
+        }
+
+        if let Some(mut expanded) = normalize_short_time_arg(&arg, iter.peek(), command) {
+            normalized.append(&mut expanded);
+        } else {
+            normalized.push(arg);
+        }
+    }
+
+    normalized
+}
+
 #[cfg(test)]
 pub mod test {
     use super::*;
@@ -399,17 +471,21 @@ pub mod test {
     pub fn mock_cli<I, T>(itr: I) -> clap::ArgMatches
     where
         I: IntoIterator<Item = T>,
-        T: Into<OsString> + Clone,
+        T: Into<OsString>,
     {
-        get_command().no_binary_name(true).get_matches_from(itr)
+        let command = get_command().no_binary_name(true);
+        let args = normalize_args(itr, &command);
+        command.get_matches_from(args)
     }
 
     pub fn mock_cli_try<I, T>(itr: I) -> Result<clap::ArgMatches, clap::error::Error>
     where
         I: IntoIterator<Item = T>,
-        T: Into<OsString> + Clone,
+        T: Into<OsString>,
     {
-        get_command().no_binary_name(true).try_get_matches_from(itr)
+        let command = get_command().no_binary_name(true);
+        let args = normalize_args(itr, &command);
+        command.try_get_matches_from(args)
     }
 
     #[test]
@@ -711,8 +787,28 @@ pub mod test {
             Some(&TimeArgs::Modified)
         );
         assert_eq!(
-            mock_cli(vec!["--time=r"]).get_one::<TimeArgs>("time"),
-            Some(&TimeArgs::Modified)
+            mock_cli(vec!["--time=accessed"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Accessed)
+        );
+        assert_eq!(
+            mock_cli(vec!["--time=acc"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Accessed)
+        );
+        assert_eq!(
+            mock_cli(vec!["--time=changed"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Changed)
+        );
+        assert_eq!(
+            mock_cli(vec!["--time=ch"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Changed)
+        );
+        assert_eq!(
+            mock_cli(vec!["--time=created"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Created)
+        );
+        assert_eq!(
+            mock_cli(vec!["--time=cr"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Created)
         );
         assert_eq!(
             mock_cli(vec!["-t=modified"]).get_one::<TimeArgs>("time"),
@@ -727,8 +823,20 @@ pub mod test {
             Some(&TimeArgs::Modified)
         );
         assert_eq!(
-            mock_cli(vec!["-t=r"]).get_one::<TimeArgs>("time"),
+            mock_cli(vec!["-tmodified"]).get_one::<TimeArgs>("time"),
             Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["-tmod"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["-t", "modified"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Modified)
+        );
+        assert_eq!(
+            mock_cli(vec!["-t", "accessed"]).get_one::<TimeArgs>("time"),
+            Some(&TimeArgs::Accessed)
         );
     }
 
@@ -736,8 +844,146 @@ pub mod test {
     fn time_short_flag_clustering_ltr() {
         let cli = mock_cli(vec!["-ltr"]);
         assert!(cli.get_flag("long"));
-        assert_eq!(cli.get_one::<TimeArgs>("time"), Some(&TimeArgs::Default));
+        assert_eq!(cli.get_one::<TimeArgs>("time"), None);
+        assert_eq!(
+            cli.get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedAge)
+        );
         assert!(cli.get_flag("reverse"));
+    }
+
+    #[test]
+    fn normalize_args_bare_short_t() {
+        let cli = mock_cli(vec!["-t"]);
+        assert_eq!(
+            cli.get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedAge)
+        );
+        assert_eq!(cli.get_one::<TimeArgs>("time"), None);
+    }
+
+    #[test]
+    fn normalize_args_clustered_1tr() {
+        let cli = mock_cli(vec!["-1tr"]);
+        assert!(cli.get_flag("oneline"));
+        assert!(cli.get_flag("reverse"));
+        assert_eq!(
+            cli.get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedAge)
+        );
+    }
+
+    #[test]
+    fn normalize_args_clustered_ltra() {
+        let cli = mock_cli(vec!["-ltra"]);
+        assert!(cli.get_flag("long"));
+        assert!(cli.get_flag("reverse"));
+        assert_eq!(cli.get_count("all"), 1);
+        assert_eq!(
+            cli.get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedAge)
+        );
+    }
+
+    #[test]
+    fn normalize_args_positional_file_after_t() {
+        let cli = mock_cli(vec!["-t", "file1.txt", "file2.txt"]);
+        assert_eq!(
+            cli.get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedAge)
+        );
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["file1.txt", "file2.txt"]
+        );
+    }
+
+    #[test]
+    fn normalize_args_precedence_t_then_sort() {
+        let cli = mock_cli(vec!["-t", "--sort=name"]);
+        assert_eq!(
+            cli.get_one::<SortField>("sort"),
+            Some(&SortField::Name(SortCase::AaBbCc))
+        );
+    }
+
+    #[test]
+    fn normalize_args_precedence_sort_then_t() {
+        let cli = mock_cli(vec!["--sort=name", "-t"]);
+        assert_eq!(
+            cli.get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedAge)
+        );
+    }
+
+    #[test]
+    fn normalize_args_attached_sort_protection() {
+        let cli = mock_cli(vec!["-stime"]);
+        assert_eq!(
+            cli.get_one::<SortField>("sort"),
+            Some(&SortField::ModifiedDate)
+        );
+    }
+
+    #[test]
+    fn normalize_args_positional_separator_double_dash() {
+        let cli = mock_cli(vec!["--", "-ltra"]);
+        assert!(!cli.get_flag("long"));
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["-ltra"]
+        );
+    }
+
+    #[test]
+    fn normalize_args_raw_expansions() {
+        let cmd = get_command();
+        assert_eq!(
+            normalize_args(vec!["-t"], &cmd),
+            vec![OsString::from("--sort=age")]
+        );
+        assert_eq!(
+            normalize_args(vec!["-ltra"], &cmd),
+            vec![
+                OsString::from("-l"),
+                OsString::from("--sort=age"),
+                OsString::from("-ra")
+            ]
+        );
+        assert_eq!(
+            normalize_args(vec!["-1tr"], &cmd),
+            vec![
+                OsString::from("-1"),
+                OsString::from("--sort=age"),
+                OsString::from("-r")
+            ]
+        );
+        assert_eq!(
+            normalize_args(vec!["-t", "modified"], &cmd),
+            vec![OsString::from("-t"), OsString::from("modified")]
+        );
+        assert_eq!(
+            normalize_args(vec!["-tmodified"], &cmd),
+            vec![OsString::from("-tmodified")]
+        );
+        assert_eq!(
+            normalize_args(vec!["-t=modified"], &cmd),
+            vec![OsString::from("-t=modified")]
+        );
+        assert_eq!(
+            normalize_args(vec!["-t", "foo.txt"], &cmd),
+            vec![OsString::from("--sort=age"), OsString::from("foo.txt")]
+        );
+        assert_eq!(
+            normalize_args(vec!["--", "-t"], &cmd),
+            vec![OsString::from("--"), OsString::from("-t")]
+        );
     }
 
     #[test]

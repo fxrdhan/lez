@@ -25,14 +25,15 @@ fn test_time_field_aliases_modified_cli() {
     let test_file = temp_dir.join("test_file.txt");
     StdFile::create(&test_file).unwrap();
 
-    // Test explicit aliases: --time=mod, --time=m, --time=r, -t=r, -t=m, -t=mod
+    // Test explicit aliases: --time=mod, --time=m, -t=m, -t=mod, -tmodified, -tmod, -tm, --time=modified
     for arg in [
         "--time=mod",
         "--time=m",
-        "--time=r",
-        "-t=r",
         "-t=m",
         "-t=mod",
+        "-tmodified",
+        "-tmod",
+        "-tm",
         "--time=modified",
     ] {
         let output = Command::new(bin_path())
@@ -45,6 +46,23 @@ fn test_time_field_aliases_modified_cli() {
         assert!(
             output.status.success(),
             "lsr -l {arg} failed with stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    // Test separate space-separated arguments: -t modified, -t accessed, etc.
+    for time_arg in ["modified", "accessed", "changed", "created"] {
+        let output = Command::new(bin_path())
+            .arg("-l")
+            .arg("-t")
+            .arg(time_arg)
+            .arg(&test_file)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute lsr -l -t {time_arg}: {e}"));
+
+        assert!(
+            output.status.success(),
+            "lsr -l -t {time_arg} failed with stderr: {}",
             String::from_utf8_lossy(&output.stderr)
         );
     }

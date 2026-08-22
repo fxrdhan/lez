@@ -74,9 +74,8 @@ fn test_stdin_ignored_by_default_without_flag() {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");
         // Write filenames that do NOT exist in the directory; if lsr were to read stdin,
         // it would fail or attempt to list nonexistent_1 / nonexistent_2.
-        stdin
-            .write_all(b"nonexistent_1.txt\nnonexistent_2.txt\n")
-            .unwrap();
+        // Ignore BrokenPipe since lsr does not read stdin when --stdin is omitted and may exit quickly.
+        let _ = stdin.write_all(b"nonexistent_1.txt\nnonexistent_2.txt\n");
     }
 
     let output = child.wait_with_output().expect("Failed to wait on child");
@@ -103,7 +102,7 @@ fn test_stdin_ignored_with_positional_arguments() {
 
     {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");
-        stdin.write_all(b"nonexistent_from_stdin.txt\n").unwrap();
+        let _ = stdin.write_all(b"nonexistent_from_stdin.txt\n");
     }
 
     let output = child.wait_with_output().expect("Failed to wait on child");
