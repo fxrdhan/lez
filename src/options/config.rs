@@ -276,12 +276,42 @@ where
     }
 }
 
+/// theme.yml accepts either a colour style for symbolic links or the literal
+/// string `target`, mirroring LS_COLORS `ln=target`.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LinkStyleOverride {
+    Style(StyleOverride),
+    Target(String),
+}
+
+impl FromOverride<LinkStyleOverride> for crate::theme::LinkStyle {
+    fn from(value: LinkStyleOverride, default: Self) -> Self {
+        match value {
+            LinkStyleOverride::Target(word) if word == "target" => Self::Target,
+            LinkStyleOverride::Target(_) => default,
+            LinkStyleOverride::Style(style) => {
+                Self::AnsiStyle(FromOverride::from(style, default_ansi(&default)))
+            }
+        }
+    }
+}
+
+/// Unwraps an ANSI-style link into the style it carries; target-style links
+/// have no intrinsic style to inherit from.
+fn default_ansi(link: &crate::theme::LinkStyle) -> Style {
+    match link {
+        crate::theme::LinkStyle::AnsiStyle(style) => *style,
+        crate::theme::LinkStyle::Target => Style::default(),
+    }
+}
+
 #[rustfmt::skip]
-#[derive(Clone, Eq, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Eq, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FileKindsOverride {
     pub normal: Option<StyleOverride>,        // fi
     pub directory: Option<StyleOverride>,     // di
-    pub symlink: Option<StyleOverride>,       // ln
+    pub symlink: Option<LinkStyleOverride>,   // ln
     pub pipe: Option<StyleOverride>,          // pi
     pub block_device: Option<StyleOverride>,  // bd
     pub char_device: Option<StyleOverride>,   // cd

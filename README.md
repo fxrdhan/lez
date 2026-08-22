@@ -116,6 +116,7 @@ That is a **~19.5× speedup** for warm runs, with zero correctness trade-off —
 - **--color-scale-mode=(mode)**: use gradient or fixed colors in --color-scale. valid options are `fixed` or `gradient`
 - **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
+- **--quotes=(when)**: when to quote file names (always, auto, never; requires '=' if value provided)
 - **--summary**: display total summary statistics of entries (directories, files, symlinks, and total)
 - **--hyperlink[=(when)]**: when to display entries as hyperlinks (always, auto, never; requires '=' if value provided)
 - **--absolute=(mode)**: display entries with their absolute path (on, follow, off)

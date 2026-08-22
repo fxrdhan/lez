@@ -135,8 +135,8 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 
 `automatic` or `auto` will display icons only when the standard output is connected to a real terminal. If `lsr` is run while in a `tty`, or the output of `lsr` is either redirected to a file or piped into another program, icons will not be used. Setting this option to ‘`always`’ causes `lsr` to always display icons, while ‘`never`’ disables the use of icons.
 
-`--no-quotes`
-: Don't quote file names with spaces.
+`--quotes=WHEN`
+: When to quote file names. The default, `auto`, quotes names that contain spaces or quotes; `always` quotes every name; `never` quotes nothing (like `ls -N`).
 
 `--short-nix`
 : Abbreviate Nix store hashes in file names and paths.
@@ -434,6 +434,9 @@ Specifies the separator to use when file names are piped from stdin. Defaults to
 
 Specifies the directory where lsr will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lsr`, `$XDG_CONFIG_HOME/eza`, `$HOME/.config/lsr`, or `$HOME/.config/eza` if `XDG_CONFIG_HOME` is not set.
 
+## `LSR_QUOTING_STYLE`, `EZA_QUOTING_STYLE`
+
+Specifies when file names are quoted, as if `--quotes` had been given. Valid values are `always`, `auto`, and `never`; invalid or unset values fall back to `auto`. `--quotes=never` is equivalent to `ls -N`, and the command-line option overrides this variable.
 
 EXIT STATUSES
 =============

@@ -39,7 +39,7 @@ pub fn escape(
         }
     }
 
-    if quote_style != QuoteStyle::NoQuotes && needs_quotes {
+    if quote_style.quotes_needed(needs_quotes) {
         bits.insert(bits_starting_length, quote_bit.clone());
         bits.push(quote_bit);
     }
