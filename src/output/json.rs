@@ -293,7 +293,12 @@ impl<'a> Render<'a> {
                 table_opts,
                 columns,
                 self.environment,
-                show_xattr_hint(self.opts.details.as_ref().is_some_and(|d| d.secattr), f),
+                show_xattr_hint(
+                    self.opts.details.as_ref().is_some_and(|d| {
+                        d.secattr && d.indicate_xattr
+                    }),
+                    f,
+                ),
                 self.git,
                 code_loc,
             );

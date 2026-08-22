@@ -3,6 +3,7 @@
 
 #![allow(unused_imports, dead_code)]
 
+use crate::fs::filter::IgnoreCacheDir;
 use lsr::fs::fields::Size;
 use lsr::fs::filter::{
     FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase, SortField,
@@ -101,6 +102,7 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
         ignore_patterns,
         ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
         git_ignore: GitIgnore::Off,
+        ignore_cachedir: IgnoreCacheDir::Off,
         since: None,
         no_symlinks: false,
         show_symlinks: false,
