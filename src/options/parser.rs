@@ -147,6 +147,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-I --"ignore-glob" <GLOBS> "glob patterns (pipe-separated) of files to ignore"))
         .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)"))
         .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'"))
+        .arg(arg!(--"cachedir-ignore" "ignore directories with a 'CACHEDIR.TAG' file"))
         .arg(arg!(--since <DURATION> "filter and display only files created or modified within the specified duration window")
             .value_parser(humantime::parse_duration))
 
@@ -202,6 +203,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"git-repos-no-status" "list each git-repos branch name (much faster)"))
         .arg(arg!(-M --mounts "show mount details (Linux and macOS only)"))
         .arg(arg!(-'@' --extended "list each file's extended attributes and sizes"))
+        .arg(arg!(--"no-extended" "don't show the marker that a file has extended attributes"))
         .arg(arg!(-e --tags "list each file's color tags stored in extended attributes"))
         .arg(arg!(--"no-permissions" "suppress the permissions field"))
         .arg(arg!(--"no-filesize" "suppress the filesize field"))

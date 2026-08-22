@@ -27,7 +27,7 @@ SPDX-License-Identifier: EUPL-1.2
 - 🎨 **Rich Visuals:** Syntax highlighting, colored CLI help output, Nerd Font icons, and automatic color scaling.
 - 🌿 **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
 - 🌲 **Built-in Tree View:** Hierarchical directory tree out of the box (`lsr --tree`).
-- 🚀 **Extended Capabilities:** Rich file classification, custom themes, and archive inspection.
+- 🚀 **Extended Capabilities:** Rich file classification, custom themes, and lines-of-code summaries.
 
 ---
 
@@ -145,6 +145,7 @@ That is a **~19.5× speedup** for warm runs, with zero correctness trade-off —
 - **--no-symlinks**: don't show symbolic links
 - **--show-symlinks**: explicitly show links (with `--only-dirs`, `--only-files`, to show symlinks that match the filter)
 - **--git-ignore**: ignore files mentioned in `.gitignore`
+- **--cachedir-ignore**: ignore directories with a `CACHEDIR.TAG` file
 - **--since=(duration)**: filter and display only files created or modified within the specified duration window (e.g. 10m, 1h, 2d, 1w)
 - **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore
 - **--ignore-glob-case-insensitive**: match ignore globs case-insensitively
@@ -178,6 +179,7 @@ These options are available when running with `--long` (`-l`):
 - **-X**, **--dereference**: dereference symlinks for file information and sorting
 - **-Z**, **--context**: list each file’s security context
 - **-@**, **--extended**: list each file’s extended attributes and sizes
+- **--no-extended**: don't show the `@` marker that a file has extended attributes
 - **--changed**: use the changed timestamp field
 - **--git**: list each file’s Git status, if tracked or ignored
 - **--git-repos**: list each directory’s Git status, if tracked

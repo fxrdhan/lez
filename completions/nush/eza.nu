@@ -26,7 +26,9 @@ export extern "eza" [
     --follow-symlinks          # Drill down into symbolic links that point to directories
     --group-directories-first  # Sort directories before other files
     --group-directories-last   # Sort directories after other files
+    --no-extended              # Do not show a marker if a file's extended attributes exist
     --git-ignore               # Ignore files mentioned in '.gitignore'
+    --cachedir-ignore          # Ignore directories with a 'CACHEDIR.TAG' file
     --since: string            # Filter and display only files created or modified within duration window
     --all(-a)                  # Show hidden and 'dot' files. Use this twice to also show the '.' and '..' directories
     --almost-all(-A)           # Equivalent to --all; included for compatibility with `ls -A`

@@ -10,7 +10,8 @@ use clap::ArgMatches;
 
 use crate::fs::DotFilter;
 use crate::fs::filter::{
-    FileFilter, FileFilterFlags, GitIgnore, IgnorePatterns, LocaleCollator, SortCase, SortField,
+    FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, LocaleCollator,
+    SortCase, SortField,
 };
 
 use crate::options::OptionsError;
@@ -54,6 +55,7 @@ impl FileFilter {
             ignore_patterns: IgnorePatterns::deduce(matches)?,
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
             git_ignore: GitIgnore::deduce(matches),
+            ignore_cachedir: IgnoreCacheDir::deduce(matches),
             since,
             collator,
         })
@@ -180,6 +182,16 @@ impl IgnorePatterns {
 impl GitIgnore {
     pub fn deduce(matches: &ArgMatches) -> Self {
         if matches.get_flag("git-ignore") {
+            Self::CheckAndIgnore
+        } else {
+            Self::Off
+        }
+    }
+}
+
+impl IgnoreCacheDir {
+    pub fn deduce(matches: &ArgMatches) -> Self {
+        if matches.get_flag("cachedir-ignore") {
             Self::CheckAndIgnore
         } else {
             Self::Off
@@ -566,6 +578,7 @@ mod tests {
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
+                ignore_cachedir: IgnoreCacheDir::Off,
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
@@ -584,6 +597,7 @@ mod tests {
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+                ignore_cachedir: IgnoreCacheDir::Off,
                 git_ignore: GitIgnore::Off,
                 since: None,
                 no_symlinks: false,
@@ -602,6 +616,7 @@ mod tests {
                 sort_field: SortField::default(),
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
+                ignore_cachedir: IgnoreCacheDir::Off,
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
                 since: None,
@@ -620,6 +635,7 @@ mod tests {
                 flags: vec![FileFilterFlags::OnlyFiles],
                 sort_field: SortField::default(),
                 dot_filter: DotFilter::JustFiles,
+                ignore_cachedir: IgnoreCacheDir::Off,
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
@@ -647,6 +663,7 @@ mod tests {
             Ok(FileFilter {
                 flags: vec![],
                 sort_field: SortField::default(),
+                ignore_cachedir: IgnoreCacheDir::Off,
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: ci_patterns,
