@@ -157,6 +157,10 @@
                 },
                 "mount_point": {
                     "$ref": "#/$defs/style"
+                },
+                "btrfs_subvol": {
+                    "$ref": "#/$defs/style",
+                    "description": "Colour for directories representing Btrfs subvolumes."
                 }
             },
             "additionalProperties": false
