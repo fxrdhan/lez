@@ -70,29 +70,33 @@ pub struct Theme {
 impl Options {
     #[must_use]
     pub fn to_theme(&self, isatty: bool) -> Theme {
-        if self.use_colours == UseColours::Never
-            || (self.use_colours == UseColours::Automatic && !isatty)
-        {
-            let ui = UiStyles::plain();
-            let exts = Box::new(NoFileStyle);
-            return Theme { ui, exts };
-        }
+        let use_colours = self.use_colours != UseColours::Never
+            && (self.use_colours != UseColours::Automatic || isatty);
 
         #[cfg(windows)]
-        if nu_ansi_term::enable_ansi_support().is_err() {
+        let use_colours = use_colours && {
             // Failed to enable ansi support, probably because legacy mode console.
             // No need to alert the user unless they explicitly set color=always
-            if self.use_colours == UseColours::Always {
-                eprintln!("eza: Ignoring option color=always in legacy console.");
+            if nu_ansi_term::enable_ansi_support().is_err() {
+                if self.use_colours == UseColours::Always {
+                    eprintln!("eza: Ignoring option color=always in legacy console.");
+                }
+                false
+            } else {
+                true
             }
-            let ui = UiStyles::plain();
-            let exts = Box::new(NoFileStyle);
-            return Theme { ui, exts };
-        }
+        };
 
         match self.theme_config {
             Some(ref theme) => {
                 if let Some(mut ui) = theme.to_theme() {
+                    if !use_colours {
+                        ui = ui.plain_colors();
+                        return Theme {
+                            ui,
+                            exts: Box::new(NoFileStyle),
+                        };
+                    }
                     let (exts, use_default_filetypes) = self.definitions.parse_color_vars(&mut ui);
                     let exts: Box<dyn FileStyle> =
                         match (exts.is_non_empty(), use_default_filetypes) {
@@ -103,18 +107,26 @@ impl Options {
                         };
                     return Theme { ui, exts };
                 }
-                self.default_theme()
+                self.default_theme(use_colours)
             }
-            None => self.default_theme(),
+            None => self.default_theme(use_colours),
         }
     }
 
-    fn default_theme(&self) -> Theme {
-        let mut ui = if self.definitions.should_reset_styles() {
+    fn default_theme(&self, use_colours: bool) -> Theme {
+        let mut ui = if !use_colours || self.definitions.should_reset_styles() {
             UiStyles::plain()
         } else {
             UiStyles::default_theme(self.colour_scale)
         };
+        if !use_colours {
+            // Environment colour variables must not leak into a colours-off
+            // run, so skip parsing them entirely.
+            return Theme {
+                ui,
+                exts: Box::new(NoFileStyle),
+            };
+        }
         let (exts, use_default_filetypes) = self.definitions.parse_color_vars(&mut ui);
         let exts: Box<dyn FileStyle> = match (exts.is_non_empty(), use_default_filetypes) {
             (false, false) => Box::new(NoFileStyle),
@@ -1128,5 +1140,80 @@ mod customs_test {
             .style_override(&file_noext)
             .expect("fallback to .default_file");
         assert_eq!(style.icon.unwrap().glyph.as_deref(), Some("📄"));
+    }
+
+    #[test]
+    fn plain_colors_strips_colours_but_keeps_icon_glyphs() {
+        use crate::theme::ui_styles::{FileNameStyle, IconStyle};
+
+        let mut ui = UiStyles::plain();
+        ui.filenames = Some(std::collections::HashMap::from([(
+            "notes.txt".to_string(),
+            FileNameStyle {
+                icon: Some(IconStyle {
+                    glyph: Some("x".into()),
+                    style: Some(Red.normal()),
+                }),
+                filename: Some(Green.normal()),
+            },
+        )]));
+
+        let plain = ui.plain_colors();
+        assert_eq!(plain.colourful, Some(false));
+        let entry = &plain.filenames.as_ref().unwrap()["notes.txt"];
+        assert_eq!(entry.filename, Some(Style::default()));
+        let icon = entry.icon.as_ref().unwrap();
+        assert_eq!(icon.glyph.as_deref(), Some("x"));
+        assert_eq!(icon.style, Some(Style::default()));
+    }
+
+    #[test]
+    fn to_theme_keeps_themed_icons_without_colours() {
+        let dir = std::env::temp_dir().join(format!("lsr_theme_never_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("theme.yml");
+        std::fs::write(
+            &path,
+            "filenames:\n  notes.txt: {filename: {foreground: Red}, icon: {glyph: x}}\n",
+        )
+        .unwrap();
+
+        let opts = Options {
+            use_colours: UseColours::Never,
+            colour_scale: ColorScaleOptions::default(),
+            definitions: Definitions {
+                ls: None,
+                exa: None,
+            },
+            theme_config: Some(ThemeConfig::from_path(path.clone())),
+        };
+        let theme = opts.to_theme(true);
+
+        let entry = theme
+            .ui
+            .filenames
+            .as_ref()
+            .and_then(|m| m.get("notes.txt"))
+            .expect("themed filename entry must survive --color=never");
+        assert_eq!(
+            entry.filename,
+            Some(nu_ansi_term::Style::default()),
+            "filename colour must be stripped"
+        );
+        let icon = entry.icon.as_ref().expect("icon config must be kept");
+        assert_eq!(icon.glyph.as_deref(), Some("x"));
+        assert_eq!(icon.style, Some(nu_ansi_term::Style::default()));
+
+        // The coloured variant keeps both the colour and the glyph.
+        let opts_always = Options {
+            use_colours: UseColours::Always,
+            ..opts
+        };
+        let theme = opts_always.to_theme(true);
+        let entry = theme.ui.filenames.as_ref().unwrap()["notes.txt"].clone();
+        assert_eq!(entry.filename, Some(Red.normal()));
+        assert_eq!(entry.icon.and_then(|i| i.glyph), Some("x".to_string()));
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

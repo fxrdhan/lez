@@ -562,6 +562,40 @@ impl UiStyles {
             mimetypes: None,
         }
     }
+
+    /// Creates a version of these styles with every colour removed while
+    /// preserving themed icon glyphs, so custom icons keep rendering when
+    /// colours are disabled.
+    #[must_use]
+    pub fn plain_colors(mut self) -> Self {
+        let mut entries = Vec::new();
+        if let Some(map) = self.filenames.as_mut() {
+            entries.extend(map.values_mut());
+        }
+        if let Some(map) = self.extensions.as_mut() {
+            entries.extend(map.values_mut());
+        }
+        if let Some(map) = self.directorynames.as_mut() {
+            entries.extend(map.values_mut());
+        }
+        if let Some(map) = self.mimetypes.as_mut() {
+            entries.extend(map.values_mut());
+        }
+        for entry in entries {
+            entry.filename = Some(Style::default());
+            if let Some(icon) = entry.icon.as_mut() {
+                icon.style = Some(Style::default());
+            }
+        }
+
+        UiStyles {
+            filenames: self.filenames,
+            extensions: self.extensions,
+            directorynames: self.directorynames,
+            mimetypes: self.mimetypes,
+            ..UiStyles::plain()
+        }
+    }
 }
 
 impl UiStyles {
