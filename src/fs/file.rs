@@ -411,6 +411,31 @@ impl<'dir> File<'dir> {
         (md.permissions().mode() & bit) == bit
     }
 
+    /// Windows edition: a regular file is “executable” when its extension
+    /// appears in the `PATHEXT` environment variable (defaulting to the
+    /// usual `.COM;.EXE;.BAT;…` list when unset).
+    #[cfg(windows)]
+    pub fn is_executable_file(&self) -> bool {
+        use std::collections::HashSet;
+        use std::sync::LazyLock;
+
+        static PATHEXT: LazyLock<HashSet<String>> = LazyLock::new(|| {
+            std::env::var("PATHEXT")
+                .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
+                .split(';')
+                .filter_map(|s| s.strip_prefix('.').map(|s| s.to_ascii_uppercase()))
+                .collect()
+        });
+
+        if !self.is_file() {
+            return false;
+        }
+        match self.ext.as_ref() {
+            Some(ext) => PATHEXT.contains(&ext.to_ascii_uppercase()),
+            None => false,
+        }
+    }
+
     /// Whether this file is a symlink on the filesystem.
     pub fn is_link(&self) -> bool {
         self.filetype().is_some_and(FileType::is_symlink)
@@ -1499,6 +1524,21 @@ mod mime_type_test {
 
         let file_without_mime = File::from_args(png_no_ext, None, None, false, false, false, None);
         assert_eq!(file_without_mime.mimetype(), None);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_executable_detection_uses_pathext() {
+        let dir = std::env::temp_dir().join(format!("lsr_pathext_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let exe = File::from_args(dir.join("app.EXE"), None, None, false, false, false, None);
+        assert!(exe.is_executable_file(), "PATHEXT lists .EXE");
+
+        let txt = File::from_args(dir.join("notes.txt"), None, None, false, false, false, None);
+        assert!(!txt.is_executable_file());
 
         let _ = fs::remove_dir_all(dir);
     }
