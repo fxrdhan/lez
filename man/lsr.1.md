@@ -213,6 +213,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--git-ignore` [if lsr was built with git support]
 : Do not list files that are ignored by Git.
 
+`--cachedir-ignore`
+: Do not list directories that contain a `CACHEDIR.TAG` file carrying the correct signature (see <https://bford.info/cachedir/>).
+
 `--since=DURATION`
 : Filter and display only files created or modified within the specified duration window (e.g. `10m`, `1h`, `2d`, `1w`).
 

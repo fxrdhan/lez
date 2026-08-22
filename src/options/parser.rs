@@ -147,6 +147,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-I --"ignore-glob" <GLOBS> "glob patterns (pipe-separated) of files to ignore"))
         .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)"))
         .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'"))
+        .arg(arg!(--"cachedir-ignore" "ignore directories with a 'CACHEDIR.TAG' file"))
         .arg(arg!(--since <DURATION> "filter and display only files created or modified within the specified duration window")
             .value_parser(humantime::parse_duration))
 
