@@ -10,10 +10,14 @@ use crate::fs::fields as f;
 use crate::output::cell::{DisplayWidth, TextCell};
 
 impl f::Git {
-    pub fn render(self, colours: &dyn Colours) -> TextCell {
+    pub fn render(self, colours: &dyn Colours, glyphs: bool) -> TextCell {
         TextCell {
             width: DisplayWidth::from(2),
-            contents: vec![self.staged.render(colours), self.unstaged.render(colours)].into(),
+            contents: vec![
+                self.staged.render(colours, glyphs),
+                self.unstaged.render(colours, glyphs),
+            ]
+            .into(),
         }
     }
 
@@ -23,7 +27,21 @@ impl f::Git {
 }
 
 impl f::GitStatus {
-    fn render(self, colours: &dyn Colours) -> ANSIString<'static> {
+    fn render(self, colours: &dyn Colours, glyphs: bool) -> ANSIString<'static> {
+        if glyphs {
+            #[rustfmt::skip]
+            return match self {
+                Self::NotModified  => colours.not_modified().paint("-"),
+                Self::New          => colours.added().paint("\u{f457}"),       // 
+                Self::Modified     => colours.modified().paint("\u{f459}"),    // 
+                Self::Deleted      => colours.deleted().paint("\u{f458}"),     // 
+                Self::Renamed      => colours.renamed().paint("\u{f45a}"),     // 
+                Self::TypeChange   => colours.type_change().paint("\u{f471}"), // 
+                Self::Ignored      => colours.ignored().paint("\u{f474}"),     // 
+                Self::Conflicted   => colours.conflicted().paint("\u{f47f}"),  // 
+            };
+        }
+
         #[rustfmt::skip]
         return match self {
             Self::NotModified  => colours.not_modified().paint("-"),
@@ -184,7 +202,7 @@ pub mod test {
             contents: vec![Fixed(90).paint("-"), Fixed(90).paint("-")].into(),
         };
 
-        assert_eq!(expected, stati.render(&TestColours));
+        assert_eq!(expected, stati.render(&TestColours, false));
     }
 
     #[test]
@@ -199,7 +217,22 @@ pub mod test {
             contents: vec![Fixed(91).paint("N"), Fixed(92).paint("M")].into(),
         };
 
-        assert_eq!(expected, stati.render(&TestColours));
+        assert_eq!(expected, stati.render(&TestColours, false));
+    }
+
+    #[test]
+    fn git_glyphs_rendering() {
+        let stati = f::Git {
+            staged: f::GitStatus::New,
+            unstaged: f::GitStatus::Modified,
+        };
+
+        let expected = TextCell {
+            width: DisplayWidth::from(2),
+            contents: vec![Fixed(91).paint("\u{f457}"), Fixed(92).paint("\u{f459}")].into(),
+        };
+
+        assert_eq!(expected, stati.render(&TestColours, true));
     }
 
     #[test]

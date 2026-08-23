@@ -167,6 +167,7 @@ complete -c lsr -l print-total -d "Display total number of entries"
 
 # Optional extras
 complete -c lsr -l git -d "List each file's Git status, if tracked"
+complete -c lsr -l git-glyphs -d "Display Git status with Nerd Font glyphs / icons"
 complete -c lsr -l no-git -d "Suppress Git status"
 complete -c lsr -l git-repos -d "List each git-repos status and branch name"
 complete -c lsr -l git-repos-no-status -d "List each git-repos branch name (much faster)"

@@ -57,6 +57,7 @@ pub struct Columns {
     pub blocksize: bool,
     pub group: bool,
     pub git: bool,
+    pub git_glyphs: bool,
     pub subdir_git_repos: bool,
     pub subdir_git_repos_no_stat: bool,
     pub octal: bool,
@@ -440,6 +441,7 @@ pub struct Table<'a> {
     group_format: GroupFormat,
     flags_format: FlagsFormat,
     git: Option<&'a GitCache>,
+    git_glyphs: bool,
     use_utc: bool,
 
     /// The grand total of code lines used as the denominator for `--loc`
@@ -472,6 +474,7 @@ impl<'a> Table<'a> {
             widths,
             columns,
             git,
+            git_glyphs: options.columns.git_glyphs,
             env,
             time_format: options.time_format.clone(),
             size_format: options.size_format,
@@ -596,7 +599,7 @@ impl<'a> Table<'a> {
             Column::FileFlags => file
                 .flags()
                 .render(self.theme.ui.flags.unwrap_or_default(), self.flags_format),
-            Column::GitStatus => self.git_status(file).render(self.theme),
+            Column::GitStatus => self.git_status(file).render(self.theme, self.git_glyphs),
             Column::SubdirGitRepo(status) => self.subdir_git_repo(file, status).render(self.theme),
             #[cfg(unix)]
             Column::Octal => self

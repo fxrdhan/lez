@@ -144,8 +144,10 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-f --"only-files" "list only files"))
         .arg(arg!(--"show-symlinks" "explicitly show symbolic links (with --only-dirs and --only-files)"))
         .arg(arg!(--"no-symlinks" "do not show symbolic links"))
-        .arg(arg!(-I --"ignore-glob" <GLOBS> "glob patterns (pipe-separated) of files to ignore"))
-        .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)"))
+        .arg(arg!(-I --"ignore-glob" <GLOBS> "glob patterns (pipe-separated) of files to ignore")
+            .action(clap::ArgAction::Append))
+        .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)")
+            .action(clap::ArgAction::Append))
         .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'"))
         .arg(arg!(--"cachedir-ignore" "ignore directories with a 'CACHEDIR.TAG' file"))
         .arg(arg!(-'W' --"warn-hidden" "print a message showing the number of hidden and ignored items; give twice to always print")
@@ -202,6 +204,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-O --flags "list file flags (Mac, BSD, and Windows only)").id("file-flags"))
         .arg(arg!(-Z --context "list each file's security context").id("security-context"))
         .arg(arg!(--git "list each file's Git status, if tracked or ignored"))
+        .arg(arg!(--"git-glyphs" "display Git status with Nerd Font glyphs / icons"))
         .arg(arg!(--"git-repos" "list root of git-tree status"))
         .arg(arg!(--"git-repos-no-status" "list each git-repos branch name (much faster)"))
         .arg(arg!(-M --mounts "show mount details (Linux and macOS only)"))
@@ -302,14 +305,20 @@ impl ValueEnum for SortField {
             Self::Name(SortCase::ABCabc) => PossibleValue::new("Name").alias("Filename"),
             Self::NameMixHidden(SortCase::AaBbCc) => PossibleValue::new(".name").alias(".filename"),
             Self::NameMixHidden(SortCase::ABCabc) => PossibleValue::new(".Name").alias(".Filename"),
-            Self::Path(SortCase::AaBbCc) => {
-                PossibleValue::new("path").aliases(["relative-path", "relpath", "relative_path"])
-            }
+            Self::Path(SortCase::AaBbCc) => PossibleValue::new("path").aliases([
+                "relative-path",
+                "relpath",
+                "relative_path",
+                "path-ignorecase",
+                "relative-path-ignorecase",
+            ]),
             Self::Path(SortCase::ABCabc) => PossibleValue::new("Path").aliases([
                 "Relative-path",
                 "Relative-Path",
                 "Relpath",
                 "Relative_path",
+                "path-case",
+                "relative-path-case",
             ]),
             Self::Size => PossibleValue::new("size"),
             #[cfg(unix)]

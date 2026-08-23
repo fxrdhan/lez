@@ -360,6 +360,7 @@ impl Columns {
             .is_some();
 
         let git = matches.get_flag("git") && !matches.get_flag("no-git") && !no_git_env;
+        let git_glyphs = matches.get_flag("git-glyphs");
         let subdir_git_repos =
             matches.get_flag("git-repos") && !matches.get_flag("no-git") && !no_git_env;
         let subdir_git_repos_no_stat = !subdir_git_repos
@@ -392,6 +393,7 @@ impl Columns {
             blocksize,
             group,
             git,
+            git_glyphs,
             subdir_git_repos,
             subdir_git_repos_no_stat,
             octal,

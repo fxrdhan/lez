@@ -71,6 +71,7 @@ export extern "lsr" [
     --no-time                  # Suppress the time field
     --mounts(-M)               # Show mount details
     --git                      # List each file's Git status, if tracked
+    --git-glyphs               # Display Git status with Nerd Font glyphs / icons
     --no-git                   # Suppress Git status
     --git-repos                # List each git-repos status and branch name
     --git-repos-no-status      # List each git-repos branch name (much faster)
