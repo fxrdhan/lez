@@ -40,44 +40,44 @@ version = "0.24.0-alpha.1"
 license-file = ["LICENSE.txt", "4"]
 depends = "$auto"
 extended-description = """
-eza is a modern, maintained replacement for ls
+lsr is a modern, maintained replacement for ls
 """
 section = "utils"
 priority = "optional"
 assets = [
   [
-    "target/release/eza",
-    "/usr/bin/eza",
+    "target/release/lsr",
+    "/usr/bin/lsr",
     "0755",
   ],
   [
-    "target/release/../man/eza.1",
-    "/usr/share/man/man1/eza.1",
+    "target/release/../man/lsr.1",
+    "/usr/share/man/man1/lsr.1",
     "0644",
   ],
   [
-    "target/release/../man/eza_colors.5",
-    "/usr/share/man/man5/eza_colors.5",
+    "target/release/../man/lsr_colors.5",
+    "/usr/share/man/man5/lsr_colors.5",
     "0644",
   ],
   [
-    "target/release/../man/eza_colors-explanation.5",
-    "/usr/share/man/man5/eza_colors-explanation.5",
+    "target/release/../man/lsr_colors-explanation.5",
+    "/usr/share/man/man5/lsr_colors-explanation.5",
     "0644",
   ],
   [
-    "completions/bash/eza",
-    "/usr/share/bash-completion/completions/eza",
+    "completions/bash/lsr",
+    "/usr/share/bash-completion/completions/lsr",
     "0644",
   ],
   [
-    "completions/zsh/_eza",
-    "/usr/share/zsh/site-functions/_eza",
+    "completions/zsh/_lsr",
+    "/usr/share/zsh/site-functions/_lsr",
     "0644",
   ],
   [
-    "completions/fish/eza.fish",
-    "/usr/share/fish/vendor_completions.d/eza.fish",
+    "completions/fish/lsr.fish",
+    "/usr/share/fish/vendor_completions.d/lsr.fish",
     "0644",
   ],
 ]

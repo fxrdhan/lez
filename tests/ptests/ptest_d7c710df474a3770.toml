@@ -1,2 +1,2 @@
-bin.name = "eza"
+bin.name = "lsr"
 args = "tests/test_dir --colour auto"

@@ -45,7 +45,11 @@ fn main() {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 
-    logger::configure(env::var_os(vars::EZA_DEBUG).or_else(|| env::var_os(vars::EXA_DEBUG)));
+    logger::configure(
+        env::var_os(vars::LSR_DEBUG)
+            .or_else(|| env::var_os(vars::EZA_DEBUG))
+            .or_else(|| env::var_os(vars::EXA_DEBUG)),
+    );
 
     let command = get_command();
     let args = normalize_args(env::args_os(), &command);
@@ -85,7 +89,7 @@ fn main() {
 
             let console_width = options.view.width.actual_terminal_width();
             let theme = options.theme.to_theme(stdout_istty);
-            let exa = Exa {
+            let lsr = Lsr {
                 options,
                 writer,
                 input_paths,
@@ -95,10 +99,10 @@ fn main() {
                 git_repos,
             };
 
-            info!("matching on exa.run");
-            match exa.run() {
+            info!("matching on lsr.run");
+            match lsr.run() {
                 Ok(exit_status) => {
-                    trace!("exa.run: exit Ok({exit_status})");
+                    trace!("lsr.run: exit Ok({exit_status})");
                     exit(exit_status);
                 }
 
@@ -109,7 +113,7 @@ fn main() {
 
                 Err(e) => {
                     let _ = writeln!(io::stderr(), "{e}");
-                    trace!("exa.run: exit RUNTIME_ERROR");
+                    trace!("lsr.run: exit RUNTIME_ERROR");
                     exit(exits::RUNTIME_ERROR);
                 }
             }
@@ -122,7 +126,7 @@ fn main() {
 }
 
 /// The main program wrapper.
-pub struct Exa<'args> {
+pub struct Lsr<'args> {
     /// List of command-line options, having been successfully parsed.
     pub options: Options,
 
@@ -298,7 +302,7 @@ fn git_repos(options: &Options, args: &[&OsStr]) -> bool {
     }
 }
 
-impl Exa<'_> {
+impl Lsr<'_> {
     /// # Errors
     ///
     /// Will return `Err` if printing to stderr fails.
@@ -708,9 +712,9 @@ impl Exa<'_> {
 
             // The code summary never lists files; it’s handled up front in
             // `run` before we ever get here.
-            (Mode::Code(_), _) => unreachable!("--code is handled in Exa::run"),
+            (Mode::Code(_), _) => unreachable!("--code is handled in Lsr::run"),
 
-            (Mode::Json(_), _) => unreachable!("--json is handled in Exa::run"),
+            (Mode::Json(_), _) => unreachable!("--json is handled in Lsr::run"),
         };
         result?;
 

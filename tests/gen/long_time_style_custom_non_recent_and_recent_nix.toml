@@ -1,2 +1,2 @@
-bin.name = "eza"
+bin.name = "lsr"
 args = "tests/timestamp_test_dir --long --no-permissions --no-filesize --no-user --sort=modified --time-style='+NON_RECENT\n    RECENT'"
