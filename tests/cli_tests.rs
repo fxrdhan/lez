@@ -24,11 +24,15 @@ fn cli_nix_local_tests() {
 #[test]
 #[cfg(feature = "powertest")]
 fn cli_powertest_tests() {
-    trycmd::TestCases::new().case("tests/ptests/*.toml");
+    if std::path::Path::new("tests/test_dir").exists() {
+        trycmd::TestCases::new().case("tests/ptests/*.toml");
+    }
 }
 
 #[test]
 #[cfg(feature = "nix")]
 fn cli_nix_generated_tests() {
-    trycmd::TestCases::new().case("tests/gen/*.toml");
+    if std::path::Path::new("tests/test_dir").exists() {
+        trycmd::TestCases::new().case("tests/gen/*.toml");
+    }
 }

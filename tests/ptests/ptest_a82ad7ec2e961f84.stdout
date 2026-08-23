@@ -1,4 +1,4 @@
-eza eza - A modern, maintained replacement for ls
-v0.23.4 [+git] (pre-release debug build!)
-https://github.com/eza-community/eza
+lsr A modern, fast, and feature-rich replacement for ls written in Rust
+[..]
+https://github.com/fxrdhan/lsr
 
