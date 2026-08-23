@@ -111,6 +111,7 @@ nix run github:fxrdhan/lsr
 - **-l**, **--long**: display extended details and attributes
 - **-R**, **--recurse**: recurse into directories
 - **-T**, **--tree**: recurse into directories as a tree
+- **--follow-symlinks**: drill down into symbolic links that point to directories
 - **--code[=MODE]**: print lines-of-code summary by language (modes: `lines`, `percent`, `both`)
 - **--json**: output file listing and metadata as structured JSON
 - **-x**, **--across**: sort the grid across, rather than downwards
