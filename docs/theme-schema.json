@@ -315,6 +315,9 @@
                 "branch_other": {
                     "$ref": "#/$defs/style"
                 },
+                "branch_worktree": {
+                    "$ref": "#/$defs/style"
+                },
                 "git_clean": {
                     "$ref": "#/$defs/style"
                 },
