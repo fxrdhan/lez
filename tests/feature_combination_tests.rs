@@ -518,7 +518,10 @@ fn combined_path_sort_and_ignore_glob() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains("skip.tmp"));
-    assert!(stdout.contains("src/a.rs"));
+    assert!(
+        stdout.contains("src/a.rs") || stdout.contains(r"src\a.rs"),
+        "path-sorted entry must be listed: {stdout}"
+    );
 }
 
 #[test]
@@ -707,8 +710,15 @@ fn relative_path_sort_reversed() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines.len(), 2);
-    assert!(lines[0].contains("dir_z/file.txt"));
-    assert!(lines[1].contains("dir_a/file.txt"));
+    // Accept both path separators: Windows renders entries with `\`.
+    assert!(
+        lines[0].contains("dir_z/file.txt") || lines[0].contains(r"dir_z\file.txt"),
+        "reversed relative-path sort must list dir_z first: {stdout}"
+    );
+    assert!(
+        lines[1].contains("dir_a/file.txt") || lines[1].contains(r"dir_a\file.txt"),
+        "reversed relative-path sort must list dir_a second: {stdout}"
+    );
 }
 
 #[test]
