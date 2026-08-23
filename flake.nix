@@ -180,13 +180,7 @@
               };
             };
           formatting = treefmtEval.config.build.check self;
-          build = packages.check;
-          inherit (packages)
-            default
-            test
-            trycmd
-            ;
-          lint = packages.clippy;
+          inherit (packages) default trycmd;
         };
       }
     );
