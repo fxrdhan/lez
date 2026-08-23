@@ -631,7 +631,7 @@ impl<'a> Table<'a> {
     fn subdir_git_repo(&self, file: &File<'_>, status: bool) -> f::SubdirGitRepo {
         debug!("Getting subdir repo status for path {:?}", file.path);
 
-        if file.is_directory() {
+        if file.is_directory() && !file.is_git_dir() {
             return f::SubdirGitRepo::from_path(&file.path, status);
         }
         f::SubdirGitRepo::default()

@@ -380,6 +380,12 @@ impl<'dir> File<'dir> {
         self.filetype().is_some_and(std::fs::FileType::is_dir)
     }
 
+    /// Whether this file is a `.git` directory.
+    #[must_use]
+    pub fn is_git_dir(&self) -> bool {
+        self.name == ".git"
+    }
+
     /// Whether this file is a directory, or a symlink pointing to a directory.
     pub fn points_to_directory(&self) -> bool {
         if self.is_directory() {
@@ -1344,6 +1350,51 @@ mod filename_test {
     #[cfg(unix)]
     fn topmost() {
         assert_eq!("/", File::filename(Path::new("/")));
+    }
+}
+
+#[cfg(test)]
+mod is_git_dir_test {
+    use super::File;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_is_git_dir() {
+        let dotgit = File::from_args(PathBuf::from(".git"), None, None, false, false, false, None);
+        assert!(dotgit.is_git_dir());
+
+        let dotgithub = File::from_args(
+            PathBuf::from(".github"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        assert!(!dotgithub.is_git_dir());
+
+        let regular_file = File::from_args(
+            PathBuf::from("main.rs"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        assert!(!regular_file.is_git_dir());
+
+        let nested_dotgit = File::from_args(
+            PathBuf::from("repo/.git"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        assert!(nested_dotgit.is_git_dir());
     }
 }
 
