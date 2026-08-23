@@ -1,12 +1,19 @@
 <!--
 SPDX-FileCopyrightText: 2023-2024 Christina Sørensen
+SPDX-FileCopyrightText: 2026 fxrdhan
 SPDX-FileContributor: Christina Sørensen
+SPDX-FileContributor: fxrdhan
 
 SPDX-License-Identifier: EUPL-1.2
 -->
 # Installation
 
 `lsr` is available for macOS, Linux, and Windows.
+
+> **Note**
+> `lsr` is not in any distribution package repository yet, so there is no
+> `pacman`/`apt`/`brew`/`winget` package to install. Until there is, use Cargo,
+> the Nix flake, or a source build — all three are covered below.
 
 ### Cargo (git)
 
@@ -26,253 +33,89 @@ cargo install --path .
 
 Cargo will compile the `lsr` binary and install it to your Cargo binary directory (`$HOME/.cargo/bin`).
 
-### Arch Linux
-
-[![Arch Linux package](https://repology.org/badge/version-for-repo/arch/eza.svg)](https://repology.org/project/eza/versions)
-
-Eza is available in the [\[extra\]](https://archlinux.org/packages/extra/x86_64/eza/) repository of Arch Linux.
+Building requires a C compiler and libgit2 for the `git2` crate. To skip Git
+support entirely and drop that requirement:
 
 ```bash
-pacman -S eza
+cargo install --git https://github.com/fxrdhan/lsr.git --no-default-features
 ```
 
-### Debian and Ubuntu
-
-Eza is available from [deb.gierens.de](http://deb.gierens.de). The GPG public
-key is in this repo under [deb.asc](/deb.asc).
-
-First make sure you have the `gpg` command, and otherwise install it via:
-
-```bash
-sudo apt update
-sudo apt install -y gpg
-```
-
-Then install eza via:
-
-```bash
-sudo mkdir -p /etc/apt/keyrings
-wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
-echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" | sudo tee /etc/apt/sources.list.d/gierens.list
-sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-sudo apt update
-sudo apt install -y eza
-```
-_Note_: In strict apt environments, you may need to add the target: `echo "deb [arch=amd64 signed-by=...` 
-
-### Nix (Linux, MacOS)
-
-[![nixpkgs unstable package](https://repology.org/badge/version-for-repo/nix_unstable/eza.svg)](https://repology.org/project/eza/versions)
+### Nix (Linux, macOS)
 
 > **Note**
 > Installing packages imperatively isn't idiomatic Nix, as this can lead to [many issues](https://stop-using-nix-env.privatevoid.net/).
 
-Eza is available from [Nixpkgs](https://github.com/NixOS/nixpkgs) and from the
-flake in this repository.
-
-For `nix profile` users:
+`lsr` ships a flake, so you can run it without installing anything:
 
 ```shell
-nix profile install nixpkgs#eza
+nix run github:fxrdhan/lsr
 ```
 
-For `nix-env` users:
+Pass arguments after `--`, for example `nix run github:fxrdhan/lsr -- -la --icons`.
+
+To install it into a profile:
 
 ```shell
-nix-env -i eza
+nix profile install github:fxrdhan/lsr
 ```
 
-**Declarative Nix Installations**
+To add it to a NixOS or home-manager configuration, add this repository as a
+flake input and use its `packages.${system}.default` output.
 
-- Simple NixOS installation: [rfaulhaber/dotfiles](https://github.com/rfaulhaber/dotfiles/blob/a8d084d178efd0592b7ac02d34a450fb58913aca/nix/modules/programs/eza/default.nix#L15)
-- Using the flake via NixOS: [hallettj/home.nix](https://github.com/hallettj/home.nix/blob/a8388483e5d78e110be73c5af0e7f0e3ca8f8aa3/flake.nix#L19)
-- Using home-manager on NixOS: [Misterio77/nix-config](https://github.com/Misterio77/nix-config/blob/6867d66a2fe7899c608b9c8e5a8f9aee279d188b/home/misterio/features/cli/fish.nix#L6)
+**Binary cache**
 
-### Gentoo
-
-[![Gentoo package](https://repology.org/badge/version-for-repo/gentoo/eza.svg)](https://repology.org/project/eza/versions)
-
-On Gentoo, eza is available as a package [`sys-apps/eza`](https://packages.gentoo.org/packages/sys-apps/eza):
+Every commit on `main` is built in CI and pushed to a public [Cachix](https://www.cachix.org)
+cache, so you can substitute the build instead of compiling it:
 
 ```bash
-emerge --ask sys-apps/eza
+cachix use fxrdhan-lsr
+nix run github:fxrdhan/lsr
 ```
 
-### openSUSE
-
-Eza is available at [openSUSE:Factory/eza](https://build.opensuse.org/package/show/openSUSE:Factory/eza):
-
-```bash
-zypper ar https://download.opensuse.org/tumbleweed/repo/oss/ factory-oss
-zypper in eza
-```
-
-The preceding repository also contains the Bash, Fish, and Zsh completions.
-
-### Fedora
-
-[![Fedora package](https://repology.org/badge/version-for-repo/fedora_44/rust:eza.svg)](https://repology.org/project/eza/versions)
-
-Eza is available as the [eza](https://packages.fedoraproject.org/pkgs/rust-eza/eza/) package in the official Fedora repository.
-
-```bash
-sudo dnf install eza
-```
-
-### Void Linux
-
-[![Void Linux package](https://repology.org/badge/version-for-repo/void_x86_64/eza.svg)](https://repology.org/project/eza/versions)
-
-Eza is available as the [eza](https://github.com/void-linux/void-packages/tree/master/srcpkgs/eza) package in the official Void Linux repository.
-
-```bash
-sudo xbps-install eza
-```
-
-### Termux
-
-Eza is available as the [eza](https://github.com/termux/termux-packages/tree/master/packages/eza) package in the official Termux repository.
-
-```bash
-pkg install eza
-```
-
-### Manual (Linux)
-
-Example is for x86_64 GNU, replaces the file names if downloading for a different arch.
+### Manual build
 
 ```shell
-wget -c https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz -O - | tar xz
-sudo chmod +x eza
-sudo chown root:root eza
-sudo mv eza /usr/local/bin/eza
+git clone https://github.com/fxrdhan/lsr.git
+cd lsr
+cargo build --release
+sudo install -m 755 target/release/lsr /usr/local/bin/lsr
 ```
 
-If `exa` was installed before, replace it with `eza`:
-```shell
-sudo rm -f /usr/local/bin/exa
-sudo ln -s /usr/local/bin/eza /usr/local/bin/exa
-```
-
-### Pixi (Linux, MacOS, and Windows)
-
-[![conda-forge package](https://img.shields.io/conda/vn/conda-forge/eza)](https://prefix.dev/channels/conda-forge/packages/eza)
-
-Eza is available in the conda-forge repository and can be installed using [Pixi](https://pixi.sh/latest/):
-
-```shell
-pixi global install eza
-```
-
-### Brew (MacOS)
-
-[![Homebrew package](https://repology.org/badge/version-for-repo/homebrew/eza.svg)](https://repology.org/project/eza/versions)
-
-Eza is available from [Homebrew](https://formulae.brew.sh/formula/eza#default).
-
-To install eza, run:
-
-```shell
-brew install eza
-```
-
-### MacPorts (macOS)
-
-[![MacPorts port](https://repology.org/badge/version-for-repo/macports/eza.svg)](https://repology.org/project/eza/versions)
-
-On macOS, eza is also available via [MacPorts](https://ports.macports.org/port/eza/).
-
-To install eza, run:
-
-```shell
-sudo port install eza
-```
-
-### Winget (Windows)
-
-[![Windows package](https://repology.org/badge/version-for-repo/winget/eza.svg)](https://repology.org/project/eza/versions)
-
-Eza is available on Winget.
-
-To install eza, run:
-
-```shell
-winget install eza-community.eza
-```
-
-### Scoop (Windows)
-
-[![Windows package](https://repology.org/badge/version-for-repo/scoop/eza.svg)](https://repology.org/project/eza/versions)
-
-Eza is available from [Scoop](https://scoop.sh/#/apps?q=eza&id=a52070d25f94bbcc884f80bef53eb47ed1268198).
-
-To install eza, run:
-
-```shell
-scoop install eza
-```
-
-### Flox (Linux, macOS, Windows WSL)
-
-Eza is available from [Flox](https://flox.dev).
-
-To install eza, run:
-
-```shell
-flox install eza
-```
-
-### X-CMD (Linux, macOS, Windows WSL, Windows GitBash)
-
-Eza is available from [x-cmd](https://www.x-cmd.com).
-
-To install eza, run:
-
-```shell
-x env use eza
-# or
-x eza
-```
-
-### fox (Linux, macOS)
-
-Eza is available from [fox](https://www.getfox.sh/).
-
-To install eza, run:
-
-```shell
-fox install eza
-```
+Man pages are generated from the sources in `man/` with `pandoc`; the `just man`
+recipe builds them and `just mangen` writes them into the target directory.
 
 ### Completions
 
-#### For zsh:
+Shell completions live in [`completions/`](completions/) and are installed for
+you by the Nix package. For a Cargo or manual install, wire them up yourself.
+
+#### zsh
 
 > **Note**
 > Change `~/.zshrc` to your preferred zsh config file.
 
-##### Clone the repository:
+Clone the repository, then point `FPATH` at the completion directory —
+replacing `<path_to_lsr>` with wherever you cloned it:
 
 ```sh
-git clone https://github.com/eza-community/eza.git
-```
-
-##### Add the completion path to your zsh configuration:
-
-Replace `<path_to_eza>` with the actual path where you cloned the `eza` repository.
-
-```sh
-echo 'export FPATH="<path_to_eza>/completions/zsh:$FPATH"' >> ~/.zshrc
-```
-
-##### Reload your zsh configuration:
-
-```sh
+git clone https://github.com/fxrdhan/lsr.git
+echo 'export FPATH="<path_to_lsr>/completions/zsh:$FPATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
+#### bash
 
-#### For zsh with homebrew:
+```sh
+sudo install -m 644 completions/bash/lsr /usr/share/bash-completion/completions/lsr
+```
+
+#### fish
+
+```sh
+install -m 644 completions/fish/lsr.fish ~/.config/fish/completions/lsr.fish
+```
+
+#### zsh with homebrew
 
 In case zsh completions don't work out of the box with homebrew, add the
 following to your `~/.zshrc`:
