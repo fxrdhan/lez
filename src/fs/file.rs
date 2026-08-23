@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: MIT
 //! Files, and methods and fields to access their metadata.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::FileType;
 use std::io;
 #[cfg(unix)]
@@ -830,61 +830,42 @@ impl<'dir> File<'dir> {
     /// will be returned.  The directory size is cached for recursive directory
     /// listing.
     fn recursive_directory_size(&self) -> RecursiveSize {
-        if self.is_directory() {
-            let dot_filter = self.dot_filter.unwrap_or(super::DotFilter::Dotfiles);
-            let shows_dotfiles = dot_filter.shows_dotfiles();
-            let handle = same_file::Handle::from_path(&self.path).ok();
-            let cache_key = (handle, shows_dotfiles);
-
-            if let Some(size) = DIRECTORY_SIZE_CACHE.lock().unwrap().get(&cache_key) {
-                return RecursiveSize::Some(size.0, size.1);
-            }
-
-            let traversal_filter = if shows_dotfiles {
-                super::DotFilter::Dotfiles
-            } else {
-                super::DotFilter::JustFiles
-            };
-
-            Dir::read_dir(self.path.clone()).map_or(RecursiveSize::Unknown, |dir| {
-                let mut size = 0;
-                let mut blocks = 0;
-                for file in dir.files(
-                    traversal_filter,
-                    None,
-                    false,
-                    false,
-                    true,
-                    self.mime_read_contents,
-                    None,
-                ) {
-                    match file.recursive_directory_size() {
-                        RecursiveSize::Some(bytes, blks) => {
-                            size += bytes;
-                            blocks += blks;
-                        }
-                        RecursiveSize::Unknown => {}
-                        #[cfg(unix)]
-                        RecursiveSize::None => {
-                            size += file.metadata().map_or(0, MetadataExt::size);
-                            blocks += file.metadata().map_or(0, MetadataExt::blocks);
-                        }
-                        #[cfg(windows)]
-                        RecursiveSize::None => {
-                            // Windows have no block size
-                            size += file.metadata().map_or(0, MetadataExt::file_size);
-                        }
-                    }
-                }
-                DIRECTORY_SIZE_CACHE
-                    .lock()
-                    .unwrap()
-                    .insert(cache_key, (size, blocks));
-                RecursiveSize::Some(size, blocks)
-            })
-        } else {
-            RecursiveSize::None
+        if !self.is_directory() {
+            return RecursiveSize::None;
         }
+
+        let dot_filter = self.dot_filter.unwrap_or(super::DotFilter::Dotfiles);
+        let shows_dotfiles = dot_filter.shows_dotfiles();
+        let handle = same_file::Handle::from_path(&self.path).ok();
+        let cache_key = (handle, shows_dotfiles);
+
+        if let Some(size) = DIRECTORY_SIZE_CACHE.lock().unwrap().get(&cache_key) {
+            return RecursiveSize::Some(size.0, size.1);
+        }
+
+        let mut visited = HashSet::new();
+        if let Ok(md) = self.metadata() {
+            #[cfg(unix)]
+            visited.insert((md.dev(), md.ino()));
+            #[cfg(windows)]
+            visited.insert((
+                u64::from(md.volume_serial_number().unwrap_or(0)),
+                md.file_index().unwrap_or(0),
+            ));
+        }
+
+        let Ok(dir) = Dir::read_dir(self.path.clone()) else {
+            return RecursiveSize::Unknown;
+        };
+
+        let (size, blocks) =
+            dir.calculate_recursive_size(&mut visited, dot_filter, self.mime_read_contents);
+
+        DIRECTORY_SIZE_CACHE
+            .lock()
+            .unwrap()
+            .insert(cache_key, (size, blocks));
+        RecursiveSize::Some(size, blocks)
     }
 
     /// Returns the same value as `self.metadata.len()` or the recursive size
@@ -1656,6 +1637,40 @@ mod recursive_size_test {
             Some(DotFilter::Dotfiles),
         );
         assert_eq!(file_with_dots.length(), 4096 + 8192 + 16384);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn hardlinks_in_same_tree_are_deduplicated() {
+        use crate::fs::DotFilter;
+
+        let root = temp_dir("hardlinks_dedup");
+        let file1 = root.join("file1.bin");
+        fs::write(&file1, vec![0u8; 10000]).unwrap();
+
+        let file1_hl = root.join("file1_hardlink.bin");
+        fs::hard_link(&file1, &file1_hl).unwrap();
+
+        let sub = root.join("sub");
+        fs::create_dir_all(&sub).unwrap();
+        let file1_hl2 = sub.join("file1_hardlink2.bin");
+        fs::hard_link(&file1, &file1_hl2).unwrap();
+
+        let file2 = root.join("file2.bin");
+        fs::write(&file2, vec![0u8; 5000]).unwrap();
+
+        let file = File::from_args_with_filter(
+            root.clone(),
+            None,
+            None,
+            false,
+            true,
+            false,
+            None,
+            Some(DotFilter::JustFiles),
+        );
+        assert_eq!(file.length(), 15000);
 
         let _ = fs::remove_dir_all(root);
     }
