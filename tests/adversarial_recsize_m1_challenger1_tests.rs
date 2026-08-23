@@ -549,7 +549,7 @@ fn oracle_calculate_size(root: &Path, dot_filter: DotFilter) -> u64 {
             } else if file_type.is_dir() {
                 #[cfg(unix)]
                 let is_unvisited =
-                    fs::metadata(&path).map_or(false, |md| visited.insert((md.dev(), md.ino())));
+                    fs::metadata(&path).is_ok_and(|md| visited.insert((md.dev(), md.ino())));
                 #[cfg(not(unix))]
                 let is_unvisited = visited.insert(path.clone());
                 if is_unvisited {
