@@ -439,6 +439,50 @@ mod tests {
     }
 
     #[test]
+    fn deduce_sort_field_relative_path() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "relative-path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::AaBbCc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "relpath"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::AaBbCc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "relative_path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::AaBbCc))
+        );
+        assert_eq!(
+            mock_cli(vec!["-s", "relative-path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::AaBbCc))
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_relative_path_case() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "Relative-path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "Relative-Path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "Relpath"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "Relative_path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+        assert_eq!(
+            mock_cli(vec!["-s", "Relative-path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+    }
+
+    #[test]
     fn deduce_sort_field_size() {
         assert_eq!(
             mock_cli(vec!["--sort", "size"]).get_one::<SortField>("sort"),
