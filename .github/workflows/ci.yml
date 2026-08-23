@@ -43,6 +43,22 @@ jobs:
               - 'flake.lock'
               - 'nix/**'
               - 'Cargo.lock'
+              # The flake builds the crate and runs the trycmd suites under
+              # tests/gen and tests/ptests, which no other job runs. Anything
+              # that can change what it builds or what those snapshots expect
+              # has to trigger it, or a pull request goes green and main goes
+              # red on the very next push.
+              - 'src/**'
+              - 'tests/**'
+              - 'benches/**'
+              - 'build.rs'
+              - 'Cargo.toml'
+              - 'rust-toolchain.toml'
+              - 'man/**'
+              - 'completions/**'
+              - 'justfile'
+              - '.config/**'
+              - '.github/workflows/ci.yml'
   lint-and-format:
     name: Lint & Format (Rustfmt & Clippy)
     needs: changes
