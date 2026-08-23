@@ -103,6 +103,13 @@ complete -c lsr -s s -l sort -d "Which field to sort by" -x -a "
     oldest\t'Sort by file modified time'
     path\t'Sort by file path'
     Path\t'Sort by file path (uppercase first)'
+    relative-path\t'Sort by relative file path'
+    Relative-path\t'Sort by relative file path (uppercase first)'
+    Relative-Path\t'Sort by relative file path (uppercase first)'
+    relpath\t'Sort by relative file path'
+    Relpath\t'Sort by relative file path (uppercase first)'
+    relative_path\t'Sort by relative file path'
+    Relative_path\t'Sort by relative file path (uppercase first)'
     size\t'Sort by file size'
     block\t'Sort by file block size'
     blocks\t'Sort by file block size'
@@ -160,6 +167,7 @@ complete -c lsr -l print-total -d "Display total number of entries"
 
 # Optional extras
 complete -c lsr -l git -d "List each file's Git status, if tracked"
+complete -c lsr -l git-glyphs -d "Display Git status with Nerd Font glyphs / icons"
 complete -c lsr -l no-git -d "Suppress Git status"
 complete -c lsr -l git-repos -d "List each git-repos status and branch name"
 complete -c lsr -l git-repos-no-status -d "List each git-repos branch name (much faster)"

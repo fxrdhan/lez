@@ -144,7 +144,7 @@ impl<'a> Render<'a> {
 
     fn render_directory<W: Write>(&self, dir: &'a mut Dir, w: &mut W) -> io::Result<()> {
         let dir = dir.read()?;
-        let files: Vec<File<'a>> = dir
+        let mut files: Vec<File<'a>> = dir
             .files(
                 self.dots,
                 self.git,
@@ -155,6 +155,9 @@ impl<'a> Render<'a> {
                 None,
             )
             .collect();
+
+        self.file_filter.filter_child_files(false, &mut files);
+        self.file_filter.sort_files(&mut files);
 
         self.render_files(files, w)?;
 
@@ -418,7 +421,7 @@ impl<'a> JsonFileObject<'a> {
     fn subdir_git_repo(&self, file: &File<'_>, status: bool) -> f::SubdirGitRepo {
         debug!("Getting subdir repo status for path {:?}", file.path);
 
-        if file.is_directory() {
+        if file.is_directory() && !file.is_git_dir() {
             return f::SubdirGitRepo::from_path(&file.path, status);
         }
         f::SubdirGitRepo::default()

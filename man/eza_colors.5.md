@@ -222,6 +222,9 @@ LIST OF CODES
 `Gd`
 : dirty branch of repo
 
+`Gw`
+: worktree branch of repo
+
 `xx`
 : “punctuation”, including many background UI elements
 

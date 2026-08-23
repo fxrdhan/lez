@@ -5,7 +5,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
     $ArrayWhen           = @('always', 'auto', 'never')
-    $ArraySort           = @('name', 'Name', 'extension', 'Extension', 'path', 'Path', 'size', 'block', 'blocks', 'blocksize', 'type', 'created', 'modified', 'mod', 'date', 'time', 'old', 'oldest', 'age', 'new', 'newest', 'accessed', 'changed', 'inode', 'none')
+    $ArraySort           = @('name', 'Name', 'extension', 'Extension', 'path', 'Path', 'relative-path', 'Relative-path', 'Relative-Path', 'relpath', 'Relpath', 'relative_path', 'Relative_path', 'size', 'block', 'blocks', 'blocksize', 'type', 'created', 'modified', 'mod', 'date', 'time', 'old', 'oldest', 'age', 'new', 'newest', 'accessed', 'changed', 'inode', 'none')
     $ArrayColorScaleMode = @('fixed', 'gradient')
     $ArrayColorScale     = @('all', 'age', 'size')
     $ArrayAbsolute       = @('on', 'follow', 'off')
@@ -143,6 +143,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--no-time'                  ,'no-time'             , [CompletionResultType]::ParameterName, 'suppress the time field')
             [CompletionResult]::new('--stdin'                    ,'stdin'               , [CompletionResultType]::ParameterName, 'read file names from stdin, one per line or other separator specified in environment')
             [CompletionResult]::new('--git'                      ,'git'                 , [CompletionResultType]::ParameterName, 'list each file''s Git status, if tracked or ignored')
+            [CompletionResult]::new('--git-glyphs'               ,'git-glyphs'          , [CompletionResultType]::ParameterName, 'display Git status with Nerd Font glyphs / icons')
             [CompletionResult]::new('--no-git'                   ,'no-git'              , [CompletionResultType]::ParameterName, 'suppress Git status (always overrides -git, --git-repos, --git-repos-no-status)')
             [CompletionResult]::new('--git-repos'                ,'git-repos'           , [CompletionResultType]::ParameterName, 'list root of git-tree status')
             [CompletionResult]::new('--git-repos-no-status'      ,'git-repos-no-status' , [CompletionResultType]::ParameterName, 'list each git-repos branch name (much faster)')

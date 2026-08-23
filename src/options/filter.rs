@@ -15,7 +15,7 @@ use crate::fs::filter::{
 };
 
 use crate::options::OptionsError;
-use crate::options::Vars;
+use crate::options::{Vars, vars};
 use crate::output::hidden_count::WarnHiddenMode;
 
 impl FileFilter {
@@ -55,7 +55,7 @@ impl FileFilter {
             dot_filter: DotFilter::deduce(matches, strict)?,
             ignore_patterns: IgnorePatterns::deduce(matches)?,
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
-            git_ignore: GitIgnore::deduce(matches),
+            git_ignore: GitIgnore::deduce(matches, vars),
             ignore_cachedir: IgnoreCacheDir::deduce(matches),
             warn_hidden: WarnHiddenMode::deduce(matches),
             ignore_submodule_contents: matches.get_flag("ignore-submodule-contents"),
@@ -146,13 +146,12 @@ impl IgnorePatterns {
     pub fn deduce(matches: &ArgMatches) -> Result<Self, OptionsError> {
         // If there are no inputs, we return a set of patterns that doesn’t
         // match anything, rather than, say, `None`.
-        let Some(inputs) = matches.get_one::<String>("ignore-glob") else {
+        let Some(inputs) = matches.get_many::<String>("ignore-glob") else {
             return Ok(Self::empty());
         };
 
-        // Awkwardly, though, a glob pattern can be invalid, and we need to
-        // deal with invalid patterns somehow.
-        let (patterns, mut errors) = Self::parse_from_iter(inputs.split('|'));
+        let iter = inputs.flat_map(|s| s.split('|'));
+        let (patterns, mut errors) = Self::parse_from_iter(iter);
 
         // It can actually return more than one glob error,
         // but we only use one. (TODO)
@@ -166,11 +165,12 @@ impl IgnorePatterns {
     /// `--ignore-glob-ci` argument’s value. This is a list of strings
     /// separated by pipe (`|`) characters, given in any order.
     pub fn deduce_set_insensitive(matches: &ArgMatches) -> Result<Self, OptionsError> {
-        let Some(inputs) = matches.get_one::<String>("ignore-glob-ci") else {
+        let Some(inputs) = matches.get_many::<String>("ignore-glob-ci") else {
             return Ok(Self::empty_insensitive());
         };
 
-        let (patterns, mut errors) = Self::parse_from_iter(inputs.split('|'));
+        let iter = inputs.flat_map(|s| s.split('|'));
+        let (patterns, mut errors) = Self::parse_from_iter(iter);
 
         match errors.pop() {
             Some(e) => Err(e.into()),
@@ -183,8 +183,13 @@ impl IgnorePatterns {
 }
 
 impl GitIgnore {
-    pub fn deduce(matches: &ArgMatches) -> Self {
-        if matches.get_flag("git-ignore") {
+    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
+        let no_git_env = vars
+            .get(vars::LSR_OVERRIDE_GIT)
+            .or_else(|| vars.get_with_fallback(vars::EXA_OVERRIDE_GIT, vars::EZA_OVERRIDE_GIT))
+            .is_some();
+
+        if matches.get_flag("git-ignore") && !matches.get_flag("no-git") && !no_git_env {
             Self::CheckAndIgnore
         } else {
             Self::Off
@@ -222,14 +227,37 @@ mod tests {
 
     #[test]
     fn deduce_git_ignore_off() {
-        assert_eq!(GitIgnore::deduce(&mock_cli(vec![""])), GitIgnore::Off);
+        assert_eq!(
+            GitIgnore::deduce(&mock_cli(vec![""]), &MockVars::default()),
+            GitIgnore::Off
+        );
     }
 
     #[test]
     fn deduce_git_ignore_on() {
         assert_eq!(
-            GitIgnore::deduce(&mock_cli(vec!["--git-ignore"])),
+            GitIgnore::deduce(&mock_cli(vec!["--git-ignore"]), &MockVars::default()),
             GitIgnore::CheckAndIgnore
+        );
+    }
+
+    #[test]
+    fn deduce_git_ignore_no_git_override() {
+        assert_eq!(
+            GitIgnore::deduce(
+                &mock_cli(vec!["--git-ignore", "--no-git"]),
+                &MockVars::default()
+            ),
+            GitIgnore::Off
+        );
+    }
+
+    #[test]
+    fn deduce_git_ignore_env_override() {
+        let vars = Some(OsString::from("1"));
+        assert_eq!(
+            GitIgnore::deduce(&mock_cli(vec!["--git-ignore"]), &vars),
+            GitIgnore::Off
         );
     }
 
@@ -434,6 +462,50 @@ mod tests {
     fn deduce_sort_field_path_case() {
         assert_eq!(
             mock_cli(vec!["--sort", "Path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_relative_path() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "relative-path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::AaBbCc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "relpath"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::AaBbCc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "relative_path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::AaBbCc))
+        );
+        assert_eq!(
+            mock_cli(vec!["-s", "relative-path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::AaBbCc))
+        );
+    }
+
+    #[test]
+    fn deduce_sort_field_relative_path_case() {
+        assert_eq!(
+            mock_cli(vec!["--sort", "Relative-path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "Relative-Path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "Relpath"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+        assert_eq!(
+            mock_cli(vec!["--sort", "Relative_path"]).get_one::<SortField>("sort"),
+            Some(&SortField::Path(SortCase::ABCabc))
+        );
+        assert_eq!(
+            mock_cli(vec!["-s", "Relative-path"]).get_one::<SortField>("sort"),
             Some(&SortField::Path(SortCase::ABCabc))
         );
     }

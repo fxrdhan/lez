@@ -10,10 +10,14 @@ use crate::fs::fields as f;
 use crate::output::cell::{DisplayWidth, TextCell};
 
 impl f::Git {
-    pub fn render(self, colours: &dyn Colours) -> TextCell {
+    pub fn render(self, colours: &dyn Colours, glyphs: bool) -> TextCell {
         TextCell {
             width: DisplayWidth::from(2),
-            contents: vec![self.staged.render(colours), self.unstaged.render(colours)].into(),
+            contents: vec![
+                self.staged.render(colours, glyphs),
+                self.unstaged.render(colours, glyphs),
+            ]
+            .into(),
         }
     }
 
@@ -23,7 +27,21 @@ impl f::Git {
 }
 
 impl f::GitStatus {
-    fn render(self, colours: &dyn Colours) -> ANSIString<'static> {
+    fn render(self, colours: &dyn Colours, glyphs: bool) -> ANSIString<'static> {
+        if glyphs {
+            #[rustfmt::skip]
+            return match self {
+                Self::NotModified  => colours.not_modified().paint("-"),
+                Self::New          => colours.added().paint("\u{f457}"),       // 
+                Self::Modified     => colours.modified().paint("\u{f459}"),    // 
+                Self::Deleted      => colours.deleted().paint("\u{f458}"),     // 
+                Self::Renamed      => colours.renamed().paint("\u{f45a}"),     // 
+                Self::TypeChange   => colours.type_change().paint("\u{f471}"), // 
+                Self::Ignored      => colours.ignored().paint("\u{f474}"),     // 
+                Self::Conflicted   => colours.conflicted().paint("\u{f47f}"),  // 
+            };
+        }
+
         #[rustfmt::skip]
         return match self {
             Self::NotModified  => colours.not_modified().paint("-"),
@@ -66,10 +84,16 @@ pub trait Colours {
 impl f::SubdirGitRepo {
     pub fn render(self, colours: &dyn RepoColours) -> TextCell {
         let branch_name = match self.branch {
-            Some(name) => match name.as_ref() {
-                "main" | "master" => colours.branch_main().paint(name),
-                _ => colours.branch_other().paint(name),
-            },
+            Some(name) => {
+                if self.is_worktree {
+                    colours.branch_worktree().paint(name)
+                } else {
+                    match name.as_ref() {
+                        "main" | "master" => colours.branch_main().paint(name),
+                        _ => colours.branch_other().paint(name),
+                    }
+                }
+            }
             None => colours.no_repo().paint("-"),
         };
 
@@ -122,6 +146,7 @@ impl f::SubdirGitRepoStatus {
 pub trait RepoColours {
     fn branch_main(&self) -> Style;
     fn branch_other(&self) -> Style;
+    fn branch_worktree(&self) -> Style;
     fn no_repo(&self) -> Style;
     fn git_clean(&self) -> Style;
     fn git_dirty(&self) -> Style;
@@ -177,7 +202,7 @@ pub mod test {
             contents: vec![Fixed(90).paint("-"), Fixed(90).paint("-")].into(),
         };
 
-        assert_eq!(expected, stati.render(&TestColours));
+        assert_eq!(expected, stati.render(&TestColours, false));
     }
 
     #[test]
@@ -192,7 +217,22 @@ pub mod test {
             contents: vec![Fixed(91).paint("N"), Fixed(92).paint("M")].into(),
         };
 
-        assert_eq!(expected, stati.render(&TestColours));
+        assert_eq!(expected, stati.render(&TestColours, false));
+    }
+
+    #[test]
+    fn git_glyphs_rendering() {
+        let stati = f::Git {
+            staged: f::GitStatus::New,
+            unstaged: f::GitStatus::Modified,
+        };
+
+        let expected = TextCell {
+            width: DisplayWidth::from(2),
+            contents: vec![Fixed(91).paint("\u{f457}"), Fixed(92).paint("\u{f459}")].into(),
+        };
+
+        assert_eq!(expected, stati.render(&TestColours, true));
     }
 
     #[test]
@@ -217,5 +257,86 @@ pub mod test {
         let expected = "NM".to_string();
 
         assert_eq!(expected, stati.render_json());
+    }
+
+    struct TestRepoColours;
+
+    impl super::RepoColours for TestRepoColours {
+        fn branch_main(&self) -> Style {
+            Green.normal()
+        }
+        fn branch_other(&self) -> Style {
+            Yellow.normal()
+        }
+        fn branch_worktree(&self) -> Style {
+            Cyan.normal()
+        }
+        fn no_repo(&self) -> Style {
+            DarkGray.normal()
+        }
+        fn git_clean(&self) -> Style {
+            Green.normal()
+        }
+        fn git_dirty(&self) -> Style {
+            Yellow.bold()
+        }
+    }
+
+    #[test]
+    fn worktree_branch_rendering() {
+        let repo = f::SubdirGitRepo {
+            status: Some(f::SubdirGitRepoStatus::GitClean),
+            branch: Some("feat-branch".to_string()),
+            is_worktree: true,
+        };
+
+        let rendered = repo.render(&TestRepoColours);
+        let expected = TextCell {
+            width: DisplayWidth::from(2 + "feat-branch".len()),
+            contents: vec![
+                Green.paint("|"),
+                Style::default().paint(" "),
+                Cyan.paint("feat-branch"),
+            ]
+            .into(),
+        };
+        assert_eq!(rendered, expected);
+    }
+
+    #[test]
+    fn normal_branch_rendering() {
+        let repo_main = f::SubdirGitRepo {
+            status: Some(f::SubdirGitRepoStatus::GitClean),
+            branch: Some("main".to_string()),
+            is_worktree: false,
+        };
+        let rendered_main = repo_main.render(&TestRepoColours);
+        let expected_main = TextCell {
+            width: DisplayWidth::from(2 + "main".len()),
+            contents: vec![
+                Green.paint("|"),
+                Style::default().paint(" "),
+                Green.paint("main"),
+            ]
+            .into(),
+        };
+        assert_eq!(rendered_main, expected_main);
+
+        let repo_other = f::SubdirGitRepo {
+            status: Some(f::SubdirGitRepoStatus::GitDirty),
+            branch: Some("feature".to_string()),
+            is_worktree: false,
+        };
+        let rendered_other = repo_other.render(&TestRepoColours);
+        let expected_other = TextCell {
+            width: DisplayWidth::from(2 + "feature".len()),
+            contents: vec![
+                Yellow.bold().paint("+"),
+                Style::default().paint(" "),
+                Yellow.paint("feature"),
+            ]
+            .into(),
+        };
+        assert_eq!(rendered_other, expected_other);
     }
 }
