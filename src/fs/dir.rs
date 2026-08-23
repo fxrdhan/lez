@@ -346,7 +346,7 @@ mod windows_tests {
             .duration_since(UNIX_EPOCH)
             .expect("time went backwards")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("eza-show-dotfiles-{nanos}"));
+        let path = std::env::temp_dir().join(format!("lsr-show-dotfiles-{nanos}"));
         fs::create_dir_all(&path).expect("failed to create temp dir");
         path
     }

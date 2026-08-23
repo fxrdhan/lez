@@ -1,2 +1,2 @@
-bin.name = "eza"
+bin.name = "lsr"
 args = "tests/itest --follow-symlinks -T"

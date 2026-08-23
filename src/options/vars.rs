@@ -30,11 +30,11 @@ pub static LC_ALL: &str = "LC_ALL";
 pub static LC_COLLATE: &str = "LC_COLLATE";
 pub static LANG: &str = "LANG";
 
-// exa-specific variables
+// lsr-specific variables
 
-/// Environment variable used to colour exa’s interface when colours are
+/// Environment variable used to colour lsr’s interface when colours are
 /// enabled. This includes all the colours that `LS_COLORS` would recognise,
-/// overriding them if necessary. It can also contain exa-specific codes.
+/// overriding them if necessary. It can also contain lsr-specific codes.
 pub static LSR_COLORS: &str = "LSR_COLORS";
 pub static EXA_COLORS: &str = "EXA_COLORS";
 pub static EZA_COLORS: &str = "EZA_COLORS";
@@ -44,17 +44,20 @@ pub static EZA_COLORS: &str = "EZA_COLORS";
 /// This is meant to be so you don’t accidentally introduce the wrong
 /// behaviour in a script, rather than for general command-line use.
 /// Any non-empty value will turn strict mode on.
+pub static LSR_STRICT: &str = "LSR_STRICT";
 pub static EXA_STRICT: &str = "EXA_STRICT";
 pub static EZA_STRICT: &str = "EZA_STRICT";
 
-/// Environment variable used to make exa print out debugging information as
+/// Environment variable used to make lsr print out debugging information as
 /// it runs. Any non-empty value will turn debug mode on.
+pub static LSR_DEBUG: &str = "LSR_DEBUG";
 pub static EXA_DEBUG: &str = "EXA_DEBUG";
 pub static EZA_DEBUG: &str = "EZA_DEBUG";
 
 /// Environment variable used to limit the grid-details view
 /// (`--grid --long`) so it’s only activated if there’s at least the given
 /// number of rows of output.
+pub static LSR_GRID_ROWS: &str = "LSR_GRID_ROWS";
 pub static EXA_GRID_ROWS: &str = "EXA_GRID_ROWS";
 pub static EZA_GRID_ROWS: &str = "EZA_GRID_ROWS";
 
@@ -62,9 +65,11 @@ pub static EZA_GRID_ROWS: &str = "EZA_GRID_ROWS";
 /// icon and its file name. Different terminals display icons differently,
 /// with 1 space bringing them too close together or 2 spaces putting them too
 /// far apart, so this may be necessary depending on how they are shown.
+pub static LSR_ICON_SPACING: &str = "LSR_ICON_SPACING";
 pub static EXA_ICON_SPACING: &str = "EXA_ICON_SPACING";
 pub static EZA_ICON_SPACING: &str = "EZA_ICON_SPACING";
 
+pub static LSR_OVERRIDE_GIT: &str = "LSR_OVERRIDE_GIT";
 pub static EXA_OVERRIDE_GIT: &str = "EXA_OVERRIDE_GIT";
 pub static EZA_OVERRIDE_GIT: &str = "EZA_OVERRIDE_GIT";
 
@@ -82,6 +87,7 @@ pub static EXA_MAX_LUMINANCE: &str = "EXA_MAX_LUMINANCE";
 
 /// Environment variable used to automate the same behavior as `--icons=auto` if set.
 /// Any explicit use of `--icons=WHEN` overrides this behavior.
+pub static LSR_ICONS_AUTO: &str = "LSR_ICONS_AUTO";
 pub static EZA_ICONS_AUTO: &str = "EZA_ICONS_AUTO";
 
 pub static LSR_STDIN_SEPARATOR: &str = "LSR_STDIN_SEPARATOR";
@@ -109,6 +115,7 @@ pub static EZA_QUOTING_STYLE: &str = "EZA_QUOTING_STYLE";
 /// Environment variable used to choose how windows attributes are displayed.
 /// Short will display a single character for each set attribute, long will
 /// display a comma separated list of descriptions.
+pub static LSR_WINDOWS_ATTRIBUTES: &str = "LSR_WINDOWS_ATTRIBUTES";
 pub static EZA_WINDOWS_ATTRIBUTES: &str = "EZA_WINDOWS_ATTRIBUTES";
 
 /// Mockable wrapper for `std::env::var_os`.
@@ -164,6 +171,9 @@ pub mod test {
         pub strict: OsString,
         pub debug: OsString,
         pub grid_rows: OsString,
+        pub lsr_icon_spacing: OsString,
+        pub eza_icon_spacing: OsString,
+        pub exa_icon_spacing: OsString,
         pub icon_spacing: OsString,
         pub min_luminance: OsString,
         pub max_luminance: OsString,
@@ -198,7 +208,9 @@ pub mod test {
 
         fn get(&self, name: &'static str) -> Option<OsString> {
             match name {
-                "EXA_STRICT" | "EZA_STRICT" if !self.strict.is_empty() => Some(self.strict.clone()),
+                "LSR_STRICT" | "EXA_STRICT" | "EZA_STRICT" if !self.strict.is_empty() => {
+                    Some(self.strict.clone())
+                }
                 "LSR_COLORS" if !self.lsr_colors.is_empty() => Some(self.lsr_colors.clone()),
                 "EZA_COLORS" if !self.eza_colors.is_empty() => Some(self.eza_colors.clone()),
                 "EXA_COLORS" if !self.exa_colors.is_empty() => Some(self.exa_colors.clone()),
@@ -208,11 +220,26 @@ pub mod test {
                 {
                     Some(self.colors.clone())
                 }
-                "EXA_DEBUG" | "EZA_DEBUG" if !self.debug.is_empty() => Some(self.debug.clone()),
-                "EXA_GRID_ROWS" | "EZA_GRID_ROWS" if !self.grid_rows.is_empty() => {
+                "LSR_DEBUG" | "EXA_DEBUG" | "EZA_DEBUG" if !self.debug.is_empty() => {
+                    Some(self.debug.clone())
+                }
+                "LSR_GRID_ROWS" | "EXA_GRID_ROWS" | "EZA_GRID_ROWS"
+                    if !self.grid_rows.is_empty() =>
+                {
                     Some(self.grid_rows.clone())
                 }
-                "EXA_ICON_SPACING" | "EZA_ICON_SPACING" if !self.icon_spacing.is_empty() => {
+                "LSR_ICON_SPACING" if !self.lsr_icon_spacing.is_empty() => {
+                    Some(self.lsr_icon_spacing.clone())
+                }
+                "EZA_ICON_SPACING" if !self.eza_icon_spacing.is_empty() => {
+                    Some(self.eza_icon_spacing.clone())
+                }
+                "EXA_ICON_SPACING" if !self.exa_icon_spacing.is_empty() => {
+                    Some(self.exa_icon_spacing.clone())
+                }
+                "LSR_ICON_SPACING" | "EXA_ICON_SPACING" | "EZA_ICON_SPACING"
+                    if !self.icon_spacing.is_empty() =>
+                {
                     Some(self.icon_spacing.clone())
                 }
                 "LSR_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE"
@@ -225,7 +252,9 @@ pub mod test {
                 {
                     Some(self.max_luminance.clone())
                 }
-                "EZA_ICONS_AUTO" if !self.icons.is_empty() => Some(self.icons.clone()),
+                "LSR_ICONS_AUTO" | "EZA_ICONS_AUTO" if !self.icons.is_empty() => {
+                    Some(self.icons.clone())
+                }
                 "COLUMNS" if !self.columns.is_empty() => Some(self.columns.clone()),
                 "NO_COLOR" if !self.no_colors.is_empty() => Some(self.no_colors.clone()),
                 "TIME_STYLE" if !self.time.is_empty() => Some(self.time.clone()),
@@ -273,21 +302,25 @@ pub mod test {
     impl MockVars {
         pub fn set(&mut self, var: &'static str, value: &OsString) {
             match var {
-                "EXA_STRICT" | "EZA_STRICT" => self.strict = value.clone(),
+                "LSR_STRICT" | "EXA_STRICT" | "EZA_STRICT" => self.strict = value.clone(),
                 "LSR_COLORS" => self.lsr_colors = value.clone(),
                 "EZA_COLORS" => self.eza_colors = value.clone(),
                 "EXA_COLORS" => self.exa_colors = value.clone(),
                 "LS_COLORS" => self.ls_colors = value.clone(),
-                "EXA_DEBUG" | "EZA_DEBUG" => self.debug = value.clone(),
-                "EXA_GRID_ROWS" | "EZA_GRID_ROWS" => self.grid_rows = value.clone(),
-                "EXA_ICON_SPACING" | "EZA_ICON_SPACING" => self.icon_spacing = value.clone(),
+                "LSR_DEBUG" | "EXA_DEBUG" | "EZA_DEBUG" => self.debug = value.clone(),
+                "LSR_GRID_ROWS" | "EXA_GRID_ROWS" | "EZA_GRID_ROWS" => {
+                    self.grid_rows = value.clone()
+                }
+                "LSR_ICON_SPACING" => self.lsr_icon_spacing = value.clone(),
+                "EZA_ICON_SPACING" => self.eza_icon_spacing = value.clone(),
+                "EXA_ICON_SPACING" => self.exa_icon_spacing = value.clone(),
                 "LSR_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE" => {
                     self.min_luminance = value.clone()
                 }
                 "LSR_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE" => {
                     self.max_luminance = value.clone()
                 }
-                "EZA_ICONS_AUTO" => self.icons = value.clone(),
+                "LSR_ICONS_AUTO" | "EZA_ICONS_AUTO" => self.icons = value.clone(),
                 "COLUMNS" => self.columns = value.clone(),
                 "NO_COLOR" => self.no_colors = value.clone(),
                 "TIME_STYLE" => self.time = value.clone(),

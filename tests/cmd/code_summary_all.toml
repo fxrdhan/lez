@@ -1,4 +1,4 @@
-bin.name = "eza"
+bin.name = "lsr"
 args = "--code tests/itest-loc"
 [env.add]
 LC_ALL = "C"

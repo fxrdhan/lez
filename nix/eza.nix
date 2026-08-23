@@ -8,7 +8,7 @@
 }:
 
 naersk'.buildPackage rec {
-  pname = "eza";
+  pname = "lsr";
   version = "git";
 
   src = ../.;
@@ -34,24 +34,27 @@ naersk'.buildPackage rec {
     done
     installManPage man/lsr.1 man/lsr_colors.5 man/lsr_colors-explanation.5 man/eza.1 man/eza_colors.5 man/eza_colors-explanation.5
     installShellCompletion \
+      --bash completions/bash/lsr \
+      --fish completions/fish/lsr.fish \
+      --zsh completions/zsh/_lsr \
       --bash completions/bash/eza \
       --fish completions/fish/eza.fish \
       --zsh completions/zsh/_eza
   '';
 
   meta = with pkgs.lib; {
-    description = "A modern, maintained replacement for ls";
+    description = "A modern, fast, and feature-rich replacement for ls written in Rust";
     longDescription = ''
-      eza is a modern replacement for ls. It uses colours for information by
-      default, helping you distinguish between many types of files, such as
-      whether you are the owner, or in the owning group. It also has extra
-      features not present in the original ls, such as viewing the Git status
-      for a directory, or recursing into directories with a tree view. eza is
-      written in Rust, so it’s small, fast, and portable.
+      lsr is a modern, fast, and feature-rich replacement for ls written in Rust.
+      It uses colours for information by default, helping you distinguish between
+      many types of files, such as whether you are the owner, or in the owning group.
+      It also has extra features not present in the original ls, such as viewing the
+      Git status for a directory, lines of code counting with --code, structured JSON
+      with --json, and recursing into directories with a tree view.
     '';
-    homepage = "https://github.com/eza-community/eza";
-    license = licenses.mit;
-    mainProgram = "eza";
-    maintainers = with maintainers; [ cafkafk ];
+    homepage = "https://github.com/fxrdhan/lsr";
+    license = licenses.eupl12;
+    mainProgram = "lsr";
+    maintainers = with maintainers; [ ];
   };
 }
