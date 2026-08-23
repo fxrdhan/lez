@@ -104,3 +104,61 @@ fn test_total_size_aal_parent_exclusion() {
     assert!(found_parent, "Did not find '..' entry in output:\n{stdout}");
     assert!(found_current, "Did not find '.' entry in output:\n{stdout}");
 }
+
+#[test]
+fn test_total_size_dotfile_filter_parity() {
+    let temp = TempTestDir::new("dotfile_parity");
+    let target_dir = temp.path.join("target");
+    fs::create_dir_all(&target_dir).unwrap();
+
+    // Visible file: 4096 bytes
+    temp.create_file("target/visible.bin", &vec![0u8; 4096]);
+    // Hidden file: 8192 bytes
+    temp.create_file("target/.hidden.bin", &vec![0u8; 8192]);
+    // Hidden dir with nested file: 16384 bytes
+    temp.create_file("target/.hidden_dir/nested.bin", &vec![0u8; 16384]);
+
+    // 1. Without -a (dotfiles hidden): total size should not include .hidden.bin or .hidden_dir
+    let out_no_a = Command::new(bin_path())
+        .arg("-ld")
+        .arg("--total-size")
+        .arg(&target_dir)
+        .output()
+        .expect("failed to execute lsr without -a");
+
+    assert!(out_no_a.status.success());
+    let stdout_no_a = String::from_utf8_lossy(&out_no_a.stdout);
+    assert!(
+        stdout_no_a.contains("4.1k")
+            || stdout_no_a.contains("4.1K")
+            || stdout_no_a.contains("4096")
+            || stdout_no_a.contains("4.0k")
+            || stdout_no_a.contains("4.0K"),
+        "Without -a, target dir size should reflect only visible files (approx 4KB): {stdout_no_a}"
+    );
+    assert!(
+        !stdout_no_a.contains("28k")
+            && !stdout_no_a.contains("28K")
+            && !stdout_no_a.contains("29k")
+            && !stdout_no_a.contains("29K"),
+        "Without -a, target dir size should NOT include hidden files (should not be ~28KB): {stdout_no_a}"
+    );
+
+    // 2. With -a (dotfiles shown): total size should include hidden files (4096 + 8192 + 16384 = 28672)
+    let out_with_a = Command::new(bin_path())
+        .arg("-lad")
+        .arg("--total-size")
+        .arg(&target_dir)
+        .output()
+        .expect("failed to execute lsr with -a");
+
+    assert!(out_with_a.status.success());
+    let stdout_with_a = String::from_utf8_lossy(&out_with_a.stdout);
+    assert!(
+        stdout_with_a.contains("28k")
+            || stdout_with_a.contains("28K")
+            || stdout_with_a.contains("29k")
+            || stdout_with_a.contains("29K"),
+        "With -a, target dir size should reflect hidden files (approx 28KB): {stdout_with_a}"
+    );
+}

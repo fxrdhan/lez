@@ -352,7 +352,7 @@ impl Lsr<'_> {
         let mut exit_status = 0;
 
         for file_path in &self.input_paths {
-            let f = File::from_args(
+            let f = File::from_args_with_filter(
                 PathBuf::from(file_path),
                 None,
                 None,
@@ -360,6 +360,7 @@ impl Lsr<'_> {
                 self.options.view.total_size,
                 self.options.view.mime_read_contents,
                 None,
+                Some(self.options.filter.dot_filter),
             );
 
             // We don't know whether this file exists, so we have to try to get

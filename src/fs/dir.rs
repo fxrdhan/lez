@@ -107,6 +107,7 @@ impl Dir {
             inner: self.contents.iter(),
             dir: self,
             hidden_count,
+            dot_filter: dots,
             dotfiles: dots.shows_dotfiles(),
             #[cfg(windows)]
             windows_hidden: dots.shows_windows_hidden(),
@@ -142,6 +143,9 @@ pub struct Files<'dir, 'ig, 'hc> {
 
     /// The directory that begat those paths.
     dir: &'dir Dir,
+
+    /// The active dotfile filter.
+    dot_filter: DotFilter,
 
     /// Whether to include dotfiles in the list.
     dotfiles: bool,
@@ -215,7 +219,7 @@ impl<'dir> Files<'dir, '_, '_> {
                     }
                 }
 
-                let file = File::from_args(
+                let file = File::from_args_with_filter(
                     path,
                     self.dir,
                     filename,
@@ -223,6 +227,7 @@ impl<'dir> Files<'dir, '_, '_> {
                     self.total_size,
                     self.mime_read_contents,
                     entry.file_type().ok(),
+                    Some(self.dot_filter),
                 );
 
                 // Windows has its own concept of hidden files, when dotfiles are
@@ -267,6 +272,7 @@ impl<'dir, 'hc> Iterator for Files<'dir, '_, 'hc> {
                     self.dir,
                     self.total_size,
                     self.mime_read_contents,
+                    Some(self.dot_filter),
                 ))
             }
 
@@ -277,6 +283,7 @@ impl<'dir, 'hc> Iterator for Files<'dir, '_, 'hc> {
                     self.dir,
                     self.total_size,
                     self.mime_read_contents,
+                    Some(self.dot_filter),
                 ))
             }
 
@@ -306,7 +313,8 @@ pub enum DotFilter {
 
 impl DotFilter {
     /// Whether this filter should show dotfiles in a listing.
-    fn shows_dotfiles(self) -> bool {
+    #[must_use]
+    pub fn shows_dotfiles(self) -> bool {
         match self {
             Self::JustFiles => false,
             Self::Dotfiles => true,
