@@ -58,6 +58,18 @@ fn bin_path() -> PathBuf {
     path
 }
 
+/// The size column of a long-view row: `permissions size user date… name`.
+///
+/// Tests here have to look at that column specifically. Substring-matching the
+/// whole line for "-" is vacuous, because the permissions field always
+/// contains one ("drwx------"), so such an assertion holds even when the size
+/// column shows a wrongly-computed size.
+fn size_column(line: &str) -> &str {
+    line.split_whitespace()
+        .nth(1)
+        .unwrap_or_else(|| panic!("long-view row should have a size column: {line}"))
+}
+
 #[test]
 fn test_total_size_aal_parent_exclusion() {
     let parent = TempTestDir::new("parent_excl");
@@ -85,18 +97,24 @@ fn test_total_size_aal_parent_exclusion() {
     for line in stdout.lines() {
         if line.ends_with(" ..") || line.contains(" .. ") || line.trim_end().ends_with("..") {
             found_parent = true;
-            // The size column for ".." must be "-" since its recursive size is excluded
-            assert!(
-                line.contains(" - ") || line.contains("-"),
-                "Parent entry '..' must not display calculated recursive size: {line}"
+            // The size column for ".." must be "-" since its recursive size
+            // is excluded.
+            assert_eq!(
+                size_column(line),
+                "-",
+                "parent entry '..' must not display a calculated recursive size: {line}"
             );
         }
         if line.ends_with(" .") || line.contains(" . ") || line.trim_end().ends_with(" .") {
             found_current = true;
-            // The current entry '.' should display its size
-            assert!(
-                !line.contains("1.0M") && !line.contains("1.1M"),
-                "Current directory '.' should not include parent directory size: {line}"
+            // '.' is the listed directory, so it shows its own recursive
+            // size: the single 1 KiB file it holds, and nothing from the
+            // parent. Pinning the value rather than denying two particular
+            // wrong ones keeps every other wrong value failing too.
+            assert_eq!(
+                size_column(line),
+                "1.0k",
+                "current directory '.' must show only its own contents: {line}"
             );
         }
     }

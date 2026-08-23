@@ -381,6 +381,47 @@ fn test_file_types_fifo_named_pipe() {
 // 2. DIRECTORY TREE SUITE (-T -l -S)
 // ===========================================================================
 
+/// Width in characters of the tree prefix in front of `name`: the run from the
+/// first box-drawing character up to the name. Each level of nesting adds one
+/// four-character cell, so this grows monotonically with depth.
+///
+/// Asserting merely that some box-drawing character appears anywhere does not
+/// constrain the shape at all — output whose connectors have been concatenated
+/// onto one another still contains them.
+fn tree_prefix_width(line: &str, name: &str) -> usize {
+    let box_start = line
+        .chars()
+        .position(|c| "\u{2502}\u{251c}\u{2514}".contains(c))
+        .unwrap_or_else(|| panic!("row for {name} should carry a tree prefix: {line}"));
+    let name_start = line
+        .find(name)
+        .map(|byte_idx| line[..byte_idx].chars().count())
+        .unwrap_or_else(|| panic!("row should contain {name}: {line}"));
+    assert!(
+        name_start > box_start,
+        "tree prefix should precede {name}: {line}"
+    );
+    name_start - box_start
+}
+
+/// Locates the single row whose entry name is `name`.
+///
+/// Matching on `contains` is not enough: a symlink's target spells out the
+/// path it points at, so "level1" also occurs in `link_to_f2 ->
+/// level1/level2/f2.txt`. The entry name is what follows the connector.
+fn row_for<'a>(stdout: &'a str, name: &str) -> &'a str {
+    let suffix = format!("\u{2500}\u{2500} {name}");
+    let mut rows = stdout.lines().filter(|l| l.ends_with(&suffix));
+    let row = rows
+        .next()
+        .unwrap_or_else(|| panic!("no row for {name} in:\n{stdout}"));
+    assert!(
+        rows.next().is_none(),
+        "{name} should match exactly one row in:\n{stdout}"
+    );
+    row
+}
+
 #[test]
 fn test_tree_mode_deep_hierarchy() {
     let h = TempHarness::new("tree_deep");
@@ -402,12 +443,26 @@ fn test_tree_mode_deep_hierarchy() {
     let stdout = String::from_utf8_lossy(&out.stdout);
 
     assert!(stdout.contains("root_file.txt"));
-    assert!(stdout.contains("level1"));
-    assert!(stdout.contains("level2"));
-    assert!(stdout.contains("level3"));
-    assert!(stdout.contains("level4"));
-    assert!(stdout.contains("deep.dat"));
-    assert!(stdout.contains("├──") || stdout.contains("└──") || stdout.contains("│"));
+
+    // Each level sits one cell deeper than the one above it, which is what
+    // makes this a tree rather than a list that happens to contain edges.
+    let mut previous = 0;
+    for name in ["level1", "level2", "level3", "level4", "deep.dat"] {
+        let row = row_for(&stdout, name);
+        let width = tree_prefix_width(row, name);
+        assert!(
+            width > previous,
+            "{name} should be indented deeper than the level above it \
+             (got {width}, previous {previous}): {row}"
+        );
+        previous = width;
+
+        let connectors = row.matches('\u{251c}').count() + row.matches('\u{2514}').count();
+        assert_eq!(
+            connectors, 1,
+            "each row carries exactly one connector, its own: {row}"
+        );
+    }
 
     assert_blocks_equivalence(
         &["-T", "-l", "--color=never"],

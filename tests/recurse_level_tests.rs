@@ -157,6 +157,16 @@ fn test_recurse_level_3_with_explicit_relative_path() {
     );
 }
 
+/// Whether `name` is listed as an entry in its own right.
+///
+/// `stdout.contains(name)` is not the same question. Recursion prints a
+/// header line carrying the absolute path of each subdirectory, so a fixture
+/// living under ".../deeply/..." makes `contains("y")` true whether or not the
+/// directory `y` was ever listed.
+fn has_entry(stdout: &str, name: &str) -> bool {
+    stdout.lines().any(|line| line.trim() == name)
+}
+
 #[test]
 fn test_recurse_level_with_explicit_absolute_path() {
     let fixture = TempTestDir::new("level_abs");
@@ -179,9 +189,9 @@ fn test_recurse_level_with_explicit_absolute_path() {
     ]);
     assert!(output_l1.status.success());
     let stdout_l1 = String::from_utf8_lossy(&output_l1.stdout);
-    assert!(stdout_l1.contains("f_x.txt"));
-    assert!(stdout_l1.contains("y"));
-    assert!(!stdout_l1.contains("f_y.txt"));
+    assert!(has_entry(&stdout_l1, "f_x.txt"), "level 1:\n{stdout_l1}");
+    assert!(has_entry(&stdout_l1, "y"), "level 1:\n{stdout_l1}");
+    assert!(!stdout_l1.contains("f_y.txt"), "level 1:\n{stdout_l1}");
 
     // Level 2 with absolute path
     let output_l2 = run_lsr(&[
@@ -192,10 +202,10 @@ fn test_recurse_level_with_explicit_absolute_path() {
     ]);
     assert!(output_l2.status.success());
     let stdout_l2 = String::from_utf8_lossy(&output_l2.stdout);
-    assert!(stdout_l2.contains("f_x.txt"));
-    assert!(stdout_l2.contains("y"));
-    assert!(stdout_l2.contains("f_y.txt"));
-    assert!(stdout_l2.contains("z"));
+    assert!(has_entry(&stdout_l2, "f_x.txt"), "level 2:\n{stdout_l2}");
+    assert!(has_entry(&stdout_l2, "y"), "level 2:\n{stdout_l2}");
+    assert!(has_entry(&stdout_l2, "f_y.txt"), "level 2:\n{stdout_l2}");
+    assert!(has_entry(&stdout_l2, "z"), "level 2:\n{stdout_l2}");
     assert!(
         !stdout_l2.contains("f_z.txt"),
         "Level 2 should not recurse into z"
