@@ -504,9 +504,14 @@ fn test_adversarial_multi_directory_arguments_with_shared_hardlinks() {
 // 5. PROPERTY-BASED RANDOM TREE GENERATOR & GROUND-TRUTH ORACLE
 // =========================================================================
 
+#[cfg(unix)]
+type RecSizeFileId = (u64, u64);
+#[cfg(not(unix))]
+type RecSizeFileId = PathBuf;
+
 /// Oracle calculation using direct filesystem inspection
 fn oracle_calculate_size(root: &Path, dot_filter: DotFilter) -> u64 {
-    fn recurse(dir: &Path, dot_filter: DotFilter, visited: &mut HashSet<(u64, u64)>) -> u64 {
+    fn recurse(dir: &Path, dot_filter: DotFilter, visited: &mut HashSet<RecSizeFileId>) -> u64 {
         let mut size = 0;
         let Ok(entries) = fs::read_dir(dir) else {
             return 0;
