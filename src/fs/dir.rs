@@ -276,15 +276,6 @@ impl<'dir> Files<'dir, '_, '_> {
                     continue;
                 }
 
-                // Also hide _prefix files on Windows because it's used by old applications
-                // as an alternative to dot-prefix files.
-                #[cfg(windows)]
-                if !self.dotfiles && filename.starts_with('_') {
-                    if let Some(count) = &mut self.hidden_count {
-                        count.inc_hidden();
-                    }
-                    continue;
-                }
 
                 if self.git_ignoring {
                     let git_status = self.git.map(|g| g.get(&path, false)).unwrap_or_default();
