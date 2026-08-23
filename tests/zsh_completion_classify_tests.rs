@@ -9,7 +9,14 @@ fn get_repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+/// The completion `lsr` itself ships and that `#compdef lsr` binds.
 fn get_zsh_completion_path() -> PathBuf {
+    get_repo_root().join("completions").join("zsh").join("_lsr")
+}
+
+/// The compatibility copy installed for anyone still invoking the binary as
+/// `eza`. It is generated from the primary file, so it has to stay in step.
+fn get_zsh_compat_completion_path() -> PathBuf {
     get_repo_root().join("completions").join("zsh").join("_eza")
 }
 
@@ -22,8 +29,44 @@ fn test_zsh_completion_file_exists() {
     let path = get_zsh_completion_path();
     assert!(
         path.exists(),
-        "Zsh completion file must exist at completions/zsh/_eza"
+        "Zsh completion file must exist at completions/zsh/_lsr"
     );
+
+    let compat = get_zsh_compat_completion_path();
+    assert!(
+        compat.exists(),
+        "Zsh compatibility completion must exist at completions/zsh/_eza"
+    );
+}
+
+/// The two files differ only in the command name they complete. Comparing them
+/// with the names normalised catches a flag added to one and not the other,
+/// which is how they drifted apart before.
+#[test]
+fn test_zsh_completion_compat_copy_is_in_sync() {
+    let primary = fs::read_to_string(get_zsh_completion_path()).expect("_lsr should be readable");
+    let compat =
+        fs::read_to_string(get_zsh_compat_completion_path()).expect("_eza should be readable");
+
+    let normalise = |s: &str| s.replace("lsr", "CMD").replace("eza", "CMD");
+
+    assert_eq!(
+        normalise(&primary),
+        normalise(&compat),
+        "completions/zsh/_eza must be a name-for-name copy of completions/zsh/_lsr"
+    );
+}
+
+/// Two files installed into the same site-functions directory must not both
+/// claim `eza`, or which one zsh loads comes down to order.
+#[test]
+fn test_zsh_completions_claim_distinct_commands() {
+    let primary = fs::read_to_string(get_zsh_completion_path()).expect("_lsr should be readable");
+    let compat =
+        fs::read_to_string(get_zsh_compat_completion_path()).expect("_eza should be readable");
+
+    assert_eq!(primary.lines().next(), Some("#compdef lsr"));
+    assert_eq!(compat.lines().next(), Some("#compdef eza"));
 }
 
 #[test]
