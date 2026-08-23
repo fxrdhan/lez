@@ -149,7 +149,7 @@ fn test_long_details_suppresses_symlink_target_with_flag() {
 
 #[test]
 #[cfg(unix)]
-fn test_oneline_shows_symlink_target_by_default() {
+fn test_oneline_does_not_show_symlink_target_by_default() {
     let temp = TempTestDir::new("oneline_default");
     temp.create_file("real.txt", b"data");
     temp.create_symlink("real.txt", "sym.txt");
@@ -169,12 +169,48 @@ fn test_oneline_shows_symlink_target_by_default() {
         .find(|l| l.contains("sym.txt"))
         .expect("sym.txt line found");
     assert!(
-        sym_line.contains("->"),
-        "Default oneline mode must contain arrow: {sym_line}"
+        !sym_line.contains("->"),
+        "Default oneline mode must NOT contain arrow: {sym_line}"
     );
     assert!(
-        sym_line.contains("real.txt"),
-        "Default oneline mode must contain target: {sym_line}"
+        !sym_line.contains("real.txt"),
+        "Default oneline mode must NOT contain target: {sym_line}"
+    );
+    assert_eq!(
+        sym_line.trim(),
+        "sym.txt",
+        "Line must contain only symlink name"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_piped_output_does_not_show_symlink_target() {
+    let temp = TempTestDir::new("piped_default");
+    temp.create_file("real.txt", b"data");
+    temp.create_symlink("real.txt", "sym.txt");
+
+    let output = Command::new(bin_path())
+        .arg("--color=never")
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to run lsr");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let sym_line = stdout
+        .lines()
+        .find(|l| l.contains("sym.txt"))
+        .expect("sym.txt line found");
+    assert!(
+        !sym_line.contains("->"),
+        "Default piped mode must NOT contain arrow: {sym_line}"
+    );
+    assert_eq!(
+        sym_line.trim(),
+        "sym.txt",
+        "Line must contain only symlink name"
     );
 }
 

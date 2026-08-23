@@ -365,11 +365,41 @@ impl FileFilter {
     /// dotfile, because it’s been directly specified. But running
     /// `exa -I='*.ogg' music/*` should filter out the ogg files obtained
     /// from the glob, even though the globbing is done by the shell!
-    pub fn filter_argument_files(&self, files: &mut Vec<File<'_>>) {
+    pub fn filter_argument_files(&self, is_tree: bool, files: &mut Vec<File<'_>>) {
+        use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
+
+        files.retain(|f| self.matches_since(f));
         files.retain(|f| {
-            self.matches_since(f)
-                && !self.ignore_patterns.is_ignored(&f.name)
+            !self.ignore_patterns.is_ignored(&f.name)
                 && !self.ignore_patterns_caseins.is_ignored(&f.name)
+        });
+        files.retain(|f| {
+            match (
+                self.flags.contains(&OnlyDirs),
+                self.flags.contains(&OnlyFiles),
+                self.flags.contains(&NoSymlinks),
+                self.flags.contains(&ShowSymlinks),
+            ) {
+                (true, false, false, false) => f.is_directory(),
+                (true, false, true, false) => f.is_directory(),
+                (true, false, false, true) => f.is_directory() || f.points_to_directory(),
+                (false, true, false, false) => {
+                    if is_tree {
+                        true
+                    } else {
+                        f.is_file()
+                    }
+                }
+                (false, true, false, true) => {
+                    if is_tree {
+                        true
+                    } else {
+                        f.is_file() || (f.is_link() && !f.points_to_directory())
+                    }
+                }
+                (false, false, true, false) => !f.is_link(),
+                _ => true,
+            }
         });
     }
 
@@ -1028,8 +1058,64 @@ mod test_ignores {
         assert!(child_files.is_empty());
 
         let mut arg_files = vec![file_cargo];
-        filter_zero.filter_argument_files(&mut arg_files);
+        filter_zero.filter_argument_files(false, &mut arg_files);
         assert!(arg_files.is_empty());
+    }
+
+    #[test]
+    fn test_filter_argument_files_only_files_and_dirs() {
+        use std::path::PathBuf;
+
+        let make_files = || {
+            let file_cargo = File::from_args(
+                PathBuf::from("Cargo.toml"),
+                None,
+                None,
+                false,
+                false,
+                false,
+                None,
+            );
+            let dir_src =
+                File::from_args(PathBuf::from("src"), None, None, false, false, false, None);
+            vec![file_cargo, dir_src]
+        };
+
+        let filter_only_files = FileFilter {
+            flags: vec![FileFilterFlags::OnlyFiles],
+            sort_field: SortField::Name(SortCase::ABCabc),
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+            git_ignore: GitIgnore::Off,
+            ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+            collator: None,
+        };
+
+        // When is_tree is false (e.g. -d -f), directories are filtered out
+        let mut files = make_files();
+        filter_only_files.filter_argument_files(false, &mut files);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "Cargo.toml");
+
+        // When is_tree is true (e.g. -T -f), tree root directories are preserved
+        let mut files_tree = make_files();
+        filter_only_files.filter_argument_files(true, &mut files_tree);
+        assert_eq!(files_tree.len(), 2);
+
+        let filter_only_dirs = FileFilter {
+            flags: vec![FileFilterFlags::OnlyDirs],
+            ..filter_only_files
+        };
+        let mut files = make_files();
+        filter_only_dirs.filter_argument_files(false, &mut files);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "src");
     }
 
     #[test]

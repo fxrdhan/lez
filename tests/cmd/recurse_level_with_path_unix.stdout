@@ -2,7 +2,7 @@ a
 b
 c
 d
-dir-symlink -> vagrant/debug
+dir-symlink
 e
 exa
 f
@@ -22,7 +22,7 @@ q
 vagrant
 
 tests/itest/exa:
-file.c -> djihisudjuhfius
+file.c
 sssssssssssssssssssssssssggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggsssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
 
 tests/itest/vagrant:

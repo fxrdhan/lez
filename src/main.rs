@@ -352,7 +352,7 @@ impl Lsr<'_> {
         let mut exit_status = 0;
 
         for file_path in &self.input_paths {
-            let f = File::from_args(
+            let f = File::from_args_with_filter(
                 PathBuf::from(file_path),
                 None,
                 None,
@@ -360,6 +360,7 @@ impl Lsr<'_> {
                 self.options.view.total_size,
                 self.options.view.mime_read_contents,
                 None,
+                Some(self.options.filter.dot_filter),
             );
 
             // We don't know whether this file exists, so we have to try to get
@@ -377,6 +378,19 @@ impl Lsr<'_> {
                 files.push(f);
             }
         }
+
+        if !files.is_empty() && self.options.filter.flags.contains(&OnlyFiles) {
+            dirs.clear();
+        }
+
+        let is_tree = self
+            .options
+            .dir_action
+            .recurse_options()
+            .is_some_and(|r| r.tree);
+        self.options
+            .filter
+            .filter_argument_files(is_tree, &mut files);
 
         // We want to print a directory’s name before we list it, *except* in
         // the case where it’s the only directory, *except* if there are any
@@ -400,7 +414,6 @@ impl Lsr<'_> {
             return Ok(exit_status);
         }
 
-        self.options.filter.filter_argument_files(&mut files);
         self.print_files(None, files)?;
 
         self.print_dirs(dirs, no_files, is_only_dir, exit_status, 0)
