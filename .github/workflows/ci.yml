@@ -38,6 +38,14 @@ jobs:
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
               - '.github/workflows/ci.yml'
+              # The suite asserts on these from disk (man_docs_tests,
+              # zsh_completion_classify_tests, theme_schema_tests), so a
+              # change to one of them has to run the tests that guard it.
+              - 'man/**'
+              - 'completions/**'
+              - 'docs/**'
+              - 'justfile'
+              - 'README.md'
             nix:
               - 'flake.nix'
               - 'flake.lock'
