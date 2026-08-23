@@ -434,11 +434,12 @@ impl render::GitColours for Theme {
 
 #[rustfmt::skip]
 impl render::GitRepoColours for Theme {
-    fn branch_main(&self)  -> Style { self.ui.git_repo.unwrap_or_default().branch_main() }
-    fn branch_other(&self) -> Style { self.ui.git_repo.unwrap_or_default().branch_other() }
-    fn no_repo(&self)      -> Style { self.ui.punctuation() }
-    fn git_clean(&self)    -> Style { self.ui.git_repo.unwrap_or_default().git_clean() }
-    fn git_dirty(&self)    -> Style { self.ui.git_repo.unwrap_or_default().git_dirty() }
+    fn branch_main(&self)     -> Style { self.ui.git_repo.unwrap_or_default().branch_main() }
+    fn branch_other(&self)    -> Style { self.ui.git_repo.unwrap_or_default().branch_other() }
+    fn branch_worktree(&self) -> Style { self.ui.git_repo.unwrap_or_default().branch_worktree() }
+    fn no_repo(&self)         -> Style { self.ui.punctuation() }
+    fn git_clean(&self)       -> Style { self.ui.git_repo.unwrap_or_default().git_clean() }
+    fn git_dirty(&self)       -> Style { self.ui.git_repo.unwrap_or_default().git_dirty() }
 }
 
 #[rustfmt::skip]

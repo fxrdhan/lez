@@ -324,17 +324,19 @@ impl Default for Git {
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GitRepo {
-    pub branch_main: Option<Style>,  //Gm
-    pub branch_other: Option<Style>, //Go
-    pub git_clean: Option<Style>,    //Gc
-    pub git_dirty: Option<Style>,    //Gd
+    pub branch_main: Option<Style>,     //Gm
+    pub branch_other: Option<Style>,    //Go
+    pub git_clean: Option<Style>,       //Gc
+    pub git_dirty: Option<Style>,       //Gd
+    pub branch_worktree: Option<Style>, //Gw
 }
 field_accessors!(
     GitRepo,
     branch_main: Option<Style>,
     branch_other: Option<Style>,
     git_clean: Option<Style>,
-    git_dirty: Option<Style>
+    git_dirty: Option<Style>,
+    branch_worktree: Option<Style>
 );
 impl Default for GitRepo {
     fn default() -> Self {
@@ -343,6 +345,7 @@ impl Default for GitRepo {
             branch_other: Some(Yellow.normal()),
             git_clean: Some(Green.normal()),
             git_dirty: Some(Yellow.bold()),
+            branch_worktree: Some(Cyan.normal()),
         }
     }
 }
@@ -523,6 +526,7 @@ impl UiStyles {
                 branch_other: Some(Style::default()),
                 git_clean: Some(Style::default()),
                 git_dirty: Some(Style::default()),
+                branch_worktree: Some(Style::default()),
             }),
 
             security_context: Some(SecurityContext {
@@ -707,6 +711,7 @@ impl UiStyles {
             "Go" => self.git_repo().branch_other          = Some(pair.to_style()),
             "Gc" => self.git_repo().git_clean             = Some(pair.to_style()),
             "Gd" => self.git_repo().git_dirty             = Some(pair.to_style()),
+            "Gw" => self.git_repo().branch_worktree       = Some(pair.to_style()),
             "xx" => self.punctuation                     = Some(pair.to_style()),
             "da" => self.date                            = Some(pair.to_style()),
             "in" => self.inode                           = Some(pair.to_style()),
@@ -770,5 +775,23 @@ impl UiStyles {
         self.size().unit_mega = Some(style);
         self.size().unit_giga = Some(style);
         self.size().unit_huge = Some(style);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::lsc::Pair;
+    use nu_ansi_term::Color::Purple;
+
+    #[test]
+    fn test_set_exa_gw_short_code() {
+        let mut styles = UiStyles::default();
+        let pair = Pair {
+            key: "Gw",
+            value: "35;4",
+        };
+        assert!(styles.set_exa(&pair));
+        assert_eq!(styles.git_repo().branch_worktree, Some(Purple.underline()));
     }
 }
