@@ -63,7 +63,7 @@ Symbolic link targets are not displayed in this mode, so output stays clean when
 : Display entries with their absolute path.
 
 Valid settings are '`on`', '`follow`', and '`off`'.
-When used without a value, defaults to '`on`'.
+When used without a value, defaults to '`on`'. Note: when providing an explicit value, an equals sign is required (`--absolute=WHEN`).
 
 '`on`': Show absolute paths for all entries.
 '`follow`': Show absolute paths and resolve symbolic links to their targets.
@@ -73,7 +73,7 @@ When used without a value, defaults to '`on`'.
 : Display file kind indicators next to file names.
 
 Valid settings are ‘`always`’, ‘`automatic`’ (or ‘`auto`’ for short), and ‘`never`’.
-When used without a value, defaults to ‘`automatic`’.
+When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--classify=WHEN`).
 
 `automatic` or `auto` will display file kind indicators only when the standard output is connected to a real terminal. If `lsr` is run while in a `tty`, or the output of `lsr` is either redirected to a file or piped into another program, file kind indicators will not be used. Setting this option to ‘`always`’ causes `lsr` to always display file kind indicators, while ‘`never`’ disables the use of file kind indicators.
 
@@ -110,18 +110,18 @@ When used without a value, defaults to ‘`automatic`’.
 : Display type indicator by file names.
 
 Valid settings are '`always`', '`automatic`' ('`auto`' for short), and '`never`'.
-When used without a value, defaults to '`automatic`'.
+When used without a value, defaults to '`automatic`'. Note: when providing an explicit value, an equals sign is required (`--classify=WHEN`).
 
 `--color=WHEN`, `--colour=WHEN`
 : When to use terminal colours.
 
-Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
+Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’. Note: when providing an explicit value, an equals sign is required (`--color=WHEN`).
 
 `--color-scale[=FIELD]`, `--colour-scale[=FIELD]`
 : Highlight levels of ‘`field`’ distinctly.
 
 Valid fields are ‘`all`’, ‘`age`’, and ‘`size`’.
-When used without a value, defaults to ‘`all`’.
+When used without a value, defaults to ‘`all`’. Note: when providing an explicit value, an equals sign is required (`--color-scale=FIELD`).
 
 `--color-scale-mode=MODE`, `--colour-scale-mode=MODE`
 : Mode of color scale.

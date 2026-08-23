@@ -25,11 +25,11 @@ DISPLAY OPTIONS:
   -F, --classify[=<WHEN>]          display type indicator by file names [possible values: always,
                                    auto, never]
   -X, --dereference                dereference symbolic links when displaying information
-      --absolute [<absolute>]      display entries with their absolute path [possible values: on,
+      --absolute[=<absolute>]      display entries with their absolute path [possible values: on,
                                    off, follow]
-      --color [<WHEN>]             When to use colours. [default: auto] [possible values: always,
+      --color[=<WHEN>]             When to use colours. [default: auto] [possible values: always,
                                    auto, never]
-      --color-scale [<FIELDS>...]  highlight value of FIELDS distinctly [possible values: all, age,
+      --color-scale[=<FIELDS>...]  highlight value of FIELDS distinctly [possible values: all, age,
                                    size]
       --color-scale-mode <MODE>    mode for --color-scale [default: gradient] [possible values:
                                    fixed, gradient]

@@ -1,2 +1,2 @@
 bin.name = "lsr"
-args = "tests/test_dir --color auto"
+args = "tests/test_dir --color=auto"

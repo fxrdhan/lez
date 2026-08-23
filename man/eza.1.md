@@ -59,7 +59,7 @@ Symbolic link targets are not displayed in this mode, so output stays clean when
 : Display entries with their absolute path.
 
 Valid settings are '`on`', '`follow`', and '`off`'.
-When used without a value, defaults to '`on`'.
+When used without a value, defaults to '`on`'. Note: when providing an explicit value, an equals sign is required (`--absolute=WHEN`).
 
 '`on`': Show absolute paths for all entries.
 '`follow`': Show absolute paths and resolve symbolic links to their targets.
@@ -69,7 +69,7 @@ When used without a value, defaults to '`on`'.
 : Display file kind indicators next to file names.
 
 Valid settings are ‘`always`’, ‘`automatic`’ (or ‘`auto`’ for short), and ‘`never`’.
-When used without a value, defaults to ‘`automatic`’.
+When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--classify=WHEN`).
 
 `automatic` or `auto` will display file kind indicators only when the standard output is connected to a real terminal. If `eza` is ran while in a `tty`, or the output of `eza` is either redirected to a file or piped into another program, file kind indicators will not be used. Setting this option to ‘`always`’ causes `eza` to always display file kind indicators, while ‘`never`’ disables the use of file kind indicators.
 
@@ -106,15 +106,16 @@ When used without a value, defaults to ‘`automatic`’.
 : When to use terminal colours (using ANSI escape code to colorize the output).
 
 Valid settings are ‘`always`’, ‘`automatic`’ (or ‘`auto`’ for short), and ‘`never`’.
-When used without a value, defaults to ‘`automatic`’.
+When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--color=WHEN`).
 
 The default behavior (‘`automatic`’ or ‘`auto`’) is to colorize the output only when the standard output is connected to a real terminal. If the output of `eza` is redirected to a file or piped into another program, terminal colors will not be used. Setting this option to ‘`always`’ causes `eza` to always output terminal color, while ‘`never`’ disables the use of terminal color.
 
 Manually setting this option overrides `NO_COLOR` environment.
 
-`--color-scale`, `--colour-scale`
+`--color-scale[=FIELD]`, `--colour-scale[=FIELD]`
 : highlight levels of `field` distinctly.
 Use comma(,) separated list of all, age, size
+When used without a value, defaults to ‘`all`’. Note: when providing an explicit value, an equals sign is required (`--color-scale=FIELD`).
 
 `--color-scale-mode=MODE`, `--colour-scale-mode=MODE`
 : Use gradient or fixed colors in `--color-scale`.

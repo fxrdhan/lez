@@ -88,6 +88,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-X --dereference  "dereference symbolic links when displaying information"))
         .arg(arg!(--absolute "display entries with their absolute path")
             .num_args(0..=1)
+            .require_equals(true)
             .action(clap::ArgAction::Set)
             .value_parser(value_parser!(Absolute))
             .default_missing_value("on")
@@ -96,12 +97,14 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--color <WHEN> "When to use colours.")
             .alias("colour")
             .num_args(0..=1)
+            .require_equals(true)
             .value_parser(value_parser!(ShowWhen))
             .default_missing_value("auto")
             .default_value("auto"))
         .arg(arg!(--"color-scale" <FIELDS> "highlight value of FIELDS distinctly")
             .alias("colour-scale")
             .num_args(0..)
+            .require_equals(true)
             .value_parser(value_parser!(ColorScaleArgs))
             .default_missing_value("all")
             .value_delimiter(','))
@@ -1043,5 +1046,121 @@ pub mod test {
         assert!(mock_cli(vec!["-S"]).get_flag("blocksize"));
         assert!(mock_cli(vec!["--blocksize"]).get_flag("blocksize"));
         assert!(mock_cli(vec!["--blocks"]).get_flag("blocksize"));
+    }
+
+    /// Every flag whose value is optional has to be given that value with an
+    /// equals sign, so that a bare flag can never swallow the path that
+    /// follows it. `--icons`, `--hyperlink` and `--classify` were already
+    /// covered; `--absolute`, `--color` and `--color-scale` were not, and
+    /// rejected `lsr --color *.md` outright.
+    #[test]
+    fn optional_value_flags_leave_the_following_path_alone() {
+        for flag in [
+            "--classify",
+            "-F",
+            "--icons",
+            "--hyperlink",
+            "--absolute",
+            "--color",
+            "--colour",
+            "--color-scale",
+            "--colour-scale",
+        ] {
+            let cli = mock_cli_try(vec![flag, "file1.txt", "file2.txt"])
+                .unwrap_or_else(|e| panic!("{flag} rejected the paths that follow it: {e}"));
+            assert_eq!(
+                cli.get_many("FILE")
+                    .unwrap_or_default()
+                    .map(OsString::as_os_str)
+                    .collect::<Vec<_>>(),
+                ["file1.txt", "file2.txt"],
+                "flag: {flag}"
+            );
+        }
+    }
+
+    /// The same holds when the flag is the only thing between the path and a
+    /// layout flag, which is how `-T --absolute <path>` reaches the parser.
+    #[test]
+    fn optional_value_flags_leave_the_following_path_alone_in_a_tree() {
+        let cli = mock_cli_try(vec!["-T", "--absolute", "/tmp/somewhere"])
+            .expect("--absolute rejected the tree root that follows it");
+        assert!(cli.get_flag("tree"));
+        assert_eq!(
+            cli.get_one::<Absolute>("absolute"),
+            Some(&Absolute::On),
+            "a bare --absolute keeps its default"
+        );
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap_or_default()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["/tmp/somewhere"]
+        );
+    }
+
+    #[test]
+    fn optional_value_flags_still_read_an_attached_value() {
+        assert_eq!(
+            mock_cli(vec!["--color=never"]).get_one::<ShowWhen>("color"),
+            Some(&ShowWhen::Never)
+        );
+        assert_eq!(
+            mock_cli(vec!["--colour=always"]).get_one::<ShowWhen>("color"),
+            Some(&ShowWhen::Always)
+        );
+        assert_eq!(
+            mock_cli(vec!["--absolute=follow"]).get_one::<Absolute>("absolute"),
+            Some(&Absolute::Follow)
+        );
+        assert_eq!(
+            mock_cli(vec!["--color-scale=age,size"])
+                .get_many::<ColorScaleArgs>("color-scale")
+                .unwrap()
+                .collect::<Vec<_>>(),
+            [&ColorScaleArgs::Age, &ColorScaleArgs::Size]
+        );
+    }
+
+    #[test]
+    fn bare_optional_value_flags_fall_back_to_their_defaults() {
+        assert_eq!(
+            mock_cli(vec!["--color"]).get_one::<ShowWhen>("color"),
+            Some(&ShowWhen::Auto)
+        );
+        assert_eq!(
+            mock_cli(vec!["--absolute"]).get_one::<Absolute>("absolute"),
+            Some(&Absolute::On)
+        );
+        assert_eq!(
+            mock_cli(vec!["--color-scale"])
+                .get_many::<ColorScaleArgs>("color-scale")
+                .unwrap()
+                .collect::<Vec<_>>(),
+            [&ColorScaleArgs::All]
+        );
+    }
+
+    /// A value given with a space is a path, exactly as it is for `ls
+    /// --color always`. The flag falls back to its default and the word is
+    /// listed, rather than the parser erroring out.
+    #[test]
+    fn a_spaced_value_is_treated_as_a_path() {
+        let cli = mock_cli_try(vec!["--color", "always"])
+            .expect("--color rejected a spaced value instead of treating it as a path");
+        assert_eq!(
+            cli.get_one::<ShowWhen>("color"),
+            Some(&ShowWhen::Auto),
+            "the flag keeps its default"
+        );
+        assert_eq!(
+            cli.get_many("FILE")
+                .unwrap_or_default()
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>(),
+            ["always"],
+            "the word becomes a path"
+        );
     }
 }
