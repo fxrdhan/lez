@@ -278,17 +278,18 @@ pub struct SecurityContext<'a> {
 }
 
 #[allow(dead_code)]
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum SubdirGitRepoStatus {
     NoRepo,
     GitClean,
     GitDirty,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SubdirGitRepo {
     pub status: Option<SubdirGitRepoStatus>,
     pub branch: Option<String>,
+    pub is_worktree: bool,
 }
 
 impl Default for SubdirGitRepo {
@@ -296,6 +297,7 @@ impl Default for SubdirGitRepo {
         Self {
             status: Some(SubdirGitRepoStatus::NoRepo),
             branch: None,
+            is_worktree: false,
         }
     }
 }

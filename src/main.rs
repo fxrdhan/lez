@@ -348,7 +348,7 @@ impl Lsr<'_> {
         }
 
         let mut files = Vec::new();
-        let mut dirs = Vec::new();
+        let mut dir_files = Vec::new();
         let mut exit_status = 0;
 
         for file_path in &self.input_paths {
@@ -373,14 +373,14 @@ impl Lsr<'_> {
 
             if f.points_to_directory() && !self.options.dir_action.treat_dirs_as_files() {
                 trace!("matching on new Dir");
-                dirs.push(f.to_dir());
+                dir_files.push(f);
             } else {
                 files.push(f);
             }
         }
 
         if !files.is_empty() && self.options.filter.flags.contains(&OnlyFiles) {
-            dirs.clear();
+            dir_files.clear();
         }
 
         let is_tree = self
@@ -391,6 +391,10 @@ impl Lsr<'_> {
         self.options
             .filter
             .filter_argument_files(is_tree, &mut files);
+        self.options.filter.sort_files(&mut files);
+
+        self.options.filter.sort_files(&mut dir_files);
+        let dirs: Vec<Dir> = dir_files.into_iter().map(|f| f.to_dir()).collect();
 
         // We want to print a directory’s name before we list it, *except* in
         // the case where it’s the only directory, *except* if there are any

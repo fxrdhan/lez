@@ -57,6 +57,8 @@ DISPLAY OPTIONS
 `-1`, `--oneline`
 : Display one entry per line.
 
+Symbolic link targets are not displayed in this mode, so output stays clean when piped into other commands such as `xargs`; use a details view (`-l`) to see them.
+
 `--absolute[=WHEN]`
 : Display entries with their absolute path.
 
@@ -196,6 +198,8 @@ Use this twice to also show the ‘`.`’ and ‘`..`’ directories.
 Valid sort fields are ‘`name`’, ‘`Name`’, ‘`extension`’, ‘`Extension`’, ‘`path`’, ‘`Path`’, ‘`size`’, ‘`block`’ [Unix only], ‘`modified`’, ‘`changed`’, ‘`accessed`’, ‘`created`’, ‘`inode`’, ‘`type`’, and ‘`none`’.
 
 The ‘`block`’ sort field has the aliases ‘`blocks`’ and ‘`blocksize`’.
+
+The ‘`path`’ and ‘`Path`’ sort fields have the aliases ‘`relative-path`’ (‘`Relative-path`’, ‘`Relative-Path`’), ‘`relpath`’ (‘`Relpath`’), and ‘`relative_path`’ (‘`Relative_path`’).
 
 The `modified` sort field has the aliases ‘`date`’, ‘`time`’, ‘`mod`’, ‘`old`’, and ‘`oldest`’, and its reverse order has the aliases ‘`age`’, ‘`new`’, and ‘`newest`’.
 
@@ -360,6 +364,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `--git` [if lsr was built with git support]
 : List each file’s Git status, if tracked.
 This adds a two-character column indicating the staged and unstaged statuses respectively. The status character can be ‘`-`’ for not modified, ‘`M`’ for a modified file, ‘`N`’ for a new file, ‘`D`’ for deleted, ‘`R`’ for renamed, ‘`T`’ for type-change, ‘`I`’ for ignored, and ‘`U`’ for conflicted. Directories will be shown to have the status of their contents, which is how ‘deleted’ is possible if a directory contains a file that has a certain status, it will be shown to have that status.
+
+`--git-glyphs` [if lsr was built with git support]
+: Display Git status with Nerd Font glyphs / icons instead of standard ASCII characters.
 
 `--git-repos` [if lsr was built with git support]
 : List each directory’s Git status, if tracked.

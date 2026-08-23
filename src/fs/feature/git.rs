@@ -45,6 +45,15 @@ impl GitCache {
             .unwrap_or_default()
     }
 
+    #[must_use]
+    pub fn get_child(&self, dir: &Path, file: &Path, prefix_lookup: bool) -> f::Git {
+        self.repos
+            .iter()
+            .find(|repo| repo.has_path(file) || repo.has_path(dir))
+            .map(|repo| repo.search_child(dir, file, prefix_lookup))
+            .unwrap_or_default()
+    }
+
     /// Whether `path` sits inside a submodule working tree of any known
     /// repository.
     #[must_use]
@@ -201,6 +210,23 @@ impl GitRepo {
         let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
         let statuses = repo_to_statuses(&repo, &self.workdir, &self.listing_roots());
         let result = statuses.status(index, prefix_lookup);
+        let _processing = replace(&mut *contents, GitContents::After { statuses });
+        result
+    }
+
+    fn search_child(&self, dir: &Path, file: &Path, prefix_lookup: bool) -> f::Git {
+        use std::mem::replace;
+
+        let mut contents = self.contents.lock().unwrap();
+        if let GitContents::After { ref statuses } = *contents {
+            debug!("Git repo {:?} has been found in cache", self.workdir);
+            return statuses.child_status(dir, file, prefix_lookup);
+        }
+
+        debug!("Querying Git repo {:?} for the first time", self.workdir);
+        let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
+        let statuses = repo_to_statuses(&repo, &self.workdir, &self.listing_roots());
+        let result = statuses.child_status(dir, file, prefix_lookup);
         let _processing = replace(&mut *contents, GitContents::After { statuses });
         result
     }
@@ -362,6 +388,33 @@ impl Git {
         }
     }
 
+    fn child_status(&self, dir: &Path, file: &Path, prefix_lookup: bool) -> f::Git {
+        let dir_path = reorient(dir);
+        let path = reorient(file);
+
+        let s = self
+            .statuses
+            .iter()
+            .filter(|p| {
+                if p.1 == git2::Status::IGNORED {
+                    if dir_path.starts_with(&p.0) {
+                        false
+                    } else {
+                        path.starts_with(&p.0)
+                    }
+                } else if prefix_lookup {
+                    p.0.starts_with(&path)
+                } else {
+                    p.0 == path
+                }
+            })
+            .fold(git2::Status::empty(), |a, b| a | b.1);
+
+        let staged = index_status(s);
+        let unstaged = working_tree_status(s);
+        f::Git { staged, unstaged }
+    }
+
     /// Get the user-facing status of a file.
     /// We check the statuses directly applying to a file, and for the ignored
     /// status we check if any of its parents directories is ignored by git.
@@ -415,26 +468,48 @@ impl Git {
 /// Paths need to be absolute for them to be compared properly, otherwise
 /// you’d ask a repo about “./README.md” but it only knows about
 /// “/vagrant/README.md”, prefixed by the workdir.
+///
+/// Note: only the parent directory is canonicalized, preserving the leaf
+/// file or symlink name without following symlink targets.
 #[cfg(unix)]
 fn reorient(path: &Path) -> PathBuf {
     use std::env::current_dir;
 
-    // TODO: I’m not 100% on this func tbh
-    let path = match current_dir() {
-        Err(_) => Path::new(".").join(path),
+    let full_path = match current_dir() {
         Ok(dir) => dir.join(path),
+        Err(_) => Path::new(".").join(path),
     };
 
-    path.canonicalize().unwrap_or(path)
+    if let (Some(parent), Some(file_name)) = (full_path.parent(), full_path.file_name())
+        && let Ok(canon_parent) = parent.canonicalize()
+    {
+        return canon_parent.join(file_name);
+    }
+
+    full_path.canonicalize().unwrap_or(full_path)
 }
 
 #[cfg(windows)]
 fn reorient(path: &Path) -> PathBuf {
-    let unc_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    use std::env::current_dir;
+
+    let full_path = match current_dir() {
+        Ok(dir) => dir.join(path),
+        Err(_) => Path::new(".").join(path),
+    };
+
+    let p = if let (Some(parent), Some(file_name)) = (full_path.parent(), full_path.file_name())
+        && let Ok(canon_parent) = parent.canonicalize()
+    {
+        canon_parent.join(file_name)
+    } else {
+        full_path.canonicalize().unwrap_or(full_path)
+    };
+
     // On Windows UNC path is returned. We need to strip the prefix for it to work.
-    match unc_path.to_str() {
-        Some(text) => PathBuf::from(text.trim_start_matches("\\\\?\\")),
-        None => unc_path,
+    match p.to_str() {
+        Some(text) => PathBuf::from(text.trim_start_matches(r"\\?\")),
+        None => p,
     }
 }
 
@@ -489,14 +564,38 @@ fn current_branch(repo: &git2::Repository) -> Option<String> {
 impl f::SubdirGitRepo {
     #[must_use]
     pub fn from_path(dir: &Path, status: bool) -> Self {
+        if dir.file_name() == Some(std::ffi::OsStr::new(".git")) || dir.ends_with(".git") {
+            return f::SubdirGitRepo {
+                status: if status {
+                    Some(f::SubdirGitRepoStatus::NoRepo)
+                } else {
+                    None
+                },
+                branch: None,
+                is_worktree: false,
+            };
+        }
+
         let path = &reorient(dir);
 
+        let git_file = dir.join(".git");
+        let is_gitlink_worktree = git_file.is_file()
+            && std::fs::read_to_string(&git_file)
+                .map(|content| {
+                    let trimmed = content.trim_start();
+                    trimmed.starts_with("gitdir:")
+                        && (trimmed.contains("/worktrees/") || trimmed.contains(r"\worktrees\"))
+                })
+                .unwrap_or(false);
+
         if let Ok(repo) = git2::Repository::open(path) {
+            let is_worktree = repo.is_worktree() || is_gitlink_worktree;
             let branch = current_branch(&repo);
             if !status {
                 return Self {
                     status: None,
                     branch,
+                    is_worktree,
                 };
             }
             match repo.statuses(None) {
@@ -505,11 +604,13 @@ impl f::SubdirGitRepo {
                         return Self {
                             status: Some(f::SubdirGitRepoStatus::GitDirty),
                             branch,
+                            is_worktree,
                         };
                     }
                     return Self {
                         status: Some(f::SubdirGitRepoStatus::GitClean),
                         branch,
+                        is_worktree,
                     };
                 }
                 Err(e) => {
@@ -524,6 +625,7 @@ impl f::SubdirGitRepo {
                 None
             },
             branch: None,
+            is_worktree: false,
         }
     }
 }
@@ -562,6 +664,32 @@ mod tests {
             let mut file = StdFile::create(&file_path).unwrap();
             file.write_all(content).unwrap();
             file_path
+        }
+
+        #[cfg(unix)]
+        fn create_symlink(&self, target: &str, link_rel_path: &str) -> PathBuf {
+            let link_path = self.path.join(link_rel_path);
+            if let Some(parent) = link_path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            std::os::unix::fs::symlink(target, &link_path).unwrap();
+            link_path
+        }
+
+        #[cfg(unix)]
+        fn add_path_to_index(&self, rel_path: &str) {
+            let repo = git2::Repository::open(&self.path).unwrap();
+            let mut index = repo.index().unwrap();
+            index.add_path(Path::new(rel_path)).unwrap();
+            index.write().unwrap();
+        }
+
+        #[cfg(unix)]
+        fn remove_path_from_index(&self, rel_path: &str) {
+            let repo = git2::Repository::open(&self.path).unwrap();
+            let mut index = repo.index().unwrap();
+            index.remove_path(Path::new(rel_path)).unwrap();
+            index.write().unwrap();
         }
 
         fn commit_all(&self, msg: &str) {
@@ -829,5 +957,243 @@ mod tests {
         let os_str = OsString::from_wide(&invalid);
         let path = std::path::PathBuf::from(os_str);
         let _ = super::reorient(&path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_reorient_preserves_leaf_symlink() {
+        let test_repo = TestGitRepo::new("reorient_symlink");
+        let target = test_repo.create_file("target.txt", b"target");
+        let symlink = test_repo.create_symlink("target.txt", "link.txt");
+
+        let reoriented = reorient(&symlink);
+        assert_eq!(reoriented.file_name().unwrap(), "link.txt");
+        assert_ne!(reoriented, reorient(&target));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_symlink_modified_status_detected() {
+        let test_repo = TestGitRepo::new("symlink_modified");
+        let target = test_repo.create_file("target.txt", b"target content");
+        let link = test_repo.create_symlink("target.txt", "link.txt");
+        test_repo.commit_all("initial commit");
+
+        // Symlink target is changed (pointing to a different file)
+        fs::remove_file(&link).unwrap();
+        test_repo.create_symlink("target2.txt", "link.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // Symlink status must be Modified
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.unstaged == f::GitStatus::Modified);
+        assert!(link_status.staged == f::GitStatus::NotModified);
+
+        // Target file status must remain NotModified
+        let target_status = git_status.file_status(&target);
+        assert!(target_status.unstaged == f::GitStatus::NotModified);
+        assert!(target_status.staged == f::GitStatus::NotModified);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_unmodified_symlink_with_modified_target() {
+        let test_repo = TestGitRepo::new("unmodified_symlink");
+        let target = test_repo.create_file("target.txt", b"original content");
+        let link = test_repo.create_symlink("target.txt", "link.txt");
+        test_repo.commit_all("initial commit");
+
+        // Target content is modified, but symlink itself is unchanged
+        let mut f_target = StdFile::create(&target).unwrap();
+        f_target.write_all(b"modified content\n").unwrap();
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // Symlink itself is unmodified
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.unstaged == f::GitStatus::NotModified);
+        assert!(link_status.staged == f::GitStatus::NotModified);
+
+        // Target file is modified
+        let target_status = git_status.file_status(&target);
+        assert!(target_status.unstaged == f::GitStatus::Modified);
+        assert!(target_status.staged == f::GitStatus::NotModified);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_broken_symlink_git_status() {
+        let test_repo = TestGitRepo::new("broken_symlink");
+        let broken_link = test_repo.create_symlink("non_existent.txt", "broken.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // Untracked broken symlink should be New
+        let status = git_status.file_status(&broken_link);
+        assert!(status.unstaged == f::GitStatus::New);
+
+        // Commit it
+        test_repo.commit_all("add broken symlink");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let status = git_status.file_status(&broken_link);
+        assert!(status.unstaged == f::GitStatus::NotModified);
+
+        // Change broken symlink target to another non-existent target
+        fs::remove_file(&broken_link).unwrap();
+        test_repo.create_symlink("another_non_existent.txt", "broken.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let status = git_status.file_status(&broken_link);
+        assert!(status.unstaged == f::GitStatus::Modified);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_staged_symlink_operations() {
+        let test_repo = TestGitRepo::new("staged_symlink");
+        let _target = test_repo.create_file("target.txt", b"target");
+        let link = test_repo.create_symlink("target.txt", "link.txt");
+
+        // Staged addition
+        test_repo.add_path_to_index("target.txt");
+        test_repo.add_path_to_index("link.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.staged == f::GitStatus::New);
+        assert!(link_status.unstaged == f::GitStatus::NotModified);
+
+        test_repo.commit_all("commit symlink");
+
+        // Staged modification
+        fs::remove_file(&link).unwrap();
+        test_repo.create_symlink("target_modified.txt", "link.txt");
+        test_repo.add_path_to_index("link.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.staged == f::GitStatus::Modified);
+        assert!(link_status.unstaged == f::GitStatus::NotModified);
+
+        test_repo.commit_all("commit modified symlink");
+
+        // Staged deletion
+        fs::remove_file(&link).unwrap();
+        test_repo.remove_path_from_index("link.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.staged == f::GitStatus::Deleted);
+        assert!(link_status.unstaged == f::GitStatus::NotModified);
+    }
+
+    #[test]
+    fn test_dotgit_dir_ignored_as_subrepo() {
+        let test_repo = TestGitRepo::new("dotgit_subrepo");
+        test_repo.create_file("file.txt", b"hello");
+        test_repo.commit_all("initial commit");
+
+        // 1. Direct path to .git directory with status=true
+        let dotgit_path = test_repo.path.join(".git");
+        let res = f::SubdirGitRepo::from_path(&dotgit_path, true);
+        assert!(res.status == Some(f::SubdirGitRepoStatus::NoRepo));
+        assert_eq!(res.branch, None);
+
+        // 2. Direct path to .git directory with status=false
+        let res_no_stat = f::SubdirGitRepo::from_path(&dotgit_path, false);
+        assert!(res_no_stat.status.is_none());
+        assert_eq!(res_no_stat.branch, None);
+
+        // 3. Relative Path::new(".git")
+        let res_rel = f::SubdirGitRepo::from_path(Path::new(".git"), true);
+        assert!(res_rel.status == Some(f::SubdirGitRepoStatus::NoRepo));
+        assert_eq!(res_rel.branch, None);
+
+        // 4. Legitimate repository path should return actual branch
+        let res_repo = f::SubdirGitRepo::from_path(&test_repo.path, true);
+        assert!(res_repo.branch.is_some());
+        assert!(
+            res_repo.branch.as_deref() == Some("master")
+                || res_repo.branch.as_deref() == Some("main")
+        );
+        assert!(res_repo.status == Some(f::SubdirGitRepoStatus::GitClean));
+        assert!(!res_repo.is_worktree);
+    }
+
+    #[test]
+    fn test_worktree_detection() {
+        let test_repo = TestGitRepo::new("worktree_detection");
+        test_repo.create_file("file.txt", b"hello");
+        test_repo.commit_all("initial commit");
+
+        let wt_path = std::env::temp_dir().join(format!(
+            "lsr_test_git_worktree_{}_{}",
+            "unit",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&wt_path);
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let _ = repo.worktree("wt_branch", &wt_path, None).unwrap();
+
+        let res_wt = f::SubdirGitRepo::from_path(&wt_path, true);
+        assert!(res_wt.is_worktree);
+        assert_eq!(res_wt.branch.as_deref(), Some("wt_branch"));
+        assert_eq!(res_wt.status, Some(f::SubdirGitRepoStatus::GitClean));
+
+        let res_main = f::SubdirGitRepo::from_path(&test_repo.path, true);
+        assert!(!res_main.is_worktree);
+
+        let _ = fs::remove_dir_all(&wt_path);
+    }
+
+    #[test]
+    fn test_child_status_scoped_to_parent_dir() {
+        let test_repo = TestGitRepo::new("child_status_scoped");
+        test_repo.create_file(".gitignore", b"target/\n*.log\n");
+        let target_bin = test_repo.create_file("target/debug/app", b"binary content");
+        let src_rs = test_repo.create_file("src/main.rs", b"fn main() {}");
+        let src_log = test_repo.create_file("src/output.log", b"log content");
+        test_repo.commit_all("add gitignore");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let target_path = test_repo.path.join("target");
+        let target_debug_path = test_repo.path.join("target/debug");
+        let src_path = test_repo.path.join("src");
+
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // 1. Direct file_status on target directory when queried from root: Ignored
+        assert!(git_status.file_status(&target_path).unstaged == f::GitStatus::Ignored);
+
+        // 2. Child status when querying child of target: target/ rule is excluded
+        let child_stat = git_status.child_status(&target_path, &target_bin, false);
+        assert!(child_stat.unstaged != f::GitStatus::Ignored);
+
+        // 3. Child status when querying nested debug directory: target/ rule is excluded
+        let debug_stat = git_status.child_status(&target_path, &target_debug_path, false);
+        assert!(debug_stat.unstaged != f::GitStatus::Ignored);
+
+        // 4. In src directory (which is not ignored), *.log rule ignores src/output.log:
+        let src_rs_stat = git_status.child_status(&src_path, &src_rs, false);
+        assert!(src_rs_stat.unstaged != f::GitStatus::Ignored);
+        let src_log_stat = git_status.child_status(&src_path, &src_log, false);
+        assert!(src_log_stat.unstaged == f::GitStatus::Ignored);
     }
 }

@@ -270,7 +270,10 @@ impl<'dir> Files<'dir, '_, '_> {
                 }
 
                 if self.git_ignoring {
-                    let git_status = self.git.map(|g| g.get(&path, false)).unwrap_or_default();
+                    let git_status = self
+                        .git
+                        .map(|g| g.get_child(&self.dir.path, &path, false))
+                        .unwrap_or_default();
                     if git_status.unstaged == GitStatus::Ignored {
                         if let Some(count) = &mut self.hidden_count {
                             count.inc_ignored();

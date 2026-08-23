@@ -52,7 +52,7 @@ __eza() {
         {-L,--level}"+[Limit the depth of recursion]" \
         {-w,--width}"+[Limits column output of grid, 0 implies auto-width]" \
         {-r,--reverse}"[Reverse the sort order]" \
-        {-s,--sort}="[Which field to sort by]:(sort field):(accessed age block blocks blocksize changed created date extension Extension filename Filename inode mod modified name Name new newest none old oldest path Path size time type)" \
+        {-s,--sort}="[Which field to sort by]:(sort field):(accessed age block blocks blocksize changed created date extension Extension filename Filename inode mod modified name Name new newest none old oldest path Path relative-path Relative-path relpath Relpath relative_path Relative_path size time type)" \
         {-I,--ignore-glob}"[Ignore files that match these glob patterns]" \
         {-b,--binary}"[List file sizes with binary prefixes]" \
         {-B,--bytes}"[List file sizes in bytes, without any prefixes]" \
@@ -78,6 +78,7 @@ __eza() {
         {-U,--created}"[Use the created timestamp field]" \
         --utc="[Show the time in the UTC timezone]" \
         --git"[List each file's Git status, if tracked]" \
+        --git-glyphs"[Display Git status with Nerd Font glyphs / icons]" \
         --no-git"[Suppress Git status]" \
         --git-repos"[List each git-repos status and branch name]" \
         --git-repos-no-status"[List each git-repos branch name (much faster)]" \

@@ -98,6 +98,7 @@ impl Default for UiStyles {
                 branch_other: Some(Yellow.normal()),
                 git_clean: Some(Green.normal()),
                 git_dirty: Some(Yellow.bold()),
+                branch_worktree: Some(Cyan.normal()),
             }),
 
             security_context: Some(SecurityContext {
