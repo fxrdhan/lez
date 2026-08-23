@@ -83,7 +83,7 @@ impl ShowIcons {
                     let source = NumberSource::Env(if vars.get(vars::LSR_ICON_SPACING).is_some() {
                         vars::LSR_ICON_SPACING
                     } else {
-                        vars.source(vars::EXA_ICON_SPACING, vars::EZA_ICON_SPACING)
+                        vars.source(vars::EZA_ICON_SPACING, vars::EXA_ICON_SPACING)
                             .unwrap_or("1")
                     });
                     Err(OptionsError::FailedParse(columns.clone(), source, e))
@@ -486,6 +486,26 @@ mod tests {
             .unwrap()
             .to_string_lossy()
             .parse();
+
+        assert_eq!(
+            ShowIcons::deduce(&mock_cli(vec!["--icons=auto"]), &vars),
+            Err(OptionsError::FailedParse(
+                String::from("foo"),
+                NumberSource::Env(vars::EZA_ICON_SPACING),
+                e.unwrap_err()
+            ))
+        );
+    }
+
+    /// When both legacy variables are set, `EZA_*` supplies the value, so the
+    /// error has to name `EZA_*` too rather than blaming `EXA_*`.
+    #[test]
+    fn deduce_show_icons_width_error_blames_the_variable_that_supplied_the_value() {
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_ICON_SPACING, &OsString::from("foo"));
+        vars.set(vars::EXA_ICON_SPACING, &OsString::from("bar"));
+
+        let e: Result<i64, ParseIntError> = "foo".parse();
 
         assert_eq!(
             ShowIcons::deduce(&mock_cli(vec!["--icons=auto"]), &vars),
