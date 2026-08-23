@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: MIT
 //! Lines-of-code counting.
 //!
-//! This is eza’s own, dependency-free source-code counter. Given a file’s
+//! This is lsr’s own, dependency-free source-code counter. Given a file’s
 //! name we work out which programming language it’s written in (from its
 //! extension, or its whole name for files like `Makefile`), and then we walk
 //! its contents a line at a time, classifying each physical line as one of:
@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 use phf::{Map, phf_map};
 use rayon::prelude::*;
 
-/// A programming language eza knows how to count, along with the comment
+/// A programming language lsr knows how to count, along with the comment
 /// syntax needed to tell code from commentary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Language {

@@ -1,0 +1,89 @@
+# shellcheck shell=bash
+_lsr() {
+    cur=${COMP_WORDS[COMP_CWORD]}
+    prev=${COMP_WORDS[COMP_CWORD-1]}
+
+    case "$prev" in
+        --help|-v|--version|--smart-group|--show-dotfiles|--mime-types)
+            return
+            ;;
+
+        --colour|--color)
+            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never' -- "$cur")
+            return
+            ;;
+
+        --icons)
+            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never' -- "$cur")
+            return
+            ;;
+
+        --quotes)
+            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never --' -- "$cur")
+            return
+            ;;
+
+        --hyperlink)
+            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never' -- "$cur")
+            return
+            ;;
+
+        -L|--level)
+            mapfile -t COMPREPLY < <(compgen -W '{0..9}' -- "$cur")
+            return
+            ;;
+
+        -s|--sort)
+            mapfile -t COMPREPLY < <(compgen -W 'name filename Name Filename size filesize blocks block blocksize extension Extension path Path date time mod modified old oldest age new newest changed accessed created type inode none --' -- "$cur")
+            return
+            ;;
+
+        -t|--time)
+            mapfile -t COMPREPLY < <(compgen -W 'modified mod m changed ch accessed acc created cr --' -- "$cur")
+            return
+            ;;
+
+        --time-style)
+            mapfile -t COMPREPLY < <(compgen -W 'default iso long-iso full-iso relative relative-recent recent +FORMAT --' -- "$cur")
+            return
+            ;;
+
+        --color-scale|--colour-scale)
+            mapfile -t COMPREPLY < <(compgen -W 'all age size --' -- "$cur")
+            return
+            ;;
+
+        --color-scale-mode|--colour-scale-mode)
+            mapfile -t COMPREPLY < <(compgen -W 'fixed gradient --' -- "$cur")
+            return
+            ;;
+
+        --absolute)
+            mapfile -t COMPREPLY < <(compgen -W 'on follow off --' -- "$cur")
+            return
+            ;;
+
+        --code|--loc)
+            mapfile -t COMPREPLY < <(compgen -W 'lines percent both --' -- "$cur")
+            return
+            ;;
+    esac
+
+    case "$cur" in
+        --*)
+            parse_help=$(lsr --help | grep -oE ' (--[[:alnum:]@-]+)' | tr -d ' ' | grep -v '\--colo')
+            completions=$(echo '--color --colour --color-scale --colour-scale --color-scale-mode --colour-scale-mode' "$parse_help")
+            mapfile -t COMPREPLY < <(compgen -W "$completions" -- "$cur")
+            ;;
+
+        -*)
+            completions=$(lsr --help | grep -oE ' (-[[:alnum:]@])' | tr -d ' ')
+            mapfile -t COMPREPLY < <(compgen -W "$completions" -- "$cur")
+            ;;
+
+        *)
+            _filedir
+            ;;
+    esac
+} &&
+complete -o filenames -o bashdefault -F _lsr lsr

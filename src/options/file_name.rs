@@ -55,7 +55,9 @@ impl Classify {
 
 impl ShowIcons {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<Self, OptionsError> {
-        let force_icons = vars.get(vars::EZA_ICONS_AUTO).is_some();
+        let force_icons = vars
+            .get_with_fallback(vars::LSR_ICONS_AUTO, vars::EZA_ICONS_AUTO)
+            .is_some();
         let mode_opt = &matches.get_one("icons");
         if !force_icons && mode_opt.is_none() {
             return Ok(Self::Never);
@@ -70,16 +72,20 @@ impl ShowIcons {
 
     fn get_width<V: Vars>(vars: &V) -> Result<u32, OptionsError> {
         if let Some(columns) = vars
-            .get_with_fallback(vars::EXA_ICON_SPACING, vars::EZA_ICON_SPACING)
+            .get(vars::LSR_ICON_SPACING)
+            .or_else(|| vars.get(vars::EZA_ICON_SPACING))
+            .or_else(|| vars.get(vars::EXA_ICON_SPACING))
             .map(|s| s.to_string_lossy().to_string())
         {
             match columns.parse() {
                 Ok(width) => Ok(width),
                 Err(e) => {
-                    let source = NumberSource::Env(
+                    let source = NumberSource::Env(if vars.get(vars::LSR_ICON_SPACING).is_some() {
+                        vars::LSR_ICON_SPACING
+                    } else {
                         vars.source(vars::EXA_ICON_SPACING, vars::EZA_ICON_SPACING)
-                            .unwrap_or("1"),
-                    );
+                            .unwrap_or("1")
+                    });
                     Err(OptionsError::FailedParse(columns.clone(), source, e))
                 }
             }
@@ -485,7 +491,7 @@ mod tests {
             ShowIcons::deduce(&mock_cli(vec!["--icons=auto"]), &vars),
             Err(OptionsError::FailedParse(
                 String::from("foo"),
-                NumberSource::Env(vars::EXA_ICON_SPACING),
+                NumberSource::Env(vars::EZA_ICON_SPACING),
                 e.unwrap_err()
             ))
         );

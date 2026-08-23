@@ -163,11 +163,12 @@ impl Options {
         if cfg!(not(feature = "git")) && (matches.get_flag("git") || matches.get_flag("git-ignore"))
         {
             return Err(OptionsError::Unsupported(String::from(
-                "Options --git and --git-ignore can't be used because `git` feature was disabled in this build of exa",
+                "Options --git and --git-ignore can't be used because `git` feature was disabled in this build of lsr",
             )));
         }
         let strict = vars
-            .get_with_fallback(vars::EXA_STRICT, vars::EZA_STRICT)
+            .get(vars::LSR_STRICT)
+            .or_else(|| vars.get_with_fallback(vars::EXA_STRICT, vars::EZA_STRICT))
             .is_some();
 
         let view = View::deduce(matches, vars, strict)?;

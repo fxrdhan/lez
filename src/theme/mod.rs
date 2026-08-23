@@ -79,7 +79,7 @@ impl Options {
             // No need to alert the user unless they explicitly set color=always
             if nu_ansi_term::enable_ansi_support().is_err() {
                 if self.use_colours == UseColours::Always {
-                    eprintln!("eza: Ignoring option color=always in legacy console.");
+                    eprintln!("lsr: Ignoring option color=always in legacy console.");
                 }
                 false
             } else {

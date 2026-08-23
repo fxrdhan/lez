@@ -1,4 +1,4 @@
-bin.name = "eza"
+bin.name = "lsr"
 args = "-lh --loc --no-permissions --no-filesize --no-user --no-time tests/itest-loc"
 [env.add]
 LC_ALL = "C"
