@@ -1,12 +1,14 @@
 <!--
 SPDX-FileCopyrightText: 2023-2024 Christina Sørensen
+SPDX-FileCopyrightText: 2026 fxrdhan
 SPDX-FileContributor: Christina Sørensen
+SPDX-FileContributor: fxrdhan
 
 SPDX-License-Identifier: EUPL-1.2
 -->
-# Contributing to eza
+# Contributing to lsr
 
-If you'd like to contribute to eza, there are several things you should make
+If you'd like to contribute to lsr, there are several things you should make
 sure to familiarize yourself with first.
 
 - Code of conduct [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md)
@@ -15,20 +17,20 @@ sure to familiarize yourself with first.
 - The [Security Policy](SECURITY.md)
 - [Free and Open Source (FOSS) software](https://www.gnu.org/philosophy/free-sw.en.html)
 
-## Hacking on eza
+## Hacking on lsr
 
-It is strongly recommended that you install Nix for hacking on eza. We leverage
-nix  as a way to easily test and distribute eza to many users, and it allows us
+It is strongly recommended that you install Nix for hacking on lsr. We leverage
+nix  as a way to easily test and distribute lsr to many users, and it allows us
 to provide multiple tools easily for developers. Instead of having to install
 each dependency manually and setting up a development environment, Nix allows
 you  to use the same environment as the devs use.
 
 Therefore, it is useful that you have a version of Nix installed with the
-"experimental" feature flakes enabled. Further, to make hacking on eza as easy
+"experimental" feature flakes enabled. Further, to make hacking on lsr as easy
 as possible for yourself, you'd do yourself a favor to install
 [direnv](https://direnv.net/).
 
-When you enter the eza repository, if you have `direnv` installed, you'll be
+When you enter the lsr repository, if you have `direnv` installed, you'll be
 prompted to allow it with `direnv allow`. Doing this will save you from having
 to manually enter the development environment each time you open the folder. If
 you don't have direnv installed however, you can run `nix develop` in a pinch,
@@ -43,9 +45,9 @@ importantly, it ensures your commits are conforming to conventional commits.
 
 Some useful commands include:
 - `nix flake check`: checks everything is correct.
-- `nix build`: build eza.
-- `nix build .#test`: runs eza's cargo tests
-- `nix build .#clippy`: runs clippy on eza
+- `nix build`: build lsr.
+- `nix build .#test`: runs lsr's cargo tests
+- `nix build .#clippy`: runs clippy on lsr
 - `nix fmt`: automatically formats your code as required by flake checks and
   pre-commit-hooks.nix
 - `just itest`: runs integration tests
@@ -64,7 +66,7 @@ the nix flake should have installed for you.  The `just man` command will
 compile the Markdown into manual pages, which it will place in the `target/man`
 directory.
 
-eza depends on [libgit2](https://github.com/rust-lang/git2-rs) for certain
+lsr depends on [libgit2](https://github.com/rust-lang/git2-rs) for certain
 features.  If you’re unable to compile libgit2, you can opt out of Git support
 by running `cargo build --no-default-features`. Again, the nix flake should
 have taken care of this for you, if not, please file an issue.
@@ -74,8 +76,7 @@ If you intend to compile for musl, you will need to use the flag
 is `cargo build --release --target=x86_64-unknown-linux-musl --features
 vendored-openssl,git`.
 
-If you want more information on the tests please read:
-[testing on eza](https://github.com/eza-community/eza/blob/main/TESTING.md)
+If you want more information on the tests please read [TESTING.md](TESTING.md).
 
 ## Creating a PR
 
@@ -86,7 +87,7 @@ also add how you ensured this in the PR description. Further, it's expected
 that you do your best to check for regressions.
 
 If your PR introduces a flag, you MUST:
-- Add completions for bash, zsh, fish, nushell
+- Add completions for bash, zsh, fish, nushell, and powershell
 - Add documentation to the man page
 - Add your option to the help flag
 - Add your option to the README.md
@@ -119,7 +120,7 @@ description and signature.
 For you commit messages, please use the first line for a brief summary what
 the commit changes. Try to stay within the 72 char limit and prepend what type
 of change. See the following list for some guidance:
-- feat: adds a new feature to eza
+- feat: adds a new feature to lsr
 - feat(zsh): adds something to zsh completion
 - refactor: revises parts of the code
 - docs(readme): revise the README
@@ -168,8 +169,8 @@ use `nt` and `ut`.
 Resolves: #129
 Ref: #473, #319
 
-Co-authored-by: 9glenda <plan9git@proton.me>
-Signed-off-by: Christina Sørensen <christina@cafkafk.com>
+Co-authored-by: Some Contributor <contributor@example.com>
+Signed-off-by: Your Name <you@example.com>
 ```
 
 ### Additional Examples
