@@ -347,6 +347,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 : List each file’s Git status, if tracked.
 This adds a two-character column indicating the staged and unstaged statuses respectively. The status character can be ‘`-`’ for not modified, ‘`M`’ for a modified file, ‘`N`’ for a new file, ‘`D`’ for deleted, ‘`R`’ for renamed, ‘`T`’ for type-change, ‘`I`’ for ignored, and ‘`U`’ for conflicted. Directories will be shown to have the status of their contents, which is how ‘deleted’ is possible if a directory contains a file that has a certain status, it will be shown to have that status.
 
+`--git-glyphs` [if eza was built with git support]
+: Display Git status with Nerd Font glyphs / icons instead of standard ASCII characters.
+
 `--git-repos` [if eza was built with git support]
 : List each directory’s Git status, if tracked.
 Symbols shown are `|`= clean, `+`= dirty, and `~`= for unknown.

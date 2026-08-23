@@ -81,6 +81,7 @@ __lsr() {
         {-U,--created}"[Use the created timestamp field]" \
         --utc="[Show the time in the UTC timezone]" \
         --git"[List each file's Git status, if tracked]" \
+        --git-glyphs"[Display Git status with Nerd Font glyphs / icons]" \
         --no-git"[Suppress Git status]" \
         --git-repos"[List each git-repos status and branch name]" \
         --git-repos-no-status"[List each git-repos branch name (much faster)]" \
