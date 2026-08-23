@@ -783,7 +783,8 @@ mod test {
 
     #[test]
     fn counts_lua_block_comments() {
-        let source = "--[[\nline 2 of comment\nline 3 of comment\n]]\nlocal x = 1 -- trailing comment\n";
+        let source =
+            "--[[\nline 2 of comment\nline 3 of comment\n]]\nlocal x = 1 -- trailing comment\n";
         let c = count(source, &LUA);
         assert_eq!(
             c,
