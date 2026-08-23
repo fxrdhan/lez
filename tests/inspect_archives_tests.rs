@@ -44,6 +44,9 @@ impl TempTestDir {
         }
         add(&mut builder, "inner.txt", b"hello");
         add(&mut builder, "nested/deep.bin", b"data");
+        // A name the default theme has a rule for, so the colouring of the
+        // leaf can be told apart from the punctuation around it.
+        add(&mut builder, "nested/main.rs", b"fn main() {}");
         builder.into_inner().unwrap();
     }
 
@@ -57,6 +60,13 @@ impl Drop for TempTestDir {
         let _ = fs::remove_dir_all(&self.path);
     }
 }
+
+/// The two entries the fixture archive holds, in listing order.
+const ENTRIES: [&str; 3] = [
+    "foo.tar/inner.txt",
+    "foo.tar/nested/deep.bin",
+    "foo.tar/nested/main.rs",
+];
 
 fn run_lsr(args: &[&str]) -> String {
     let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
@@ -94,6 +104,98 @@ fn long_view_lists_tar_entries_below_the_archive() {
     assert!(
         stdout.contains("foo.tar/nested/deep.bin"),
         "nested entry must be listed with its archive path: {stdout}"
+    );
+}
+
+/// The last entry closes the branch. Every row used to sit on an edge, so the
+/// listing never terminated — asserting only that some connector was present
+/// could not tell the two apart.
+#[test]
+fn the_last_archive_entry_closes_the_branch() {
+    let fixture = fixture("edges");
+
+    let stdout = run_lsr(&[
+        "-1",
+        "-l",
+        "--color=never",
+        "--inspect-archives",
+        fixture.path.to_str().unwrap(),
+    ]);
+
+    let rows: Vec<&str> = stdout
+        .lines()
+        .filter(|l| ENTRIES.iter().any(|e| l.contains(e)))
+        .collect();
+    assert_eq!(rows.len(), ENTRIES.len(), "both entries listed: {stdout}");
+
+    let (last, rest) = rows.split_last().expect("at least one entry");
+    for row in rest {
+        assert!(
+            row.contains('\u{251c}') && !row.contains('\u{2514}'),
+            "a non-final entry stays on an edge: {row}"
+        );
+    }
+    assert!(
+        last.contains('\u{2514}') && !last.contains('\u{251c}'),
+        "the final entry closes the branch: {last}"
+    );
+}
+
+/// The leaf name carries its own file colour; the archive path and the size
+/// stay in the punctuation style, so the row still reads as an annotation.
+#[test]
+fn archive_entry_leaf_name_is_coloured_by_type() {
+    let fixture = fixture("colour");
+
+    let stdout = run_lsr(&[
+        "-1",
+        "-l",
+        "--color=always",
+        "--inspect-archives",
+        fixture.path.to_str().unwrap(),
+    ]);
+
+    // Located by leaf name alone: once the leaf is styled the escape sequence
+    // sits between the path and the name, so the joined-up "nested/main.rs"
+    // no longer occurs as a literal substring — which is the point.
+    let row = stdout
+        .lines()
+        .find(|l| l.contains("main.rs"))
+        .unwrap_or_else(|| panic!("nested entry in output: {stdout}"));
+
+    // The directory part is emitted, then the leaf gets its own escape
+    // sequence before the name. A single style across the whole row — the old
+    // behaviour — leaves nothing between "nested/" and "deep.bin".
+    let after_dirs = row
+        .split_once("nested/")
+        .map(|(_, rest)| rest)
+        .expect("row spells out the entry path");
+    assert!(
+        after_dirs.starts_with('\u{1b}'),
+        "leaf name must open its own style: {row:?}"
+    );
+    assert!(
+        !after_dirs.starts_with("main.rs"),
+        "leaf name must not inherit the path's style: {row:?}"
+    );
+}
+
+/// Colouring the leaf must not leak escape sequences into uncoloured output.
+#[test]
+fn archive_entries_stay_plain_without_colour() {
+    let fixture = fixture("plain_colour");
+
+    let stdout = run_lsr(&[
+        "-1",
+        "-l",
+        "--color=never",
+        "--inspect-archives",
+        fixture.path.to_str().unwrap(),
+    ]);
+
+    assert!(
+        !stdout.contains('\u{1b}'),
+        "--color=never must emit no escape sequences: {stdout:?}"
     );
 }
 

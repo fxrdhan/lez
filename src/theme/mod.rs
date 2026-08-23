@@ -227,6 +227,16 @@ pub trait FileStyle: Sync {
     /// Return the style to paint the filename text for `file` from the given
     /// `theme`.
     fn get_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style>;
+
+    /// Return the style for an entry known only by its name.
+    ///
+    /// Archive contents have no file on disk behind them: they cannot be
+    /// stat-ed, and there is nothing to sniff a MIME type from. Rules that
+    /// need only the name still apply, so those are offered here; the rest
+    /// return `None`.
+    fn get_style_for_name(&self, _name: &str, _theme: &Theme) -> Option<Style> {
+        None
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -251,6 +261,12 @@ where
         self.0
             .get_style(file, theme)
             .or_else(|| self.1.get_style(file, theme))
+    }
+
+    fn get_style_for_name(&self, name: &str, theme: &Theme) -> Option<Style> {
+        self.0
+            .get_style_for_name(name, theme)
+            .or_else(|| self.1.get_style_for_name(name, theme))
     }
 }
 
@@ -314,13 +330,19 @@ fn is_simple_pattern(pattern: glob::Pattern) -> Result<String, glob::Pattern> {
 // colours specified earlier, like we do with options and strict mode
 
 impl FileStyle for ExtensionMappings {
-    fn get_style(&self, file: &File<'_>, _theme: &Theme) -> Option<Style> {
-        let maybe_ext = file.name.rsplit_once('.').map(|x| x.1);
+    fn get_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
+        self.get_style_for_name(&file.name, theme)
+    }
+
+    /// These mappings only ever consult the name, so an archive entry can use
+    /// exactly the same lookup a real file does.
+    fn get_style_for_name(&self, name: &str, _theme: &Theme) -> Option<Style> {
+        let maybe_ext = name.rsplit_once('.').map(|x| x.1);
 
         for mapping in self.mappings.iter().rev() {
             match mapping {
                 GlobPattern::Complex(pat, style) => {
-                    if pat.matches(&file.name) {
+                    if pat.matches(name) {
                         return Some(*style);
                     }
                 }
@@ -341,10 +363,10 @@ impl FileStyle for ExtensionMappings {
 #[derive(Debug)]
 struct FileTypes;
 
-impl FileStyle for FileTypes {
-    fn get_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
-        #[rustfmt::skip]
-        return match FileType::get_file_type(file) {
+impl FileTypes {
+    #[rustfmt::skip]
+    fn style_of(file_type: Option<FileType>, theme: &Theme) -> Option<Style> {
+        match file_type {
             Some(FileType::Image)      => theme.ui.file_type.unwrap_or_default().image,
             Some(FileType::Video)      => theme.ui.file_type.unwrap_or_default().video,
             Some(FileType::Music)      => theme.ui.file_type.unwrap_or_default().music,
@@ -356,8 +378,18 @@ impl FileStyle for FileTypes {
             Some(FileType::Compiled)   => theme.ui.file_type.unwrap_or_default().compiled,
             Some(FileType::Build)      => theme.ui.file_type.unwrap_or_default().build,
             Some(FileType::Source)     => theme.ui.file_type.unwrap_or_default().source,
-            None                       => None
-    };
+            None                       => None,
+        }
+    }
+}
+
+impl FileStyle for FileTypes {
+    fn get_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
+        Self::style_of(FileType::get_file_type(file), theme)
+    }
+
+    fn get_style_for_name(&self, name: &str, theme: &Theme) -> Option<Style> {
+        Self::style_of(FileType::get_file_type_for_name(name), theme)
     }
 }
 
