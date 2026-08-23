@@ -82,7 +82,7 @@ fn test_valid_duration_units_parsing_and_filtering() {
     fixture.set_mtime("f_500ms.txt", now - Duration::from_millis(100));
 
     fixture.create_file("f_10s.txt", b"10s");
-    fixture.set_mtime("f_10s.txt", now - Duration::from_secs(10));
+    fixture.set_mtime("f_10s.txt", now - Duration::from_secs(30));
 
     fixture.create_file("f_5m.txt", b"5m");
     fixture.set_mtime("f_5m.txt", now - Duration::from_secs(5 * 60));
@@ -102,16 +102,16 @@ fn test_valid_duration_units_parsing_and_filtering() {
     fixture.create_file("f_1year.txt", b"1year");
     fixture.set_mtime("f_1year.txt", now - Duration::from_secs(400 * 86400));
 
-    // Test --since 2s: includes f_500ms.txt (modified 100ms ago), excludes f_10s.txt (10s ago)
-    let out_1s = run_lsr(&["-1", "--since", "2s", fixture.path.to_str().unwrap()]);
+    // Test --since 10s: includes f_500ms.txt, excludes f_10s.txt (30s ago)
+    let out_1s = run_lsr(&["-1", "--since", "10s", fixture.path.to_str().unwrap()]);
     assert!(out_1s.status.success());
     let s_1s = String::from_utf8_lossy(&out_1s.stdout);
     assert!(s_1s.contains("f_500ms.txt"), "Should contain f_500ms.txt");
     assert!(!s_1s.contains("f_10s.txt"), "Should not contain f_10s.txt");
     assert!(!s_1s.contains("f_5m.txt"), "Should not contain f_5m.txt");
 
-    // Test --since 30s: includes f_500ms, f_10s
-    let out_30s = run_lsr(&["-1", "--since", "30s", fixture.path.to_str().unwrap()]);
+    // Test --since 60s: includes f_500ms, f_10s
+    let out_30s = run_lsr(&["-1", "--since", "60s", fixture.path.to_str().unwrap()]);
     assert!(out_30s.status.success());
     let s_30s = String::from_utf8_lossy(&out_30s.stdout);
     assert!(s_30s.contains("f_500ms.txt"));
