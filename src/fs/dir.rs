@@ -276,7 +276,6 @@ impl<'dir> Files<'dir, '_, '_> {
                     continue;
                 }
 
-
                 if self.git_ignoring {
                     let git_status = self.git.map(|g| g.get(&path, false)).unwrap_or_default();
                     if git_status.unstaged == GitStatus::Ignored {

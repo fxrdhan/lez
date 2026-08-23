@@ -388,7 +388,9 @@ impl Lsr<'_> {
             .dir_action
             .recurse_options()
             .is_some_and(|r| r.tree);
-        self.options.filter.filter_argument_files(is_tree, &mut files);
+        self.options
+            .filter
+            .filter_argument_files(is_tree, &mut files);
 
         // We want to print a directory’s name before we list it, *except* in
         // the case where it’s the only directory, *except* if there are any
