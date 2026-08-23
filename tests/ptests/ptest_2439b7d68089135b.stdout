@@ -1,6 +1,6 @@
-A modern replacement for ls
+A modern, fast, and feature-rich replacement for ls written in Rust
 
-Usage: eza [OPTIONS] [FILE]...
+Usage: lsr [OPTIONS] [FILE]...
 
 META OPTIONS:
       --stdin    read file names from stdin
@@ -8,40 +8,63 @@ META OPTIONS:
   -v, --version  Print help
 
 LAYOUT OPTIONS:
-  -1, --oneline          display one entry per line
-  -l, --long             display extended file metadata as a table
-  -G, --grid             display entries as a grid (default)
-  -x, --across           sort the grid across, rather than downwards
-  -R, --recurse          recurse into directories
-  -T, --tree             recurse into directories as a tree
-  -L, --level <DEPTH>    limit the depth of recursion
-      --code[=<MODE>]    summarise lines of code by language, recursing the tree or git repo
-      --follow-symlinks  drill down into symbolic links that point to directories
-  -w, --width <COLS>     set screen width in columns
+  -1, --oneline           display one entry per line
+  -l, --long              display extended file metadata as a table
+  -G, --grid              display entries as a grid (default)
+  -x, --across            sort the grid across, rather than downwards
+  -R, --recurse           recurse into directories
+  -T, --tree              recurse into directories as a tree
+  -L, --level <DEPTH>     limit the depth of recursion
+      --code[=<MODE>]     summarise lines of code by language, recursing the tree or git repo
+      --follow-symlinks   drill down into symbolic links that point to directories
+  -w, --width <COLS>      set screen width in columns
+      --spacing <SPACES>  set number of spaces between columns
+      --json              display as a json object
 
 DISPLAY OPTIONS:
-  -F, --classify[=<WHEN>]          display type indicator by file names [possible values: always, auto, never]
+  -F, --classify[=<WHEN>]          display type indicator by file names [possible values: always,
+                                   auto, never]
   -X, --dereference                dereference symbolic links when displaying information
-      --absolute [<absolute>]      display entries with their absolute path [possible values: on, off, follow]
-      --color [<WHEN>]             When to use colours. [default: auto] [possible values: always, auto, never]
-      --color-scale [<FIELDS>...]  highlight value of FIELDS distinctly [possible values: all, age, size]
-      --color-scale-mode <MODE>    mode for --color-scale [default: gradient] [possible values: fixed, gradient]
+      --absolute [<absolute>]      display entries with their absolute path [possible values: on,
+                                   off, follow]
+      --color [<WHEN>]             When to use colours. [default: auto] [possible values: always,
+                                   auto, never]
+      --color-scale [<FIELDS>...]  highlight value of FIELDS distinctly [possible values: all, age,
+                                   size]
+      --color-scale-mode <MODE>    mode for --color-scale [default: gradient] [possible values:
+                                   fixed, gradient]
       --icons[=<WHEN>]             when to display icons [possible values: always, auto, never]
-      --hyperlink[=<WHEN>]         when to display entries as hyperlinks [possible values: always, auto, never]
-      --no-quotes                  don't quote file names with spaces
+      --hyperlink[=<WHEN>]         when to display entries as hyperlinks [possible values: always,
+                                   auto, never]
+      --quotes[=<WHEN>]            when to quote file names (always, auto, never) [possible values:
+                                   always, auto, never]
       --short-nix                  abbreviate Nix store hashes in file names and paths
+      --no-symlink-targets         do not show symlink targets (the `-> ...`)
+      --summary                    display total summary statistics of entries
+      --mime-types                 determine file MIME types to better inform styling decisions
+                                   (unix only)
 
 FILTERING OPTIONS:
-  -a, --all...               show hidden files. Use this twice to also show the '.' and '..' directories
-  -A, --almost-all           equivalent to --all; included for compatibility with `ls -A`
-      --show-dotfiles        show dot-prefixed files without showing other hidden files
-  -d, --treat-dirs-as-files  treat directories as files; don't list their contents
-  -D, --only-dirs            list only directories
-  -f, --only-files           list only files
-      --show-symlinks        explicitly show symbolic links (with --only-dirs and --only-files)
-      --no-symlinks          do not show symbolic links
-  -I, --ignore-glob <GLOBS>  glob patterns (pipe-separated) of files to ignore
-      --git-ignore           ignore files mentioned in '.gitignore'
+  -a, --all...                     show hidden files. Use this twice to also show the '.' and '..'
+                                   directories
+  -A, --almost-all                 equivalent to --all; included for compatibility with `ls -A`
+      --show-dotfiles              show dot-prefixed files without showing other hidden files
+  -d, --treat-dirs-as-files        treat directories as files; don't list their contents
+  -D, --only-dirs                  list only directories
+  -f, --only-files                 list only files
+      --show-symlinks              explicitly show symbolic links (with --only-dirs and
+                                   --only-files)
+      --no-symlinks                do not show symbolic links
+  -I, --ignore-glob <GLOBS>        glob patterns (pipe-separated) of files to ignore
+      --ignore-glob-ci <GLOBS>     glob patterns (pipe-separated) of files to ignore
+                                   (case-insensitive)
+      --git-ignore                 ignore files mentioned in '.gitignore'
+      --cachedir-ignore            ignore directories with a 'CACHEDIR.TAG' file
+  -W, --warn-hidden...             print a message showing the number of hidden and ignored items;
+                                   give twice to always print
+      --ignore-submodule-contents  do not list contents of submodules
+      --since <DURATION>           filter and display only files created or modified within the
+                                   specified duration window
 
 SORTING OPTIONS:
       --group-directories-first  list directories before other files
@@ -66,14 +89,15 @@ LONG VIEW OPTIONS:
       --smart-group          only show group if it has a different name from owner
   -n, --numeric              show user and group as their numeric IDs
   -t, --time <FIELD>         which timestamp field to show [possible values:
-                               mod|modified, acc|accessed, ch|changed, cr|created]
+                               mod|m|modified, acc|accessed, ch|changed, cr|created]
   -m, --modified             show the modified timestamp field (replace default field, combinable)
   -u, --accessed             show the accessed timestamp field (replace default field, combinable)
       --changed              show the changed timestamp field (replace default field, combinable)
   -U, --created              show the created timestamp field (replace default field, combinable)
-      --utc                   show the time in the UTC timezone
+      --utc                  show the time in the UTC timezone
       --time-style <STYLE>   how to format timestamps [possible values:
-                               default, iso, long-iso, full-iso, relative, "+<CUSTOM_FORMAT>"]
+                               default, iso, long-iso, full-iso, relative, relative-recent,
+                               "+<CUSTOM_FORMAT>"]
   -O, --flags                list file flags (Mac, BSD, and Windows only)
   -Z, --context              list each file's security context
       --git                  list each file's Git status, if tracked or ignored
@@ -81,8 +105,13 @@ LONG VIEW OPTIONS:
       --git-repos-no-status  list each git-repos branch name (much faster)
   -M, --mounts               show mount details (Linux and macOS only)
   -@, --extended             list each file's extended attributes and sizes
+      --no-extended          don't show the marker that a file has extended attributes
+      --inspect-archives     list the contents of supported archives (.tar) in long view
+  -e, --tags                 list each file's color tags stored in extended attributes
       --no-permissions       suppress the permissions field
       --no-filesize          suppress the filesize field
       --no-user              suppress the user field
       --no-time              suppress the time field
-      --no-git               suppress Git fields (overrides --git, --git-repos, --git-repos-no-status)
+      --no-git               suppress Git fields (overrides --git, --git-repos,
+                             --git-repos-no-status)
+      --print-total          display total number of entries

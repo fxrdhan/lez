@@ -301,16 +301,20 @@ impl TerminalWidth {
 impl RowThreshold {
     fn deduce<V: Vars>(vars: &V) -> Result<Self, OptionsError> {
         if let Some(columns) = vars
-            .get_with_fallback(vars::EZA_GRID_ROWS, vars::EXA_GRID_ROWS)
+            .get(vars::LSR_GRID_ROWS)
+            .or_else(|| vars.get(vars::EZA_GRID_ROWS))
+            .or_else(|| vars.get(vars::EXA_GRID_ROWS))
             .and_then(|s| s.into_string().ok())
         {
             match columns.parse() {
                 Ok(rows) => Ok(Self::MinimumRows(rows)),
                 Err(e) => {
-                    let source = NumberSource::Env(
+                    let source = NumberSource::Env(if vars.get(vars::LSR_GRID_ROWS).is_some() {
+                        vars::LSR_GRID_ROWS
+                    } else {
                         vars.source(vars::EZA_GRID_ROWS, vars::EXA_GRID_ROWS)
-                            .unwrap(),
-                    );
+                            .unwrap()
+                    });
                     Err(OptionsError::FailedParse(columns, source, e))
                 }
             }
@@ -351,7 +355,8 @@ impl Columns {
         let time_types = TimeTypes::deduce(matches)?;
 
         let no_git_env = vars
-            .get_with_fallback(vars::EXA_OVERRIDE_GIT, vars::EZA_OVERRIDE_GIT)
+            .get(vars::LSR_OVERRIDE_GIT)
+            .or_else(|| vars.get_with_fallback(vars::EXA_OVERRIDE_GIT, vars::EZA_OVERRIDE_GIT))
             .is_some();
 
         let git = matches.get_flag("git") && !matches.get_flag("no-git") && !no_git_env;
