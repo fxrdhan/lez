@@ -130,13 +130,9 @@ fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) 
             break;
         }
 
-        // A line comment swallows the remainder of the line.
-        if lang.line_comments.iter().any(|lc| rest.starts_with(lc)) {
-            has_comment = true;
-            break;
-        }
-
         // A block comment opener starts a (possibly multi-line) comment.
+        // Evaluated before line comments so longer openers that share a prefix
+        // with line comments (e.g. Lua `--[[` vs `--`) match correctly.
         if let Some((open, close)) = lang
             .block_comments
             .iter()
@@ -146,6 +142,12 @@ fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) 
             *block = Some(close);
             rest = &rest[open.len()..];
             continue 'scan;
+        }
+
+        // A line comment swallows the remainder of the line.
+        if lang.line_comments.iter().any(|lc| rest.starts_with(lc)) {
+            has_comment = true;
+            break;
         }
 
         // Anything else is code. Consume one unit, skipping over string
@@ -777,5 +779,36 @@ mod test {
         assert_eq!(language_for("pkg.ads", Some("ads")), Some(&ADA));
         assert_eq!(language_for("main.ada", Some("ada")), Some(&ADA));
         assert_eq!(language_for("build.gpr", Some("gpr")), Some(&ADA));
+    }
+
+    #[test]
+    fn counts_lua_block_comments() {
+        let source =
+            "--[[\nline 2 of comment\nline 3 of comment\n]]\nlocal x = 1 -- trailing comment\n";
+        let c = count(source, &LUA);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 5,
+                code: 1,
+                comments: 4,
+                blanks: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn counts_lua_inline_block_comment_with_code() {
+        let source = "local x = 1 --[[ inline block comment ]] local y = 2\n";
+        let c = count(source, &LUA);
+        assert_eq!(
+            c,
+            LocCounts {
+                lines: 1,
+                code: 1,
+                comments: 0,
+                blanks: 0,
+            }
+        );
     }
 }

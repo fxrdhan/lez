@@ -11,6 +11,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::fs::DirEntry;
 use std::io;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::slice::Iter as SliceIter;
 use std::sync::OnceLock;
@@ -37,6 +39,11 @@ pub struct Dir {
     /// constant time. Built on first use, since most listings never ask.
     paths: OnceLock<HashSet<PathBuf>>,
 }
+
+#[cfg(unix)]
+pub type RecSizeFileId = (u64, u64);
+#[cfg(not(unix))]
+pub type RecSizeFileId = PathBuf;
 
 impl Dir {
     /// Create a new, empty `Dir` object representing the directory at the given path.
@@ -107,6 +114,7 @@ impl Dir {
             inner: self.contents.iter(),
             dir: self,
             hidden_count,
+            dot_filter: dots,
             dotfiles: dots.shows_dotfiles(),
             #[cfg(windows)]
             windows_hidden: dots.shows_windows_hidden(),
@@ -132,6 +140,69 @@ impl Dir {
     pub fn join(&self, child: &Path) -> PathBuf {
         self.path.join(child)
     }
+
+    /// Recursively calculates total directory size and block count, deduplicating hardlinks
+    /// by tracking visited file identifiers across the traversal.
+    pub fn calculate_recursive_size(
+        &self,
+        visited: &mut HashSet<RecSizeFileId>,
+        dot_filter: DotFilter,
+        mime_read_contents: bool,
+    ) -> (u64, u64) {
+        let traversal_filter = if dot_filter.shows_dotfiles() {
+            DotFilter::Dotfiles
+        } else {
+            DotFilter::JustFiles
+        };
+
+        let mut total_size = 0;
+        let mut total_blocks = 0;
+
+        for file in self.files(
+            traversal_filter,
+            None,
+            false,
+            false,
+            false,
+            mime_read_contents,
+            None,
+        ) {
+            if file.is_directory() {
+                #[cfg(unix)]
+                let is_unvisited = file
+                    .metadata()
+                    .is_ok_and(|md| visited.insert((md.dev(), md.ino())));
+                #[cfg(not(unix))]
+                let is_unvisited = visited.insert(file.path.clone());
+
+                if is_unvisited && let Ok(sub_dir) = Dir::read_dir(file.path.clone()) {
+                    let (dir_size, dir_blocks) =
+                        sub_dir.calculate_recursive_size(visited, dot_filter, mime_read_contents);
+                    total_size += dir_size;
+                    total_blocks += dir_blocks;
+                }
+            } else if let Ok(md) = file.metadata() {
+                #[cfg(unix)]
+                let is_unvisited = visited.insert((md.dev(), md.ino()));
+                #[cfg(not(unix))]
+                let is_unvisited = visited.insert(file.path.clone());
+
+                if is_unvisited {
+                    #[cfg(unix)]
+                    {
+                        total_size += md.size();
+                        total_blocks += md.blocks();
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        total_size += md.len();
+                    }
+                }
+            }
+        }
+
+        (total_size, total_blocks)
+    }
 }
 
 /// Iterator over reading the contents of a directory as `File` objects.
@@ -142,6 +213,9 @@ pub struct Files<'dir, 'ig, 'hc> {
 
     /// The directory that begat those paths.
     dir: &'dir Dir,
+
+    /// The active dotfile filter.
+    dot_filter: DotFilter,
 
     /// Whether to include dotfiles in the list.
     dotfiles: bool,
@@ -195,16 +269,6 @@ impl<'dir> Files<'dir, '_, '_> {
                     continue;
                 }
 
-                // Also hide _prefix files on Windows because it's used by old applications
-                // as an alternative to dot-prefix files.
-                #[cfg(windows)]
-                if !self.dotfiles && filename.starts_with('_') {
-                    if let Some(count) = &mut self.hidden_count {
-                        count.inc_hidden();
-                    }
-                    continue;
-                }
-
                 if self.git_ignoring {
                     let git_status = self.git.map(|g| g.get(&path, false)).unwrap_or_default();
                     if git_status.unstaged == GitStatus::Ignored {
@@ -215,7 +279,7 @@ impl<'dir> Files<'dir, '_, '_> {
                     }
                 }
 
-                let file = File::from_args(
+                let file = File::from_args_with_filter(
                     path,
                     self.dir,
                     filename,
@@ -223,6 +287,7 @@ impl<'dir> Files<'dir, '_, '_> {
                     self.total_size,
                     self.mime_read_contents,
                     entry.file_type().ok(),
+                    Some(self.dot_filter),
                 );
 
                 // Windows has its own concept of hidden files, when dotfiles are
@@ -267,6 +332,7 @@ impl<'dir, 'hc> Iterator for Files<'dir, '_, 'hc> {
                     self.dir,
                     self.total_size,
                     self.mime_read_contents,
+                    Some(self.dot_filter),
                 ))
             }
 
@@ -277,6 +343,7 @@ impl<'dir, 'hc> Iterator for Files<'dir, '_, 'hc> {
                     self.dir,
                     self.total_size,
                     self.mime_read_contents,
+                    Some(self.dot_filter),
                 ))
             }
 
@@ -306,7 +373,8 @@ pub enum DotFilter {
 
 impl DotFilter {
     /// Whether this filter should show dotfiles in a listing.
-    fn shows_dotfiles(self) -> bool {
+    #[must_use]
+    pub fn shows_dotfiles(self) -> bool {
         match self {
             Self::JustFiles => false,
             Self::Dotfiles => true,

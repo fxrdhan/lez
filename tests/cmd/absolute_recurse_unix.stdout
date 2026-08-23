@@ -2,7 +2,7 @@
 [CWD]/tests/itest/b
 [CWD]/tests/itest/c
 [CWD]/tests/itest/d
-[CWD]/tests/itest/dir-symlink -> vagrant/debug
+[CWD]/tests/itest/dir-symlink
 [CWD]/tests/itest/e
 [CWD]/tests/itest/exa
 [CWD]/tests/itest/f
@@ -22,7 +22,7 @@
 [CWD]/tests/itest/vagrant
 
 tests/itest/exa:
-[CWD]/tests/itest/exa/file.c -> djihisudjuhfius
+[CWD]/tests/itest/exa/file.c
 [CWD]/tests/itest/exa/sssssssssssssssssssssssssggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggsssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
 
 tests/itest/exa/sssssssssssssssssssssssssggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggsssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss:
@@ -35,8 +35,8 @@ tests/itest/vagrant:
 
 tests/itest/vagrant/debug:
 [CWD]/tests/itest/vagrant/debug/a
-[CWD]/tests/itest/vagrant/debug/symlink -> a
-[CWD]/tests/itest/vagrant/debug/symlink-broken -> ./b
+[CWD]/tests/itest/vagrant/debug/symlink
+[CWD]/tests/itest/vagrant/debug/symlink-broken
 
 tests/itest/vagrant/dev:
 [CWD]/tests/itest/vagrant/dev/main.bf
