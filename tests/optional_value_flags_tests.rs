@@ -91,11 +91,23 @@ fn absolute_tree_accepts_an_explicit_root() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "--absolute -T failed: {stderr}");
 
+    // Compare on the components we created rather than the whole path:
+    // Windows hands back a short 8.3 temp prefix that the binary resolves to
+    // its long form, so only the tail is stable across platforms.
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let leaf = fixture.path.join("nested/leaf.txt");
+    let dir_name = fixture.path.file_name().unwrap().to_str().unwrap();
+    let leaf_line = stdout
+        .lines()
+        .find(|line| line.contains("leaf.txt"))
+        .unwrap_or_else(|| panic!("no leaf.txt in the tree:\n{stdout}"));
+
     assert!(
-        stdout.contains(leaf.to_str().unwrap()),
-        "the tree should print absolute paths, got:\n{stdout}"
+        leaf_line.contains(dir_name),
+        "the leaf should carry its whole path, got: {leaf_line}"
+    );
+    assert!(
+        leaf_line.contains("nested"),
+        "the leaf should carry its parent directory, got: {leaf_line}"
     );
 }
 
