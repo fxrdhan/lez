@@ -415,26 +415,48 @@ impl Git {
 /// Paths need to be absolute for them to be compared properly, otherwise
 /// you’d ask a repo about “./README.md” but it only knows about
 /// “/vagrant/README.md”, prefixed by the workdir.
+///
+/// Note: only the parent directory is canonicalized, preserving the leaf
+/// file or symlink name without following symlink targets.
 #[cfg(unix)]
 fn reorient(path: &Path) -> PathBuf {
     use std::env::current_dir;
 
-    // TODO: I’m not 100% on this func tbh
-    let path = match current_dir() {
-        Err(_) => Path::new(".").join(path),
+    let full_path = match current_dir() {
         Ok(dir) => dir.join(path),
+        Err(_) => Path::new(".").join(path),
     };
 
-    path.canonicalize().unwrap_or(path)
+    if let (Some(parent), Some(file_name)) = (full_path.parent(), full_path.file_name())
+        && let Ok(canon_parent) = parent.canonicalize()
+    {
+        return canon_parent.join(file_name);
+    }
+
+    full_path.canonicalize().unwrap_or(full_path)
 }
 
 #[cfg(windows)]
 fn reorient(path: &Path) -> PathBuf {
-    let unc_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    use std::env::current_dir;
+
+    let full_path = match current_dir() {
+        Ok(dir) => dir.join(path),
+        Err(_) => Path::new(".").join(path),
+    };
+
+    let p = if let (Some(parent), Some(file_name)) = (full_path.parent(), full_path.file_name())
+        && let Ok(canon_parent) = parent.canonicalize()
+    {
+        canon_parent.join(file_name)
+    } else {
+        full_path.canonicalize().unwrap_or(full_path)
+    };
+
     // On Windows UNC path is returned. We need to strip the prefix for it to work.
-    match unc_path.to_str() {
-        Some(text) => PathBuf::from(text.trim_start_matches("\\\\?\\")),
-        None => unc_path,
+    match p.to_str() {
+        Some(text) => PathBuf::from(text.trim_start_matches(r"\\?\")),
+        None => p,
     }
 }
 
@@ -562,6 +584,30 @@ mod tests {
             let mut file = StdFile::create(&file_path).unwrap();
             file.write_all(content).unwrap();
             file_path
+        }
+
+        #[cfg(unix)]
+        fn create_symlink(&self, target: &str, link_rel_path: &str) -> PathBuf {
+            let link_path = self.path.join(link_rel_path);
+            if let Some(parent) = link_path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            std::os::unix::fs::symlink(target, &link_path).unwrap();
+            link_path
+        }
+
+        fn add_path_to_index(&self, rel_path: &str) {
+            let repo = git2::Repository::open(&self.path).unwrap();
+            let mut index = repo.index().unwrap();
+            index.add_path(Path::new(rel_path)).unwrap();
+            index.write().unwrap();
+        }
+
+        fn remove_path_from_index(&self, rel_path: &str) {
+            let repo = git2::Repository::open(&self.path).unwrap();
+            let mut index = repo.index().unwrap();
+            index.remove_path(Path::new(rel_path)).unwrap();
+            index.write().unwrap();
         }
 
         fn commit_all(&self, msg: &str) {
@@ -829,5 +875,148 @@ mod tests {
         let os_str = OsString::from_wide(&invalid);
         let path = std::path::PathBuf::from(os_str);
         let _ = super::reorient(&path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_reorient_preserves_leaf_symlink() {
+        let test_repo = TestGitRepo::new("reorient_symlink");
+        let target = test_repo.create_file("target.txt", b"target");
+        let symlink = test_repo.create_symlink("target.txt", "link.txt");
+
+        let reoriented = reorient(&symlink);
+        assert_eq!(reoriented.file_name().unwrap(), "link.txt");
+        assert_ne!(reoriented, reorient(&target));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_symlink_modified_status_detected() {
+        let test_repo = TestGitRepo::new("symlink_modified");
+        let target = test_repo.create_file("target.txt", b"target content");
+        let link = test_repo.create_symlink("target.txt", "link.txt");
+        test_repo.commit_all("initial commit");
+
+        // Symlink target is changed (pointing to a different file)
+        fs::remove_file(&link).unwrap();
+        test_repo.create_symlink("target2.txt", "link.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // Symlink status must be Modified
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.unstaged == f::GitStatus::Modified);
+        assert!(link_status.staged == f::GitStatus::NotModified);
+
+        // Target file status must remain NotModified
+        let target_status = git_status.file_status(&target);
+        assert!(target_status.unstaged == f::GitStatus::NotModified);
+        assert!(target_status.staged == f::GitStatus::NotModified);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_unmodified_symlink_with_modified_target() {
+        let test_repo = TestGitRepo::new("unmodified_symlink");
+        let target = test_repo.create_file("target.txt", b"original content");
+        let link = test_repo.create_symlink("target.txt", "link.txt");
+        test_repo.commit_all("initial commit");
+
+        // Target content is modified, but symlink itself is unchanged
+        let mut f_target = StdFile::create(&target).unwrap();
+        f_target.write_all(b"modified content\n").unwrap();
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // Symlink itself is unmodified
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.unstaged == f::GitStatus::NotModified);
+        assert!(link_status.staged == f::GitStatus::NotModified);
+
+        // Target file is modified
+        let target_status = git_status.file_status(&target);
+        assert!(target_status.unstaged == f::GitStatus::Modified);
+        assert!(target_status.staged == f::GitStatus::NotModified);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_broken_symlink_git_status() {
+        let test_repo = TestGitRepo::new("broken_symlink");
+        let broken_link = test_repo.create_symlink("non_existent.txt", "broken.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // Untracked broken symlink should be New
+        let status = git_status.file_status(&broken_link);
+        assert!(status.unstaged == f::GitStatus::New);
+
+        // Commit it
+        test_repo.commit_all("add broken symlink");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let status = git_status.file_status(&broken_link);
+        assert!(status.unstaged == f::GitStatus::NotModified);
+
+        // Change broken symlink target to another non-existent target
+        fs::remove_file(&broken_link).unwrap();
+        test_repo.create_symlink("another_non_existent.txt", "broken.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let status = git_status.file_status(&broken_link);
+        assert!(status.unstaged == f::GitStatus::Modified);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_staged_symlink_operations() {
+        let test_repo = TestGitRepo::new("staged_symlink");
+        let _target = test_repo.create_file("target.txt", b"target");
+        let link = test_repo.create_symlink("target.txt", "link.txt");
+
+        // Staged addition
+        test_repo.add_path_to_index("target.txt");
+        test_repo.add_path_to_index("link.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.staged == f::GitStatus::New);
+        assert!(link_status.unstaged == f::GitStatus::NotModified);
+
+        test_repo.commit_all("commit symlink");
+
+        // Staged modification
+        fs::remove_file(&link).unwrap();
+        test_repo.create_symlink("target_modified.txt", "link.txt");
+        test_repo.add_path_to_index("link.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.staged == f::GitStatus::Modified);
+        assert!(link_status.unstaged == f::GitStatus::NotModified);
+
+        test_repo.commit_all("commit modified symlink");
+
+        // Staged deletion
+        fs::remove_file(&link).unwrap();
+        test_repo.remove_path_from_index("link.txt");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let link_status = git_status.file_status(&link);
+        assert!(link_status.staged == f::GitStatus::Deleted);
+        assert!(link_status.unstaged == f::GitStatus::NotModified);
     }
 }

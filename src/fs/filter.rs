@@ -719,6 +719,10 @@ impl CompiledIgnorePattern {
     }
 
     fn matches(&self, path: &std::path::Path, name: &str, options: glob::MatchOptions) -> bool {
+        if name == "." || name == ".." {
+            return false;
+        }
+
         if self.has_slash {
             let clean_path = path.strip_prefix(".").unwrap_or(path);
             let clean_path = if clean_path.as_os_str().is_empty() {
@@ -727,19 +731,23 @@ impl CompiledIgnorePattern {
                 clean_path
             };
 
-            if self.raw_pattern.matches_path_with(clean_path, options)
-                || self.raw_pattern.matches_path_with(path, options)
+            let path_opts = glob::MatchOptions {
+                require_literal_separator: true,
+                ..options
+            };
+
+            if self.raw_pattern.matches_path_with(clean_path, path_opts)
+                || self.raw_pattern.matches_path_with(path, path_opts)
             {
                 return true;
             }
 
-            if let Some(ref stripped) = self.stripped_pattern {
-                if stripped.matches_path_with(clean_path, options)
-                    || stripped.matches_path_with(path, options)
+            if self.stripped_pattern.as_ref().is_some_and(|stripped| {
+                stripped.matches_path_with(clean_path, path_opts)
+                    || stripped.matches_path_with(path, path_opts)
                     || stripped.matches_with(name, options)
-                {
-                    return true;
-                }
+            }) {
+                return true;
             }
 
             if self.wildcard_pattern.as_ref().is_some_and(|wildcard| {
