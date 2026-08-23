@@ -273,8 +273,10 @@ impl FileFilter {
             return false;
         }
 
-        if self.ignore_patterns.is_ignored(&file.name)
-            || self.ignore_patterns_caseins.is_ignored(&file.name)
+        if self.ignore_patterns.is_ignored_path(&file.path, &file.name)
+            || self
+                .ignore_patterns_caseins
+                .is_ignored_path(&file.path, &file.name)
         {
             return false;
         }
@@ -336,7 +338,10 @@ impl FileFilter {
         use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
 
         files.retain(|f| self.matches_since(f));
-        files.retain(|f| !self.ignore_patterns.is_ignored(&f.name) && !self.ignore_patterns_caseins.is_ignored(&f.name));
+        files.retain(|f| {
+            !self.ignore_patterns.is_ignored_path(&f.path, &f.name)
+                && !self.ignore_patterns_caseins.is_ignored_path(&f.path, &f.name)
+        });
         files.retain(|f| {
             match (
                 self.flags.contains(&OnlyDirs),
@@ -370,8 +375,10 @@ impl FileFilter {
 
         files.retain(|f| self.matches_since(f));
         files.retain(|f| {
-            !self.ignore_patterns.is_ignored(&f.name)
-                && !self.ignore_patterns_caseins.is_ignored(&f.name)
+            !self.ignore_patterns.is_ignored_path(&f.path, &f.name)
+                && !self
+                    .ignore_patterns_caseins
+                    .is_ignored_path(&f.path, &f.name)
         });
         files.retain(|f| {
             match (
@@ -655,12 +662,107 @@ impl SortField {
     }
 }
 
+/// A compiled glob ignore pattern that knows whether it contains directory
+/// separators and should be matched against relative paths or leaf filenames.
+#[derive(PartialEq, Eq, Debug, Clone)]
+struct CompiledIgnorePattern {
+    raw_pattern: glob::Pattern,
+    has_slash: bool,
+    stripped_pattern: Option<glob::Pattern>,
+    wildcard_pattern: Option<glob::Pattern>,
+}
+
+impl CompiledIgnorePattern {
+    fn from_pattern(raw_pattern: glob::Pattern) -> Self {
+        let pat_str = raw_pattern.as_str();
+        let has_slash = pat_str.contains('/') || pat_str.contains('\\');
+        let mut stripped_pattern = None;
+        let mut wildcard_pattern = None;
+
+        if has_slash {
+            let mut normalized = pat_str;
+            if let Some(rest) = normalized.strip_prefix("./") {
+                normalized = rest;
+            } else if let Some(rest) = normalized.strip_prefix(".\\") {
+                normalized = rest;
+            } else if let Some(rest) = normalized.strip_prefix('/') {
+                normalized = rest;
+            } else if let Some(rest) = normalized.strip_prefix('\\') {
+                normalized = rest;
+            }
+
+            if let Some(rest) = normalized.strip_suffix('/') {
+                normalized = rest;
+            } else if let Some(rest) = normalized.strip_suffix('\\') {
+                normalized = rest;
+            }
+
+            if normalized != pat_str {
+                stripped_pattern = glob::Pattern::new(normalized).ok();
+            }
+
+            let base = stripped_pattern
+                .as_ref()
+                .map(|p| p.as_str())
+                .unwrap_or(normalized);
+            if !base.starts_with("**") && !pat_str.starts_with('/') && !pat_str.starts_with('\\') {
+                wildcard_pattern = glob::Pattern::new(&format!("**/{base}")).ok();
+            }
+        }
+
+        Self {
+            raw_pattern,
+            has_slash,
+            stripped_pattern,
+            wildcard_pattern,
+        }
+    }
+
+    fn matches(&self, path: &std::path::Path, name: &str, options: glob::MatchOptions) -> bool {
+        if self.has_slash {
+            let clean_path = path.strip_prefix(".").unwrap_or(path);
+            let clean_path = if clean_path.as_os_str().is_empty() {
+                path
+            } else {
+                clean_path
+            };
+
+            if self.raw_pattern.matches_path_with(clean_path, options)
+                || self.raw_pattern.matches_path_with(path, options)
+            {
+                return true;
+            }
+
+            if let Some(ref stripped) = self.stripped_pattern {
+                if stripped.matches_path_with(clean_path, options)
+                    || stripped.matches_path_with(path, options)
+                    || stripped.matches_with(name, options)
+                {
+                    return true;
+                }
+            }
+
+            if self.wildcard_pattern.as_ref().is_some_and(|wildcard| {
+                wildcard.matches_path_with(clean_path, path_opts)
+                    || wildcard.matches_path_with(path, path_opts)
+            }) {
+                return true;
+            }
+
+            false
+        } else {
+            self.raw_pattern.matches_with(name, options)
+        }
+    }
+}
+
 /// The **ignore patterns** are a list of globs that are tested against
-/// each filename, and if any of them match, that file isn’t displayed.
-/// This lets a user hide, say, text files by ignoring `*.txt`.
+/// each filename or path, and if any of them match, that file isn’t displayed.
+/// This lets a user hide, say, text files by ignoring `*.txt` or specific
+/// subpaths by ignoring `src/*.rs`.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct IgnorePatterns {
-    patterns: Vec<glob::Pattern>,
+    patterns: Vec<CompiledIgnorePattern>,
     options: glob::MatchOptions,
 }
 
@@ -678,7 +780,10 @@ impl FromIterator<glob::Pattern> for IgnorePatterns {
     where
         I: IntoIterator<Item = glob::Pattern>,
     {
-        let patterns = iter.into_iter().collect();
+        let patterns = iter
+            .into_iter()
+            .map(CompiledIgnorePattern::from_pattern)
+            .collect();
         Self {
             patterns,
             options: glob::MatchOptions::new(),
@@ -707,7 +812,7 @@ impl IgnorePatterns {
 
         for input in iter {
             match glob::Pattern::new(input) {
-                Ok(pat) => patterns.push(pat),
+                Ok(pat) => patterns.push(CompiledIgnorePattern::from_pattern(pat)),
                 Err(e) => errors.push(e),
             }
         }
@@ -752,9 +857,24 @@ impl IgnorePatterns {
     /// Test whether the given file should be hidden from the results.
     #[must_use]
     pub fn is_ignored(&self, file: &str) -> bool {
+        let path = std::path::Path::new(file);
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or(file);
+        self.is_ignored_path(path, name)
+    }
+
+    /// Test whether the given path/name should be hidden from the results.
+    ///
+    /// Patterns containing directory separators are evaluated against `path`
+    /// (with normalized relative prefixes/suffixes), while flat patterns
+    /// without directory separators match against leaf `name`.
+    #[must_use]
+    pub fn is_ignored_path(&self, path: &std::path::Path, name: &str) -> bool {
+        if self.patterns.is_empty() {
+            return false;
+        }
         self.patterns
             .iter()
-            .any(|p| p.matches_with(file, self.options))
+            .any(|p| p.matches(path, name, self.options))
     }
 }
 
@@ -858,6 +978,58 @@ mod test_ignores {
         assert!(fails.is_empty());
         assert!(pats.is_ignored("nothing"));
         assert!(pats.is_ignored("test.mp3"));
+    }
+
+    #[test]
+    fn test_ignore_patterns_path_aware() {
+        use std::path::Path;
+
+        let (pats, fails) = IgnorePatterns::parse_from_iter(vec!["src/*.rs"]);
+        assert!(fails.is_empty());
+        assert!(pats.is_ignored_path(Path::new("src/main.rs"), "main.rs"));
+        assert!(pats.is_ignored_path(Path::new("./src/main.rs"), "main.rs"));
+        assert!(!pats.is_ignored_path(Path::new("src/fs/filter.rs"), "filter.rs"));
+        assert!(!pats.is_ignored_path(Path::new("main.rs"), "main.rs"));
+        assert!(!pats.is_ignored_path(Path::new("tests/cli.rs"), "cli.rs"));
+
+        // Glob with **/
+        let (pats_node, _) = IgnorePatterns::parse_from_iter(vec!["**/node_modules/*"]);
+        assert!(pats_node.is_ignored_path(Path::new("node_modules/index.js"), "index.js"));
+        assert!(
+            pats_node.is_ignored_path(Path::new("packages/app/node_modules/index.js"), "index.js")
+        );
+        assert!(!pats_node.is_ignored_path(Path::new("packages/app/node_modules"), "node_modules"));
+
+        // Leading slash
+        let (pats_slash, _) = IgnorePatterns::parse_from_iter(vec!["/build/*"]);
+        assert!(pats_slash.is_ignored_path(Path::new("build/output.o"), "output.o"));
+        assert!(!pats_slash.is_ignored_path(Path::new("src/build/output.o"), "output.o"));
+
+        // Trailing slash for directory
+        let (pats_dir, _) = IgnorePatterns::parse_from_iter(vec!["target/"]);
+        assert!(pats_dir.is_ignored_path(Path::new("target"), "target"));
+        assert!(pats_dir.is_ignored_path(Path::new("./target"), "target"));
+
+        // Flat filename pattern matches in any directory
+        let (pats_flat, _) = IgnorePatterns::parse_from_iter(vec!["*.mp3"]);
+        assert!(pats_flat.is_ignored_path(Path::new("song.mp3"), "song.mp3"));
+        assert!(pats_flat.is_ignored_path(Path::new("music/rock/song.mp3"), "song.mp3"));
+        assert!(!pats_flat.is_ignored_path(Path::new("music/rock/song.wav"), "song.wav"));
+    }
+
+    #[test]
+    fn test_ignore_patterns_case_insensitive_path() {
+        use std::path::Path;
+
+        let (pats, fails) = IgnorePatterns::parse_from_iter(vec!["SRC/*.RS"]);
+        assert!(fails.is_empty());
+        let pats_ci = pats.set_match_options(glob::MatchOptions {
+            case_sensitive: false,
+            ..Default::default()
+        });
+        assert!(pats_ci.is_ignored_path(Path::new("src/main.rs"), "main.rs"));
+        assert!(pats_ci.is_ignored_path(Path::new("SRC/MAIN.RS"), "MAIN.RS"));
+        assert!(!pats_ci.is_ignored_path(Path::new("src/fs/filter.rs"), "filter.rs"));
     }
 
     #[test]

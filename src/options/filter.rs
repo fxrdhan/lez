@@ -146,13 +146,12 @@ impl IgnorePatterns {
     pub fn deduce(matches: &ArgMatches) -> Result<Self, OptionsError> {
         // If there are no inputs, we return a set of patterns that doesn’t
         // match anything, rather than, say, `None`.
-        let Some(inputs) = matches.get_one::<String>("ignore-glob") else {
+        let Some(inputs) = matches.get_many::<String>("ignore-glob") else {
             return Ok(Self::empty());
         };
 
-        // Awkwardly, though, a glob pattern can be invalid, and we need to
-        // deal with invalid patterns somehow.
-        let (patterns, mut errors) = Self::parse_from_iter(inputs.split('|'));
+        let iter = inputs.flat_map(|s| s.split('|'));
+        let (patterns, mut errors) = Self::parse_from_iter(iter);
 
         // It can actually return more than one glob error,
         // but we only use one. (TODO)
@@ -166,11 +165,12 @@ impl IgnorePatterns {
     /// `--ignore-glob-ci` argument’s value. This is a list of strings
     /// separated by pipe (`|`) characters, given in any order.
     pub fn deduce_set_insensitive(matches: &ArgMatches) -> Result<Self, OptionsError> {
-        let Some(inputs) = matches.get_one::<String>("ignore-glob-ci") else {
+        let Some(inputs) = matches.get_many::<String>("ignore-glob-ci") else {
             return Ok(Self::empty_insensitive());
         };
 
-        let (patterns, mut errors) = Self::parse_from_iter(inputs.split('|'));
+        let iter = inputs.flat_map(|s| s.split('|'));
+        let (patterns, mut errors) = Self::parse_from_iter(iter);
 
         match errors.pop() {
             Some(e) => Err(e.into()),
