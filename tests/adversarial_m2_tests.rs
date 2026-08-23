@@ -276,7 +276,7 @@ fn test_view_mode_lines() {
     temp.create_file("target.txt", b"lines");
     temp.create_symlink("target.txt", "link.txt");
 
-    // Standard oneline: shows "link.txt -> target.txt"
+    // Standard oneline: shows clean "link.txt" without target
     let out_default = Command::new(bin_path())
         .arg("-1")
         .arg("--color=never")
@@ -284,7 +284,9 @@ fn test_view_mode_lines() {
         .output()
         .expect("lsr command failed");
     let stdout_def = String::from_utf8_lossy(&out_default.stdout);
-    assert!(stdout_def.contains("link.txt -> target.txt"));
+    assert!(stdout_def.contains("link.txt"));
+    assert!(!stdout_def.contains("link.txt -> target.txt"));
+    assert!(!stdout_def.contains("->"));
 
     // Suppressed oneline: shows only "link.txt"
     let out_suppressed = Command::new(bin_path())
