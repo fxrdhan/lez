@@ -676,6 +676,7 @@ mod tests {
             link_path
         }
 
+        #[cfg(unix)]
         fn add_path_to_index(&self, rel_path: &str) {
             let repo = git2::Repository::open(&self.path).unwrap();
             let mut index = repo.index().unwrap();
@@ -683,6 +684,7 @@ mod tests {
             index.write().unwrap();
         }
 
+        #[cfg(unix)]
         fn remove_path_from_index(&self, rel_path: &str) {
             let repo = git2::Repository::open(&self.path).unwrap();
             let mut index = repo.index().unwrap();
