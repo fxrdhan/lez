@@ -197,6 +197,7 @@ fn test_parent_dir_exclusion_under_all_flag_permutations() {
 // 2. COMPLEX HARDLINK MESH ACROSS NESTED SUBDIRECTORIES
 // =========================================================================
 
+#[cfg(unix)]
 #[test]
 fn test_adversarial_hardlink_mesh_across_nested_subdirectories() {
     let root = TempTestDir::new("hl_mesh");
@@ -357,6 +358,7 @@ fn test_adversarial_hardlink_mesh_across_nested_subdirectories() {
 // 3. HARDLINK CROSS-PARTITION ACROSS VISIBLE AND HIDDEN DIRECTORIES
 // =========================================================================
 
+#[cfg(unix)]
 #[test]
 fn test_adversarial_hardlink_partition_hidden_vs_visible() {
     let root = TempTestDir::new("hl_hidden_vis");
