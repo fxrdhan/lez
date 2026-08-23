@@ -143,7 +143,7 @@ nix run github:fxrdhan/lsr
 - **-d**, **--treat-dirs-as-files**: list directories like regular files
 - **-L**, **--level=(depth)**: limit the depth of recursion
 - **-r**, **--reverse**: reverse the sort order
-- **-s**, **--sort=(field)**: which field to sort by
+- **-s**, **--sort=(field)**: which field to sort by; the path field accepts the aliases `relative-path`, `relpath`, and `relative_path` (capitalised variants sort uppercase first)
 - **-t**: sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`)
 - **--group-directories-first**: list directories before other files
 - **--group-directories-last**: list directories after other files
@@ -156,7 +156,7 @@ nix run github:fxrdhan/lsr
 - **--cachedir-ignore**: ignore directories containing a `CACHEDIR.TAG` file
 - **--ignore-submodule-contents**: don't list the contents of Git submodules
 - **--since=(duration)**: filter and display only files created or modified within the specified duration window (e.g. 10m, 1h, 2d, 1w)
-- **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore
+- **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore; patterns containing `/` match against paths relative to the listing root and the flag may be given multiple times
 - **--ignore-glob-ci=(globs)**: glob patterns (pipe-separated) of files to ignore (case-insensitive)
 
 </details>
@@ -193,9 +193,10 @@ These options are available when running with `--long` (`-l`):
 - **-e**, **--tags**: list each file's color tags stored in extended attributes (macOS Finder tags)
 - **--inspect-archives**: list the contents of supported archives (.tar) in long view
 - **--git**: list each file’s Git status, if tracked or ignored
+- **--git-glyphs**: display Git status with Nerd Font glyphs instead of ASCII characters
 - **--git-repos**: list each directory’s Git status, if tracked
 - **--git-repos-no-status**: list whether a directory is a Git repository, but not its status (faster)
-- **--no-git**: suppress Git status (always overrides `--git`, `--git-repos`, `--git-repos-no-status`)
+- **--no-git**: suppress all Git fields and `.gitignore` handling (overrides `--git`, `--git-repos`, `--git-repos-no-status`, `--git-ignore`)
 - **--time-style**: how to format timestamps. Valid styles: `default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or custom `+<FORMAT>` (e.g., `+%Y-%m-%d %H:%M`; see [_`lsr(1)` manual page_](man/lsr.1.md) and [chrono format](https://docs.rs/chrono/latest/chrono/format/strftime/index.html)).
 - **--total-size**: show recursive directory size
 - **-o**, **--octal-permissions**: list each file's permission in octal format
