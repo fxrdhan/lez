@@ -48,6 +48,12 @@ fn run_lsr_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
     let bin_path = env!("CARGO_BIN_EXE_lsr");
     Command::new(bin_path)
         .current_dir(working_dir)
+        // Pin collation to the POSIX C locale so expectations rely on plain
+        // byte order instead of the OS locale. Without this, macOS/Windows
+        // fall back to sys_locale and ICU tertiary strength reorders mixed-
+        // case names by base letter (e.g. "whiskey" before "Yankee"), which
+        // made assertions locale-dependent and fail outside Linux CI.
+        .env("LC_ALL", "C")
         .args(args)
         .output()
         .expect("Failed to execute lsr binary")
@@ -277,28 +283,34 @@ fn test_f5_distinguish_leaf_name_sorting_from_path_sorting() {
 
 #[test]
 fn test_f5_sort_path_case_sensitive_variants() {
+    // Fixture note: the directory names deliberately do NOT differ only by
+    // case. On case-insensitive filesystems (macOS APFS, Windows NTFS by
+    // default) siblings like "Dir_A" and "dir_a" would collapse into a single
+    // directory. Uppercase-initial vs lowercase-initial names still prove the
+    // ABCabc semantics: byte order puts 'Y' and 'Z' before 'w' and 'x'.
     let temp = TempDirSetup::new("path_case");
-    let f_upper_b = temp.create_file("Dir_B/file.txt", b"UB");
-    let f_lower_a = temp.create_file("dir_a/file.txt", b"la");
-    let f_upper_a = temp.create_file("Dir_A/file.txt", b"UA");
-    let f_lower_b = temp.create_file("dir_b/file.txt", b"lb");
+    let f_zulu = temp.create_file("Zulu/file.txt", b"z");
+    let f_whiskey = temp.create_file("whiskey/file.txt", b"w");
+    let f_yankee = temp.create_file("Yankee/file.txt", b"y");
+    let f_xray = temp.create_file("xray/file.txt", b"x");
 
-    let f_ub_str = f_upper_b.to_str().unwrap();
-    let f_la_str = f_lower_a.to_str().unwrap();
-    let f_ua_str = f_upper_a.to_str().unwrap();
-    let f_lb_str = f_lower_b.to_str().unwrap();
+    let fz_str = f_zulu.to_str().unwrap();
+    let fw_str = f_whiskey.to_str().unwrap();
+    let fy_str = f_yankee.to_str().unwrap();
+    let fx_str = f_xray.to_str().unwrap();
 
-    // Under case-sensitive sort (ABCabc): uppercase folders (Dir_A, Dir_B) come before lowercase (dir_a, dir_b)
+    // Under case-sensitive sort (ABCabc): uppercase-initial directories
+    // (Yankee, Zulu) come before lowercase-initial ones (whiskey, xray).
     let output_case = run_lsr_in(
         &temp.path,
         &[
             "-1d",
             "--sort=Path",
             "--color=never",
-            f_lb_str,
-            f_ub_str,
-            f_la_str,
-            f_ua_str,
+            fx_str,
+            fz_str,
+            fw_str,
+            fy_str,
         ],
     );
     assert!(output_case.status.success());
@@ -306,10 +318,10 @@ fn test_f5_sort_path_case_sensitive_variants() {
     let lines_case: Vec<&str> = stdout_case.lines().collect();
 
     assert_eq!(lines_case.len(), 4);
-    assert!(lines_case[0].contains("Dir_A/file.txt"));
-    assert!(lines_case[1].contains("Dir_B/file.txt"));
-    assert!(lines_case[2].contains("dir_a/file.txt"));
-    assert!(lines_case[3].contains("dir_b/file.txt"));
+    assert!(lines_case[0].contains("Yankee/file.txt"));
+    assert!(lines_case[1].contains("Zulu/file.txt"));
+    assert!(lines_case[2].contains("whiskey/file.txt"));
+    assert!(lines_case[3].contains("xray/file.txt"));
 
     // Test case-sensitive aliases: Relative-path, Relative-Path, Relpath, Relative_path
     for case_alias in ["Relative-path", "Relative-Path", "Relpath", "Relative_path"] {
@@ -320,10 +332,10 @@ fn test_f5_sort_path_case_sensitive_variants() {
                 "-1d",
                 &sort_arg,
                 "--color=never",
-                f_lb_str,
-                f_ub_str,
-                f_la_str,
-                f_ua_str,
+                fx_str,
+                fz_str,
+                fw_str,
+                fy_str,
             ],
         );
         assert!(output_alias.status.success());
