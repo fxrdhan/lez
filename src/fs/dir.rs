@@ -173,7 +173,7 @@ impl Dir {
                 #[cfg(unix)]
                 let is_unvisited = file
                     .metadata()
-                    .map_or(false, |md| visited.insert((md.dev(), md.ino())));
+                    .is_ok_and(|md| visited.insert((md.dev(), md.ino())));
                 #[cfg(not(unix))]
                 let is_unvisited = visited.insert(file.path.clone());
 
