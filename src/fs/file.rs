@@ -237,10 +237,10 @@ impl<'dir> File<'dir> {
     pub fn new_aa_parent(
         path: PathBuf,
         parent_dir: &'dir Dir,
-        total_size: bool,
+        _total_size: bool,
         mime_read_contents: bool,
     ) -> File<'dir> {
-        File::new_aa(path, parent_dir, "..", total_size, mime_read_contents)
+        File::new_aa(path, parent_dir, "..", false, mime_read_contents)
     }
 
     /// A file’s name is derived from its string. This needs to handle directories
@@ -1534,6 +1534,33 @@ mod recursive_size_test {
         assert_eq!(file.length(), 4);
 
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn parent_aa_does_not_calculate_parent_hierarchy_size() {
+        use crate::fs::dir::Dir;
+        use crate::fs::fields as f;
+
+        let parent = temp_dir("parent_aa_parent");
+        let child = parent.join("child");
+        fs::create_dir_all(&child).unwrap();
+        // 1MB file in parent
+        fs::write(parent.join("huge_parent.bin"), vec![0u8; 1024 * 1024]).unwrap();
+        // 1KB file in child
+        fs::write(child.join("small_child.bin"), vec![0u8; 1024]).unwrap();
+
+        let child_dir = Dir::read_dir(child.clone()).unwrap();
+        let aa_parent_file = File::new_aa_parent(parent.clone(), &child_dir, true, false);
+
+        assert!(!aa_parent_file.is_recursive_size());
+        assert!(matches!(aa_parent_file.size(), f::Size::None));
+
+        let aa_current_file = File::new_aa_current(&child_dir, true, false);
+        assert!(aa_current_file.is_recursive_size());
+        assert!(aa_current_file.length() >= 1024);
+        assert!(aa_current_file.length() < 1024 * 1024);
+
+        let _ = fs::remove_dir_all(parent);
     }
 }
 
