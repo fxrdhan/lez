@@ -93,6 +93,17 @@ fn bin_path() -> PathBuf {
 // Parent directory `..` exclusion under all CLI flag permutations
 // =========================================================================
 
+/// The size column of a long-view row: `permissions size user date… name`.
+///
+/// Substring-matching the whole line for "-" is vacuous — the permissions
+/// field always contains one ("drwx------") — so the column has to be read
+/// out on its own.
+fn size_column(line: &str) -> &str {
+    line.split_whitespace()
+        .nth(1)
+        .unwrap_or_else(|| panic!("long-view row should have a size column: {line}"))
+}
+
 #[test]
 fn test_parent_dir_exclusion_under_flag_permutations() {
     let root = TempTestDir::new("parent_flags");
@@ -200,17 +211,6 @@ fn test_parent_dir_exclusion_under_flag_permutations() {
 // =========================================================================
 
 #[cfg(unix)]
-/// The size column of a long-view row: `permissions size user date… name`.
-///
-/// Substring-matching the whole line for "-" is vacuous — the permissions
-/// field always contains one ("drwx------") — so the column has to be read
-/// out on its own.
-fn size_column(line: &str) -> &str {
-    line.split_whitespace()
-        .nth(1)
-        .unwrap_or_else(|| panic!("long-view row should have a size column: {line}"))
-}
-
 #[test]
 fn test_hardlink_mesh_across_nested_subdirectories() {
     let root = TempTestDir::new("hl_mesh");
