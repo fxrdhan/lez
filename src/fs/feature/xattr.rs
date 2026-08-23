@@ -307,7 +307,10 @@ mod extended_attrs {
     // buffer size is passed and the buffer is filled.  Care must be taken if
     // the buffer size changes between the first and second call.
     fn get_loop<F: Fn(*mut u8, usize) -> ssize_t>(f: F) -> io::Result<Option<Vec<u8>>> {
+        const MAX_RETRIES: usize = 5;
         let mut buffer: Vec<u8> = Vec::new();
+        let mut retries = 0;
+
         loop {
             let buffer_size = match f(null_mut(), 0) {
                 -1 => return Err(io::Error::last_os_error()),
@@ -317,22 +320,23 @@ mod extended_attrs {
 
             buffer.resize(buffer_size, 0);
 
-            return match f(buffer.as_mut_ptr(), buffer_size) {
+            match f(buffer.as_mut_ptr(), buffer_size) {
                 -1 => {
                     let last_os_error = io::Error::last_os_error();
-                    if last_os_error.raw_os_error() == Some(ERANGE) {
-                        // Passed buffer was to small so retry again.
+                    if last_os_error.raw_os_error() == Some(ERANGE) && retries < MAX_RETRIES {
+                        // Passed buffer was too small so retry again up to MAX_RETRIES.
+                        retries += 1;
                         continue;
                     }
-                    Err(last_os_error)
+                    return Err(last_os_error);
                 }
-                0 => Ok(None),
+                0 => return Ok(None),
                 len => {
                     // Just in case the size shrunk
                     buffer.truncate(len as usize);
-                    Ok(Some(buffer))
+                    return Ok(Some(buffer));
                 }
-            };
+            }
         }
     }
 
