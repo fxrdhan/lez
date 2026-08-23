@@ -168,7 +168,7 @@ impl Options {
         }
         let strict = vars
             .get(vars::LSR_STRICT)
-            .or_else(|| vars.get_with_fallback(vars::EXA_STRICT, vars::EZA_STRICT))
+            .or_else(|| vars.get_with_fallback(vars::EZA_STRICT, vars::EXA_STRICT))
             .is_some();
 
         let view = View::deduce(matches, vars, strict)?;

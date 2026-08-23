@@ -186,7 +186,7 @@ impl GitIgnore {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
         let no_git_env = vars
             .get(vars::LSR_OVERRIDE_GIT)
-            .or_else(|| vars.get_with_fallback(vars::EXA_OVERRIDE_GIT, vars::EZA_OVERRIDE_GIT))
+            .or_else(|| vars.get_with_fallback(vars::EZA_OVERRIDE_GIT, vars::EXA_OVERRIDE_GIT))
             .is_some();
 
         if matches.get_flag("git-ignore") && !matches.get_flag("no-git") && !no_git_env {
