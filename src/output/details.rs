@@ -425,11 +425,15 @@ impl<'a> Render<'a> {
                     // Silent-fail policy: unreadable archives are simply left
                     // as they are.
                     if let Ok(entries) = crate::fs::archives::read_entries(&egg.file.path) {
-                        for entry in &entries {
+                        let last_index = entries.len().saturating_sub(1);
+                        for (index, entry) in entries.iter().enumerate() {
+                            // The final entry closes the branch. Passing `false`
+                            // unconditionally left every row on an edge, so the
+                            // listing never terminated: "├──" all the way down.
                             rows.push(self.render_archive_entry(
                                 egg.file,
                                 entry,
-                                TreeParams::new(depth.deeper(), false),
+                                TreeParams::new(depth.deeper(), index == last_index),
                             ));
                         }
                     }

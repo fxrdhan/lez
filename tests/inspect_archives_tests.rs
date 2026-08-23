@@ -58,6 +58,9 @@ impl Drop for TempTestDir {
     }
 }
 
+/// The entries the fixture archive holds, in listing order.
+const ENTRIES: [&str; 2] = ["foo.tar/inner.txt", "foo.tar/nested/deep.bin"];
+
 fn run_lsr(args: &[&str]) -> String {
     let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
         .args(args)
@@ -94,6 +97,40 @@ fn long_view_lists_tar_entries_below_the_archive() {
     assert!(
         stdout.contains("foo.tar/nested/deep.bin"),
         "nested entry must be listed with its archive path: {stdout}"
+    );
+}
+
+/// The last entry closes the branch. Every row used to sit on an edge, so the
+/// listing never terminated — asserting only that some connector was present
+/// could not tell the two apart.
+#[test]
+fn the_last_archive_entry_closes_the_branch() {
+    let fixture = fixture("edges");
+
+    let stdout = run_lsr(&[
+        "-1",
+        "-l",
+        "--color=never",
+        "--inspect-archives",
+        fixture.path.to_str().unwrap(),
+    ]);
+
+    let rows: Vec<&str> = stdout
+        .lines()
+        .filter(|l| ENTRIES.iter().any(|e| l.contains(e)))
+        .collect();
+    assert_eq!(rows.len(), ENTRIES.len(), "both entries listed: {stdout}");
+
+    let (last, rest) = rows.split_last().expect("at least one entry");
+    for row in rest {
+        assert!(
+            row.contains('\u{251c}') && !row.contains('\u{2514}'),
+            "a non-final entry stays on an edge: {row}"
+        );
+    }
+    assert!(
+        last.contains('\u{2514}') && !last.contains('\u{251c}'),
+        "the final entry closes the branch: {last}"
     );
 }
 
