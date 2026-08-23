@@ -165,20 +165,22 @@ fn test_parent_dir_exclusion_under_flag_permutations() {
         for line in stdout.lines() {
             if line.ends_with(" ..") || line.contains(" .. ") || line.trim_end().ends_with("..") {
                 found_parent = true;
-                assert!(
-                    line.contains(" - ") || line.contains("-"),
-                    "Parent entry '..' must show '-' for recursive size with flags {flags:?}: {line}"
-                );
-                assert!(
-                    !line.contains("10M") && !line.contains("10.0M"),
-                    "Parent entry '..' must NOT compute 10MB with flags {flags:?}: {line}"
+                assert_eq!(
+                    size_column(line),
+                    "-",
+                    "parent entry '..' must show '-' for recursive size with flags {flags:?}: {line}"
                 );
             }
             if line.ends_with(" .") || line.contains(" . ") || line.trim_end().ends_with(" .") {
                 found_current = true;
-                assert!(
-                    !line.contains("10M") && !line.contains("10.0M"),
-                    "Current entry '.' must NOT include parent 10MB with flags {flags:?}: {line}"
+                // The listed directory holds 500 + 300 bytes and must not
+                // pick up the 10 MiB sitting in its parent. Pinning the value
+                // fails on every wrong total, not just the two spellings of
+                // the one wrong total this used to deny.
+                assert_eq!(
+                    size_column(line),
+                    "800",
+                    "current entry '.' must total only its own contents with flags {flags:?}: {line}"
                 );
             }
         }
@@ -198,6 +200,17 @@ fn test_parent_dir_exclusion_under_flag_permutations() {
 // =========================================================================
 
 #[cfg(unix)]
+/// The size column of a long-view row: `permissions size user date… name`.
+///
+/// Substring-matching the whole line for "-" is vacuous — the permissions
+/// field always contains one ("drwx------") — so the column has to be read
+/// out on its own.
+fn size_column(line: &str) -> &str {
+    line.split_whitespace()
+        .nth(1)
+        .unwrap_or_else(|| panic!("long-view row should have a size column: {line}"))
+}
+
 #[test]
 fn test_hardlink_mesh_across_nested_subdirectories() {
     let root = TempTestDir::new("hl_mesh");

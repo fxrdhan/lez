@@ -141,10 +141,17 @@ fn test_f8_git_glyphs_replaces_ascii_status_modified() {
         .lines()
         .find(|l| l.contains("mod.txt"))
         .expect("mod.txt in output");
-    // Verify glyph or non-ASCII icon is rendered (e.g.  \u{f459})
+    // The glyph has to be there, and the ASCII form it replaces has to be
+    // gone. Accepting "or the ASCII form is absent" made this unfalsifiable:
+    // with glyphs the column reads "-", which contains no "-M", so the
+    // assertion held even if no glyph had been rendered at all.
     assert!(
-        mod_line.contains('\u{f459}') || mod_line.contains("") || !mod_line.contains("-M"),
-        "Modified file with --git-glyphs should render glyph icon: {mod_line}"
+        mod_line.contains('\u{f459}'),
+        "modified file with --git-glyphs must render the modified glyph: {mod_line}"
+    );
+    assert!(
+        !mod_line.contains("-M"),
+        "--git-glyphs must replace the ASCII status, not sit beside it: {mod_line}"
     );
 }
 
@@ -177,17 +184,20 @@ fn test_f8_git_glyphs_untracked_and_added() {
         .expect("untracked.txt in output");
 
     assert!(
-        staged_line.contains('\u{f457}')
-            || staged_line.contains("")
-            || !staged_line.contains("N-"),
-        "Staged new file with --git-glyphs should render glyph icon: {staged_line}"
+        staged_line.contains('\u{f457}'),
+        "staged new file with --git-glyphs must render the added glyph: {staged_line}"
     );
     assert!(
-        untracked_line.contains('\u{f457}')
-            || untracked_line.contains('\u{f47f}')
-            || untracked_line.contains("")
-            || !untracked_line.contains("-N"),
-        "Untracked file with --git-glyphs should render glyph icon: {untracked_line}"
+        !staged_line.contains("N-"),
+        "--git-glyphs must replace the ASCII status, not sit beside it: {staged_line}"
+    );
+    assert!(
+        untracked_line.contains('\u{f457}') || untracked_line.contains('\u{f47f}'),
+        "untracked file with --git-glyphs must render a glyph: {untracked_line}"
+    );
+    assert!(
+        !untracked_line.contains("-N"),
+        "--git-glyphs must replace the ASCII status, not sit beside it: {untracked_line}"
     );
 }
 
@@ -299,10 +309,12 @@ fn test_f8_git_glyphs_ignored_and_clean() {
         .expect("ignored.txt in output");
     // Ignored file with glyph: \u{f474} or 
     assert!(
-        ignored_line.contains('\u{f474}')
-            || ignored_line.contains("")
-            || !ignored_line.contains("-I"),
-        "Ignored file with --git-glyphs should render glyph icon: {ignored_line}"
+        ignored_line.contains('\u{f474}'),
+        "ignored file with --git-glyphs must render the ignored glyph: {ignored_line}"
+    );
+    assert!(
+        !ignored_line.contains("-I"),
+        "--git-glyphs must replace the ASCII status, not sit beside it: {ignored_line}"
     );
 }
 

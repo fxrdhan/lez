@@ -386,12 +386,14 @@ fn test_worktree_styling_via_lsr_colors() {
         .find(|l| l.contains("wt_color"))
         .expect("wt_color line in output");
 
-    // The custom-wt-branch should be styled with 35 and 4
+    // Both orderings of the two SGR parameters are accepted, but the branch
+    // name has to actually carry them. The previous fallback — "35" appears
+    // somewhere and so does the branch name — was satisfied by the escape
+    // codes of any other coloured column, so an unstyled branch passed.
     assert!(
         wt_line.contains("\x1b[4;35mcustom-wt-branch\x1b[0m")
-            || wt_line.contains("\x1b[35;4mcustom-wt-branch\x1b[0m")
-            || wt_line.contains("35") && wt_line.contains("custom-wt-branch"),
-        "Worktree branch should be styled with magenta underline ANSI escape: {wt_line}"
+            || wt_line.contains("\x1b[35;4mcustom-wt-branch\x1b[0m"),
+        "worktree branch must be painted magenta+underline: {wt_line:?}"
     );
 }
 
