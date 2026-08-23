@@ -119,7 +119,17 @@ impl TreeTrunk {
 
         // Make sure the stack has enough space, then add or modify another
         // part into it.
-        self.stack.resize(params.depth.0 + 1, TreePart::Edge);
+        //
+        // The fill only ever survives for levels this trunk never saw a row
+        // for. In the ordinary case depth grows one level at a time and the
+        // slot at `params.depth` is overwritten immediately below, so the fill
+        // is invisible. A level gets skipped when a row is filtered out of the
+        // output but still recursed into — `--only-files` hides directory rows
+        // while listing their contents. Such a level has no row for a
+        // connector to attach to, so it has to be blank: filling it with an
+        // edge drew a connector to nothing, and stacked one per skipped level
+        // ("├── ├── └── file").
+        self.stack.resize(params.depth.0 + 1, TreePart::Blank);
         self.stack[params.depth.0] = if params.last {
             TreePart::Corner
         } else {
@@ -249,6 +259,37 @@ mod trunk_test {
         assert_eq!(tt.new_row(params(2, true)),  &[ TreePart::Line, TreePart::Corner ]);
 
         assert_eq!(tt.new_row(params(1, true)),  &[ TreePart::Corner ]);
+        assert_eq!(tt.new_row(params(2, false)), &[ TreePart::Blank, TreePart::Edge ]);
+        assert_eq!(tt.new_row(params(2, true)),  &[ TreePart::Blank, TreePart::Corner ]);
+    }
+
+    /// `--only-files` hides directory rows but still recurses into them, so
+    /// the trunk is handed a depth several levels below the last row it saw.
+    /// The levels in between have no row to attach a connector to and must be
+    /// blank, not edges pointing at nothing.
+    #[rustfmt::skip]
+    #[test]
+    fn skipped_levels_are_blank_not_edges() {
+        let mut tt = TreeTrunk::default();
+        assert_eq!(tt.new_row(params(3, true)),  &[ TreePart::Blank, TreePart::Blank, TreePart::Corner ]);
+    }
+
+    /// Climbing back out after a gap still resolves against the blanks, so a
+    /// shallower row is not left carrying the deeper row's parts.
+    #[rustfmt::skip]
+    #[test]
+    fn rows_after_a_skipped_level_climb_back_out() {
+        let mut tt = TreeTrunk::default();
+        assert_eq!(tt.new_row(params(3, true)),  &[ TreePart::Blank, TreePart::Blank, TreePart::Corner ]);
+        assert_eq!(tt.new_row(params(2, true)),  &[ TreePart::Blank, TreePart::Corner ]);
+        assert_eq!(tt.new_row(params(1, true)),  &[ TreePart::Corner ]);
+    }
+
+    /// Siblings below a skipped level keep their own edge and corner.
+    #[rustfmt::skip]
+    #[test]
+    fn siblings_below_a_skipped_level_keep_their_parts() {
+        let mut tt = TreeTrunk::default();
         assert_eq!(tt.new_row(params(2, false)), &[ TreePart::Blank, TreePart::Edge ]);
         assert_eq!(tt.new_row(params(2, true)),  &[ TreePart::Blank, TreePart::Corner ]);
     }
