@@ -8,6 +8,8 @@ complete -c lsr -s l -l long -d "Display extended file metadata as a table"
 complete -c lsr -s G -l grid -d "Display entries in a grid"
 complete -c lsr -s x -l across -d "Sort the grid across, rather than downwards"
 complete -c lsr -s R -l recurse -d "Recurse into directories"
+complete -c lsr -l json -d "Output file listing and metadata as structured JSON"
+complete -c lsr -l spacing -d "Number of spaces between columns in grid views" -r
 complete -c lsr -s T -l tree -d "Recurse into directories as a tree"
 complete -c lsr -s X -l dereference -d "Dereference symbolic links when displaying file information"
 complete -c lsr -s F -l classify -d "Display type indicator by file names"
@@ -119,6 +121,7 @@ complete -c lsr -s s -l sort -d "Which field to sort by" -x -a "
 "
 
 complete -c lsr -s I -l ignore-glob -d "Ignore files that match these glob patterns" -r
+complete -c lsr -l ignore-glob-ci -d "Ignore files that match these glob patterns case-insensitively" -r
 complete -c lsr -s D -l only-dirs -d "List only directories"
 complete -c lsr -s f -l only-files -d "List only files"
 complete -c lsr -l show-symlinks -d "Explicitly show symbolic links (For use with --only-dirs | --only-files)"
@@ -173,3 +176,5 @@ complete -c lsr -l git-repos -d "List each git-repos status and branch name"
 complete -c lsr -l git-repos-no-status -d "List each git-repos branch name (much faster)"
 complete -c lsr -s '@' -l extended -d "List each file's extended attributes and sizes"
 complete -c lsr -s Z -l context -d "List each file's security context"
+complete -c lsr -s O -l flags -d "List file flags (Mac, BSD, and Windows only)"
+complete -c lsr -s e -l tags -d "List each file's color tags stored in extended attributes"
