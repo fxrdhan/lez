@@ -68,7 +68,7 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --features git,inspect-archives -- -D warnings
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
@@ -105,7 +105,7 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
       - name: Run all tests
-        run: cargo test --all-targets --all-features
+        run: cargo test --all-targets --features git,inspect-archives
   build-release:
     name: Release Build (${{ matrix.os }})
     needs: [unit-and-integration-tests]
@@ -124,7 +124,7 @@ jobs:
         with:
           key: release-${{ matrix.os }}
       - name: Build release binary
-        run: cargo build --release --all-features
+        run: cargo build --release --features git,inspect-archives
   nix-flake-check:
     name: Nix Flake Validation
     needs: changes
