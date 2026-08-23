@@ -128,7 +128,7 @@ fn test_f5_sort_path_ordering_files() {
         ],
     );
     assert!(output_path.status.success());
-    let stdout_path = String::from_utf8_lossy(&output_path.stdout);
+    let stdout_path = String::from_utf8_lossy(&output_path.stdout).replace('\\', "/");
     let lines_path: Vec<&str> = stdout_path.lines().collect();
 
     assert_eq!(lines_path.len(), 3);
@@ -156,7 +156,7 @@ fn test_f5_sort_path_ordering_files() {
             &["-1d", &sort_arg, "--color=never", fb_str, fa1_str, fa2_str],
         );
         assert!(output_alias.status.success());
-        let stdout_alias = String::from_utf8_lossy(&output_alias.stdout);
+        let stdout_alias = String::from_utf8_lossy(&output_alias.stdout).replace('\\', "/");
         let lines_alias: Vec<&str> = stdout_alias.lines().collect();
         assert_eq!(
             lines_alias, lines_path,
@@ -179,7 +179,7 @@ fn test_f5_sort_path_reverse() {
         &["-1d", "--sort=path", "-r", "--color=never", fa_str, fb_str],
     );
     assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = String::from_utf8_lossy(&output.stdout).replace('\\', "/");
     let lines: Vec<&str> = stdout.lines().collect();
 
     assert_eq!(lines.len(), 2);
@@ -207,7 +207,7 @@ fn test_f5_sort_path_reverse() {
         ],
     );
     assert!(output_rel.status.success());
-    let stdout_rel = String::from_utf8_lossy(&output_rel.stdout);
+    let stdout_rel = String::from_utf8_lossy(&output_rel.stdout).replace('\\', "/");
     let lines_rel: Vec<&str> = stdout_rel.lines().collect();
     assert_eq!(lines_rel, lines);
 }
@@ -230,7 +230,7 @@ fn test_f5_distinguish_leaf_name_sorting_from_path_sorting() {
         &["-1d", "--sort=name", "--color=never", fa_z_str, fb_a_str],
     );
     assert!(output_name.status.success());
-    let stdout_name = String::from_utf8_lossy(&output_name.stdout);
+    let stdout_name = String::from_utf8_lossy(&output_name.stdout).replace('\\', "/");
     let lines_name: Vec<&str> = stdout_name.lines().collect();
     assert_eq!(lines_name.len(), 2);
     assert!(
@@ -256,7 +256,7 @@ fn test_f5_distinguish_leaf_name_sorting_from_path_sorting() {
         ],
     );
     assert!(output_relpath.status.success());
-    let stdout_relpath = String::from_utf8_lossy(&output_relpath.stdout);
+    let stdout_relpath = String::from_utf8_lossy(&output_relpath.stdout).replace('\\', "/");
     let lines_relpath: Vec<&str> = stdout_relpath.lines().collect();
     assert_eq!(lines_relpath.len(), 2);
     assert!(
@@ -276,7 +276,7 @@ fn test_f5_distinguish_leaf_name_sorting_from_path_sorting() {
         &["-1d", "--sort=path", "--color=never", fa_z_str, fb_a_str],
     );
     assert!(output_path.status.success());
-    let stdout_path = String::from_utf8_lossy(&output_path.stdout);
+    let stdout_path = String::from_utf8_lossy(&output_path.stdout).replace('\\', "/");
     let lines_path: Vec<&str> = stdout_path.lines().collect();
     assert_eq!(lines_path, lines_relpath);
 }
@@ -314,7 +314,7 @@ fn test_f5_sort_path_case_sensitive_variants() {
         ],
     );
     assert!(output_case.status.success());
-    let stdout_case = String::from_utf8_lossy(&output_case.stdout);
+    let stdout_case = String::from_utf8_lossy(&output_case.stdout).replace('\\', "/");
     let lines_case: Vec<&str> = stdout_case.lines().collect();
 
     assert_eq!(lines_case.len(), 4);
@@ -339,7 +339,7 @@ fn test_f5_sort_path_case_sensitive_variants() {
             ],
         );
         assert!(output_alias.status.success());
-        let stdout_alias = String::from_utf8_lossy(&output_alias.stdout);
+        let stdout_alias = String::from_utf8_lossy(&output_alias.stdout).replace('\\', "/");
         let lines_alias: Vec<&str> = stdout_alias.lines().collect();
         assert_eq!(
             lines_alias, lines_case,
