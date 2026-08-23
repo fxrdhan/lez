@@ -13,8 +13,6 @@ use std::fs::DirEntry;
 use std::io;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
-#[cfg(windows)]
-use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::slice::Iter as SliceIter;
 use std::sync::OnceLock;
