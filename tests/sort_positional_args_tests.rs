@@ -53,6 +53,12 @@ impl TempTestDir {
         file.set_times(times).expect("Failed to set file times");
     }
 
+    /// Set a directory's modification time.
+    ///
+    /// Unix-only: std cannot open a directory as a file on Windows
+    /// (opening requires `FILE_FLAG_BACKUP_SEMANTICS`, which std does not
+    /// expose), so directory-mtime sorting coverage is gated accordingly.
+    #[cfg(unix)]
     fn set_dir_mtime(&self, rel_path: &str, time: SystemTime) {
         let dir_path = self.path.join(rel_path);
         let file = StdFile::options()
@@ -192,6 +198,8 @@ fn test_positional_dirs_sort_none_preserves_argv_order() {
     assert_eq!(lines_s, lines_none);
 }
 
+// Unix-only: relies on set_dir_mtime, which std cannot express on Windows.
+#[cfg(unix)]
 #[test]
 fn test_positional_dirs_sort_by_modified() {
     let temp = TempTestDir::new("pos_dirs_mtime");
