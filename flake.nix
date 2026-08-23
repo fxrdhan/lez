@@ -99,7 +99,7 @@
         formatter = treefmtEval.config.build.wrapper;
 
         packages = {
-          default = import ./nix/eza.nix { inherit pkgs naersk' buildInputs; };
+          default = import ./nix/lsr.nix { inherit pkgs naersk' buildInputs; };
 
           check = naersk'.buildPackage {
             inherit buildInputs;
