@@ -163,6 +163,7 @@ fn test_total_size_dotfile_filter_parity() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn test_total_size_hardlink_deduplication() {
     let temp = TempTestDir::new("hardlink_dedup");
