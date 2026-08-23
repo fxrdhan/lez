@@ -498,10 +498,11 @@ impl FromOverride<GitOverride> for Git {
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GitRepoOverride {
-    pub branch_main: Option<StyleOverride>,  //Gm
-    pub branch_other: Option<StyleOverride>, //Go
-    pub git_clean: Option<StyleOverride>,    //Gc
-    pub git_dirty: Option<StyleOverride>,    //Gd
+    pub branch_main: Option<StyleOverride>,     //Gm
+    pub branch_other: Option<StyleOverride>,    //Go
+    pub git_clean: Option<StyleOverride>,       //Gc
+    pub git_dirty: Option<StyleOverride>,       //Gd
+    pub branch_worktree: Option<StyleOverride>, //Gw
 }
 
 impl FromOverride<GitRepoOverride> for GitRepo {
@@ -511,6 +512,7 @@ impl FromOverride<GitRepoOverride> for GitRepo {
             branch_other: FromOverride::from(value.branch_other, default.branch_other),
             git_clean: FromOverride::from(value.git_clean, default.git_clean),
             git_dirty: FromOverride::from(value.git_dirty, default.git_dirty),
+            branch_worktree: FromOverride::from(value.branch_worktree, default.branch_worktree),
         }
     }
 }
@@ -837,6 +839,27 @@ pub(crate) fn config_dir_from_env(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_git_repo_branch_worktree_yaml() {
+        let yaml = r#"
+git_repo:
+  branch_main: { foreground: "green" }
+  branch_other: { foreground: "yellow" }
+  branch_worktree: { foreground: "purple", underline: true }
+"#;
+        let config: UiStylesOverride = serde_norway::from_str(yaml).unwrap();
+        let repo_override = config.git_repo.unwrap();
+        assert!(repo_override.branch_worktree.is_some());
+        let wt = repo_override.branch_worktree.unwrap();
+        assert_eq!(wt.foreground, Some(Color::Purple));
+        assert_eq!(wt.is_underline, Some(true));
+
+        let default_repo = GitRepo::default();
+        let resolved =
+            <GitRepo as FromOverride<GitRepoOverride>>::from(repo_override, default_repo);
+        assert_eq!(resolved.branch_worktree, Some(Color::Purple.underline()));
+    }
 
     #[test]
     fn parse_none_color_from_string() {

@@ -519,17 +519,30 @@ impl f::SubdirGitRepo {
                     None
                 },
                 branch: None,
+                is_worktree: false,
             };
         }
 
         let path = &reorient(dir);
 
+        let git_file = dir.join(".git");
+        let is_gitlink_worktree = git_file.is_file()
+            && std::fs::read_to_string(&git_file)
+                .map(|content| {
+                    let trimmed = content.trim_start();
+                    trimmed.starts_with("gitdir:")
+                        && (trimmed.contains("/worktrees/") || trimmed.contains(r"\worktrees\"))
+                })
+                .unwrap_or(false);
+
         if let Ok(repo) = git2::Repository::open(path) {
+            let is_worktree = repo.is_worktree() || is_gitlink_worktree;
             let branch = current_branch(&repo);
             if !status {
                 return Self {
                     status: None,
                     branch,
+                    is_worktree,
                 };
             }
             match repo.statuses(None) {
@@ -538,11 +551,13 @@ impl f::SubdirGitRepo {
                         return Self {
                             status: Some(f::SubdirGitRepoStatus::GitDirty),
                             branch,
+                            is_worktree,
                         };
                     }
                     return Self {
                         status: Some(f::SubdirGitRepoStatus::GitClean),
                         branch,
+                        is_worktree,
                     };
                 }
                 Err(e) => {
@@ -557,6 +572,7 @@ impl f::SubdirGitRepo {
                 None
             },
             branch: None,
+            is_worktree: false,
         }
     }
 }
@@ -1061,5 +1077,33 @@ mod tests {
                 || res_repo.branch.as_deref() == Some("main")
         );
         assert!(res_repo.status == Some(f::SubdirGitRepoStatus::GitClean));
+        assert!(!res_repo.is_worktree);
+    }
+
+    #[test]
+    fn test_worktree_detection() {
+        let test_repo = TestGitRepo::new("worktree_detection");
+        test_repo.create_file("file.txt", b"hello");
+        test_repo.commit_all("initial commit");
+
+        let wt_path = std::env::temp_dir().join(format!(
+            "lsr_test_git_worktree_{}_{}",
+            "unit",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&wt_path);
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let _ = repo.worktree("wt_branch", &wt_path, None).unwrap();
+
+        let res_wt = f::SubdirGitRepo::from_path(&wt_path, true);
+        assert!(res_wt.is_worktree);
+        assert_eq!(res_wt.branch.as_deref(), Some("wt_branch"));
+        assert_eq!(res_wt.status, Some(f::SubdirGitRepoStatus::GitClean));
+
+        let res_main = f::SubdirGitRepo::from_path(&test_repo.path, true);
+        assert!(!res_main.is_worktree);
+
+        let _ = fs::remove_dir_all(&wt_path);
     }
 }
