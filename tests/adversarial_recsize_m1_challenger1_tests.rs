@@ -20,8 +20,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
-#[cfg(windows)]
-use std::os::windows::fs::MetadataExt;
 
 use lsr::fs::fields::Size;
 use lsr::fs::{Dir, DotFilter, File};
