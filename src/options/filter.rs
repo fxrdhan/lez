@@ -15,7 +15,7 @@ use crate::fs::filter::{
 };
 
 use crate::options::OptionsError;
-use crate::options::Vars;
+use crate::options::{Vars, vars};
 use crate::output::hidden_count::WarnHiddenMode;
 
 impl FileFilter {
@@ -55,7 +55,7 @@ impl FileFilter {
             dot_filter: DotFilter::deduce(matches, strict)?,
             ignore_patterns: IgnorePatterns::deduce(matches)?,
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
-            git_ignore: GitIgnore::deduce(matches),
+            git_ignore: GitIgnore::deduce(matches, vars),
             ignore_cachedir: IgnoreCacheDir::deduce(matches),
             warn_hidden: WarnHiddenMode::deduce(matches),
             ignore_submodule_contents: matches.get_flag("ignore-submodule-contents"),
@@ -183,8 +183,13 @@ impl IgnorePatterns {
 }
 
 impl GitIgnore {
-    pub fn deduce(matches: &ArgMatches) -> Self {
-        if matches.get_flag("git-ignore") {
+    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
+        let no_git_env = vars
+            .get(vars::LSR_OVERRIDE_GIT)
+            .or_else(|| vars.get_with_fallback(vars::EXA_OVERRIDE_GIT, vars::EZA_OVERRIDE_GIT))
+            .is_some();
+
+        if matches.get_flag("git-ignore") && !matches.get_flag("no-git") && !no_git_env {
             Self::CheckAndIgnore
         } else {
             Self::Off
@@ -222,14 +227,37 @@ mod tests {
 
     #[test]
     fn deduce_git_ignore_off() {
-        assert_eq!(GitIgnore::deduce(&mock_cli(vec![""])), GitIgnore::Off);
+        assert_eq!(
+            GitIgnore::deduce(&mock_cli(vec![""]), &MockVars::default()),
+            GitIgnore::Off
+        );
     }
 
     #[test]
     fn deduce_git_ignore_on() {
         assert_eq!(
-            GitIgnore::deduce(&mock_cli(vec!["--git-ignore"])),
+            GitIgnore::deduce(&mock_cli(vec!["--git-ignore"]), &MockVars::default()),
             GitIgnore::CheckAndIgnore
+        );
+    }
+
+    #[test]
+    fn deduce_git_ignore_no_git_override() {
+        assert_eq!(
+            GitIgnore::deduce(
+                &mock_cli(vec!["--git-ignore", "--no-git"]),
+                &MockVars::default()
+            ),
+            GitIgnore::Off
+        );
+    }
+
+    #[test]
+    fn deduce_git_ignore_env_override() {
+        let vars = Some(OsString::from("1"));
+        assert_eq!(
+            GitIgnore::deduce(&mock_cli(vec!["--git-ignore"]), &vars),
+            GitIgnore::Off
         );
     }
 

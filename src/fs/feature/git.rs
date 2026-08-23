@@ -45,6 +45,15 @@ impl GitCache {
             .unwrap_or_default()
     }
 
+    #[must_use]
+    pub fn get_child(&self, dir: &Path, file: &Path, prefix_lookup: bool) -> f::Git {
+        self.repos
+            .iter()
+            .find(|repo| repo.has_path(file) || repo.has_path(dir))
+            .map(|repo| repo.search_child(dir, file, prefix_lookup))
+            .unwrap_or_default()
+    }
+
     /// Whether `path` sits inside a submodule working tree of any known
     /// repository.
     #[must_use]
@@ -205,6 +214,23 @@ impl GitRepo {
         result
     }
 
+    fn search_child(&self, dir: &Path, file: &Path, prefix_lookup: bool) -> f::Git {
+        use std::mem::replace;
+
+        let mut contents = self.contents.lock().unwrap();
+        if let GitContents::After { ref statuses } = *contents {
+            debug!("Git repo {:?} has been found in cache", self.workdir);
+            return statuses.child_status(dir, file, prefix_lookup);
+        }
+
+        debug!("Querying Git repo {:?} for the first time", self.workdir);
+        let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
+        let statuses = repo_to_statuses(&repo, &self.workdir, &self.listing_roots());
+        let result = statuses.child_status(dir, file, prefix_lookup);
+        let _processing = replace(&mut *contents, GitContents::After { statuses });
+        result
+    }
+
     /// The absolute paths of every listing that resolved to this repository:
     /// status queries only ever concern paths beneath these (see `has_path`).
     fn listing_roots(&self) -> Vec<PathBuf> {
@@ -360,6 +386,33 @@ impl Git {
         } else {
             self.file_status(index)
         }
+    }
+
+    fn child_status(&self, dir: &Path, file: &Path, prefix_lookup: bool) -> f::Git {
+        let dir_path = reorient(dir);
+        let path = reorient(file);
+
+        let s = self
+            .statuses
+            .iter()
+            .filter(|p| {
+                if p.1 == git2::Status::IGNORED {
+                    if dir_path.starts_with(&p.0) {
+                        false
+                    } else {
+                        path.starts_with(&p.0)
+                    }
+                } else if prefix_lookup {
+                    p.0.starts_with(&path)
+                } else {
+                    p.0 == path
+                }
+            })
+            .fold(git2::Status::empty(), |a, b| a | b.1);
+
+        let staged = index_status(s);
+        let unstaged = working_tree_status(s);
+        f::Git { staged, unstaged }
     }
 
     /// Get the user-facing status of a file.
@@ -1105,5 +1158,40 @@ mod tests {
         assert!(!res_main.is_worktree);
 
         let _ = fs::remove_dir_all(&wt_path);
+    }
+
+    #[test]
+    fn test_child_status_scoped_to_parent_dir() {
+        let test_repo = TestGitRepo::new("child_status_scoped");
+        test_repo.create_file(".gitignore", b"target/\n*.log\n");
+        let target_bin = test_repo.create_file("target/debug/app", b"binary content");
+        let src_rs = test_repo.create_file("src/main.rs", b"fn main() {}");
+        let src_log = test_repo.create_file("src/output.log", b"log content");
+        test_repo.commit_all("add gitignore");
+
+        let repo = git2::Repository::open(&test_repo.path).unwrap();
+        let target_path = test_repo.path.join("target");
+        let target_debug_path = test_repo.path.join("target/debug");
+        let src_path = test_repo.path.join("src");
+
+        let roots = vec![reorient(&test_repo.path)];
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+
+        // 1. Direct file_status on target directory when queried from root: Ignored
+        assert!(git_status.file_status(&target_path).unstaged == f::GitStatus::Ignored);
+
+        // 2. Child status when querying child of target: target/ rule is excluded
+        let child_stat = git_status.child_status(&target_path, &target_bin, false);
+        assert!(child_stat.unstaged != f::GitStatus::Ignored);
+
+        // 3. Child status when querying nested debug directory: target/ rule is excluded
+        let debug_stat = git_status.child_status(&target_path, &target_debug_path, false);
+        assert!(debug_stat.unstaged != f::GitStatus::Ignored);
+
+        // 4. In src directory (which is not ignored), *.log rule ignores src/output.log:
+        let src_rs_stat = git_status.child_status(&src_path, &src_rs, false);
+        assert!(src_rs_stat.unstaged != f::GitStatus::Ignored);
+        let src_log_stat = git_status.child_status(&src_path, &src_log, false);
+        assert!(src_log_stat.unstaged == f::GitStatus::Ignored);
     }
 }
