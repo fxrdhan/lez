@@ -162,3 +162,44 @@ fn test_total_size_dotfile_filter_parity() {
         "With -a, target dir size should reflect hidden files (approx 28KB): {stdout_with_a}"
     );
 }
+
+#[test]
+fn test_total_size_hardlink_deduplication() {
+    let temp = TempTestDir::new("hardlink_dedup");
+    let target_dir = temp.path.join("tree");
+    fs::create_dir_all(&target_dir).unwrap();
+
+    let file1 = temp.create_file("tree/file1.bin", &vec![0u8; 10000]);
+    let file1_hl = target_dir.join("file1_hardlink.bin");
+    fs::hard_link(&file1, &file1_hl).unwrap();
+
+    let sub_dir = target_dir.join("sub");
+    fs::create_dir_all(&sub_dir).unwrap();
+    let file1_hl2 = sub_dir.join("file1_hardlink2.bin");
+    fs::hard_link(&file1, &file1_hl2).unwrap();
+
+    let _file2 = temp.create_file("tree/file2.bin", &vec![0u8; 5000]);
+
+    // Total unique file bytes in tree: 10000 + 5000 = 15000 (15KB).
+    // If hardlinks were double/triple counted, it would be 10000*3 + 5000 = 35000 (35KB).
+    let output = Command::new(bin_path())
+        .arg("-ld")
+        .arg("--total-size")
+        .arg(&target_dir)
+        .output()
+        .expect("failed to execute lsr");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("15k") || stdout.contains("15K"),
+        "Directory size should be ~15KB (deduplicated), but output was: {stdout}"
+    );
+    assert!(
+        !stdout.contains("35k")
+            && !stdout.contains("35K")
+            && !stdout.contains("25k")
+            && !stdout.contains("25K"),
+        "Directory size must not double-count hardlinks (should not be 25KB or 35KB): {stdout}"
+    );
+}

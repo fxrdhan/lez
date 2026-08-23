@@ -11,6 +11,10 @@ use std::collections::HashSet;
 use std::fs;
 use std::fs::DirEntry;
 use std::io;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::slice::Iter as SliceIter;
 use std::sync::OnceLock;
@@ -132,6 +136,79 @@ impl Dir {
     #[must_use]
     pub fn join(&self, child: &Path) -> PathBuf {
         self.path.join(child)
+    }
+
+    /// Recursively calculates total directory size and block count, deduplicating hardlinks
+    /// by tracking visited file identifiers across the traversal.
+    pub fn calculate_recursive_size(
+        &self,
+        visited: &mut HashSet<(u64, u64)>,
+        dot_filter: DotFilter,
+        mime_read_contents: bool,
+    ) -> (u64, u64) {
+        let traversal_filter = if dot_filter.shows_dotfiles() {
+            DotFilter::Dotfiles
+        } else {
+            DotFilter::JustFiles
+        };
+
+        let mut total_size = 0;
+        let mut total_blocks = 0;
+
+        for file in self.files(
+            traversal_filter,
+            None,
+            false,
+            false,
+            false,
+            mime_read_contents,
+            None,
+        ) {
+            if file.is_directory() {
+                if let Ok(md) = file.metadata() {
+                    #[cfg(unix)]
+                    let dir_id = (md.dev(), md.ino());
+                    #[cfg(windows)]
+                    let dir_id = (
+                        u64::from(md.volume_serial_number().unwrap_or(0)),
+                        md.file_index().unwrap_or(0),
+                    );
+                    if visited.insert(dir_id)
+                        && let Ok(sub_dir) = Dir::read_dir(file.path.clone())
+                    {
+                        let (dir_size, dir_blocks) = sub_dir.calculate_recursive_size(
+                            visited,
+                            dot_filter,
+                            mime_read_contents,
+                        );
+                        total_size += dir_size;
+                        total_blocks += dir_blocks;
+                    }
+                }
+            } else if let Ok(md) = file.metadata() {
+                #[cfg(unix)]
+                let file_id = (md.dev(), md.ino());
+                #[cfg(windows)]
+                let file_id = (
+                    u64::from(md.volume_serial_number().unwrap_or(0)),
+                    md.file_index().unwrap_or(0),
+                );
+
+                if visited.insert(file_id) {
+                    #[cfg(unix)]
+                    {
+                        total_size += md.size();
+                        total_blocks += md.blocks();
+                    }
+                    #[cfg(windows)]
+                    {
+                        total_size += md.file_size();
+                    }
+                }
+            }
+        }
+
+        (total_size, total_blocks)
     }
 }
 
