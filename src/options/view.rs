@@ -356,7 +356,7 @@ impl Columns {
 
         let no_git_env = vars
             .get(vars::LSR_OVERRIDE_GIT)
-            .or_else(|| vars.get_with_fallback(vars::EXA_OVERRIDE_GIT, vars::EZA_OVERRIDE_GIT))
+            .or_else(|| vars.get_with_fallback(vars::EZA_OVERRIDE_GIT, vars::EXA_OVERRIDE_GIT))
             .is_some();
 
         let git = matches.get_flag("git") && !matches.get_flag("no-git") && !no_git_env;

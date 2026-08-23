@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
-REPO_URL="https://github.com/eza-community/eza"
-NAME="eza"
+REPO_URL="https://github.com/fxrdhan/lsr"
+NAME="lsr"
 DESTDIR=/usr/bin
 DOCDIR=/usr/share/man/
 
@@ -64,15 +64,15 @@ for ARCH in "${!TARGETS[@]}"; do
     chmod 755 "${DEB_TMP_DIR}${DESTDIR}/${NAME}"
 
     echo " -> compress man pages"
-    gzip -cn9 target/man/eza.1 > "${DEB_TMP_DIR}${DOCDIR}man1/eza.1.gz"
-    gzip -cn9 target/man/eza_colors.5 > "${DEB_TMP_DIR}${DOCDIR}man5/eza_colors.5.gz"
-    gzip -cn9 target/man/eza_colors-explanation.5 > "${DEB_TMP_DIR}${DOCDIR}man5/eza_colors-explanation.5.gz"
+    gzip -cn9 target/man/lsr.1 > "${DEB_TMP_DIR}${DOCDIR}man1/lsr.1.gz"
+    gzip -cn9 target/man/lsr_colors.5 > "${DEB_TMP_DIR}${DOCDIR}man5/lsr_colors.5.gz"
+    gzip -cn9 target/man/lsr_colors-explanation.5 > "${DEB_TMP_DIR}${DOCDIR}man5/lsr_colors-explanation.5.gz"
     chmod 644 "${DEB_TMP_DIR}${DOCDIR}"/**/*.gz
 
     echo " -> copy completions"
-    cp completions/bash/eza "${DEB_TMP_DIR}/usr/share/bash-completion/completions/"
-    cp completions/fish/eza.fish "${DEB_TMP_DIR}/usr/share/fish/vendor_completions.d/"
-    cp completions/zsh/_eza "${DEB_TMP_DIR}/usr/share/zsh/vendor-completions/"
+    cp completions/bash/lsr "${DEB_TMP_DIR}/usr/share/bash-completion/completions/"
+    cp completions/fish/lsr.fish "${DEB_TMP_DIR}/usr/share/fish/vendor_completions.d/"
+    cp completions/zsh/_lsr "${DEB_TMP_DIR}/usr/share/zsh/vendor-completions/"
 
     echo " -> create control file"
     touch "${DEB_TMP_DIR}/DEBIAN/control"
@@ -83,14 +83,15 @@ Section: utils
 Priority: optional
 Architecture: ${ARCH}
 Depends: libc6
-Maintainer: Sandro-Alessio Gierens <sandro@gierens.de>
+Maintainer: Firdaus Arif R <firdausarief65@gmail.com>
 Description: Modern replacement for ls
- eza is a modern replacement for ls.  It uses colours for information by
- default, helping you distinguish between many types of files, such as whether
- you are the owner, or in the owning group.
+ lsr is a modern, fast, and feature-rich replacement for ls.  It uses colours
+ for information by default, helping you distinguish between many types of
+ files, such as whether you are the owner, or in the owning group.
  .
  It also has extra features not present in the original ls, such as viewing the
- Git status for a directory, or recursing into directories with a tree view.
+ Git status for a directory, lines-of-code counting with --code, structured
+ JSON output with --json, and recursing into directories with a tree view.
 EOM
     chmod 644 "${DEB_TMP_DIR}/DEBIAN/control"
 
@@ -105,35 +106,26 @@ EOM
     cat > "${DEB_TMP_DIR}/usr/share/doc/${NAME}/copyright" << EOM
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: ${NAME}
-Upstream-Contact: Christina Sørensen <christina@cafkafk.com>
-Source: https://github.com/eza-community/eza/releases
+Upstream-Contact: https://github.com/fxrdhan/lsr/issues
+Source: https://github.com/fxrdhan/lsr/releases
 
 Files: *
-License: MIT
-Copyright: 2023 Christina Sørensen <christina@cafkafk.com>
+License: EUPL-1.2
+Copyright: 2026 fxrdhan
+           2023-2024 Christina Sørensen and eza contributors
 
 Files: debian/*
-License: MIT
-Copyright: 2023 Christina Sørensen <christina@cafkafk.com>
+License: EUPL-1.2
+Copyright: 2026 fxrdhan
 
-License: MIT
- Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated documentation files (the "Software"), to deal
- in the Software without restriction, including without limitation the rights
- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- copies of the Software, and to permit persons to whom the Software is
- furnished to do so, subject to the following conditions:
+License: EUPL-1.2
+ lsr is a fork of eza, which is a fork of exa.  It is licensed under the
+ European Union Public Licence v1.2; the full text is shipped in the source
+ tree as LICENSE.txt and is also available at
+ <https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12>.
  .
- The above copyright notice and this permission notice shall be included in all
- copies or substantial portions of the Software.
- .
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- SOFTWARE.
+ Portions originating in exa (Copyright 2014 Benjamin Sago) remain under the
+ MIT licence, as recorded in the SPDX headers of the individual files.
 EOM
     chmod 644 "${DEB_TMP_DIR}/usr/share/doc/${NAME}/copyright"
 
@@ -143,8 +135,8 @@ EOM
     echo " -> cleanup"
     rm -rf "${DEB_TMP_DIR}" "${ARCH}.tar.gz" "${NAME}"
 
-    # gierens: this does not work on my arch at the moment and
-    #          i'm verifying on the repo host anyway thus the || true
+    # lintian is not available on every packaging host, and the package is
+    # verified on the repo host anyway, hence the || true.
     echo " -> lint ${ARCH} package"
     lintian "${DEB_PACKAGE}" || true
 done

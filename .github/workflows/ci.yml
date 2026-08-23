@@ -38,6 +38,14 @@ jobs:
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
               - '.github/workflows/ci.yml'
+              # The suite asserts on these from disk (man_docs_tests,
+              # zsh_completion_classify_tests, theme_schema_tests), so a
+              # change to one of them has to run the tests that guard it.
+              - 'man/**'
+              - 'completions/**'
+              - 'docs/**'
+              - 'justfile'
+              - 'README.md'
             nix:
               - 'flake.nix'
               - 'flake.lock'
@@ -76,7 +84,7 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --features git,inspect-archives -- -D warnings
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
@@ -113,7 +121,7 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
       - name: Run all tests
-        run: cargo test --all-targets --all-features
+        run: cargo test --all-targets --features git,inspect-archives
   build-release:
     name: Release Build (${{ matrix.os }})
     needs: [unit-and-integration-tests]
@@ -132,7 +140,7 @@ jobs:
         with:
           key: release-${{ matrix.os }}
       - name: Build release binary
-        run: cargo build --release --all-features
+        run: cargo build --release --features git,inspect-archives
   nix-flake-check:
     name: Nix Flake Validation
     needs: changes

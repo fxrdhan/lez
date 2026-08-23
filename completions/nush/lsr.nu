@@ -6,6 +6,8 @@ export extern "lsr" [
     --grid(-G)                 # Display entries in a grid
     --across(-x)               # Sort the grid across, rather than downwards
     --recurse(-R)              # Recurse into directories
+    --json                     # Output file listing and metadata as structured JSON
+    --spacing: string          # Number of spaces between columns in grid views
     --tree(-T)                 # Recurse into directories as a tree
     --dereference(-X)          # Dereference symbolic links when displaying file information
     --classify(-F)             # Display type indicator by file names
@@ -28,7 +30,7 @@ export extern "lsr" [
     --group-directories-last   # Sort directories after other files
     --inspect-archives         # List contents of supported archives (.tar) in long view
     --ignore-submodule-contents # Do not list contents of submodules
-    -W                         # Print a tally of hidden and ignored items; twice to always print
+    --warn-hidden(-W)          # Print a tally of hidden and ignored items; twice to always print
     --no-extended              # Do not show a marker if a file's extended attributes exist
     --git-ignore               # Ignore files mentioned in '.gitignore'
     --cachedir-ignore          # Ignore directories with a 'CACHEDIR.TAG' file
@@ -41,6 +43,8 @@ export extern "lsr" [
     --width(-w)                # Limits column output of grid, 0 implies auto-width
     --reverse(-r)              # Reverse the sort order
     --sort(-s)                 # Which field to sort by
+    --ignore-glob(-I): string  # Ignore files that match these glob patterns
+    --ignore-glob-ci: string   # Ignore files that match these glob patterns case-insensitively
     --only-dirs(-D)            # List only directories
     --only-files(-f)           # List only files
     --show-symlinks            # Explicitly show symbolic links (for use with --only-dirs | --only-files)
@@ -77,6 +81,8 @@ export extern "lsr" [
     --git-repos-no-status      # List each git-repos branch name (much faster)
     --extended(-@)             # List each file's extended attributes and sizes
     --context(-Z)              # List each file's security context
+    --flags(-O)                # List file flags (Mac, BSD, and Windows only)
+    --tags(-e)                 # List each file's color tags stored in extended attributes
     --smart-group              # Only show group if it has a different name from owner
     --stdin                    # When piping to eza. Read file paths from stdin
     --print-total              # Display total number of entries

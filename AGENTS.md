@@ -54,11 +54,11 @@ CLI Input (Args & Env)
 
 #### Entry Point & Orchestration
 - [`src/main.rs`](src/main.rs):
-  - Configures logging (`logger::configure`) based on `EZA_DEBUG` / `EXA_DEBUG`.
+  - Configures logging (`logger::configure`) based on `LSR_DEBUG` / `EZA_DEBUG` / `EXA_DEBUG`.
   - Sets up signal handlers (e.g. `SIGPIPE` default handling on Unix).
   - Parses arguments via `options::parser::get_command().get_matches()`.
-  - Initializes `Exa` struct holding `Options`, `Theme`, terminal width, and `GitCache`.
-  - Runs `Exa::run()`:
+  - Initializes the `Lsr` struct holding `Options`, `Theme`, terminal width, and `GitCache`.
+  - Runs `Lsr::run()`:
     - If `--code` mode: counts lines of code and renders language breakdown via `src/output/code.rs`.
     - If `--json` mode: serializes files/directories via `src/output/json.rs` (special-cased for multi-directory output).
     - Otherwise: wraps input paths into `File` / `Dir` structs, verifies metadata, sorts/filters, recurses if requested (`--recurse`, `--tree`), and delegates rendering to `print_files()` and `print_dirs()`.
@@ -189,11 +189,14 @@ If adding a new CLI flag:
    - Add flag to [README.md](README.md) under "Command-line options".
    - Update man pages in [`man/lsr.1.md`](man/lsr.1.md).
 5. **Update Shell Completions**:
-   - [`completions/bash/eza`](completions/bash/eza)
-   - [`completions/zsh/_eza`](completions/zsh/_eza)
-   - [`completions/fish/eza.fish`](completions/fish/eza.fish)
-   - [`completions/nush/eza.nu`](completions/nush/eza.nu)
-   - [`completions/pwsh/_eza.ps1`](completions/pwsh/_eza.ps1)
+   - [`completions/bash/lsr`](completions/bash/lsr) — derives its flag list from `lsr --help`, so it only needs value lists
+   - [`completions/zsh/_lsr`](completions/zsh/_lsr)
+   - [`completions/fish/lsr.fish`](completions/fish/lsr.fish)
+   - [`completions/nush/lsr.nu`](completions/nush/lsr.nu)
+   - [`completions/pwsh/_lsr.ps1`](completions/pwsh/_lsr.ps1)
+
+   Then regenerate the `eza`-named compatibility copies from these, name for
+   name; `tests/zsh_completion_classify_tests.rs` fails if the zsh pair drifts.
 6. **Add Unit/CLI Tests** in [`tests/`](tests/).
 
 ### 2. Adding or Modifying File Icons

@@ -111,6 +111,7 @@ nix run github:fxrdhan/lsr
 - **-l**, **--long**: display extended details and attributes
 - **-R**, **--recurse**: recurse into directories
 - **-T**, **--tree**: recurse into directories as a tree
+- **--follow-symlinks**: drill down into symbolic links that point to directories
 - **--code[=MODE]**: print lines-of-code summary by language (modes: `lines`, `percent`, `both`)
 - **--json**: output file listing and metadata as structured JSON
 - **-x**, **--across**: sort the grid across, rather than downwards
@@ -270,3 +271,21 @@ Full styling details are available in the [lsr_colors-explanation(5) man page](m
 If you want to contribute to `lsr`, please check out our:
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+
+---
+
+# Lineage & Credits
+
+**`lsr`** is a fork of [**eza**](https://github.com/eza-community/eza), which is
+itself a maintained fork of [**exa**](https://github.com/ogham/exa) by Benjamin
+Sago. The overwhelming majority of this codebase was written by Benjamin Sago,
+Christina Sørensen, and the eza contributors, and `lsr` continues to port work
+from eza's open pull requests and issues.
+
+- **exa** — original implementation, by Benjamin Sago ([ogham/exa](https://github.com/ogham/exa)), MIT
+- **eza** — community fork, maintained by Christina Sørensen ([eza-community/eza](https://github.com/eza-community/eza)), EUPL-1.2
+- **lsr** — this fork, by [fxrdhan](https://github.com/fxrdhan), EUPL-1.2
+
+`lsr` is licensed under the [EUPL-1.2](LICENSE.txt), inherited from eza; files
+originating in exa remain under the MIT license, as recorded in their SPDX
+headers.

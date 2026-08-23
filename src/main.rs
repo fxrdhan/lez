@@ -438,6 +438,11 @@ impl Lsr<'_> {
 
         let mut denied_dirs = vec![];
 
+        // Set when this call — or any recursive call below it — had to skip a
+        // directory it wasn’t allowed to read, so `run` can surface it as an
+        // exit code instead of only a stderr line.
+        let mut denied_anywhere = false;
+
         for mut dir in dir_files {
             let dir = match dir.read() {
                 Ok(dir) => dir,
@@ -529,7 +534,7 @@ impl Lsr<'_> {
                         writeln!(&mut self.writer, "{warn_line}")?;
                     }
                     match self.print_dirs(child_dirs, false, false, exit_status, child_depth) {
-                        Ok(_) => (),
+                        Ok(status) => denied_anywhere |= status == exits::PERMISSION_DENIED,
                         Err(e) => return Err(e),
                     }
                     continue;
@@ -546,6 +551,7 @@ impl Lsr<'_> {
         }
 
         if !denied_dirs.is_empty() {
+            denied_anywhere = true;
             let _ = writeln!(
                 io::stderr(),
                 "\nSkipped {} directories due to permission denied: ",
@@ -554,6 +560,13 @@ impl Lsr<'_> {
             for path in denied_dirs {
                 let _ = writeln!(io::stderr(), "  {}", path.display());
             }
+        }
+
+        // A status carried in from `run` is about the input paths themselves
+        // (a path that doesn’t exist), which is the more specific complaint,
+        // so it keeps precedence over a directory we merely couldn’t open.
+        if denied_anywhere && exit_status == exits::SUCCESS {
+            return Ok(exits::PERMISSION_DENIED);
         }
 
         Ok(exit_status)

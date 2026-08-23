@@ -1,4 +1,4 @@
-#compdef lsr eza
+#compdef lsr
 
 # Save this file as _lsr in /usr/local/share/zsh/site-functions or in any
 # other folder in $fpath.  E.g. save it in a folder called ~/.zfunc and add a
@@ -38,7 +38,7 @@ __lsr() {
         --group-directories-last"[Sort directories after other files]" \
         --inspect-archives"[List contents of supported archives in long view]" \
         --ignore-submodule-contents"[Do not list contents of submodules]" \
-        -W'[Print a tally of hidden and ignored items]' \
+        {-W,--warn-hidden}'[Print a tally of hidden and ignored items]' \
         --git-ignore"[Ignore files mentioned in '.gitignore']" \
         --cachedir-ignore"[Ignore directories with a 'CACHEDIR.TAG' file]" \
         --since="[Filter and display only files created or modified within duration window]" \
@@ -86,6 +86,7 @@ __lsr() {
         --git-repos"[List each git-repos status and branch name]" \
         --git-repos-no-status"[List each git-repos branch name (much faster)]" \
         {-@,--extended}"[List each file's extended attributes and sizes]" \
+        --no-extended"[Don't show the '@' marker that a file has extended attributes]" \
         {-Z,--context}"[List each file's security context]" \
         {-O,--flags}"[List file flags (Mac, BSD, and Windows only)]" \
         {-e,--tags}"[List each file's color tags stored in extended attributes]" \

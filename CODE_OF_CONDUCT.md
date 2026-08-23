@@ -64,9 +64,10 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at:
-
-matrix: @cafkafk:nixos.dev
+reported to the community leaders responsible for enforcement by opening a
+[private security advisory](https://github.com/fxrdhan/lsr/security/advisories/new)
+on this repository, which is visible only to the maintainer, or by contacting
+[@fxrdhan](https://github.com/fxrdhan) directly on GitHub.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

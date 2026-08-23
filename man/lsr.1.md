@@ -140,6 +140,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 `--quotes=WHEN`
 : When to quote file names. The default, `auto`, quotes names that contain spaces or quotes; `always` quotes every name; `never` quotes nothing (like `ls -N`).
 
+`--spacing=SPACES`
+: Number of spaces to print between columns in the grid views. Accepts `0` to `255`; the default is `2`.
+
 `--short-nix`
 : Abbreviate Nix store hashes in file names and paths.
 
@@ -211,8 +214,8 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `-I`, `--ignore-glob=GLOBS`
 : Glob patterns, pipe-separated, of files to ignore.
 
-`--ignore-glob-case-insensitive`
-: Match ignore globs case-insensitively.
+`--ignore-glob-ci=GLOBS`
+: Glob patterns, pipe-separated, of files to ignore, matched case-insensitively.
 
 `--git-ignore` [if lsr was built with git support]
 : Do not list files that are ignored by Git.
@@ -354,6 +357,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 
 `--no-extended`
 : Don’t show the `@` marker that a file has extended attributes.
+
+`-e`, `--tags`
+: List each file’s colour tags, read from the extended attributes that macOS Finder writes. Tagged names are painted with the tag’s colour.
 
 `--inspect-archives` [if built with inspect-archives support]
 : In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files.
