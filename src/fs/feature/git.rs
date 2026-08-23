@@ -511,6 +511,17 @@ fn current_branch(repo: &git2::Repository) -> Option<String> {
 impl f::SubdirGitRepo {
     #[must_use]
     pub fn from_path(dir: &Path, status: bool) -> Self {
+        if dir.file_name() == Some(std::ffi::OsStr::new(".git")) || dir.ends_with(".git") {
+            return f::SubdirGitRepo {
+                status: if status {
+                    Some(f::SubdirGitRepoStatus::NoRepo)
+                } else {
+                    None
+                },
+                branch: None,
+            };
+        }
+
         let path = &reorient(dir);
 
         if let Ok(repo) = git2::Repository::open(path) {
@@ -1018,5 +1029,37 @@ mod tests {
         let link_status = git_status.file_status(&link);
         assert!(link_status.staged == f::GitStatus::Deleted);
         assert!(link_status.unstaged == f::GitStatus::NotModified);
+    }
+
+    #[test]
+    fn test_dotgit_dir_ignored_as_subrepo() {
+        let test_repo = TestGitRepo::new("dotgit_subrepo");
+        test_repo.create_file("file.txt", b"hello");
+        test_repo.commit_all("initial commit");
+
+        // 1. Direct path to .git directory with status=true
+        let dotgit_path = test_repo.path.join(".git");
+        let res = f::SubdirGitRepo::from_path(&dotgit_path, true);
+        assert!(res.status == Some(f::SubdirGitRepoStatus::NoRepo));
+        assert_eq!(res.branch, None);
+
+        // 2. Direct path to .git directory with status=false
+        let res_no_stat = f::SubdirGitRepo::from_path(&dotgit_path, false);
+        assert!(res_no_stat.status.is_none());
+        assert_eq!(res_no_stat.branch, None);
+
+        // 3. Relative Path::new(".git")
+        let res_rel = f::SubdirGitRepo::from_path(Path::new(".git"), true);
+        assert!(res_rel.status == Some(f::SubdirGitRepoStatus::NoRepo));
+        assert_eq!(res_rel.branch, None);
+
+        // 4. Legitimate repository path should return actual branch
+        let res_repo = f::SubdirGitRepo::from_path(&test_repo.path, true);
+        assert!(res_repo.branch.is_some());
+        assert!(
+            res_repo.branch.as_deref() == Some("master")
+                || res_repo.branch.as_deref() == Some("main")
+        );
+        assert!(res_repo.status == Some(f::SubdirGitRepoStatus::GitClean));
     }
 }
