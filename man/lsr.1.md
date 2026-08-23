@@ -57,6 +57,8 @@ DISPLAY OPTIONS
 `-1`, `--oneline`
 : Display one entry per line.
 
+Symbolic link targets are not displayed in this mode, so output stays clean when piped into other commands such as `xargs`; use a details view (`-l`) to see them.
+
 `--absolute[=WHEN]`
 : Display entries with their absolute path.
 
