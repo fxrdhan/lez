@@ -197,6 +197,8 @@ Valid sort fields are ‘`name`’, ‘`Name`’, ‘`extension`’, ‘`Extensi
 
 The ‘`block`’ sort field has the aliases ‘`blocks`’ and ‘`blocksize`’.
 
+The ‘`path`’ and ‘`Path`’ sort fields have the aliases ‘`relative-path`’ (‘`Relative-path`’, ‘`Relative-Path`’), ‘`relpath`’ (‘`Relpath`’), and ‘`relative_path`’ (‘`Relative_path`’).
+
 The `modified` sort field has the aliases ‘`date`’, ‘`time`’, ‘`mod`’, ‘`old`’, and ‘`oldest`’, and its reverse order has the aliases ‘`age`’, ‘`new`’, and ‘`newest`’.
 
 Sort fields starting with a capital letter will sort uppercase before lowercase: ‘A’ then ‘B’ then ‘a’ then ‘b’. Fields starting with a lowercase letter will mix them: ‘A’ then ‘a’ then ‘B’ then ‘b’.

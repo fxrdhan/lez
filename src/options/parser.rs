@@ -30,7 +30,7 @@ const HELP_STYLES: Styles = Styles::styled()
     .invalid(AnsiColor::Yellow.on_default().effects(Effects::BOLD));
 
 const SORT_FIELDS_HELP: &str = "[default: name] [possible values:
-  name, Name, .name, .Name, ext, ext, path, Path, created,
+  name, Name, .name, .Name, ext, Ext, path, Path, created,
   date, age, accessed, changed,
   size, inode, type, none]";
 
@@ -302,8 +302,15 @@ impl ValueEnum for SortField {
             Self::Name(SortCase::ABCabc) => PossibleValue::new("Name").alias("Filename"),
             Self::NameMixHidden(SortCase::AaBbCc) => PossibleValue::new(".name").alias(".filename"),
             Self::NameMixHidden(SortCase::ABCabc) => PossibleValue::new(".Name").alias(".Filename"),
-            Self::Path(SortCase::AaBbCc) => PossibleValue::new("path"),
-            Self::Path(SortCase::ABCabc) => PossibleValue::new("Path"),
+            Self::Path(SortCase::AaBbCc) => {
+                PossibleValue::new("path").aliases(["relative-path", "relpath", "relative_path"])
+            }
+            Self::Path(SortCase::ABCabc) => PossibleValue::new("Path").aliases([
+                "Relative-path",
+                "Relative-Path",
+                "Relpath",
+                "Relative_path",
+            ]),
             Self::Size => PossibleValue::new("size"),
             #[cfg(unix)]
             Self::BlockSize => PossibleValue::new("blocks").aliases(vec!["block", "blocksize"]),

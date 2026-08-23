@@ -1,0 +1,337 @@
+// SPDX-FileCopyrightText: 2026 fxrdhan
+// SPDX-License-Identifier: EUPL-1.2
+
+use std::fs::{self, File as StdFile};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+struct TempDirSetup {
+    path: PathBuf,
+}
+
+impl TempDirSetup {
+    fn new(prefix: &str) -> Self {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "lsr_path_sort_{prefix}_{}_{}",
+            std::process::id(),
+            nanos
+        ));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).expect("Failed to create temp dir");
+        Self { path }
+    }
+
+    fn create_file(&self, rel: &str, content: &[u8]) -> PathBuf {
+        let p = self.path.join(rel);
+        if let Some(parent) = p.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let mut f = StdFile::create(&p).unwrap();
+        f.write_all(content).unwrap();
+        p
+    }
+}
+
+impl Drop for TempDirSetup {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+fn run_lsr_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    Command::new(bin_path)
+        .current_dir(working_dir)
+        .args(args)
+        .output()
+        .expect("Failed to execute lsr binary")
+}
+
+// ----------------------------------------------------------------------------
+// F5: Path & Relative-Path Sorting Tests (#1835)
+// ----------------------------------------------------------------------------
+
+#[test]
+fn test_f5_sort_path_and_aliases_accepted() {
+    let temp = TempDirSetup::new("path_accepted");
+    temp.create_file("dir_b/item.txt", b"b");
+    temp.create_file("dir_a/item.txt", b"a");
+
+    let aliases = [
+        "path",
+        "relative-path",
+        "relpath",
+        "relative_path",
+        "Path",
+        "Relative-path",
+        "Relative-Path",
+        "Relpath",
+        "Relative_path",
+    ];
+
+    for alias in aliases {
+        let sort_arg = format!("--sort={alias}");
+        let output = run_lsr_in(
+            &temp.path,
+            &["-1", "--tree", &sort_arg, "--color=never", "."],
+        );
+        assert!(
+            output.status.success(),
+            "Flag --sort={alias} must be accepted: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let output_short = run_lsr_in(
+            &temp.path,
+            &["-1", "--tree", "-s", alias, "--color=never", "."],
+        );
+        assert!(
+            output_short.status.success(),
+            "Short flag -s {alias} must be accepted: {}",
+            String::from_utf8_lossy(&output_short.stderr)
+        );
+    }
+}
+
+#[test]
+fn test_f5_sort_path_ordering_files() {
+    let temp = TempDirSetup::new("path_order");
+    let fb = temp.create_file("dir_b/z.txt", b"bz");
+    let fa1 = temp.create_file("dir_a/a.txt", b"aa");
+    let fa2 = temp.create_file("dir_a/sub/nested.txt", b"sub");
+
+    let fb_str = fb.to_str().unwrap();
+    let fa1_str = fa1.to_str().unwrap();
+    let fa2_str = fa2.to_str().unwrap();
+
+    let output_path = run_lsr_in(
+        &temp.path,
+        &[
+            "-1d",
+            "--sort=path",
+            "--color=never",
+            fb_str,
+            fa1_str,
+            fa2_str,
+        ],
+    );
+    assert!(output_path.status.success());
+    let stdout_path = String::from_utf8_lossy(&output_path.stdout);
+    let lines_path: Vec<&str> = stdout_path.lines().collect();
+
+    assert_eq!(lines_path.len(), 3);
+    assert!(
+        lines_path[0].contains("dir_a/a.txt"),
+        "dir_a/a.txt first: {:?}",
+        lines_path
+    );
+    assert!(
+        lines_path[1].contains("dir_a/sub/nested.txt"),
+        "dir_a/sub/nested.txt second: {:?}",
+        lines_path
+    );
+    assert!(
+        lines_path[2].contains("dir_b/z.txt"),
+        "dir_b/z.txt third: {:?}",
+        lines_path
+    );
+
+    // Verify all aliases produce the exact same order
+    for alias in ["relative-path", "relpath", "relative_path"] {
+        let sort_arg = format!("--sort={alias}");
+        let output_alias = run_lsr_in(
+            &temp.path,
+            &["-1d", &sort_arg, "--color=never", fb_str, fa1_str, fa2_str],
+        );
+        assert!(output_alias.status.success());
+        let stdout_alias = String::from_utf8_lossy(&output_alias.stdout);
+        let lines_alias: Vec<&str> = stdout_alias.lines().collect();
+        assert_eq!(
+            lines_alias, lines_path,
+            "Alias {alias} output must match --sort=path"
+        );
+    }
+}
+
+#[test]
+fn test_f5_sort_path_reverse() {
+    let temp = TempDirSetup::new("path_rev");
+    let fb = temp.create_file("dir_b/z.txt", b"bz");
+    let fa = temp.create_file("dir_a/a.txt", b"aa");
+
+    let fa_str = fa.to_str().unwrap();
+    let fb_str = fb.to_str().unwrap();
+
+    let output = run_lsr_in(
+        &temp.path,
+        &["-1d", "--sort=path", "-r", "--color=never", fa_str, fb_str],
+    );
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+
+    assert_eq!(lines.len(), 2);
+    assert!(
+        lines[0].contains("dir_b/z.txt"),
+        "dir_b/z.txt first in reverse: {:?}",
+        lines
+    );
+    assert!(
+        lines[1].contains("dir_a/a.txt"),
+        "dir_a/a.txt second in reverse: {:?}",
+        lines
+    );
+
+    // Verify with --sort=relative-path -r
+    let output_rel = run_lsr_in(
+        &temp.path,
+        &[
+            "-1d",
+            "--sort=relative-path",
+            "-r",
+            "--color=never",
+            fa_str,
+            fb_str,
+        ],
+    );
+    assert!(output_rel.status.success());
+    let stdout_rel = String::from_utf8_lossy(&output_rel.stdout);
+    let lines_rel: Vec<&str> = stdout_rel.lines().collect();
+    assert_eq!(lines_rel, lines);
+}
+
+#[test]
+fn test_f5_distinguish_leaf_name_sorting_from_path_sorting() {
+    let temp = TempDirSetup::new("distinguish_leaf_vs_path");
+    // dir_a/zeta.txt vs dir_b/alpha.txt
+    // By filename (basename): "alpha.txt" < "zeta.txt", so dir_b/alpha.txt comes FIRST.
+    // By path: "dir_a/zeta.txt" < "dir_b/alpha.txt", so dir_a/zeta.txt comes FIRST.
+    let fa_z = temp.create_file("dir_a/zeta.txt", b"a_zeta");
+    let fb_a = temp.create_file("dir_b/alpha.txt", b"b_alpha");
+
+    let fa_z_str = fa_z.to_str().unwrap();
+    let fb_a_str = fb_a.to_str().unwrap();
+
+    // 1. Sort by name (basename)
+    let output_name = run_lsr_in(
+        &temp.path,
+        &["-1d", "--sort=name", "--color=never", fa_z_str, fb_a_str],
+    );
+    assert!(output_name.status.success());
+    let stdout_name = String::from_utf8_lossy(&output_name.stdout);
+    let lines_name: Vec<&str> = stdout_name.lines().collect();
+    assert_eq!(lines_name.len(), 2);
+    assert!(
+        lines_name[0].contains("dir_b/alpha.txt"),
+        "Under --sort=name, alpha.txt comes before zeta.txt: {:?}",
+        lines_name
+    );
+    assert!(
+        lines_name[1].contains("dir_a/zeta.txt"),
+        "Under --sort=name, zeta.txt comes second: {:?}",
+        lines_name
+    );
+
+    // 2. Sort by relative-path
+    let output_relpath = run_lsr_in(
+        &temp.path,
+        &[
+            "-1d",
+            "--sort=relative-path",
+            "--color=never",
+            fa_z_str,
+            fb_a_str,
+        ],
+    );
+    assert!(output_relpath.status.success());
+    let stdout_relpath = String::from_utf8_lossy(&output_relpath.stdout);
+    let lines_relpath: Vec<&str> = stdout_relpath.lines().collect();
+    assert_eq!(lines_relpath.len(), 2);
+    assert!(
+        lines_relpath[0].contains("dir_a/zeta.txt"),
+        "Under --sort=relative-path, dir_a comes before dir_b: {:?}",
+        lines_relpath
+    );
+    assert!(
+        lines_relpath[1].contains("dir_b/alpha.txt"),
+        "Under --sort=relative-path, dir_b comes second: {:?}",
+        lines_relpath
+    );
+
+    // 3. Sort by path (alias)
+    let output_path = run_lsr_in(
+        &temp.path,
+        &["-1d", "--sort=path", "--color=never", fa_z_str, fb_a_str],
+    );
+    assert!(output_path.status.success());
+    let stdout_path = String::from_utf8_lossy(&output_path.stdout);
+    let lines_path: Vec<&str> = stdout_path.lines().collect();
+    assert_eq!(lines_path, lines_relpath);
+}
+
+#[test]
+fn test_f5_sort_path_case_sensitive_variants() {
+    let temp = TempDirSetup::new("path_case");
+    let f_upper_b = temp.create_file("Dir_B/file.txt", b"UB");
+    let f_lower_a = temp.create_file("dir_a/file.txt", b"la");
+    let f_upper_a = temp.create_file("Dir_A/file.txt", b"UA");
+    let f_lower_b = temp.create_file("dir_b/file.txt", b"lb");
+
+    let f_ub_str = f_upper_b.to_str().unwrap();
+    let f_la_str = f_lower_a.to_str().unwrap();
+    let f_ua_str = f_upper_a.to_str().unwrap();
+    let f_lb_str = f_lower_b.to_str().unwrap();
+
+    // Under case-sensitive sort (ABCabc): uppercase folders (Dir_A, Dir_B) come before lowercase (dir_a, dir_b)
+    let output_case = run_lsr_in(
+        &temp.path,
+        &[
+            "-1d",
+            "--sort=Path",
+            "--color=never",
+            f_lb_str,
+            f_ub_str,
+            f_la_str,
+            f_ua_str,
+        ],
+    );
+    assert!(output_case.status.success());
+    let stdout_case = String::from_utf8_lossy(&output_case.stdout);
+    let lines_case: Vec<&str> = stdout_case.lines().collect();
+
+    assert_eq!(lines_case.len(), 4);
+    assert!(lines_case[0].contains("Dir_A/file.txt"));
+    assert!(lines_case[1].contains("Dir_B/file.txt"));
+    assert!(lines_case[2].contains("dir_a/file.txt"));
+    assert!(lines_case[3].contains("dir_b/file.txt"));
+
+    // Test case-sensitive aliases: Relative-path, Relative-Path, Relpath, Relative_path
+    for case_alias in ["Relative-path", "Relative-Path", "Relpath", "Relative_path"] {
+        let sort_arg = format!("--sort={case_alias}");
+        let output_alias = run_lsr_in(
+            &temp.path,
+            &[
+                "-1d",
+                &sort_arg,
+                "--color=never",
+                f_lb_str,
+                f_ub_str,
+                f_la_str,
+                f_ua_str,
+            ],
+        );
+        assert!(output_alias.status.success());
+        let stdout_alias = String::from_utf8_lossy(&output_alias.stdout);
+        let lines_alias: Vec<&str> = stdout_alias.lines().collect();
+        assert_eq!(
+            lines_alias, lines_case,
+            "Case alias {case_alias} must match --sort=Path"
+        );
+    }
+}
