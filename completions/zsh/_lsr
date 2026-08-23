@@ -1,4 +1,4 @@
-#compdef lsr eza
+#compdef lsr
 
 # Save this file as _lsr in /usr/local/share/zsh/site-functions or in any
 # other folder in $fpath.  E.g. save it in a folder called ~/.zfunc and add a
