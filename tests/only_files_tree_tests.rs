@@ -70,38 +70,83 @@ fn fixture(prefix: &str) -> TempTestDir {
     dir
 }
 
-#[test]
-fn tree_with_only_files_lists_every_file_and_hides_directories() {
-    let fixture = fixture("tree");
+/// Renders `args` against the fixture and replaces the fixture's own path
+/// with `<ROOT>`, so the whole block can be compared literally.
+fn tree_of(fixture: &TempTestDir, args: &[&str]) -> String {
+    let root = fixture.path.to_str().unwrap();
+    let mut argv: Vec<&str> = args.to_vec();
+    argv.push("--color=never");
+    argv.push(root);
 
-    let output = run_lsr(&["-T", "-f", "--color=never", fixture.path.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let output = run_lsr(&argv);
+    assert!(output.status.success(), "lsr {argv:?} should succeed");
 
-    for name in ["top.txt", "mid.txt", "leaf.txt"] {
-        assert!(stdout.contains(name), "tree -f must list {name}: {stdout}");
-    }
-    assert!(!stdout.contains("sub"), "dirs must be hidden: {stdout}");
-    assert!(!stdout.contains("deeper"), "dirs must be hidden: {stdout}");
-    assert!(
-        !stdout.contains("empty_dir"),
-        "dirs must be hidden: {stdout}"
-    );
-    // Edges stay connected across the hidden levels.
-    assert!(stdout.contains("└──"), "tree edges must render: {stdout}");
+    String::from_utf8_lossy(&output.stdout)
+        .replace(root, "<ROOT>")
+        .trim_end()
+        .to_string()
 }
 
+/// Directories are hidden but still descended into, so the files keep the
+/// indentation of the level they actually live at.
+///
+/// Asserted as a whole block on purpose. Checking only that each name appears
+/// and that some edge character is present passes on mangled output: the
+/// prefixes of the hidden directory rows used to be concatenated onto the
+/// surviving rows, printing "├── ├── └── leaf.txt", which satisfies every
+/// containment check while being structurally meaningless.
+#[test]
+fn tree_with_only_files_indents_files_under_hidden_directories() {
+    let fixture = fixture("tree");
+
+    assert_eq!(
+        tree_of(&fixture, &["-T", "-f"]),
+        concat!(
+            "        \u{2514}\u{2500}\u{2500} leaf.txt\n",
+            "    \u{2514}\u{2500}\u{2500} mid.txt\n",
+            "\u{2514}\u{2500}\u{2500} top.txt",
+        )
+    );
+}
+
+/// No row is emitted for a level whose directory was hidden, so no connector
+/// may be drawn for it either — those columns have to be blank.
+#[test]
+fn tree_with_only_files_draws_no_connector_for_hidden_levels() {
+    let fixture = fixture("tree_edges");
+    let rendered = tree_of(&fixture, &["-T", "-f"]);
+
+    for line in rendered.lines() {
+        let prefix: String = line
+            .chars()
+            .take_while(|c| *c == ' ' || "\u{2502}\u{251c}\u{2514}\u{2500}".contains(*c))
+            .collect();
+        assert_eq!(
+            prefix.matches('\u{2514}').count() + prefix.matches('\u{251c}').count(),
+            1,
+            "each row carries exactly one connector, its own: {rendered}"
+        );
+    }
+}
+
+/// Without `--only-files` the tree is untouched, which is what pins that the
+/// blank fill above did not change ordinary rendering.
 #[test]
 fn tree_without_only_files_still_shows_directories() {
     let fixture = fixture("tree_plain");
 
-    let output = run_lsr(&["-T", "--color=never", fixture.path.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("sub"), "plain -T keeps dirs: {stdout}");
-    assert!(stdout.contains("deeper"), "plain -T keeps dirs: {stdout}");
-    assert!(stdout.contains("mid.txt"), "plain -T keeps files: {stdout}");
+    assert_eq!(
+        tree_of(&fixture, &["-T"]),
+        concat!(
+            "<ROOT>\n",
+            "\u{251c}\u{2500}\u{2500} empty_dir\n",
+            "\u{251c}\u{2500}\u{2500} sub\n",
+            "\u{2502}   \u{251c}\u{2500}\u{2500} deeper\n",
+            "\u{2502}   \u{2502}   \u{2514}\u{2500}\u{2500} leaf.txt\n",
+            "\u{2502}   \u{2514}\u{2500}\u{2500} mid.txt\n",
+            "\u{2514}\u{2500}\u{2500} top.txt",
+        )
+    );
 }
 
 #[test]
