@@ -379,6 +379,17 @@ impl Lsr<'_> {
             }
         }
 
+        if !files.is_empty() && self.options.filter.flags.contains(&OnlyFiles) {
+            dirs.clear();
+        }
+
+        let is_tree = self
+            .options
+            .dir_action
+            .recurse_options()
+            .is_some_and(|r| r.tree);
+        self.options.filter.filter_argument_files(is_tree, &mut files);
+
         // We want to print a directory’s name before we list it, *except* in
         // the case where it’s the only directory, *except* if there are any
         // files to print as well. (It’s a double negative)
@@ -401,7 +412,6 @@ impl Lsr<'_> {
             return Ok(exit_status);
         }
 
-        self.options.filter.filter_argument_files(&mut files);
         self.print_files(None, files)?;
 
         self.print_dirs(dirs, no_files, is_only_dir, exit_status, 0)
