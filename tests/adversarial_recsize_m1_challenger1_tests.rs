@@ -532,52 +532,42 @@ fn oracle_calculate_size(root: &Path, dot_filter: DotFilter) -> u64 {
                 // Symlink: lsr gets symlink metadata size without following
                 if let Ok(md) = fs::symlink_metadata(&path) {
                     #[cfg(unix)]
-                    let id = (md.dev(), md.ino());
-                    #[cfg(windows)]
-                    let id = (
-                        u64::from(md.volume_serial_number().unwrap_or(0)),
-                        md.file_index().unwrap_or(0),
-                    );
-                    if visited.insert(id) {
+                    let is_unvisited = visited.insert((md.dev(), md.ino()));
+                    #[cfg(not(unix))]
+                    let is_unvisited = visited.insert(path.clone());
+                    if is_unvisited {
                         #[cfg(unix)]
                         {
                             size += md.size();
                         }
-                        #[cfg(windows)]
+                        #[cfg(not(unix))]
                         {
-                            size += md.file_size();
+                            size += md.len();
                         }
                     }
                 }
             } else if file_type.is_dir() {
-                if let Ok(md) = fs::metadata(&path) {
-                    #[cfg(unix)]
-                    let id = (md.dev(), md.ino());
-                    #[cfg(windows)]
-                    let id = (
-                        u64::from(md.volume_serial_number().unwrap_or(0)),
-                        md.file_index().unwrap_or(0),
-                    );
-                    if visited.insert(id) {
-                        size += recurse(&path, dot_filter, visited);
-                    }
+                #[cfg(unix)]
+                let is_unvisited =
+                    fs::metadata(&path).map_or(false, |md| visited.insert((md.dev(), md.ino())));
+                #[cfg(not(unix))]
+                let is_unvisited = visited.insert(path.clone());
+                if is_unvisited {
+                    size += recurse(&path, dot_filter, visited);
                 }
             } else if let Ok(md) = fs::metadata(&path) {
                 #[cfg(unix)]
-                let id = (md.dev(), md.ino());
-                #[cfg(windows)]
-                let id = (
-                    u64::from(md.volume_serial_number().unwrap_or(0)),
-                    md.file_index().unwrap_or(0),
-                );
-                if visited.insert(id) {
+                let is_unvisited = visited.insert((md.dev(), md.ino()));
+                #[cfg(not(unix))]
+                let is_unvisited = visited.insert(path.clone());
+                if is_unvisited {
                     #[cfg(unix)]
                     {
                         size += md.size();
                     }
-                    #[cfg(windows)]
+                    #[cfg(not(unix))]
                     {
-                        size += md.file_size();
+                        size += md.len();
                     }
                 }
             }
@@ -586,14 +576,13 @@ fn oracle_calculate_size(root: &Path, dot_filter: DotFilter) -> u64 {
     }
 
     let mut visited = HashSet::new();
+    #[cfg(unix)]
     if let Ok(md) = fs::metadata(root) {
-        #[cfg(unix)]
         visited.insert((md.dev(), md.ino()));
-        #[cfg(windows)]
-        visited.insert((
-            u64::from(md.volume_serial_number().unwrap_or(0)),
-            md.file_index().unwrap_or(0),
-        ));
+    }
+    #[cfg(not(unix))]
+    {
+        visited.insert(root.to_path_buf());
     }
     recurse(root, dot_filter, &mut visited)
 }

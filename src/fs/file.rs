@@ -844,14 +844,13 @@ impl<'dir> File<'dir> {
         }
 
         let mut visited = HashSet::new();
+        #[cfg(unix)]
         if let Ok(md) = self.metadata() {
-            #[cfg(unix)]
             visited.insert((md.dev(), md.ino()));
-            #[cfg(windows)]
-            visited.insert((
-                u64::from(md.volume_serial_number().unwrap_or(0)),
-                md.file_index().unwrap_or(0),
-            ));
+        }
+        #[cfg(not(unix))]
+        {
+            visited.insert(self.path.clone());
         }
 
         let Ok(dir) = Dir::read_dir(self.path.clone()) else {

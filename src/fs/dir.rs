@@ -42,6 +42,11 @@ pub struct Dir {
     paths: OnceLock<HashSet<PathBuf>>,
 }
 
+#[cfg(unix)]
+pub type RecSizeFileId = (u64, u64);
+#[cfg(not(unix))]
+pub type RecSizeFileId = PathBuf;
+
 impl Dir {
     /// Create a new, empty `Dir` object representing the directory at the given path.
     ///
@@ -142,7 +147,7 @@ impl Dir {
     /// by tracking visited file identifiers across the traversal.
     pub fn calculate_recursive_size(
         &self,
-        visited: &mut HashSet<(u64, u64)>,
+        visited: &mut HashSet<RecSizeFileId>,
         dot_filter: DotFilter,
         mime_read_contents: bool,
     ) -> (u64, u64) {
@@ -165,44 +170,34 @@ impl Dir {
             None,
         ) {
             if file.is_directory() {
-                if let Ok(md) = file.metadata() {
-                    #[cfg(unix)]
-                    let dir_id = (md.dev(), md.ino());
-                    #[cfg(windows)]
-                    let dir_id = (
-                        u64::from(md.volume_serial_number().unwrap_or(0)),
-                        md.file_index().unwrap_or(0),
-                    );
-                    if visited.insert(dir_id)
-                        && let Ok(sub_dir) = Dir::read_dir(file.path.clone())
-                    {
-                        let (dir_size, dir_blocks) = sub_dir.calculate_recursive_size(
-                            visited,
-                            dot_filter,
-                            mime_read_contents,
-                        );
-                        total_size += dir_size;
-                        total_blocks += dir_blocks;
-                    }
+                #[cfg(unix)]
+                let is_unvisited = file
+                    .metadata()
+                    .map_or(false, |md| visited.insert((md.dev(), md.ino())));
+                #[cfg(not(unix))]
+                let is_unvisited = visited.insert(file.path.clone());
+
+                if is_unvisited && let Ok(sub_dir) = Dir::read_dir(file.path.clone()) {
+                    let (dir_size, dir_blocks) =
+                        sub_dir.calculate_recursive_size(visited, dot_filter, mime_read_contents);
+                    total_size += dir_size;
+                    total_blocks += dir_blocks;
                 }
             } else if let Ok(md) = file.metadata() {
                 #[cfg(unix)]
-                let file_id = (md.dev(), md.ino());
-                #[cfg(windows)]
-                let file_id = (
-                    u64::from(md.volume_serial_number().unwrap_or(0)),
-                    md.file_index().unwrap_or(0),
-                );
+                let is_unvisited = visited.insert((md.dev(), md.ino()));
+                #[cfg(not(unix))]
+                let is_unvisited = visited.insert(file.path.clone());
 
-                if visited.insert(file_id) {
+                if is_unvisited {
                     #[cfg(unix)]
                     {
                         total_size += md.size();
                         total_blocks += md.blocks();
                     }
-                    #[cfg(windows)]
+                    #[cfg(not(unix))]
                     {
-                        total_size += md.file_size();
+                        total_size += md.len();
                     }
                 }
             }
