@@ -82,7 +82,7 @@ use crate::fs::filter::FileFilter;
 use crate::fs::filter::FileFilterFlags::OnlyFiles;
 use crate::fs::{Dir, File};
 use crate::options::parser::CodeContent;
-use crate::output::cell::TextCell;
+use crate::output::cell::{DisplayWidth, TextCell};
 use crate::output::color_scale::{ColorScaleInformation, ColorScaleOptions};
 use crate::output::file_name::Options as FileStyle;
 use crate::output::table::{Options as TableOptions, Row as TableRow, Table};
@@ -535,15 +535,36 @@ impl<'a> Render<'a> {
         entry: &crate::fs::archives::ArchiveEntry,
         tree: TreeParams,
     ) -> Row {
-        let name = TextCell::paint(
-            self.theme.ui.punctuation.unwrap_or_default(),
-            format!(
-                "{}/{} ({})",
-                archive.name,
-                entry.path,
-                crate::fs::archives::format_size(entry.size)
-            ),
-        );
+        let punctuation = self.theme.ui.punctuation.unwrap_or_default();
+        let size = crate::fs::archives::format_size(entry.size);
+
+        // An entry is an annotation on the archive rather than a file on disk,
+        // so its path and size stay in the punctuation style. Only the leaf
+        // name is painted, and only when a theme rule matches its name —
+        // otherwise it stays punctuation, and the row still reads as an
+        // annotation rather than a listing.
+        let (dirs, leaf) = match entry.path.rsplit_once('/') {
+            Some((dirs, leaf)) => (format!("{}/{}/", archive.name, dirs), leaf),
+            None => (format!("{}/", archive.name), entry.path.as_str()),
+        };
+        let leaf_style = self
+            .theme
+            .exts
+            .get_style_for_name(leaf, self.theme)
+            .unwrap_or(punctuation);
+
+        let suffix = format!(" ({size})");
+        let width = DisplayWidth::from(&*format!("{dirs}{leaf}{suffix}"));
+        let name = TextCell {
+            contents: vec![
+                punctuation.paint(dirs),
+                leaf_style.paint(leaf.to_string()),
+                punctuation.paint(suffix),
+            ]
+            .into(),
+            width,
+        };
+
         Row {
             cells: None,
             name,

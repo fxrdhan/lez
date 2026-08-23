@@ -192,7 +192,7 @@ These options are available when running with `--long` (`-l`):
 - **-@**, **--extended**: list each file’s extended attributes and sizes
 - **--no-extended**: don't show the `@` marker that a file has extended attributes
 - **-e**, **--tags**: list each file's color tags stored in extended attributes (macOS Finder tags)
-- **--inspect-archives**: list the contents of supported archives (.tar) in long view
+- **--inspect-archives**: list the contents of supported archives (.tar) in long view, with each entry's file name coloured by type
 - **--git**: list each file’s Git status, if tracked or ignored
 - **--git-glyphs**: display Git status with Nerd Font glyphs instead of ASCII characters
 - **--git-repos**: list each directory’s Git status, if tracked

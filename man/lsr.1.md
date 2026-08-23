@@ -362,7 +362,7 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 : List each file’s colour tags, read from the extended attributes that macOS Finder writes. Tagged names are painted with the tag’s colour.
 
 `--inspect-archives` [if built with inspect-archives support]
-: In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files.
+: In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files. Each entry's own file name is coloured by type as a normal listing would colour it, while the archive path and the entry size stay in the punctuation style; names the theme has no rule for stay punctuation too.
 
 `-Z`, `--context`
 : List each file's security context.

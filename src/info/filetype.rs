@@ -475,19 +475,33 @@ const MIME_WILDCARD_TYPES: Map<&'static str, FileType> = phf_map! {
 };
 
 impl FileType {
+    /// The part of the classification that needs nothing but the name: the
+    /// readme special case, the whole-name table, and the extension table.
+    ///
+    /// Split out so entries that have no file on disk — the contents of an
+    /// archive — can be classified by the same rules real files use. The
+    /// remaining rules need a path to stat, a MIME type to sniff, or sibling
+    /// files to compare against, none of which exist for such an entry.
+    pub(crate) fn get_file_type_for_name(name: &str) -> Option<FileType> {
+        // Case-insensitive readme is checked first for backwards compatibility.
+        if name.to_lowercase().starts_with("readme") {
+            return Some(Self::Build);
+        }
+        if let Some(file_type) = FILENAME_TYPES.get(name) {
+            return Some(file_type.clone());
+        }
+        let ext = name
+            .rfind('.')
+            .map(|p| name[p + 1..].to_ascii_lowercase())?;
+        EXTENSION_TYPES.get(&ext).cloned()
+    }
+
     /// Lookup the file type based on the file's name, by the file name
     /// lowercase extension, or if the file could be compiled from related
     /// source code.
     pub(crate) fn get_file_type(file: &File<'_>) -> Option<FileType> {
-        // Case-insensitive readme is checked first for backwards compatibility.
-        if file.name.to_lowercase().starts_with("readme") {
-            return Some(Self::Build);
-        }
-        if let Some(file_type) = FILENAME_TYPES.get(&file.name) {
-            return Some(file_type.clone());
-        }
-        if let Some(file_type) = file.ext.as_ref().and_then(|ext| EXTENSION_TYPES.get(ext)) {
-            return Some(file_type.clone());
+        if let Some(file_type) = Self::get_file_type_for_name(&file.name) {
+            return Some(file_type);
         }
         if let Some(mimetype) = file.mimetype() {
             if let Some(file_type) = MIME_TYPES.get(mimetype) {
