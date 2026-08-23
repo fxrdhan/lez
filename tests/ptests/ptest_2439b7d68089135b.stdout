@@ -101,6 +101,7 @@ LONG VIEW OPTIONS:
   -O, --flags                list file flags (Mac, BSD, and Windows only)
   -Z, --context              list each file's security context
       --git                  list each file's Git status, if tracked or ignored
+      --git-glyphs           display Git status with Nerd Font glyphs / icons
       --git-repos            list root of git-tree status
       --git-repos-no-status  list each git-repos branch name (much faster)
   -M, --mounts               show mount details (Linux and macOS only)
@@ -113,5 +114,5 @@ LONG VIEW OPTIONS:
       --no-user              suppress the user field
       --no-time              suppress the time field
       --no-git               suppress Git fields (overrides --git, --git-repos,
-                             --git-repos-no-status)
+                             --git-repos-no-status, --git-ignore)
       --print-total          display total number of entries
