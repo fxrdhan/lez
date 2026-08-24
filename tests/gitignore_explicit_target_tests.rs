@@ -390,7 +390,7 @@ fn test_lone_star_gitignore_marks_files_in_the_git_column() {
     let row = |name: &str| {
         stdout
             .lines()
-            .find(|line| line.ends_with(name))
+            .find(|line| line.trim_end().ends_with(name))
             .unwrap_or_else(|| panic!("no row for {name} in:\n{stdout}"))
     };
 
@@ -415,7 +415,7 @@ fn test_lone_star_gitignore_leaves_tracked_files_alone() {
     };
     repo.write_file(".gitignore", b"*\n!.gitignore\n");
     repo.write_file("tracked.log", b"tracked\n");
-    repo.write_file("untracked.log", b"untracked\n");
+    repo.write_file("ignored.log", b"untracked\n");
     repo.git(&["add", "-f", ".gitignore", "tracked.log"]);
     repo.git(&["commit", "-qm", "force-add an ignored file"]);
 
@@ -434,7 +434,7 @@ fn test_lone_star_gitignore_leaves_tracked_files_alone() {
         "a tracked file is never ignored, got:\n{stdout}"
     );
     assert!(
-        !stdout.contains("untracked.log"),
+        !stdout.contains("ignored.log"),
         "its untracked neighbour is still hidden, got:\n{stdout}"
     );
 }

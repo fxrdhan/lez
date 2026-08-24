@@ -771,7 +771,6 @@ mod tests {
             link_path
         }
 
-        #[cfg(unix)]
         fn add_path_to_index(&self, rel_path: &str) {
             let repo = git2::Repository::open(&self.path).unwrap();
             let mut index = repo.index().unwrap();
