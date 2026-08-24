@@ -289,7 +289,7 @@ impl<'dir> Files<'dir, '_, '_> {
                     self.deref_links,
                     self.total_size,
                     self.mime_read_contents,
-                    entry.file_type().ok(),
+                    type_worth_trusting(entry),
                     Some(self.dot_filter),
                 );
 
@@ -465,6 +465,24 @@ mod windows_tests {
     }
 }
 
+/// The type `readdir` reported, but only when it is one worth keeping.
+///
+/// Reading the type out of the directory entry saves a stat per file, which is
+/// worth having: almost every entry in a listing is a directory, a regular
+/// file or a symlink. Some filesystems, though, fill the field in wrongly
+/// rather than admitting they do not know — CIFS reports every directory as a
+/// FIFO, which is why GNU `ls` re-checks with `statx`.
+///
+/// So the three ordinary kinds are taken at their word and anything else is
+/// dropped, leaving `File` to stat the entry when it needs the answer. The
+/// extra stat only falls on FIFOs, sockets and device nodes, which are rare
+/// enough that the saving this is protecting stays intact.
+fn type_worth_trusting(entry: &DirEntry) -> Option<fs::FileType> {
+    let file_type = entry.file_type().ok()?;
+    let ordinary = file_type.is_dir() || file_type.is_file() || file_type.is_symlink();
+    ordinary.then_some(file_type)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,6 +514,104 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.path);
         }
+    }
+
+    /// Look up one entry by name and hand back what `readdir` said about it,
+    /// after the policy has had its say.
+    fn reported_type(dir: &Path, name: &str) -> Option<fs::FileType> {
+        let entry = fs::read_dir(dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .find(|e| e.file_name() == name)
+            .unwrap_or_else(|| panic!("{name} should be in the directory"));
+        type_worth_trusting(&entry)
+    }
+
+    #[test]
+    fn the_ordinary_kinds_are_taken_at_their_word() {
+        let test_dir = TestDir::new("trusted_types");
+        test_dir.create_file("regular.txt");
+        fs::create_dir(test_dir.path.join("subdir")).unwrap();
+
+        assert!(
+            reported_type(&test_dir.path, "regular.txt").is_some_and(|t| t.is_file()),
+            "a regular file should not need a second look"
+        );
+        assert!(
+            reported_type(&test_dir.path, "subdir").is_some_and(|t| t.is_dir()),
+            "a directory should not need a second look"
+        );
+    }
+
+    /// The point of the whole thing: a type outside the ordinary three is
+    /// dropped rather than believed, because CIFS reports directories as
+    /// FIFOs. `File` stats the entry instead, which is where the real answer
+    /// comes from.
+    #[test]
+    #[cfg(unix)]
+    fn an_exotic_kind_is_dropped_so_the_entry_gets_stated() {
+        use std::ffi::CString;
+
+        let test_dir = TestDir::new("exotic_types");
+        let fifo = test_dir.path.join("pipe");
+        let c_path = CString::new(fifo.as_os_str().as_encoded_bytes()).unwrap();
+        // SAFETY: the path is a valid C string pointing inside a directory we
+        // just created, and 0o644 is a valid mode.
+        if unsafe { libc::mkfifo(c_path.as_ptr(), 0o644) } != 0 {
+            eprintln!("skipped: this filesystem will not hold a FIFO");
+            return;
+        }
+
+        assert!(
+            reported_type(&test_dir.path, "pipe").is_none(),
+            "a FIFO from readdir is a hint, not an answer"
+        );
+
+        // And the answer is still correct once something stats it.
+        let file = crate::fs::File::from_args(fifo, None, None, false, false, false, None);
+        assert!(file.is_pipe(), "the stat should still see a FIFO");
+    }
+
+    /// The policy is only worth anything if the listing actually applies it,
+    /// and that cannot be shown by what the listing prints — every filesystem
+    /// reachable from a test tells the truth in `d_type`. What can be shown is
+    /// that the answer was not cached: a `File` the directory hands over for a
+    /// FIFO carries no filetype yet, so whatever asks will stat it, while an
+    /// ordinary file carries the one `readdir` already gave.
+    #[test]
+    #[cfg(unix)]
+    fn the_listing_does_not_cache_an_exotic_kind() {
+        use std::ffi::CString;
+
+        let test_dir = TestDir::new("uncached_types");
+        test_dir.create_file("regular.txt");
+        let fifo = test_dir.path.join("pipe");
+        let c_path = CString::new(fifo.as_os_str().as_encoded_bytes()).unwrap();
+        // SAFETY: as above — a valid C string under a directory we just made.
+        if unsafe { libc::mkfifo(c_path.as_ptr(), 0o644) } != 0 {
+            eprintln!("skipped: this filesystem will not hold a FIFO");
+            return;
+        }
+
+        let dir = Dir::read_dir(test_dir.path.clone()).unwrap();
+        let files: Vec<_> = dir
+            .files(DotFilter::JustFiles, None, false, false, false, false, None)
+            .collect();
+
+        let pipe = files.iter().find(|f| f.name == "pipe").expect("the FIFO");
+        let regular = files
+            .iter()
+            .find(|f| f.name == "regular.txt")
+            .expect("the regular file");
+
+        assert!(
+            pipe.filetype.get().is_none(),
+            "readdir's answer for a FIFO should not have been kept"
+        );
+        assert!(
+            regular.filetype.get().is_some(),
+            "readdir's answer for a regular file should have been kept"
+        );
     }
 
     #[test]
