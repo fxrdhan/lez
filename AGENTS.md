@@ -44,7 +44,7 @@ CLI Input (Args & Env)
 - [`build.rs`](build.rs): Generates `version_string.txt` during compilation (reads git commit hash, date, features) consumed by `clap` in `src/options/parser.rs`.
 - [`justfile`](justfile): Command runner recipes for building, testing, linting, packaging, and man page generation.
 - [`flake.nix`](flake.nix): Nix flake definition for reproducible developer environment and CI builds.
-- [`man/`](man/): Pandoc markdown sources for man pages (`lsr.1.md`, `lsr_colors.5.md`, `lsr_colors-explanation.5.md`, plus legacy `eza`-named copies).
+- [`man/`](man/): Pandoc markdown sources for man pages (`lsr.1.md`, `lsr_colors.5.md`, `lsr_colors-explanation.5.md`). These three are the whole set: `tests/man_docs_tests.rs` fails if a page is added here without being wired into the `@man` and `@mangen` recipes. The `eza`-named copies that used to sit alongside them were dropped — they documented a command this project does not install, and had drifted into crediting upstream.
 - [`completions/`](completions/): Shell completion scripts for `bash`, `zsh`, `fish`, `nushell`, and `powershell`.
 - [`tests/`](tests/): Integration tests, snapshot tests powered by `trycmd`, LOC tests, and powertests.
 
