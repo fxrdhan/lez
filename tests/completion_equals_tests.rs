@@ -320,10 +320,14 @@ printf 'NOSPACE=%s\n' "$NOSPACE"
 #[test]
 fn bash_really_offers_the_values_only_after_an_equals_sign() {
     let Some(bash) = usable_bash() else {
+        // nixpkgs builds its plain `bash` without programmable completion, so
+        // the flake's own check cannot run this even though it runs on Linux.
+        // The ubuntu job outside the sandbox is what holds the requirement.
+        let inside_a_nix_build = std::env::var_os("NIX_BUILD_TOP").is_some();
         assert!(
-            !cfg!(target_os = "linux"),
-            "no bash with programmable completion was found, and Linux is where \
-             this test is expected to run"
+            !cfg!(target_os = "linux") || inside_a_nix_build,
+            "no bash with programmable completion was found, and Linux outside \
+             the Nix sandbox is where this test is expected to run"
         );
         eprintln!("skipped: no bash with compgen and mapfile on this machine");
         return;
