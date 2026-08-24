@@ -91,20 +91,23 @@ fn is_cjk_month(month: &str) -> bool {
     })
 }
 
+/// The chrono format string for one month name. CJK locales write the date
+/// the other way round — year, then month, then day — and pad the month on
+/// the left, which is what `ls` does under `ja_JP` and `zh_CN`. Split out from
+/// `default` so it can be tested without a locale installed.
+fn default_format(month: &str, month_width: usize, is_current_year: bool) -> String {
+    match (is_cjk_month(month), is_current_year) {
+        (true, true) => format!("{month:>month_width$} %_d %H:%M"),
+        (true, false) => format!("%Y {month:>month_width$} %_d"),
+        (false, true) => format!("%_d {month:<month_width$} %H:%M"),
+        (false, false) => format!("%_d {month:<month_width$}  %Y"),
+    }
+}
+
 fn default(time: &DateTime<FixedOffset>) -> String {
     let month = &*LOCALE.short_month_name(time.month0() as usize);
     let month_width = short_month_padding(*MAX_MONTH_WIDTH, month);
-    let format = if is_cjk_month(month) {
-        if time.year() == *CURRENT_YEAR {
-            format!("{month:>month_width$} %_d %H:%M")
-        } else {
-            format!("%Y {month:>month_width$} %_d")
-        }
-    } else if time.year() == *CURRENT_YEAR {
-        format!("%_d {month:<month_width$} %H:%M")
-    } else {
-        format!("%_d {month:<month_width$}  %Y")
-    };
+    let format = default_format(month, month_width, time.year() == *CURRENT_YEAR);
     time.format(format.as_str()).to_string()
 }
 
@@ -281,6 +284,20 @@ mod test {
                 "Month {month} padded ({right_padded}) display width must equal {max_month_width}"
             );
         }
+    }
+
+    #[test]
+    fn cjk_dates_read_year_month_day() {
+        // `ls` under ja_JP and zh_CN writes the year first and pads the month
+        // on the left; every other locale keeps the day-first order.
+        // The width is in chars, not columns, so it comes through
+        // short_month_padding exactly as `default` passes it.
+        let august = "8\u{6708}";
+        let width = short_month_padding(4, august);
+        assert_eq!(default_format(august, width, true), " 8\u{6708} %_d %H:%M");
+        assert_eq!(default_format(august, width, false), "%Y  8\u{6708} %_d");
+        assert_eq!(default_format("Aug", 3, true), "%_d Aug %H:%M");
+        assert_eq!(default_format("Aug", 3, false), "%_d Aug  %Y");
     }
 
     #[test]
