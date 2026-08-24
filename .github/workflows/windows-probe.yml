@@ -1,6 +1,5 @@
 # SPDX-FileCopyrightText: 2026 fxrdhan
 # SPDX-License-Identifier: EUPL-1.2
-
 # A throwaway probe, run by hand from the Actions tab.
 #
 # Eight upstream reports describe Windows-only behaviour that cannot be
@@ -12,13 +11,10 @@
 # Every step prints its own exit code and then resets it, so the job stays
 # green whatever the binary does — the log is the result, not the status.
 name: Windows Repro Probe
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   probe:
     name: Probe the Windows-only upstream reports
@@ -26,25 +22,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           key: windows-probe
-
       - name: Build
         run: cargo build --features git,inspect-archives
-
       - name: Report the version under test
         run: |
           $exe = Join-Path $PWD 'target\debug\lsr.exe'
           "exe = $exe"
           & $exe --version
           $global:LASTEXITCODE = 0
-
       # eza#337 — `eza.exe t*` raises os error 123. Windows shells do not
       # expand globs, so the binary receives the literal `t*`.
       - name: 'eza#337 — a wildcard argument'
@@ -62,7 +53,6 @@ jobs:
             "exit=$LASTEXITCODE"
           }
           $global:LASTEXITCODE = 0
-
       # eza#404 / eza#874 — a path with a trailing separator raises os error
       # 123. This is what tab completion in PowerShell produces.
       - name: 'eza#404 — a path with a trailing separator'
@@ -74,7 +64,6 @@ jobs:
             "exit=$LASTEXITCODE"
           }
           $global:LASTEXITCODE = 0
-
       # eza#853 — a relative symlink pointing up and back down is listed as a
       # broken link, and its contents never appear.
       - name: 'eza#853 — a relative directory symlink'
@@ -95,7 +84,6 @@ jobs:
             'SKIPPED: the runner could not create a directory symlink'
           }
           $global:LASTEXITCODE = 0
-
       # eza#1025 — listing from inside a `mklink /D` symlink shows the wrong
       # children.
       - name: 'eza#1025 — listing from inside a directory symlink'
@@ -118,7 +106,6 @@ jobs:
             'SKIPPED: the runner could not create a directory symlink'
           }
           $global:LASTEXITCODE = 0
-
       # eza#1104 — listing the named pipe filesystem floods the output with one
       # "Access is denied" line per pipe.
       - name: 'eza#1104 — the named pipe filesystem'
@@ -132,7 +119,6 @@ jobs:
           '--- first 12 lines ---'
           ($lines | Select-Object -First 12 | Out-String).Trim()
           $global:LASTEXITCODE = 0
-
       # eza#1220 — a leading underscore is treated as the Windows equivalent of
       # a dotfile, so Python dunder files vanish from a plain listing.
       - name: 'eza#1220 — files beginning with an underscore'
@@ -149,7 +135,6 @@ jobs:
           '--- lsr -a ---'
           (& $exe -a --color=never 2>&1 | Out-String).Trim()
           $global:LASTEXITCODE = 0
-
       # eza#1665 — --ignore-glob has no effect once -a is also given.
       - name: 'eza#1665 — --ignore-glob together with -a'
         run: |
@@ -165,7 +150,6 @@ jobs:
           '--- lsr -a --ignore-glob=*.log  (the .log files must not appear) ---'
           (& $exe -a --color=never "--ignore-glob=*.log" 2>&1 | Out-String).Trim()
           $global:LASTEXITCODE = 0
-
       # eza#1769 — -g and -a together collapse the listing to one column.
       - name: 'eza#1769 — -g together with -a'
         run: |
