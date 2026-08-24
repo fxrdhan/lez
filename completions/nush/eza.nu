@@ -1,3 +1,12 @@
+# Nushell rewrites `--flag=value` into two arguments for any flag this file
+# declares, and rejects it outright for a flag declared without a type. Nine
+# of eza's flags only accept a value with an equals sign, so declaring them
+# here is what breaks them: `eza --color=always` becomes a parse error, and
+# `eza --loc=lines` reaches the binary as `--loc lines`, where `lines` is read
+# as a path. Left undeclared they pass through untouched and work, at the cost
+# of not being listed here. They are: --classify/-F, --color, --colour,
+# --color-scale, --colour-scale, --icons, --quotes, --hyperlink, --absolute,
+# --code and --loc.
 export extern "eza" [
     --version(-v)              # Show version of eza
     --help                     # Show list of command-line options
@@ -10,21 +19,12 @@ export extern "eza" [
     --spacing: string          # Number of spaces between columns in grid views
     --tree(-T)                 # Recurse into directories as a tree
     --dereference(-X)          # Dereference symbolic links when displaying file information
-    --classify(-F)             # Display type indicator by file names
-    --color                    # When to use terminal colours
-    --colour                   # When to use terminal colours
-    --color-scale              # Highlight levels of file sizes distinctly
-    --colour-scale             # Highlight levels of file sizes distinctly
-    --color-scale-mode         # Use gradient or fixed colors in --color-scale
-    --colour-scale-mode        # Use gradient or fixed colors in --colour-scale
-    --icons                    # When to display icons
-    --quotes                   # When to quote filenames (always, auto, never)
+    --color-scale-mode: string # Use gradient or fixed colors in --color-scale
+    --colour-scale-mode: string # Use gradient or fixed colors in --colour-scale
     --no-quotes                # Don't quote file names with spaces
     --short-nix                # Abbreviate Nix store hashes in file names and paths
     --no-symlink-targets       # Do not show symlink targets
     --summary                  # Display total summary statistics of entries
-    --hyperlink                # When to display entries as hyperlinks
-    --absolute                 # Display entries with their absolute path
     --follow-symlinks          # Drill down into symbolic links that point to directories
     --group-directories-first  # Sort directories before other files
     --group-directories-last   # Sort directories after other files
@@ -40,9 +40,9 @@ export extern "eza" [
     --show-dotfiles            # Show dot-prefixed files without showing other hidden files
     --treat-dirs-as-files(-d)  # List directories like regular files
     --level(-L): string        # Limit the depth of recursion
-    --width(-w)                # Limits column output of grid, 0 implies auto-width
+    --width(-w): string        # Limits column output of grid, 0 implies auto-width
     --reverse(-r)              # Reverse the sort order
-    --sort(-s)                 # Which field to sort by
+    --sort(-s): string         # Which field to sort by
     --ignore-glob(-I): string  # Ignore files that match these glob patterns
     --ignore-glob-ci: string   # Ignore files that match these glob patterns case-insensitively
     --only-dirs(-D)            # List only directories
@@ -55,18 +55,16 @@ export extern "eza" [
     --header(-h)               # Add a header row to each column
     --links(-H)                # List each file's number of hard links
     --inode(-i)                # List each file's inode number
-    --loc: string              # Add lines-of-code and language columns (lines, percent, both)
-    --code: string             # Summarise lines of code by language (lines, percent, both)
     --blocksize(-S)            # List each file's size of allocated file system blocks
     --blocks                   # List each file's size of allocated file system blocks
-    --time(-t) -d              # Which timestamp field to list
+    --time(-t): string         # Which timestamp field to list
     --modified(-m)             # Use the modified timestamp field
     --numeric(-n)              # List numeric user and group IDs.
     --changed                  # Use the changed timestamp field
     --accessed(-u)             # Use the accessed timestamp field
     --created(-U)              # Use the created timestamp field
     --utc                      # Show the time in the UTC timezone
-    --time-style               # How to format timestamps
+    --time-style: string       # How to format timestamps
     --total-size               # Show recursive directory size (unix only)
     --no-permissions           # Suppress the permissions field
     --octal-permissions(-o)    # List each file's permission in octal format
