@@ -106,12 +106,6 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 `-x`, `--across`
 : Sort the grid across, rather than downwards.
 
-`-F`, `--classify[=WHEN]`
-: Display type indicator by file names.
-
-Valid settings are '`always`', '`automatic`' ('`auto`' for short), and '`never`'.
-When used without a value, defaults to '`automatic`'. Note: when providing an explicit value, an equals sign is required (`--classify=WHEN`).
-
 `--color=WHEN`, `--colour=WHEN`
 : When to use terminal colours.
 
