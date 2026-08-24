@@ -29,8 +29,6 @@ use crate::output::render::{LanguageRender, LocRender, PermissionsPlusRender, Ti
 use crate::output::time::TimeFormat;
 use crate::theme::Theme;
 
-use super::color_scale::ColorScaleMode;
-
 /// Options for displaying a table.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Options {
@@ -607,13 +605,10 @@ impl<'a> Table<'a> {
                 .render(self.theme.ui.octal.unwrap_or_default()),
 
             Column::Timestamp(time_type) => time_type.get_corresponding_time(file).render(
-                if color_scale_info.is_some_and(|csi| csi.options.mode == ColorScaleMode::Gradient)
+                if let Some(csi) = color_scale_info
+                    && csi.options.age
                 {
-                    color_scale_info.unwrap().apply_time_gradient(
-                        self.theme.ui.date.unwrap_or_default(),
-                        file,
-                        time_type,
-                    )
+                    csi.apply_time_scale(self.theme.ui.date.unwrap_or_default(), file, time_type)
                 } else {
                     self.theme.ui.date.unwrap_or_default()
                 },

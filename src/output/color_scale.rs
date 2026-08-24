@@ -65,18 +65,20 @@ impl ColorScaleInformation {
         git_ignoring: bool,
         r: Option<RecurseOptions>,
     ) -> Option<Self> {
-        if color_scale.mode == ColorScaleMode::Fixed {
-            None
-        } else {
-            let mut information = Self {
-                options: color_scale,
-                accessed: None,
-                changed: None,
-                created: None,
-                modified: None,
-                size: None,
-            };
+        if !color_scale.age && !color_scale.size {
+            return None;
+        }
 
+        let mut information = Self {
+            options: color_scale,
+            accessed: None,
+            changed: None,
+            created: None,
+            modified: None,
+            size: None,
+        };
+
+        if color_scale.mode == ColorScaleMode::Gradient {
             update_information_recursively(
                 &mut information,
                 files,
@@ -86,9 +88,9 @@ impl ColorScaleInformation {
                 TreeDepth::root(),
                 r,
             );
-
-            Some(information)
         }
+
+        Some(information)
     }
 
     #[must_use]
@@ -110,19 +112,65 @@ impl ColorScaleInformation {
         style
     }
 
-    pub fn apply_time_gradient(&self, style: Style, file: &File<'_>, time_type: TimeType) -> Style {
-        let range = match time_type {
-            TimeType::Modified => self.modified,
-            TimeType::Changed => self.changed,
-            TimeType::Accessed => self.accessed,
-            TimeType::Created => self.created,
+    pub fn apply_time_scale(
+        &self,
+        mut style: Style,
+        file: &File<'_>,
+        time_type: TimeType,
+    ) -> Style {
+        if !self.options.age {
+            return style;
+        }
+
+        let Some(file_time) = time_type.get_corresponding_time(file) else {
+            return style;
         };
 
-        if let Some(file_time) = time_type.get_corresponding_time(file) {
-            self.adjust_style(style, file_time.and_utc().timestamp_millis() as f32, range)
-        } else {
-            style
+        let file_time_ms = file_time.and_utc().timestamp_millis() as f32;
+
+        match self.options.mode {
+            ColorScaleMode::Gradient => {
+                let range = match time_type {
+                    TimeType::Modified => self.modified,
+                    TimeType::Changed => self.changed,
+                    TimeType::Accessed => self.accessed,
+                    TimeType::Created => self.created,
+                };
+                self.adjust_style(style, file_time_ms, range)
+            }
+            ColorScaleMode::Fixed => {
+                if let Some(fg) = style.foreground {
+                    let now_ms = chrono::Utc::now().timestamp_millis() as f32;
+                    let age_secs = ((now_ms - file_time_ms).max(0.0)) / 1000.0;
+
+                    let ratio = if age_secs < 3600.0 {
+                        1.0
+                    } else if age_secs < 86400.0 {
+                        0.8
+                    } else if age_secs < 7.0 * 86400.0 {
+                        0.6
+                    } else if age_secs < 30.0 * 86400.0 {
+                        0.4
+                    } else if age_secs < 365.0 * 86400.0 {
+                        0.2
+                    } else {
+                        0.0
+                    };
+
+                    style.foreground = Some(adjust_luminance(
+                        fg,
+                        ratio,
+                        self.options.min_luminance as f32 / 100.0,
+                        self.options.max_luminance as f32 / 100.0,
+                    ));
+                }
+                style
+            }
         }
+    }
+
+    pub fn apply_time_gradient(&self, style: Style, file: &File<'_>, time_type: TimeType) -> Style {
+        self.apply_time_scale(style, file, time_type)
     }
 }
 
@@ -316,17 +364,48 @@ mod test {
     }
 
     #[test]
-    fn color_scale_fixed_returns_none() {
+    fn color_scale_inactive_returns_none() {
         let opts = ColorScaleOptions {
             mode: ColorScaleMode::Fixed,
             min_luminance: 50,
             max_luminance: 100,
-            size: true,
-            age: true,
+            size: false,
+            age: false,
         };
         let filter = make_test_filter(vec![], vec![]);
         let info = ColorScaleInformation::from_color_scale(opts, &[], &filter, None, false, None);
         assert!(info.is_none());
+    }
+
+    #[test]
+    fn color_scale_fixed_mode_age_returns_info_and_scales() {
+        let opts = ColorScaleOptions {
+            mode: ColorScaleMode::Fixed,
+            min_luminance: 40,
+            max_luminance: 100,
+            size: false,
+            age: true,
+        };
+        let filter = make_test_filter(vec![], vec![]);
+        let info = ColorScaleInformation::from_color_scale(opts, &[], &filter, None, false, None);
+        assert!(info.is_some());
+        let info = info.unwrap();
+
+        let base_style = nu_ansi_term::Color::Blue.normal();
+
+        // Recent file should have adjusted foreground
+        let file = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let scaled_style = info.apply_time_scale(base_style, &file, TimeType::Modified);
+        assert!(scaled_style.foreground.is_some());
+        assert_ne!(scaled_style, base_style);
     }
 
     #[test]
