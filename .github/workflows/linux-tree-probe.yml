@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+# A probe, run by hand from the Actions tab.
+#
+# Upstream reports `--tree` taking over five seconds on a checkout of
+# rust-lang/cargo, and `Too many open files (os error 24)` along with it. The
+# report has no comments and no diagnosis, so this measures both halves: how
+# long a full tree takes on that same repository, and whether directory handles
+# accumulate during recursion.
+#
+# A descriptor leak shows up as a run that fails under a lowered limit while
+# succeeding under the default one, and as `openat` outnumbering `close` in the
+# syscall counts. The log is the result; the job stays green either way.
+name: Linux Tree Probe
+on:
+  workflow_dispatch:
+    inputs:
+      depth:
+        description: How deep the generated nested tree goes
+        default: "1000"
+permissions:
+  contents: read
+jobs:
+  probe:
+    name: Time a large tree and look for descriptor leaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-tree-probe
+      - name: Install strace
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq strace
+      - name: Build
+        run: |
+          cargo build --release --quiet
+          cp target/release/lsr /tmp/lsr
+      - name: Fetch the repository from the report
+        run: |
+          git clone --depth 1 https://github.com/rust-lang/cargo /tmp/cargo
+          echo "entries: $(find /tmp/cargo | wc -l)"
+          echo "directories: $(find /tmp/cargo -type d | wc -l)"
+          echo "deepest path: $(find /tmp/cargo -type d -printf '%d\n' | sort -rn | head -1) levels"
+      - name: Time a full tree of it
+        run: |
+          for run in 1 2 3; do
+            /usr/bin/time -f "  wall %e s   max rss %M KB" /tmp/lsr --color=never -T /tmp/cargo >/dev/null
+          done
+          echo "--- with --all, which is what a full listing costs ---"
+          /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -T --all /tmp/cargo >/dev/null
+      - name: Do descriptors accumulate?
+        run: |
+          echo "--- openat against close over the whole tree ---"
+          strace -c -f /tmp/lsr --color=never -T /tmp/cargo 2>&1 >/dev/null \
+            | grep -E "openat|close|getdents64|-----|total" | head -6
+          echo
+          echo "--- the same tree under a limit of 64 descriptors ---"
+          bash -c 'ulimit -n 64; /tmp/lsr --color=never -T /tmp/cargo >/dev/null 2>/tmp/err; echo "  exit=$?"'
+          echo "  stderr: $(head -c 200 /tmp/err)"
+      - name: A deeply nested tree, where recursion is deepest
+        run: |
+          root=/tmp/deep
+          rm -rf "$root"
+          path="$root"
+          for i in $(seq 1 ${{ inputs.depth }}); do
+            path="$path/d$i"
+          done
+          mkdir -p "$path"
+          echo "levels: ${{ inputs.depth }}"
+          bash -c 'ulimit -n 64; /tmp/lsr --color=never -T /tmp/deep >/dev/null 2>/tmp/err2; echo "  exit=$?"'
+          echo "  stderr: $(head -c 200 /tmp/err2)"
+          /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -T /tmp/deep >/dev/null
