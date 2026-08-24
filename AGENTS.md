@@ -263,22 +263,49 @@ a config file for option defaults, 770 becomes worth a look.
 
 ### Filtering the issues
 
-215 open upstream issues remain untriaged in detail; 70 were confirmed already
-fixed here. Work them in this order, because it is by far the cheapest:
+**Swept 2026-08-24.** All 98 open `type: bug` reports (of 286 open issues) were
+read and, where possible, run against our binary. 46 were already fixed here.
+What remains is recorded below rather than left to be rediscovered.
 
-1. **Reproduce against our binary before reading further.** Many reports die
+Work an unread report in this order, because it is by far the cheapest:
+
+1. **Reproduce against our binary before reading further.** Most reports die
    here — we fixed them through a different port, and the issue title gives no
-   hint of that. Titles also under-describe: eza#521 is filed as `--git` not
-   marking `I`, and the same root cause also broke `--git-ignore`.
-2. **Drop eza's own infrastructure** — winget, `deb.gierens.de` builds, their
+   hint of that.
+2. **Read the body and the whole discussion, not the title.** Titles
+   under-describe and mislead. eza#521 is filed as `--git` not marking `I`,
+   and the same root cause also broke `--git-ignore`. eza#825 is filed as
+   missing icons, and its own thread traces them to an iTerm bug. eza#337 had a
+   working fix in 2024 that never merged, which the title does not say.
+3. **Drop eza's own infrastructure** — winget, `deb.gierens.de` builds, their
    flake, trycmd on ZFS.
-3. **Drop platforms we cannot support or verify** — MUSL builds, systemd-homed,
-   CIFS, JetBrains' console.
-4. **Group the rest by theme, one PR per theme, not one per issue.** The
-   remainder clusters cleanly: performance (844, 1214, 1378, 1710), Windows
-   paths (337, 404, 853, 1025, 1104), quoting (1482, 1548), theme versus
-   `LS_COLORS` (1088, 1576, 1590, 1700).
+4. **Group the rest by theme, one PR per theme, not one per issue.**
 
-The 70 figure is a floor, not a count: it only includes issues with a written
-link to a port we took. 1590 and 1700 look closed by ports 1591 and 1856 but
-were never reproduced, so they are not in it.
+### What a machine here can and cannot reach
+
+Correcting an assumption that cost time: **Linux containers run on macOS**, so
+a Linux-only report is reproducible in minutes — build inside `rust:*-bookworm`
+with `CARGO_TARGET_DIR=/tmp/target` and a mounted read-only checkout. Only
+*Windows* containers cannot run here. Windows instead has the
+`Windows Repro Probe` workflow (`.github/workflows/windows-probe.yml`), a
+manual job that walks a set of reproductions on a runner and prints the result.
+
+Out of reach either way: real hardware (a specific USB device, a CIFS or
+macFUSE mount), systemd-homed, iSH, and a GUI terminal's font.
+
+### Still open upstream, with what is known
+
+| upstream | state |
+|---|---|
+| 875 | Alpine on iSH. Needs iSH; no code lead. |
+| 1088 | `LS_COLORS` `ca` (Linux capabilities) unsupported. Reproducible on Linux, not on macOS; see issue #60. |
+| 1428 | systemd-homed user names. We already resolve through `uzers` → `getpwuid_r` → NSS, which is the right API; nothing to act on without the setup. |
+| 1500 | Hang on one USB device. Needs that device. |
+| 1548 | Control-character quoting. Wants a `--quote-style` option: a design decision, not a fix. |
+| 743 | `--color-scale` under tmux on Wayland. The flat gradient was ours and is fixed; whether truecolor also fails there is unproven. |
+| 844, 1214, 1378, 1710 | Performance at 200k+ files. Does not reproduce at 12k; see issue #59. |
+| 337, 404, 853, 1025, 1104, 1220, 1665, 1769 | Windows. Settled — see issue #57. |
+
+Declined issues, with the evidence for declining them, are in the agent's
+memory rather than here: they are conclusions about upstream reports, not rules
+for this repository.
