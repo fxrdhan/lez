@@ -13,7 +13,7 @@ use lsr::options::parser::get_command;
 use lsr::options::vars::Vars;
 use lsr::options::{Options, OptionsError};
 use lsr::output::color_scale::{
-    ColorScaleInformation, ColorScaleMode, ColorScaleOptions, Extremes,
+    ColorScaleInformation, ColorScaleMode, ColorScaleOptions, Extremes, Scale,
 };
 use lsr::output::file_name::{
     Absolute, Classify, EmbedHyperlinks, Options as FileStyleOptions, QuoteStyle, ShowIcons,
@@ -304,7 +304,7 @@ fn test_r2_color_scale_single_file_min_equals_max_style_safety() {
 
     // Adjust style with min == max (division by 0 resulting in NaN ratio)
     let base_style = Style::default().fg(Colour::Green);
-    let adjusted = info.adjust_style(base_style, size_ext.min, info.size);
+    let adjusted = info.adjust_style(base_style, size_ext.min, info.size, Scale::Logarithmic);
     assert!(
         adjusted.foreground.is_some(),
         "Adjusting style on min == max must not panic and must produce valid color"

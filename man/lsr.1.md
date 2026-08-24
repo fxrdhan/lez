@@ -123,6 +123,8 @@ When used without a value, defaults to ‘`all`’. Note: when providing an expl
 Valid options are `fixed` to use a fixed color (disabling color scale), or `gradient` to use an automatic darker (old/small file) to lighter (recent/big file) gradient of colors.
 When used without a value, defaults to `gradient`.
 
+The size gradient runs over orders of magnitude rather than bytes, so a single large file does not flatten every ordinary one to the same shade. The age gradient runs over elapsed time directly.
+
 `--icons[=WHEN]`
 : Display icons next to file names.
 

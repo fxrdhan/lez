@@ -10,7 +10,7 @@ use unit_prefix::Prefix;
 
 use crate::fs::fields as f;
 use crate::output::cell::{DisplayWidth, TextCell};
-use crate::output::color_scale::{ColorScaleInformation, ColorScaleMode};
+use crate::output::color_scale::{ColorScaleInformation, ColorScaleMode, Scale};
 use crate::output::table::SizeFormat;
 
 impl f::Size {
@@ -49,7 +49,7 @@ impl f::Size {
                 return if is_gradient_mode {
                     let csi = color_scale_info.unwrap();
                     TextCell::paint(
-                        csi.adjust_style(colours.size(prefix), size as f32, csi.size),
+                        csi.adjust_style(colours.size(prefix), size as f32, csi.size, Scale::Logarithmic),
                         string,
                     )
                 } else {
@@ -64,7 +64,7 @@ impl f::Size {
                 return if is_gradient_mode {
                     let csi = color_scale_info.unwrap();
                     TextCell::paint(
-                        csi.adjust_style(colours.size(None), size as f32, csi.size),
+                        csi.adjust_style(colours.size(None), size as f32, csi.size, Scale::Logarithmic),
                         numerics.format_int(b),
                     )
                 } else {
@@ -91,10 +91,20 @@ impl f::Size {
             contents: if is_gradient_mode {
                 let csi = color_scale_info.unwrap();
                 vec![
-                    csi.adjust_style(colours.size(Some(prefix)), size as f32, csi.size)
-                        .paint(number),
-                    csi.adjust_style(colours.unit(Some(prefix)), size as f32, csi.size)
-                        .paint(symbol),
+                    csi.adjust_style(
+                        colours.size(Some(prefix)),
+                        size as f32,
+                        csi.size,
+                        Scale::Logarithmic,
+                    )
+                    .paint(number),
+                    csi.adjust_style(
+                        colours.unit(Some(prefix)),
+                        size as f32,
+                        csi.size,
+                        Scale::Logarithmic,
+                    )
+                    .paint(symbol),
                 ]
             } else {
                 vec![
