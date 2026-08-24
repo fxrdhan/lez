@@ -26,13 +26,13 @@ naersk'.buildPackage rec {
   buildFeatures = "git,inspect-archives";
 
   postInstall = ''
-    for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5 eza.1 eza_colors.5 eza_colors-explanation.5; do
+    for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5; do
       if [ -f "man/$page.md" ]; then
         sed "s/\$version/${version}/g" "man/$page.md" |
           pandoc --standalone -f markdown -t man >"man/$page"
       fi
     done
-    installManPage man/lsr.1 man/lsr_colors.5 man/lsr_colors-explanation.5 man/eza.1 man/eza_colors.5 man/eza_colors-explanation.5
+    installManPage man/lsr.1 man/lsr_colors.5 man/lsr_colors-explanation.5
     installShellCompletion \
       --bash completions/bash/lsr \
       --fish completions/fish/lsr.fish \

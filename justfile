@@ -96,7 +96,7 @@ genDemo:
 @man:
     mkdir -p "${CARGO_TARGET_DIR:-target}/man"
     version=$(awk 'BEGIN { FS = "\"" } ; /^version/ { print $2 ; exit }' Cargo.toml); \
-    for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5 eza.1 eza_colors.5 eza_colors-explanation.5; do \
+    for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5; do \
         sed "s/\$version/v${version}/g" "man/${page}.md" | pandoc --standalone -f markdown -t man > "${CARGO_TARGET_DIR:-target}/man/${page}"; \
     done;
 
@@ -286,7 +286,7 @@ alias c := cross
 @mangen:
     # Setup Output Directory
     mkdir -p ./target/"man-$(convco version)"
-    for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5 eza.1 eza_colors.5 eza_colors-explanation.5; do \
+    for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5; do \
         sed "s/\$version/v$(convco version)/g" "man/${page}.md" | pandoc --standalone -f markdown -t man > ./target/"man-$(convco version)"/${page}; \
     done;
     tar czvf ./target/"man-$(convco version)".tar.gz ./target/"man-$(convco version)"

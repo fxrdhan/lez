@@ -296,7 +296,7 @@ These options are available when running with `--long` (`-l`):
 : List numeric user and group IDs.
 
 `-O`, `--flags`
-: List file flags on macOS and BSD systems and file attributes on Windows systems. By default, Windows attributes are displayed in a long form. To display in attributes as single character set the environment variable `LSR_WINDOWS_ATTRIBUTES=short`. On BSD systems see chflags(1) for a list of file flags and their meanings.
+: List file flags on macOS and BSD systems and file attributes on Windows systems. By default, Windows attributes are displayed in a long form. To display in attributes as single character set the environment variable `LSR_WINDOWS_ATTRIBUTES=short` (or `EZA_WINDOWS_ATTRIBUTES=short`, which is honoured as a fallback). On BSD systems see chflags(1) for a list of file flags and their meanings.
 
 `-S`, `--blocks`, `--blocksize`
 : List each file’s size of allocated file system blocks.
