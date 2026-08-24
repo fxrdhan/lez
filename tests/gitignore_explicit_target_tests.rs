@@ -326,3 +326,115 @@ fn test_f7_env_var_override_git_ignore() {
         "LSR_OVERRIDE_GIT=1 should override --git-ignore: {stdout}"
     );
 }
+
+// ----------------------------------------------------------------------------
+// A lone `*` in .gitignore (upstream eza#521, libgit2#6890)
+// ----------------------------------------------------------------------------
+
+/// libgit2 drops an ignored file from the status walk entirely when the
+/// directory holding it is ignored too, which a lone `*` always causes. The
+/// file then slipped past `--git-ignore` even though `git check-ignore` names
+/// it, while the ignored directory beside it was hidden correctly.
+#[test]
+fn test_lone_star_gitignore_hides_top_level_files() {
+    let Some(repo) = TempGitRepo::new("lone_star") else {
+        return;
+    };
+    repo.write_file(".gitignore", b"*\n!.gitignore\n!kept.txt\n");
+    repo.write_file("kept.txt", b"kept\n");
+    repo.write_file("dropped.log", b"dropped\n");
+    repo.write_file("sub/nested.log", b"nested\n");
+
+    let output = run_lsr(&[
+        "-1",
+        "-a",
+        "--git-ignore",
+        "--color=never",
+        repo.path.to_str().unwrap(),
+    ]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("kept.txt"),
+        "a negated file stays visible, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains(".gitignore"),
+        ".gitignore itself is negated and stays visible, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("dropped.log"),
+        "a file ignored by the lone `*` should be hidden, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("sub"),
+        "the ignored directory should stay hidden too, got:\n{stdout}"
+    );
+}
+
+/// The same file has to carry `I` in the Git column of the long view.
+#[test]
+fn test_lone_star_gitignore_marks_files_in_the_git_column() {
+    let Some(repo) = TempGitRepo::new("lone_star_column") else {
+        return;
+    };
+    repo.write_file(".gitignore", b"*\n!.gitignore\n!kept.txt\n");
+    repo.write_file("kept.txt", b"kept\n");
+    repo.write_file("dropped.log", b"dropped\n");
+
+    let output = run_lsr(&["-la", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let row = |name: &str| {
+        stdout
+            .lines()
+            .find(|line| line.ends_with(name))
+            .unwrap_or_else(|| panic!("no row for {name} in:\n{stdout}"))
+    };
+
+    assert!(
+        row("dropped.log").contains("-I"),
+        "an ignored file is marked I, got: {}",
+        row("dropped.log")
+    );
+    assert!(
+        !row("kept.txt").contains("-I"),
+        "a negated file is not marked I, got: {}",
+        row("kept.txt")
+    );
+}
+
+/// Git never ignores a file that is in the index, however well it matches a
+/// pattern, so a force-added file must not pick up the `I`.
+#[test]
+fn test_lone_star_gitignore_leaves_tracked_files_alone() {
+    let Some(repo) = TempGitRepo::new("lone_star_tracked") else {
+        return;
+    };
+    repo.write_file(".gitignore", b"*\n!.gitignore\n");
+    repo.write_file("tracked.log", b"tracked\n");
+    repo.write_file("untracked.log", b"untracked\n");
+    repo.git(&["add", "-f", ".gitignore", "tracked.log"]);
+    repo.git(&["commit", "-qm", "force-add an ignored file"]);
+
+    let output = run_lsr(&[
+        "-1",
+        "-a",
+        "--git-ignore",
+        "--color=never",
+        repo.path.to_str().unwrap(),
+    ]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("tracked.log"),
+        "a tracked file is never ignored, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("untracked.log"),
+        "its untracked neighbour is still hidden, got:\n{stdout}"
+    );
+}
