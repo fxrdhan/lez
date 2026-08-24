@@ -197,8 +197,17 @@ If adding a new CLI flag:
    - [`completions/nush/lsr.nu`](completions/nush/lsr.nu)
    - [`completions/pwsh/_lsr.ps1`](completions/pwsh/_lsr.ps1)
 
-   Then regenerate the `eza`-named compatibility copies from these, name for
-   name; `tests/zsh_completion_classify_tests.rs` fails if the zsh pair drifts.
+   Then regenerate the `eza`-named compatibility copies with
+   `sed 's/lsr/eza/g'` — that is the whole rule for all five backends, and
+   `the_compat_copies_are_the_primary_files_with_the_name_rewritten` in
+   `tests/completion_equals_tests.rs` fails if a copy is edited instead.
+
+   If the flag takes its value with `require_equals`, every backend has to
+   offer it *after* the sign and not after a space, or completing it builds a
+   command line where the value is read as a path. Each backend needs a
+   different mechanism for that — see the same test file, which reads the set
+   of equals-only flags off the clap command, so a new one fails the suite
+   until all five are taught about it.
 6. **Add Unit/CLI Tests** in [`tests/`](tests/).
 
 ### 2. Adding or Modifying File Icons

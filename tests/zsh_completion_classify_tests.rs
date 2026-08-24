@@ -39,24 +39,6 @@ fn test_zsh_completion_file_exists() {
     );
 }
 
-/// The two files differ only in the command name they complete. Comparing them
-/// with the names normalised catches a flag added to one and not the other,
-/// which is how they drifted apart before.
-#[test]
-fn test_zsh_completion_compat_copy_is_in_sync() {
-    let primary = fs::read_to_string(get_zsh_completion_path()).expect("_lsr should be readable");
-    let compat =
-        fs::read_to_string(get_zsh_compat_completion_path()).expect("_eza should be readable");
-
-    let normalise = |s: &str| s.replace("lsr", "CMD").replace("eza", "CMD");
-
-    assert_eq!(
-        normalise(&primary),
-        normalise(&compat),
-        "completions/zsh/_eza must be a name-for-name copy of completions/zsh/_lsr"
-    );
-}
-
 /// Two files installed into the same site-functions directory must not both
 /// claim `eza`, or which one zsh loads comes down to order.
 #[test]
