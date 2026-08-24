@@ -33,54 +33,63 @@ commands:
   ? - -X
     - --dereference
   :
-  ? - -F
-    - --classify
+  ? - -F=auto
+    - --classify=auto
   :
-  ? - -F
-    - --classify
-  : values:
-      - auto
-      - always
-      - never
-  ? - null
-    - --color
-  : values:
-      - auto
-      - always
-      - never
-  ? - null
-    - --colour
-  : values:
-      - auto
-      - always
-      - never
-  ? - null
-    - --icons
+  ? - -F=always
+    - --classify=always
+  :
+  ? - -F=never
+    - --classify=never
   :
   ? - null
-    - --icons
-  : values:
-      - auto
-      - always
-      - never
+    - --color=auto
+  :
+  ? - null
+    - --color=always
+  :
+  ? - null
+    - --color=never
+  :
+  ? - null
+    - --colour=auto
+  :
+  ? - null
+    - --colour=always
+  :
+  ? - null
+    - --colour=never
+  :
+  ? - null
+    - --icons=auto
+  :
+  ? - null
+    - --icons=always
+  :
+  ? - null
+    - --icons=never
+  :
   ? - null
     - --no-quotes
   :
   ? - null
-    - --hyperlink
+    - --hyperlink=auto
   :
   ? - null
-    - --hyperlink
-  : values:
-      - auto
-      - always
-      - never
+    - --hyperlink=always
+  :
   ? - null
-    - --absolute
-  : values:
-      - on
-      - follow
-      - off
+    - --hyperlink=never
+  :
+  ? - null
+    - --absolute=on
+  :
+  ? - null
+    - --absolute=follow
+  :
+  ? - null
+    - --absolute=off
+  :
   ? - -w
     - --width
   : values:
