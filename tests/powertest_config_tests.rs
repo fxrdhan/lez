@@ -83,14 +83,17 @@ fn declared_flags(config: &str) -> Vec<(usize, String)> {
 fn the_generator_targets_the_binary_this_project_builds() {
     let config = workspace_file("powertest.yaml");
     let binary = binary_name();
+    // Matched line by line: a Windows checkout can carry CRLF, and `lines`
+    // strips the carriage return that a raw `contains` would trip over.
+    let declares = |setting: &str| config.lines().any(|line| line.trim_end() == setting);
     assert!(
-        config.contains(&format!("\nbinary: {binary}\n")),
+        declares(&format!("binary: {binary}")),
         "powertest.yaml must set `binary: {binary}`; every generated case \
          carries it as bin.name, so a stale value points the whole suite at a \
          command that is not installed"
     );
     assert!(
-        config.contains(&format!("\ngen_binary: target/debug/{binary}\n")),
+        declares(&format!("gen_binary: target/debug/{binary}")),
         "powertest.yaml must set `gen_binary: target/debug/{binary}`"
     );
 }
