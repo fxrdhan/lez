@@ -83,14 +83,31 @@ impl TimeFormat {
     }
 }
 
+fn is_cjk_month(month: &str) -> bool {
+    month.chars().any(|c| {
+        ('\u{4e00}'..='\u{9fff}').contains(&c)
+            || ('\u{ac00}'..='\u{d7af}').contains(&c)
+            || ('\u{2e80}'..='\u{2fdf}').contains(&c)
+    })
+}
+
+/// The chrono format string for one month name. CJK locales write the date
+/// the other way round — year, then month, then day — and pad the month on
+/// the left, which is what `ls` does under `ja_JP` and `zh_CN`. Split out from
+/// `default` so it can be tested without a locale installed.
+fn default_format(month: &str, month_width: usize, is_current_year: bool) -> String {
+    match (is_cjk_month(month), is_current_year) {
+        (true, true) => format!("{month:>month_width$} %_d %H:%M"),
+        (true, false) => format!("%Y {month:>month_width$} %_d"),
+        (false, true) => format!("%_d {month:<month_width$} %H:%M"),
+        (false, false) => format!("%_d {month:<month_width$}  %Y"),
+    }
+}
+
 fn default(time: &DateTime<FixedOffset>) -> String {
     let month = &*LOCALE.short_month_name(time.month0() as usize);
     let month_width = short_month_padding(*MAX_MONTH_WIDTH, month);
-    let format = if time.year() == *CURRENT_YEAR {
-        format!("%_d {month:<month_width$} %H:%M")
-    } else {
-        format!("%_d {month:<month_width$}  %Y")
-    };
+    let format = default_format(month, month_width, time.year() == *CURRENT_YEAR);
     time.format(format.as_str()).to_string()
 }
 
@@ -234,7 +251,7 @@ static MAX_MONTH_WIDTH: LazyLock<usize> = LazyLock::new(|| {
     // Some locales use a three-character wide month name (Jan to Dec);
     // others vary between three to four (1月 to 12月, juil.). We check each month width
     // to detect the longest and set the output format accordingly.
-    (0..11)
+    (0..12)
         .map(|i| UnicodeWidthStr::width(&*LOCALE.short_month_name(i)))
         .max()
         .unwrap()
@@ -243,6 +260,55 @@ static MAX_MONTH_WIDTH: LazyLock<usize> = LazyLock::new(|| {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn short_month_width_japanese_december() {
+        let max_month_width = 4;
+        let month = "12\u{2F49}"; // 12月
+        let padding = short_month_padding(max_month_width, month);
+        let final_str = format!("{month:<padding$}");
+        assert_eq!(max_month_width, UnicodeWidthStr::width(final_str.as_str()));
+    }
+
+    #[test]
+    fn cjk_month_padded_display_width_is_consistent() {
+        let max_month_width = 4;
+        // 1月 to 12月
+        for m in 1..=12 {
+            let month = format!("{m}\u{6708}");
+            let padding = short_month_padding(max_month_width, &month);
+            let right_padded = format!("{month:>padding$}");
+            assert_eq!(
+                UnicodeWidthStr::width(right_padded.as_str()),
+                max_month_width,
+                "Month {month} padded ({right_padded}) display width must equal {max_month_width}"
+            );
+        }
+    }
+
+    #[test]
+    fn cjk_dates_read_year_month_day() {
+        // `ls` under ja_JP and zh_CN writes the year first and pads the month
+        // on the left; every other locale keeps the day-first order.
+        // The width is in chars, not columns, so it comes through
+        // short_month_padding exactly as `default` passes it.
+        let august = "8\u{6708}";
+        let width = short_month_padding(4, august);
+        assert_eq!(default_format(august, width, true), " 8\u{6708} %_d %H:%M");
+        assert_eq!(default_format(august, width, false), "%Y  8\u{6708} %_d");
+        assert_eq!(default_format("Aug", 3, true), "%_d Aug %H:%M");
+        assert_eq!(default_format("Aug", 3, false), "%_d Aug  %Y");
+    }
+
+    #[test]
+    fn cjk_month_detector() {
+        assert!(is_cjk_month("8月"));
+        assert!(is_cjk_month("12月"));
+        assert!(is_cjk_month("8월"));
+        assert!(!is_cjk_month("Aug"));
+        assert!(!is_cjk_month("juil."));
+        assert!(!is_cjk_month("अग॰"));
+    }
 
     #[test]
     fn custom_format_with_utc_flag_renders_utc_abbreviation() {

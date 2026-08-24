@@ -1,2 +1,1 @@
-dirs-ext  grid   icons  size      symlinks
-git       group  perms  specials  time
+dirs-ext  git  grid  group  icons  perms  size  specials  symlinks  time
