@@ -83,10 +83,24 @@ impl TimeFormat {
     }
 }
 
+fn is_cjk_month(month: &str) -> bool {
+    month.chars().any(|c| {
+        ('\u{4e00}'..='\u{9fff}').contains(&c)
+            || ('\u{ac00}'..='\u{d7af}').contains(&c)
+            || ('\u{2e80}'..='\u{2fdf}').contains(&c)
+    })
+}
+
 fn default(time: &DateTime<FixedOffset>) -> String {
     let month = &*LOCALE.short_month_name(time.month0() as usize);
     let month_width = short_month_padding(*MAX_MONTH_WIDTH, month);
-    let format = if time.year() == *CURRENT_YEAR {
+    let format = if is_cjk_month(month) {
+        if time.year() == *CURRENT_YEAR {
+            format!("{month:>month_width$} %_d %H:%M")
+        } else {
+            format!("%Y {month:>month_width$} %_d")
+        }
+    } else if time.year() == *CURRENT_YEAR {
         format!("%_d {month:<month_width$} %H:%M")
     } else {
         format!("%_d {month:<month_width$}  %Y")
@@ -234,7 +248,7 @@ static MAX_MONTH_WIDTH: LazyLock<usize> = LazyLock::new(|| {
     // Some locales use a three-character wide month name (Jan to Dec);
     // others vary between three to four (1月 to 12月, juil.). We check each month width
     // to detect the longest and set the output format accordingly.
-    (0..11)
+    (0..12)
         .map(|i| UnicodeWidthStr::width(&*LOCALE.short_month_name(i)))
         .max()
         .unwrap()
@@ -243,6 +257,41 @@ static MAX_MONTH_WIDTH: LazyLock<usize> = LazyLock::new(|| {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn short_month_width_japanese_december() {
+        let max_month_width = 4;
+        let month = "12\u{2F49}"; // 12月
+        let padding = short_month_padding(max_month_width, month);
+        let final_str = format!("{month:<padding$}");
+        assert_eq!(max_month_width, UnicodeWidthStr::width(final_str.as_str()));
+    }
+
+    #[test]
+    fn cjk_month_padded_display_width_is_consistent() {
+        let max_month_width = 4;
+        // 1月 to 12月
+        for m in 1..=12 {
+            let month = format!("{m}\u{6708}");
+            let padding = short_month_padding(max_month_width, &month);
+            let right_padded = format!("{month:>padding$}");
+            assert_eq!(
+                UnicodeWidthStr::width(right_padded.as_str()),
+                max_month_width,
+                "Month {month} padded ({right_padded}) display width must equal {max_month_width}"
+            );
+        }
+    }
+
+    #[test]
+    fn cjk_month_detector() {
+        assert!(is_cjk_month("8月"));
+        assert!(is_cjk_month("12月"));
+        assert!(is_cjk_month("8월"));
+        assert!(!is_cjk_month("Aug"));
+        assert!(!is_cjk_month("juil."));
+        assert!(!is_cjk_month("अग॰"));
+    }
 
     #[test]
     fn custom_format_with_utc_flag_renders_utc_abbreviation() {
