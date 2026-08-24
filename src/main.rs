@@ -533,10 +533,9 @@ impl Lsr<'_> {
                     {
                         writeln!(&mut self.writer, "{warn_line}")?;
                     }
-                    match self.print_dirs(child_dirs, false, false, exit_status, child_depth) {
-                        Ok(status) => denied_anywhere |= status == exits::PERMISSION_DENIED,
-                        Err(e) => return Err(e),
-                    }
+                    let status =
+                        self.print_dirs(child_dirs, false, false, exit_status, child_depth)?;
+                    denied_anywhere |= status == exits::PERMISSION_DENIED;
                     continue;
                 }
             }
