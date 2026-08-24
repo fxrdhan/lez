@@ -272,3 +272,53 @@ proactively instead of rediscovering them in the Actions matrix.
   edition-2024 import style diverges from rustfmt. After bulk edits, diff
   against HEAD before staging; if unexpected churn appears, restore the file
   and re-apply only the intended change.
+
+---
+
+## 5. Upstream Triage Policy
+
+`lsr` ports unmerged `eza-community/eza` work by hand; it does not sync (see
+§1). That makes "which upstream work is still outstanding" a question someone
+re-asks every few months, so the answer is written down here rather than
+rediscovered.
+
+**Snapshot taken 2026-08-24**, against 149 open upstream PRs and 286 open
+upstream issues. 106 PRs were already ported. Of the remaining 43, one was
+worth taking; the other 42 are listed below with the reason they are not.
+"Not ported" here means *examined and declined*, not *unseen*.
+
+### PRs deliberately not ported
+
+| Reason | Upstream PRs |
+|---|---|
+| **Dependency bumps.** We keep our own `Cargo.lock` and pins, several already ahead of upstream. | 1543, 1554, 1575, 1607, 1659, 1660, 1666, 1703, 1745, 1749 |
+| **Infrastructure specific to eza.** Crane migration, the `deb.gierens.de` APT matrix, Miri, `cargo shear`, their RISC-V and musl release targets, their cross-build containers. | 462, 971, 972, 1537, 1538, 1629, 1753, 1777, 1861, 1869, 1890, 1901 |
+| **eza's own branding and README.** 1713 renames leftover `exa` strings, which we did to `lsr` in PR #37. | 1625, 1713, 1755, 1756, 1914 |
+| **Already covered by a port we took.** 913 ← 925 (WSL hyperlinks), 1596 ← 1923 (stdin), 1838/1840/1844 ← 1848 (all three are the same non-UTF-8 `--time-style` fix), 1233/1504 ← commit `cfe0abb7`, which removed the Windows `_`-prefix filter outright. | 913, 1233, 1504, 1596, 1838, 1840, 1844 |
+| **Dead or disproportionate.** 974 is ±25k lines of churn under `CHANGES_REQUESTED`; 1765 touches 744 files; 936 fixes clippy warnings we do not have; 575 waits on an upstream design decision that never came; 1658 conflicts. | 575, 936, 974, 1658, 1765 |
+| **Product decisions, not oversights.** 770 (`--no-header`) needs a config file for option defaults, which we do not have; 1903 was solved our own way in PR #26. | 770, 1804, 1903 |
+
+Revisit an entry only if its reason stops holding — for instance if `lsr` gains
+a config file for option defaults, 770 becomes worth a look.
+
+### Filtering the issues
+
+215 open upstream issues remain untriaged in detail; 70 were confirmed already
+fixed here. Work them in this order, because it is by far the cheapest:
+
+1. **Reproduce against our binary before reading further.** Many reports die
+   here — we fixed them through a different port, and the issue title gives no
+   hint of that. Titles also under-describe: eza#521 is filed as `--git` not
+   marking `I`, and the same root cause also broke `--git-ignore`.
+2. **Drop eza's own infrastructure** — winget, `deb.gierens.de` builds, their
+   flake, trycmd on ZFS.
+3. **Drop platforms we cannot support or verify** — MUSL builds, systemd-homed,
+   CIFS, JetBrains' console.
+4. **Group the rest by theme, one PR per theme, not one per issue.** The
+   remainder clusters cleanly: performance (844, 1214, 1378, 1710), Windows
+   paths (337, 404, 853, 1025, 1104), quoting (1482, 1548), theme versus
+   `LS_COLORS` (1088, 1576, 1590, 1700).
+
+The 70 figure is a floor, not a count: it only includes issues with a written
+link to a port we took. 1590 and 1700 look closed by ports 1591 and 1856 but
+were never reproduced, so they are not in it.
