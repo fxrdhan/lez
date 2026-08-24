@@ -322,7 +322,7 @@ fn is_simple_pattern(pattern: glob::Pattern) -> Result<String, glob::Pattern> {
         // Ideally we'd inspect pattern.tokens, but it's not public.
         None => Err(pattern),
         Some(ext) if ext.contains(['?', '*', '[', ']', '.']) => Err(pattern),
-        Some(ext) => Ok(ext.to_string()),
+        Some(ext) => Ok(ext.to_ascii_lowercase()),
     }
 }
 
@@ -337,17 +337,22 @@ impl FileStyle for ExtensionMappings {
     /// These mappings only ever consult the name, so an archive entry can use
     /// exactly the same lookup a real file does.
     fn get_style_for_name(&self, name: &str, _theme: &Theme) -> Option<Style> {
-        let maybe_ext = name.rsplit_once('.').map(|x| x.1);
+        let maybe_ext = name.rsplit_once('.').map(|x| x.1.to_ascii_lowercase());
 
         for mapping in self.mappings.iter().rev() {
             match mapping {
                 GlobPattern::Complex(pat, style) => {
-                    if pat.matches(name) {
+                    let opts = glob::MatchOptions {
+                        case_sensitive: false,
+                        require_literal_separator: false,
+                        require_literal_leading_dot: false,
+                    };
+                    if pat.matches_with(name, opts) {
                         return Some(*style);
                     }
                 }
                 GlobPattern::Simple(map) => {
-                    if let Some(ext) = maybe_ext
+                    if let Some(ref ext) = maybe_ext
                         && let Some(style) = map.get(ext)
                     {
                         return Some(*style);
@@ -1251,5 +1256,47 @@ mod customs_test {
         assert_eq!(entry.icon.and_then(|i| i.glyph), Some("x".to_string()));
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_ls_colors_case_insensitive_matching() {
+        let opts = Options {
+            use_colours: UseColours::Always,
+            colour_scale: ColorScaleOptions::default(),
+            definitions: Definitions {
+                ls: Some("*.bmp=95:*IMAGE*.jpg=96".into()),
+                exa: None,
+            },
+            theme_config: None,
+        };
+        let theme = opts.to_theme(false);
+
+        // Simple pattern *.bmp=95 matches image.bmp, photo.BMP, and mixed.Bmp
+        assert_eq!(
+            theme.exts.get_style_for_name("image.bmp", &theme),
+            Some(LightPurple.normal())
+        );
+        assert_eq!(
+            theme.exts.get_style_for_name("photo.BMP", &theme),
+            Some(LightPurple.normal())
+        );
+        assert_eq!(
+            theme.exts.get_style_for_name("mixed.Bmp", &theme),
+            Some(LightPurple.normal())
+        );
+
+        // Complex pattern *IMAGE*.jpg=96 matches my_image.jpg, MY_IMAGE.JPG, and my_image.JPG
+        assert_eq!(
+            theme.exts.get_style_for_name("my_image.jpg", &theme),
+            Some(LightCyan.normal())
+        );
+        assert_eq!(
+            theme.exts.get_style_for_name("MY_IMAGE.JPG", &theme),
+            Some(LightCyan.normal())
+        );
+        assert_eq!(
+            theme.exts.get_style_for_name("my_image.JPG", &theme),
+            Some(LightCyan.normal())
+        );
     }
 }
