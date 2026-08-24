@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+# A probe, run by hand from the Actions tab.
+#
+# Upstream reports that adding `--git` to a long listing takes a repository
+# from twelve milliseconds to four seconds. We already limit the status scan by
+# pathspec when a subdirectory is listed, so this measures where that helps and
+# where it does not: the repository root, a subdirectory, a clean tree and one
+# with untracked files, against `git status` itself as a floor.
+name: Linux Git Probe
+on:
+  workflow_dispatch:
+    inputs:
+      dirs:
+        description: Directories in the fixture repository
+        default: "200"
+      files_per_dir:
+        description: Files in each of them
+        default: "250"
+permissions:
+  contents: read
+jobs:
+  probe:
+    name: Time a long listing with and without git
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-git-probe
+      - name: Build
+        run: |
+          cargo build --release --quiet
+          cp target/release/lsr /tmp/lsr
+      - name: Build the fixture repository
+        run: |
+          root=/tmp/repo
+          rm -rf "$root" && mkdir -p "$root" && cd "$root"
+          git init -q .
+          git config user.email probe@example.com
+          git config user.name Probe
+          for d in $(seq 1 ${{ inputs.dirs }}); do
+            mkdir -p "d$d"
+            seq 1 ${{ inputs.files_per_dir }} | sed "s|^|d$d/f|" | xargs -n 250 touch
+          done
+          git add -A
+          git commit -qm "the fixture"
+          echo "tracked files: $(git ls-files | wc -l)"
+      - name: Time it, clean tree
+        run: |
+          cd /tmp/repo
+          echo "--- git status itself, as a floor ---"
+          /usr/bin/time -f "  wall %e s" git status --porcelain >/dev/null
+          echo "--- lsr -l, no git ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l . >/dev/null; done
+          echo "--- lsr -l --git at the repository root ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l --git . >/dev/null; done
+          echo "--- lsr -l --git inside one subdirectory (the pathspec path) ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l --git d1 >/dev/null; done
+      - name: Time it with untracked files present
+        run: |
+          cd /tmp/repo
+          mkdir -p untracked_dir
+          seq 1 5000 | sed "s|^|untracked_dir/u|" | xargs -n 250 touch
+          echo "--- git status itself ---"
+          /usr/bin/time -f "  wall %e s" git status --porcelain >/dev/null
+          echo "--- lsr -l --git at the root, with 5000 untracked files present ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l --git . >/dev/null; done
+          echo "--- and inside a tracked subdirectory ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l --git d1 >/dev/null; done
