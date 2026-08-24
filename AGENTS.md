@@ -167,6 +167,8 @@ CLI Input (Args & Env)
 
 Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `just regen` (regenerate powertest cases). See [TESTING.md](TESTING.md).
 
+The last two layers need `tests/test_dir`, which only the Nix build produces (`devtools/dir-generator.sh` calls `groupadd`, so macOS cannot create it). They therefore do not run in an ordinary `cargo test`, and drift in them used to surface only in CI. Two guards stand in for them locally: `tests/generated_suite_arguments_tests.rs` parses every generated case's arguments and fails if anything but a fixture path reaches the positional slot, and enabling `--features powertest` or `--features nix` without the fixture now fails outright instead of skipping in silence.
+
 ### Nix Environment (Optional)
 ```bash
 nix develop       # Enter development shell
