@@ -197,7 +197,13 @@ fn git_options(options: &Options, args: &[&OsStr]) -> Option<GitCache> {
         paths.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
     }
 
-    Some(paths.into_iter().collect())
+    // The status walk only has to look inside untracked directories when the
+    // listing will show what is in them: when it recurses, or when
+    // --git-ignore has to judge each nested file.
+    let deep_untracked = options.dir_action.recurse_options().is_some()
+        || options.filter.git_ignore == GitIgnore::CheckAndIgnore;
+
+    Some(GitCache::from_paths(paths, deep_untracked))
 }
 
 /// Walk down `start` looking for directories that are Git repositories
