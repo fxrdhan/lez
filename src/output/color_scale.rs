@@ -168,10 +168,6 @@ impl ColorScaleInformation {
             }
         }
     }
-
-    pub fn apply_time_gradient(&self, style: Style, file: &File<'_>, time_type: TimeType) -> Style {
-        self.apply_time_scale(style, file, time_type)
-    }
 }
 
 fn update_information_recursively(
