@@ -33,7 +33,7 @@ use crate::fs::fields::SecurityContextType;
 use crate::fs::recursive_size::RecursiveSize;
 
 use super::mounts::MountedFs;
-use super::mounts::all_mounts;
+use super::mounts::{all_mounts, mount_point_names};
 
 // Maps a (file handle, shows_dotfiles) => (size_in_bytes, size_in_blocks)
 // For windows, size_in_blocks is always 0
@@ -604,6 +604,17 @@ impl<'dir> File<'dir> {
         }
         let all_mounts = all_mounts();
         if !all_mounts.is_empty() {
+            // Checked before turning the path into an absolute one, because
+            // that costs a `canonicalize` per directory and this is the first
+            // arm every file is matched against. A directory whose name is not
+            // the name of any mount point cannot be one. A path with no last
+            // component is the root, which the table may well hold, so that
+            // one goes through to the lookup below.
+            if let Some(name) = self.path.file_name()
+                && !mount_point_names().contains(name)
+            {
+                return false;
+            }
             return self
                 .absolute_path()
                 .is_some_and(|p| all_mounts.contains_key(p));
@@ -1876,5 +1887,36 @@ mod is_empty_dir_test {
         let dir = TempDir::new("not_a_dir").file("a");
         let file = File::from_args(dir.0.join("a"), None, None, false, false, false, None);
         assert!(!file.is_empty_dir());
+    }
+}
+
+#[cfg(test)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod is_mount_point_test {
+    use super::File;
+    use std::path::PathBuf;
+
+    fn mount_point(path: &str) -> bool {
+        File::from_args(PathBuf::from(path), None, None, false, false, false, None).is_mount_point()
+    }
+
+    /// The root is in every mount table, and it is the one path with no last
+    /// component — the case the name filter has to let through.
+    #[test]
+    fn the_root_is_a_mount_point() {
+        assert!(mount_point("/"));
+    }
+
+    #[test]
+    fn an_ordinary_directory_is_not() {
+        let dir = std::env::temp_dir().join(format!("lsr_mount_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        assert!(!mount_point(dir.to_str().unwrap()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_file_is_never_a_mount_point() {
+        assert!(!mount_point("Cargo.toml"));
     }
 }

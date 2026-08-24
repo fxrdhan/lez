@@ -4,7 +4,8 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -61,6 +62,28 @@ impl std::fmt::Display for Error {
 // up for every directory. Ideally this would only be done if the --mounts
 // option is specified which will be significantly easier once the move
 // to `clap` is complete.
+/// The last path component of every mount point, as a set.
+///
+/// A directory can only be a mount point if its name is the name of one, and
+/// checking that costs nothing. Working it out the other way round — turning
+/// the directory into an absolute path so it can be looked up — costs a
+/// `canonicalize` for every directory in every listing, which is a syscall
+/// round trip each on filesystems where that is expensive.
+///
+/// Canonicalising never renames the last component; it only resolves symlinks
+/// among the ancestors, and a symlink is not reported as a directory in the
+/// first place. So a name that is not in here cannot be a mount point.
+pub(super) fn mount_point_names() -> &'static HashSet<OsString> {
+    static NAMES: OnceLock<HashSet<OsString>> = OnceLock::new();
+
+    NAMES.get_or_init(|| {
+        all_mounts()
+            .keys()
+            .filter_map(|path| path.file_name().map(std::ffi::OsStr::to_os_string))
+            .collect()
+    })
+}
+
 pub(super) fn all_mounts() -> &'static HashMap<PathBuf, MountedFs> {
     static ALL_MOUNTS: OnceLock<HashMap<PathBuf, MountedFs>> = OnceLock::new();
 
