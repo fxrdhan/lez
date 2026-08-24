@@ -1,0 +1,2 @@
+bin.name = "lsr"
+args = "tests/test_dir --color=always "
