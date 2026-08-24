@@ -1,3 +1,13 @@
+# Nine flags take an optional value and only accept it with an equals sign, as
+# `eza --absolute=on`. Offering those values after a space would build a
+# command line the parser reads differently from what the user meant: the
+# value lands as a path and the flag falls back to its default. fish has no
+# equals-only completion, so gate the value lists on the token already
+# carrying one; the bare flag is completed by a second, unconditional entry.
+function __eza_value_follows_an_equals_sign
+    string match -q -- '*=*' (commandline -ct)
+end
+
 # Meta-stuff
 complete -c eza -s v -l version -d "Show version of eza"
 complete -c eza -l help -d "Show list of command-line options"
@@ -13,15 +23,23 @@ complete -c eza -l spacing -d "Number of spaces between columns in grid views" -
 complete -c eza -s T -l tree -d "Recurse into directories as a tree"
 complete -c eza -s X -l dereference -d "Dereference symbolic links when displaying file information"
 complete -c eza -s F -l classify -d "Display type indicator by file names"
+complete -c eza -l classify -d "Display type indicator by file names" -x -n "__eza_value_follows_an_equals_sign" -a "
+    always\t'Always display type indicators'
+    auto\t'Display type indicators if standard output is a terminal'
+    automatic\t'Display type indicators if standard output is a terminal'
+    never\t'Never display type indicators'
+"
+complete -c eza -l color -l colour -d "When to use terminal colours"
 complete -c eza -l color \
-    -l colour -d "When to use terminal colours" -x -a "
+    -l colour -d "When to use terminal colours" -x -n "__eza_value_follows_an_equals_sign" -a "
     always\t'Always use colour'
     auto\t'Use colour if standard output is a terminal'
     automatic\t'Use colour if standard output is a terminal'
     never\t'Never use colour'
 "
+complete -c eza -l color-scale -l colour-scale -d "Highlight levels 'field' distinctly"
 complete -c eza -l color-scale \
-    -l colour-scale -d "Highlight levels 'field' distinctly" -x -a "
+    -l colour-scale -d "Highlight levels 'field' distinctly" -x -n "__eza_value_follows_an_equals_sign" -a "
     all\t''
     age\t''
     size\t''
@@ -32,13 +50,15 @@ complete -c eza -l color-scale-mode \
     fixed\t'Highlight based on fixed colors'
     gradient\t'Highlight based \'field\' in relation to other files'
 "
-complete -c eza -l icons -d "When to display icons" -x -a "
+complete -c eza -l icons -d "When to display icons"
+complete -c eza -l icons -d "When to display icons" -x -n "__eza_value_follows_an_equals_sign" -a "
   always\t'Always display icons'
   auto\t'Display icons if standard output is a terminal'
   automatic\t'Display icons if standard output is a terminal'
   never\t'Never display icons'
 "
-complete -c eza -l quotes -d "When to quote filenames" -x -a "
+complete -c eza -l quotes -d "When to quote filenames"
+complete -c eza -l quotes -d "When to quote filenames" -x -n "__eza_value_follows_an_equals_sign" -a "
   always\t'Quote every filename'
   auto\t'Quote filenames that contain spaces or quotes'
   automatic\t'Quote filenames that contain spaces or quotes'
@@ -48,14 +68,16 @@ complete -c eza -l no-quotes -d "Don't quote file names with spaces"
 complete -c eza -l short-nix -d "Abbreviate Nix store hashes in file names and paths"
 complete -c eza -l no-symlink-targets -d "Do not show symlink targets"
 complete -c eza -l summary -d "Display total summary statistics of entries"
-complete -c eza -l hyperlink -d "When to display entries as hyperlinks" -x -a "
+complete -c eza -l hyperlink -d "When to display entries as hyperlinks"
+complete -c eza -l hyperlink -d "When to display entries as hyperlinks" -x -n "__eza_value_follows_an_equals_sign" -a "
   always\t'Always display entries as hyperlinks'
   auto\t'Display hyperlinks if standard output is a terminal'
   automatic\t'Display hyperlinks if standard output is a terminal'
   never\t'Never display entries as hyperlinks'
 "
 complete -c eza -l follow-symlinks -d "Drill down into symbolic links that point to directories"
-complete -c eza -l absolute -d "Display entries with their absolute path" -x -a "
+complete -c eza -l absolute -d "Display entries with their absolute path"
+complete -c eza -l absolute -d "Display entries with their absolute path" -x -n "__eza_value_follows_an_equals_sign" -a "
   on\t'Show absolute path for listed entries'
   follow\t'Show absolute path with followed symlinks'
   off\t'Do not show the absolute path'
@@ -78,7 +100,8 @@ complete -c eza -s A -l almost-all -d "Equivalent to --all; included for compati
 complete -c eza -l show-dotfiles -d "Show dot-prefixed files without showing other hidden files"
 complete -c eza -s d -l treat-dirs-as-files -d "List directories like regular files"
 complete -c eza -s L -l level -d "Limit the depth of recursion" -x -a "1 2 3 4 5 6 7 8 9"
-complete -c eza -l code -d "Summarise lines of code by language" -x -a "lines percent both"
+complete -c eza -l code -d "Summarise lines of code by language"
+complete -c eza -l code -d "Summarise lines of code by language" -x -n "__eza_value_follows_an_equals_sign" -a "lines percent both"
 complete -c eza -s w -l width -d "Limits column output of grid, 0 implies auto-width"
 complete -c eza -s r -l reverse -d "Reverse the sort order"
 complete -c eza -s s -l sort -d "Which field to sort by" -x -a "
@@ -134,7 +157,8 @@ complete -c eza -s g -l group -d "List each file's group"
 complete -c eza -s h -l header -d "Add a header row to each column"
 complete -c eza -s H -l links -d "List each file's number of hard links"
 complete -c eza -s i -l inode -d "List each file's inode number"
-complete -c eza -l loc -d "Add lines-of-code and language columns" -x -a "lines percent both"
+complete -c eza -l loc -d "Add lines-of-code and language columns"
+complete -c eza -l loc -d "Add lines-of-code and language columns" -x -n "__eza_value_follows_an_equals_sign" -a "lines percent both"
 complete -c eza -s S -l blocksize -d "List each file's size of allocated file system blocks"
 complete -c eza -s t -l time -d "Which timestamp field to list" -x -a "
     modified\t'Display modified time'
