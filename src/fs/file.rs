@@ -125,6 +125,26 @@ pub struct File<'dir> {
     mimetype: OnceLock<Option<&'static str>>,
 }
 
+/// Windows has no `.` or `..` entry on disk: a path ending in one is resolved
+/// by parsing the path, not by asking the filesystem. So `symlink_metadata(".")`
+/// describes whatever the path collapses to — and when the working directory
+/// was reached through a directory symlink, that is the link, not the directory
+/// it points at. Listing then stops at a single `. -> target` row instead of
+/// showing the contents. Following the link is the only way to describe where
+/// we actually are.
+///
+/// Every other platform has a real entry to stat, and a link named `.` cannot
+/// exist, so nothing changes there.
+fn follow_instead_of_stating_the_link(path: &std::path::Path) -> bool {
+    if !cfg!(windows) {
+        return false;
+    }
+    matches!(
+        path.components().next_back(),
+        Some(std::path::Component::CurDir | std::path::Component::ParentDir)
+    )
+}
+
 impl<'dir> File<'dir> {
     pub fn from_args<PD, FN>(
         path: PathBuf,
@@ -364,6 +384,9 @@ impl<'dir> File<'dir> {
         self.metadata
             .get_or_init(|| {
                 debug!("Statting file {:?}", self.path);
+                if follow_instead_of_stating_the_link(&self.path) {
+                    return std::fs::metadata(&self.path);
+                }
                 std::fs::symlink_metadata(&self.path)
             })
             .as_ref()

@@ -21,7 +21,7 @@ use options::parser::{get_command, normalize_args};
 
 use crate::fs::feature::git::GitCache;
 use crate::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
-use crate::fs::{Dir, File};
+use crate::fs::{Dir, File, shell_globs};
 use crate::options::stdin::FilesInput;
 use crate::options::{Options, Vars, vars};
 use crate::output::{
@@ -57,10 +57,14 @@ fn main() {
 
     let stdout_istty = io::stdout().is_terminal();
     let mut input = String::new();
-    let mut input_paths: Vec<&OsStr> = match cli.get_many("FILE") {
-        Some(x) => x.map(OsString::as_os_str).collect(),
+    // Windows shells hand over `t*` unexpanded, so the wildcards in the
+    // positional arguments are ours to resolve. Kept in a binding of its own
+    // because input_paths borrows from it.
+    let given_paths = shell_globs::expand(match cli.get_many::<OsString>("FILE") {
+        Some(x) => x.cloned().collect(),
         None => vec![],
-    };
+    });
+    let mut input_paths: Vec<&OsStr> = given_paths.iter().map(OsString::as_os_str).collect();
     match Options::deduce(&cli, &LiveVars) {
         Ok(options) => {
             match &options.stdin {
