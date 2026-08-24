@@ -337,17 +337,20 @@ impl FileStyle for ExtensionMappings {
     /// These mappings only ever consult the name, so an archive entry can use
     /// exactly the same lookup a real file does.
     fn get_style_for_name(&self, name: &str, _theme: &Theme) -> Option<Style> {
+        // GNU ls matches LS_COLORS patterns without regard to case, and our
+        // own icon lookup already does; simple patterns are lowercased on the
+        // way into the map, and complex ones need the option here.
+        const CASE_INSENSITIVE: glob::MatchOptions = glob::MatchOptions {
+            case_sensitive: false,
+            require_literal_separator: false,
+            require_literal_leading_dot: false,
+        };
         let maybe_ext = name.rsplit_once('.').map(|x| x.1.to_ascii_lowercase());
 
         for mapping in self.mappings.iter().rev() {
             match mapping {
                 GlobPattern::Complex(pat, style) => {
-                    let opts = glob::MatchOptions {
-                        case_sensitive: false,
-                        require_literal_separator: false,
-                        require_literal_leading_dot: false,
-                    };
-                    if pat.matches_with(name, opts) {
+                    if pat.matches_with(name, CASE_INSENSITIVE) {
                         return Some(*style);
                     }
                 }
