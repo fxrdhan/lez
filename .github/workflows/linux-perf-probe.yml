@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+# A probe, run by hand from the Actions tab.
+#
+# Some costs are only visible on Linux. A directory's link count there counts
+# its subdirectories, so a directory holding nothing but files has a link count
+# of 2 and the cheap "has subdirectories, so not empty" shortcut in
+# `is_empty_dir` misses — the slow path runs. On APFS the same link count
+# includes the entries themselves, so the slow path never runs at all and
+# measuring on a Mac measures nothing.
+#
+# This builds the current ref and `main`, runs both against one fixture under
+# `strace -c`, and prints the syscall counts side by side. The log is the
+# result; the job stays green whatever it finds.
+name: Linux Perf Probe
+on:
+  workflow_dispatch:
+    inputs:
+      dirs:
+        description: Directories in the fixture
+        default: "200"
+      files_per_dir:
+        description: Files in each of them
+        default: "500"
+permissions:
+  contents: read
+jobs:
+  probe:
+    name: Count the syscalls a listing makes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-perf-probe
+      - name: Install strace
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq strace
+      - name: Build this ref
+        run: |
+          cargo build --release --quiet
+          cp target/release/lsr /tmp/after
+      - name: Build main for comparison
+        run: |
+          git worktree add /tmp/base origin/main
+          cd /tmp/base
+          CARGO_TARGET_DIR=/tmp/base-target cargo build --release --quiet
+          cp /tmp/base-target/release/lsr /tmp/before
+      - name: Build the fixture
+        run: |
+          root=/tmp/fixture
+          rm -rf "$root" && mkdir -p "$root"
+          for d in $(seq 1 ${{ inputs.dirs }}); do
+            mkdir -p "$root/d$d"
+            seq 1 ${{ inputs.files_per_dir }} | sed "s|^|$root/d$d/f|" | xargs -n 500 touch
+          done
+          echo "directories: $(find "$root" -mindepth 1 -maxdepth 1 -type d | wc -l)"
+          echo "files: $(find "$root" -type f | wc -l)"
+          # The number this whole exercise turns on. 2 means the shortcut in
+          # is_empty_dir misses and the slow path runs; anything higher means
+          # the fixture is not exercising it.
+          echo "link count of one fixture directory: $(stat -c %h "$root/d1")"
+      - name: Count syscalls, before and after
+        run: |
+          for build in before after; do
+            echo "=== $build ==="
+            strace -c -f /tmp/$build --color=never --icons=always /tmp/fixture 2>&1 >/dev/null \
+              | grep -E "getdents64|getcwd|readlinkat|statx|seconds|-----|total" | head -8
+            for run in 1 2 3; do
+              /usr/bin/time -f "  wall %e s" /tmp/$build --color=never --icons=always /tmp/fixture >/dev/null
+            done
+          done
