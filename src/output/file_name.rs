@@ -231,8 +231,10 @@ pub enum QuoteStyle {
     /// Quote every file name, space or not.
     Always,
 
-    /// Use single quotes for file names that contain spaces and no single quotes
-    /// Use double quotes for file names that contain single quotes.
+    /// Quote file names that contain a space or a quote of either kind, in
+    /// whichever form a shell reads back as the name on disk: single quotes
+    /// by default, double quotes for a name holding an apostrophe, and for a
+    /// name holding both, single quotes broken out of for each apostrophe.
     #[default]
     Auto,
 

@@ -134,6 +134,8 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 `--quotes=WHEN`
 : When to quote file names. The default, `auto`, quotes names that contain spaces or quotes; `always` quotes every name; `never` quotes nothing (like `ls -N`).
 
+A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe, and for a name holding both kinds the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`.
+
 `--short-nix`
 : Abbreviate Nix store hashes in file names and paths.
 
