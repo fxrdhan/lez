@@ -13,6 +13,25 @@ Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
     $ArrayTimeStyle      = @('default', 'iso', 'long-iso', 'full-iso', 'relative', '+%Y-%m-%d %H:%M', '+%Y.%m.%d %H:$M:$s')
     $ArrayCodeMode       = @('lines', 'percent', 'both')
 
+    # Nine flags take an optional value and only accept it with an equals sign,
+    # as `lsr --absolute=on`. Offering these after a space would build a command
+    # line the parser reads differently from what the user meant: the value
+    # lands as a path and the flag falls back to its default. PowerShell keeps
+    # `--absolute=on` as one token, so they are completed as whole words.
+    $EqualsFlags = [ordered]@{
+        '--absolute'     = $ArrayAbsolute
+        '--classify'     = $ArrayWhen
+        '--code'         = $ArrayCodeMode
+        '--color'        = $ArrayWhen
+        '--colour'       = $ArrayWhen
+        '--color-scale'  = $ArrayColorScale
+        '--colour-scale' = $ArrayColorScale
+        '--hyperlink'    = $ArrayWhen
+        '--icons'        = $ArrayWhen
+        '--loc'          = $ArrayCodeMode
+        '--quotes'       = $ArrayWhen
+    }
+
     $commandElements = $commandAst.CommandElements
     $command = @(
         'lsr'
@@ -26,25 +45,22 @@ Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
         $element.Value
     }) -join ';'
 
-    $completions = @(switch  -Wildcard ($command) {
+    $completions = @(if ($wordToComplete -like '*=*') {
+        foreach ($flag in $EqualsFlags.Keys) {
+            foreach ($value in $EqualsFlags[$flag]) {
+                [CompletionResult]::new("$flag=$value", "$flag=$value", [CompletionResultType]::ParameterValue, "$flag=$value")
+            }
+        }
+    }
+    else { switch  -Wildcard ($command) {
         '*;--help' {
             break
         }
         '*;--version' {
             break
         }
-        '*;--absolute' {
-            $ArrayAbsolute | 
-            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
-            break
-        }
         '*;--sort' {
             $ArraySort | 
-            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
-            break
-        }
-        '*;--color-scale' {
-            $ArrayColorScale | 
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
             break
         }
@@ -60,36 +76,6 @@ Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
         }
         '*--long;*--time' {
             $ArrayTime | 
-            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
-            break
-        }
-        '*;--classify' {
-            $ArrayWhen |
-            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
-            break
-        }
-        '*;--loc' {
-            $ArrayCodeMode |
-            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
-            break
-        }
-        '*;--code' {
-            $ArrayCodeMode |
-            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
-            break
-        }
-        '*;--color' {
-            $ArrayWhen | 
-            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
-            break
-        }
-        '*;--icons' {
-            $ArrayWhen | 
-            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
-            break
-        }
-        '*;--hyperlink' {
-            $ArrayWhen | 
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
             break
         }
@@ -154,8 +140,8 @@ Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
         default {
         #   [CompletionResult]::new('-?'                         ,'help'                , [CompletionResultType]::ParameterName, 'show list of command-line options')
             [CompletionResult]::new('--help'                     ,'help'                , [CompletionResultType]::ParameterName, 'show list of command-line options')
-        #   [CompletionResult]::new('-v'                         ,'version'             , [CompletionResultType]::ParameterName, 'show version of eza')
-            [CompletionResult]::new('--version'                  ,'version'             , [CompletionResultType]::ParameterName, 'show version of eza')
+        #   [CompletionResult]::new('-v'                         ,'version'             , [CompletionResultType]::ParameterName, 'show version of lsr')
+            [CompletionResult]::new('--version'                  ,'version'             , [CompletionResultType]::ParameterName, 'show version of lsr')
         #   [CompletionResult]::new('-1'                         ,'oneline'             , [CompletionResultType]::ParameterName, 'display one entry per line')
             [CompletionResult]::new('--oneline'                  ,'oneline'             , [CompletionResultType]::ParameterName, 'display one entry per line')
         #   [CompletionResult]::new('-l'                         ,'long'                , [CompletionResultType]::ParameterName, 'display extended file metadata as a table')
@@ -229,7 +215,7 @@ Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
             break
         }
         
-    })
+    } })
         $completions.Where{ $_.CompletionText -like "$wordToComplete*" } |
         Sort-Object -Property completionText
 }
