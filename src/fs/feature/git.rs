@@ -133,6 +133,10 @@ pub struct GitRepo {
     /// This is used to check whether two repositories are the same.
     workdir: PathBuf,
 
+    /// The same directory, canonicalised once, so that the ignore-rule
+    /// fallback can make paths relative without a syscall per lookup.
+    workdir_canonical: PathBuf,
+
     /// The path that was originally checked to discover this repository.
     /// This is as important as the `extra_paths` (it gets checked first), but
     /// is separate to avoid having to deal with a non-empty Vec.
@@ -158,8 +162,12 @@ enum GitContents {
     Processing,
 
     /// The data we’ve extracted from the repository, but only after we’ve
-    /// actually done so.
-    After { statuses: Git },
+    /// actually done so. The repository is kept so that paths the status
+    /// walk never reported can still be checked against the ignore rules.
+    After {
+        repo: git2::Repository,
+        statuses: Git,
+    },
 }
 
 impl GitRepo {
@@ -201,16 +209,22 @@ impl GitRepo {
         use std::mem::replace;
 
         let mut contents = self.contents.lock().unwrap();
-        if let GitContents::After { ref statuses } = *contents {
+        if let GitContents::After {
+            ref repo,
+            ref statuses,
+        } = *contents
+        {
             debug!("Git repo {:?} has been found in cache", self.workdir);
-            return statuses.status(index, prefix_lookup);
+            let result = statuses.status(index, prefix_lookup);
+            return self.rescue_unreported_ignore(repo, result, prefix_lookup, index);
         }
 
         debug!("Querying Git repo {:?} for the first time", self.workdir);
         let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
         let statuses = repo_to_statuses(&repo, &self.workdir, &self.listing_roots());
         let result = statuses.status(index, prefix_lookup);
-        let _processing = replace(&mut *contents, GitContents::After { statuses });
+        let result = self.rescue_unreported_ignore(&repo, result, prefix_lookup, index);
+        let _processing = replace(&mut *contents, GitContents::After { repo, statuses });
         result
     }
 
@@ -218,17 +232,90 @@ impl GitRepo {
         use std::mem::replace;
 
         let mut contents = self.contents.lock().unwrap();
-        if let GitContents::After { ref statuses } = *contents {
+        if let GitContents::After {
+            ref repo,
+            ref statuses,
+        } = *contents
+        {
             debug!("Git repo {:?} has been found in cache", self.workdir);
-            return statuses.child_status(dir, file, prefix_lookup);
+            let result = statuses.child_status(dir, file, prefix_lookup);
+            return self.rescue_unreported_child_ignore(repo, result, prefix_lookup, dir, file);
         }
 
         debug!("Querying Git repo {:?} for the first time", self.workdir);
         let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
         let statuses = repo_to_statuses(&repo, &self.workdir, &self.listing_roots());
         let result = statuses.child_status(dir, file, prefix_lookup);
-        let _processing = replace(&mut *contents, GitContents::After { statuses });
+        let result = self.rescue_unreported_child_ignore(&repo, result, prefix_lookup, dir, file);
+        let _processing = replace(&mut *contents, GitContents::After { repo, statuses });
         result
+    }
+
+    /// libgit2 leaves an ignored file out of the status walk altogether when
+    /// the directory holding it is itself ignored, which a lone `*` in
+    /// `.gitignore` always causes (libgit2#6890). Such a file reaches us with
+    /// no status at all, so `--git` showed no `I` for it and `--git-ignore`
+    /// went on displaying it. Ask the ignore rules about those paths directly.
+    ///
+    /// `recurse_ignored_dirs` would also fix it, but it walks every ignored
+    /// directory — on a repository with a large `target/` that turns a listing
+    /// from hundredths of a second into half a minute — and it stops reporting
+    /// the ignored directories themselves.
+    fn rescue_unreported_ignore(
+        &self,
+        repo: &git2::Repository,
+        result: f::Git,
+        prefix_lookup: bool,
+        path: &Path,
+    ) -> f::Git {
+        if prefix_lookup || !is_unreported(result) || !self.ignored_by_rules(repo, path) {
+            return result;
+        }
+
+        f::Git {
+            unstaged: f::GitStatus::Ignored,
+            ..result
+        }
+    }
+
+    /// The same rescue for a file reached through its parent directory.
+    /// Listing an ignored directory does not mark everything inside it as
+    /// ignored — `child_status` filters the parent's own rule out on purpose —
+    /// so this only applies when the directory itself is not ignored.
+    fn rescue_unreported_child_ignore(
+        &self,
+        repo: &git2::Repository,
+        result: f::Git,
+        prefix_lookup: bool,
+        dir: &Path,
+        file: &Path,
+    ) -> f::Git {
+        if self.ignored_by_rules(repo, dir) {
+            return result;
+        }
+
+        self.rescue_unreported_ignore(repo, result, prefix_lookup, file)
+    }
+
+    /// Whether Git's ignore rules cover this path. Only untracked paths
+    /// qualify: Git never ignores a file that is in the index, however well
+    /// it matches a pattern.
+    fn ignored_by_rules(&self, repo: &git2::Repository, path: &Path) -> bool {
+        let path = reorient(path);
+        let Ok(relative) = path.strip_prefix(&self.workdir_canonical) else {
+            return false;
+        };
+        if relative.as_os_str().is_empty() {
+            return false;
+        }
+        if repo
+            .index()
+            .is_ok_and(|index| index.get_path(relative, 0).is_some())
+        {
+            return false;
+        }
+
+        repo.is_path_ignored(relative).unwrap_or(false)
     }
 
     /// The absolute paths of every listing that resolved to this repository:
@@ -270,6 +357,7 @@ impl GitRepo {
             let contents = Mutex::new(GitContents::Before { repo });
             Ok(Self {
                 contents,
+                workdir_canonical: reorient(&workdir),
                 workdir,
                 original_path: path,
                 extra_paths: Vec::new(),
@@ -528,6 +616,13 @@ fn working_tree_status(status: git2::Status) -> f::GitStatus {
     };
 }
 
+/// Whether the status walk had nothing at all to say about a path. A clean
+/// tracked file looks the same, which is why the ignore-rule fallback checks
+/// the index before it answers.
+fn is_unreported(status: f::Git) -> bool {
+    status.staged == f::GitStatus::NotModified && status.unstaged == f::GitStatus::NotModified
+}
+
 /// The character to display if the file has been modified and the change
 /// has been staged.
 fn index_status(status: git2::Status) -> f::GitStatus {
@@ -676,7 +771,6 @@ mod tests {
             link_path
         }
 
-        #[cfg(unix)]
         fn add_path_to_index(&self, rel_path: &str) {
             let repo = git2::Repository::open(&self.path).unwrap();
             let mut index = repo.index().unwrap();
@@ -731,6 +825,7 @@ mod tests {
 
         let repo = GitRepo {
             contents: Mutex::new(GitContents::Processing),
+            workdir_canonical: reorient(&test_repo.path),
             workdir: test_repo.path.clone(),
             original_path: sub_a.clone(),
             extra_paths: vec![sub_b.clone()],
@@ -829,6 +924,73 @@ mod tests {
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
 
         assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
+    }
+
+    /// A lone `*` makes libgit2 drop ignored files from the status walk
+    /// entirely (libgit2#6890), so the `I` never reached the Git column and
+    /// `--git-ignore` never hid the file. Ignored directories were reported
+    /// all along and have to keep being reported.
+    #[test]
+    fn lone_star_gitignore_still_marks_files_ignored() {
+        let test_repo = TestGitRepo::new("lone_star");
+        test_repo.create_file(".gitignore", b"*\n!.gitignore\n!kept.txt\n");
+        let kept = test_repo.create_file("kept.txt", b"kept\n");
+        let dropped = test_repo.create_file("dropped.log", b"dropped\n");
+        let sub_file = test_repo.create_file("sub/nested.log", b"nested\n");
+        let sub = test_repo.path.join("sub");
+
+        let git_cache = GitCache::from_iter(vec![test_repo.path.clone()]);
+
+        assert!(
+            git_cache.get(&dropped, false).unstaged == f::GitStatus::Ignored,
+            "a file the status walk never reported is still ignored"
+        );
+        assert!(
+            git_cache.get(&sub, true).unstaged == f::GitStatus::Ignored,
+            "ignored directories were already reported and must stay reported"
+        );
+        assert!(
+            git_cache.get(&kept, false).unstaged == f::GitStatus::New,
+            "a negated file is not ignored"
+        );
+        assert!(
+            git_cache
+                .get_child(&test_repo.path, &dropped, false)
+                .unstaged
+                == f::GitStatus::Ignored,
+            "the same holds when the file is reached through its parent"
+        );
+
+        // Listing the ignored directory itself does not paint its contents
+        // ignored — you already know where you are.
+        assert!(
+            git_cache.get_child(&sub, &sub_file, false).unstaged != f::GitStatus::Ignored,
+            "contents of a directory being listed are not marked by its own rule"
+        );
+    }
+
+    /// Git never ignores a file that is in the index, however well it matches
+    /// a pattern. Without the index check the rescue would mark every
+    /// force-added file as ignored, since the rules alone still match it.
+    #[test]
+    fn a_tracked_file_matching_the_pattern_is_not_ignored() {
+        let test_repo = TestGitRepo::new("lone_star_tracked");
+        test_repo.create_file(".gitignore", b"*\n!.gitignore\n");
+        let tracked = test_repo.create_file("tracked.log", b"tracked\n");
+        let untracked = test_repo.create_file("untracked.log", b"untracked\n");
+        test_repo.add_path_to_index("tracked.log");
+        test_repo.commit_all("force-add an ignored file");
+
+        let git_cache = GitCache::from_iter(vec![test_repo.path.clone()]);
+
+        assert!(
+            git_cache.get(&tracked, false).unstaged == f::GitStatus::NotModified,
+            "a tracked file stays tracked even though `*` matches it"
+        );
+        assert!(
+            git_cache.get(&untracked, false).unstaged == f::GitStatus::Ignored,
+            "its untracked neighbour is still ignored"
+        );
     }
 
     #[test]
