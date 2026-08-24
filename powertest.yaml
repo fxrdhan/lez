@@ -192,12 +192,10 @@ commands:
   ? - -i
     - --inode
   :
-  ? - null # --loc/--code take modes via `=` only, so just the bare forms
-    - --loc
-  : prefix: -l
-  ? - null
-    - --code
-  :
+  # --loc and --code take their mode via `=` only. Their bare forms belong
+  # here, but tests/ptests has no snapshot for either, and the snapshots come
+  # from `nix build ./#trydump`, which needs the generated fixture. Add the
+  # entries back together with the dump they need.
   ? - -m
     - --modified
   :
