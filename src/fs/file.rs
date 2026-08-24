@@ -33,7 +33,7 @@ use crate::fs::fields::SecurityContextType;
 use crate::fs::recursive_size::RecursiveSize;
 
 use super::mounts::MountedFs;
-use super::mounts::all_mounts;
+use super::mounts::{all_mounts, mount_point_names};
 
 // Maps a (file handle, shows_dotfiles) => (size_in_bytes, size_in_blocks)
 // For windows, size_in_blocks is always 0
@@ -604,6 +604,17 @@ impl<'dir> File<'dir> {
         }
         let all_mounts = all_mounts();
         if !all_mounts.is_empty() {
+            // Checked before turning the path into an absolute one, because
+            // that costs a `canonicalize` per directory and this is the first
+            // arm every file is matched against. A directory whose name is not
+            // the name of any mount point cannot be one. A path with no last
+            // component is the root, which the table may well hold, so that
+            // one goes through to the lookup below.
+            if let Some(name) = self.path.file_name()
+                && !mount_point_names().contains(name)
+            {
+                return false;
+            }
             return self
                 .absolute_path()
                 .is_some_and(|p| all_mounts.contains_key(p));
@@ -967,20 +978,17 @@ impl<'dir> File<'dir> {
     /// make it difficult to get any info about a dir by it's size, so this may be it.
     fn is_empty_directory(&self) -> bool {
         trace!("is_empty_directory: reading dir");
-        match Dir::read_dir(self.path.clone()) {
-            // . & .. are skipped, if the returned iterator has .next(), it's not empty
-            Ok(has_files) => has_files
-                .files(
-                    super::DotFilter::Dotfiles,
-                    None,
-                    false,
-                    false,
-                    false,
-                    false,
-                    None,
-                )
-                .next()
-                .is_none(),
+        // One entry settles it, so read lazily and stop there. Going through
+        // `Dir` looked equivalent — it also only takes the first entry — but
+        // `Dir::read_dir` collects the whole directory before handing anything
+        // back, so answering "is this empty" for a directory of a hundred
+        // thousand files read all hundred thousand. That is the cost behind
+        // the reports of icons being slow on network and fuse mounts.
+        //
+        // `read_dir` never yields `.` or `..`, which is the filter `Dir` was
+        // being asked for here.
+        match std::fs::read_dir(&self.path) {
+            Ok(mut entries) => entries.next().is_none(),
             Err(_) => false,
         }
     }
@@ -1802,5 +1810,113 @@ mod mime_type_test {
         assert!(!txt.is_executable_file());
 
         let _ = fs::remove_dir_all(dir);
+    }
+}
+
+#[cfg(test)]
+mod is_empty_dir_test {
+    use super::File;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(tag: &str) -> Self {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "lsr_empty_{tag}_{}_{}",
+                std::process::id(),
+                nanos
+            ));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+
+        fn file(self, name: &str) -> Self {
+            fs::write(self.0.join(name), b"").unwrap();
+            self
+        }
+
+        fn subdir(self, name: &str) -> Self {
+            fs::create_dir(self.0.join(name)).unwrap();
+            self
+        }
+
+        fn is_empty(&self) -> bool {
+            File::from_args(self.0.clone(), None, None, false, false, false, None).is_empty_dir()
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn an_empty_directory_is_empty() {
+        assert!(TempDir::new("empty").is_empty());
+    }
+
+    #[test]
+    fn one_file_is_enough_to_make_it_not_empty() {
+        assert!(!TempDir::new("one_file").file("a").is_empty());
+    }
+
+    /// The check reads the directory itself rather than a filtered listing, so
+    /// this is the case that would break if the filtering were wrong: a
+    /// hidden file still counts.
+    #[test]
+    fn a_hidden_file_still_counts() {
+        assert!(!TempDir::new("hidden").file(".hidden").is_empty());
+    }
+
+    #[test]
+    fn a_subdirectory_counts_too() {
+        assert!(!TempDir::new("subdir").subdir("inner").is_empty());
+    }
+
+    #[test]
+    fn a_file_is_not_an_empty_directory() {
+        let dir = TempDir::new("not_a_dir").file("a");
+        let file = File::from_args(dir.0.join("a"), None, None, false, false, false, None);
+        assert!(!file.is_empty_dir());
+    }
+}
+
+#[cfg(test)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod is_mount_point_test {
+    use super::File;
+    use std::path::PathBuf;
+
+    fn mount_point(path: &str) -> bool {
+        File::from_args(PathBuf::from(path), None, None, false, false, false, None).is_mount_point()
+    }
+
+    /// The root is in every mount table, and it is the one path with no last
+    /// component — the case the name filter has to let through.
+    #[test]
+    fn the_root_is_a_mount_point() {
+        assert!(mount_point("/"));
+    }
+
+    #[test]
+    fn an_ordinary_directory_is_not() {
+        let dir = std::env::temp_dir().join(format!("lsr_mount_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        assert!(!mount_point(dir.to_str().unwrap()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_file_is_never_a_mount_point() {
+        assert!(!mount_point("Cargo.toml"));
     }
 }
