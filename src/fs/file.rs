@@ -967,20 +967,17 @@ impl<'dir> File<'dir> {
     /// make it difficult to get any info about a dir by it's size, so this may be it.
     fn is_empty_directory(&self) -> bool {
         trace!("is_empty_directory: reading dir");
-        match Dir::read_dir(self.path.clone()) {
-            // . & .. are skipped, if the returned iterator has .next(), it's not empty
-            Ok(has_files) => has_files
-                .files(
-                    super::DotFilter::Dotfiles,
-                    None,
-                    false,
-                    false,
-                    false,
-                    false,
-                    None,
-                )
-                .next()
-                .is_none(),
+        // One entry settles it, so read lazily and stop there. Going through
+        // `Dir` looked equivalent — it also only takes the first entry — but
+        // `Dir::read_dir` collects the whole directory before handing anything
+        // back, so answering "is this empty" for a directory of a hundred
+        // thousand files read all hundred thousand. That is the cost behind
+        // the reports of icons being slow on network and fuse mounts.
+        //
+        // `read_dir` never yields `.` or `..`, which is the filter `Dir` was
+        // being asked for here.
+        match std::fs::read_dir(&self.path) {
+            Ok(mut entries) => entries.next().is_none(),
             Err(_) => false,
         }
     }
@@ -1802,5 +1799,82 @@ mod mime_type_test {
         assert!(!txt.is_executable_file());
 
         let _ = fs::remove_dir_all(dir);
+    }
+}
+
+#[cfg(test)]
+mod is_empty_dir_test {
+    use super::File;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(tag: &str) -> Self {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "lsr_empty_{tag}_{}_{}",
+                std::process::id(),
+                nanos
+            ));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+
+        fn file(self, name: &str) -> Self {
+            fs::write(self.0.join(name), b"").unwrap();
+            self
+        }
+
+        fn subdir(self, name: &str) -> Self {
+            fs::create_dir(self.0.join(name)).unwrap();
+            self
+        }
+
+        fn is_empty(&self) -> bool {
+            File::from_args(self.0.clone(), None, None, false, false, false, None).is_empty_dir()
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn an_empty_directory_is_empty() {
+        assert!(TempDir::new("empty").is_empty());
+    }
+
+    #[test]
+    fn one_file_is_enough_to_make_it_not_empty() {
+        assert!(!TempDir::new("one_file").file("a").is_empty());
+    }
+
+    /// The check reads the directory itself rather than a filtered listing, so
+    /// this is the case that would break if the filtering were wrong: a
+    /// hidden file still counts.
+    #[test]
+    fn a_hidden_file_still_counts() {
+        assert!(!TempDir::new("hidden").file(".hidden").is_empty());
+    }
+
+    #[test]
+    fn a_subdirectory_counts_too() {
+        assert!(!TempDir::new("subdir").subdir("inner").is_empty());
+    }
+
+    #[test]
+    fn a_file_is_not_an_empty_directory() {
+        let dir = TempDir::new("not_a_dir").file("a");
+        let file = File::from_args(dir.0.join("a"), None, None, false, false, false, None);
+        assert!(!file.is_empty_dir());
     }
 }
