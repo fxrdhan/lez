@@ -61,6 +61,25 @@ jobs:
           echo "--- the same tree under a limit of 64 descriptors ---"
           bash -c 'ulimit -n 64; /tmp/lsr --color=never -T /tmp/cargo >/dev/null 2>/tmp/err; echo "  exit=$?"'
           echo "  stderr: $(head -c 200 /tmp/err)"
+      - name: A tree the size of a built checkout
+        run: |
+          # The report is about a checkout of rust-lang/cargo, but a fresh
+          # clone is only a few thousand entries. A worked-in one carries
+          # target/, which after a build holds hundreds of thousands. This is
+          # what a tree of that size costs.
+          root=/tmp/built
+          rm -rf "$root"
+          for d in $(seq 1 2000); do
+            mkdir -p "$root/d$d"
+            seq 1 100 | sed "s|^|$root/d$d/f|" | xargs -n 100 touch
+          done
+          echo "entries: $(find "$root" | wc -l)"
+          for run in 1 2 3; do
+            /usr/bin/time -f "  wall %e s   max rss %M KB" /tmp/lsr --color=never -T "$root" >/dev/null
+          done
+          echo "--- and the same under a limit of 64 descriptors ---"
+          bash -c 'ulimit -n 64; /tmp/lsr --color=never -T /tmp/built >/dev/null 2>/tmp/err3; echo "  exit=$?"'
+          echo "  stderr: $(head -c 200 /tmp/err3)"
       - name: A deeply nested tree, where recursion is deepest
         run: |
           root=/tmp/deep
