@@ -240,6 +240,12 @@ fn the_compat_copies_are_the_primary_files_with_the_name_rewritten() {
 /// `complete` are only present in builds with programmable completion, and
 /// `mapfile` needs bash 4.
 fn usable_bash() -> Option<PathBuf> {
+    // Windows runners carry a Git bash, but it reads Unix paths and a PATH
+    // separated by colons, which a `C:\\…` binary directory is not. Nothing is
+    // lost by leaving it out: this completion is not installed there.
+    if cfg!(windows) {
+        return None;
+    }
     for candidate in [
         "bash",
         "/bin/bash",
