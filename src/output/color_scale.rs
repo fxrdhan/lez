@@ -94,16 +94,17 @@ impl ColorScaleInformation {
     }
 
     #[must_use]
-    pub fn adjust_style(&self, mut style: Style, value: f32, range: Option<Extremes>) -> Style {
+    pub fn adjust_style(
+        &self,
+        mut style: Style,
+        value: f32,
+        range: Option<Extremes>,
+        scale: Scale,
+    ) -> Style {
         if let (Some(fg), Some(range)) = (style.foreground, range) {
-            let mut ratio = ((value - range.min) / (range.max - range.min)).clamp(0.0, 1.0);
-            if ratio.is_nan() {
-                ratio = 1.0;
-            }
-
             style.foreground = Some(adjust_luminance(
                 fg,
-                ratio,
+                scale.ratio(value, range),
                 self.options.min_luminance as f32 / 100.0,
                 self.options.max_luminance as f32 / 100.0,
             ));
@@ -136,7 +137,7 @@ impl ColorScaleInformation {
                     TimeType::Accessed => self.accessed,
                     TimeType::Created => self.created,
                 };
-                self.adjust_style(style, file_time_ms, range)
+                self.adjust_style(style, file_time_ms, range, Scale::Linear)
             }
             ColorScaleMode::Fixed => {
                 if let Some(fg) = style.foreground {
@@ -251,6 +252,45 @@ fn update_information_recursively(
                 Err(e) => trace!("Unable to access directory {}: {}", file.name, e),
             }
         }
+    }
+}
+
+/// How a value's distance along its range is measured.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Scale {
+    /// The value's share of the range, as it stands. What timestamps use: they
+    /// sit in a narrow band a long way from zero, so they are already spread
+    /// evenly across the thing being compared, and a logarithm would only cost
+    /// precision.
+    Linear,
+
+    /// The value's share of the range in orders of magnitude. File sizes are
+    /// not evenly spread: one 100 MB file among ordinary ones puts everything
+    /// below about a megabyte into the bottom hundredth of a linear range, so
+    /// a byte, a hundred bytes and ten kilobytes all come out the same colour
+    /// and the scale looks like it is not working at all.
+    Logarithmic,
+}
+
+impl Scale {
+    /// Where `value` sits between the ends of `range`, from 0 to 1.
+    fn ratio(self, value: f32, range: Extremes) -> f32 {
+        let (value, min, max) = match self {
+            Self::Linear => (value, range.min, range.max),
+            // ln(1 + x) rather than ln(x): sizes reach zero, and an empty file
+            // belongs at the bottom of the scale rather than at minus
+            // infinity.
+            Self::Logarithmic => (
+                value.max(0.0).ln_1p(),
+                range.min.max(0.0).ln_1p(),
+                range.max.max(0.0).ln_1p(),
+            ),
+        };
+
+        let ratio = ((value - min) / (max - min)).clamp(0.0, 1.0);
+        // Every file the same size leaves nothing to compare them by, and the
+        // division is 0/0. Treat them all as the top of the scale.
+        if ratio.is_nan() { 1.0 } else { ratio }
     }
 }
 
@@ -573,8 +613,95 @@ mod test {
         };
 
         let base_style = Style::default().fg(Colour::Green);
-        let adjusted = info.adjust_style(base_style, 100.0, info.size);
+        let adjusted = info.adjust_style(base_style, 100.0, info.size, Scale::Logarithmic);
         assert!(adjusted.foreground.is_some());
+    }
+
+    /// The complaint behind the report: one large file among ordinary ones put
+    /// everything below about a megabyte into the bottom hundredth of a linear
+    /// range, so a byte, a hundred bytes and ten kilobytes came out the same
+    /// colour and the scale looked broken.
+    #[test]
+    fn orders_of_magnitude_are_spread_across_the_scale() {
+        let range = Extremes {
+            min: 1.0,
+            max: 100_000_000.0,
+        };
+
+        let linear: Vec<f32> = [1.0, 100.0, 10_000.0, 1_000_000.0]
+            .into_iter()
+            .map(|v| Scale::Linear.ratio(v, range))
+            .collect();
+        assert!(
+            linear.iter().all(|r| *r < 0.011),
+            "everything under a megabyte shares the bottom of a linear range: {linear:?}"
+        );
+
+        let log: Vec<f32> = [1.0, 100.0, 10_000.0, 1_000_000.0, 100_000_000.0]
+            .into_iter()
+            .map(|v| Scale::Logarithmic.ratio(v, range))
+            .collect();
+        for pair in log.windows(2) {
+            assert!(
+                pair[1] - pair[0] > 0.15,
+                "each decade should be visibly further along: {log:?}"
+            );
+        }
+        assert!(
+            (log[0] - 0.0).abs() < f32::EPSILON,
+            "the smallest sits at 0"
+        );
+        assert!((log[4] - 1.0).abs() < f32::EPSILON, "the largest sits at 1");
+    }
+
+    /// Sizes reach zero, which `ln` does not survive.
+    #[test]
+    fn an_empty_file_sits_at_the_bottom_rather_than_minus_infinity() {
+        let range = Extremes {
+            min: 0.0,
+            max: 1000.0,
+        };
+        let ratio = Scale::Logarithmic.ratio(0.0, range);
+        assert!(ratio.is_finite(), "got {ratio}");
+        assert!((ratio - 0.0).abs() < f32::EPSILON, "got {ratio}");
+    }
+
+    /// Nothing to compare by; the old behaviour was to treat them all as the
+    /// top of the scale, and both scales keep it.
+    #[test]
+    fn files_that_are_all_one_size_stay_at_the_top() {
+        let range = Extremes {
+            min: 100.0,
+            max: 100.0,
+        };
+        assert_eq!(Scale::Linear.ratio(100.0, range), 1.0);
+        assert_eq!(Scale::Logarithmic.ratio(100.0, range), 1.0);
+    }
+
+    /// Why the age gradient is left alone. Timestamps are epoch milliseconds,
+    /// so a listing's values sit in a narrow band a long way from zero. Taking
+    /// their logarithm barely moves them — the middle of a hundred-day range
+    /// goes from 0.500 to 0.507 — while spending most of an f32's precision on
+    /// the constant part, since ln(1.7e12) and ln(1.8e12) agree to three
+    /// digits. There is nothing to gain and accuracy to lose.
+    #[test]
+    fn a_logarithm_would_buy_nothing_for_timestamps() {
+        let range = Extremes {
+            min: 1_700_000_000_000.0,
+            max: 1_800_000_000_000.0,
+        };
+        let midpoint = 1_750_000_000_000.0;
+
+        let linear = Scale::Linear.ratio(midpoint, range);
+        let logarithmic = Scale::Logarithmic.ratio(midpoint, range);
+        assert!(
+            (0.49..=0.51).contains(&linear),
+            "the middle of the range should land in the middle: {linear}"
+        );
+        assert!(
+            (logarithmic - linear).abs() < 0.02,
+            "a logarithm moves a timestamp almost nowhere: {linear} vs {logarithmic}"
+        );
     }
 
     #[test]
