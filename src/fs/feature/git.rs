@@ -28,6 +28,11 @@ pub struct GitCache {
 
     /// Paths that we’ve confirmed do not have Git repositories underneath them.
     misses: Vec<PathBuf>,
+
+    /// Whether the status walk has to describe every file inside an untracked
+    /// directory, rather than reporting the directory once. See
+    /// `repo_to_statuses`.
+    deep_untracked: bool,
 }
 
 impl GitCache {
@@ -66,6 +71,25 @@ impl GitCache {
 }
 
 use std::iter::FromIterator;
+impl GitCache {
+    /// Build a cache over `paths`, telling the status walk whether it has to
+    /// look inside untracked directories. It does when the listing recurses,
+    /// or when `--git-ignore` has to judge each nested file; a flat listing
+    /// only shows the directory itself.
+    #[must_use]
+    pub fn from_paths<I>(paths: I, deep_untracked: bool) -> Self
+    where
+        I: IntoIterator<Item = PathBuf>,
+    {
+        let mut cache: Self = paths.into_iter().collect();
+        cache.deep_untracked = deep_untracked;
+        for repo in &mut cache.repos {
+            repo.deep_untracked = deep_untracked;
+        }
+        cache
+    }
+}
+
 impl FromIterator<PathBuf> for GitCache {
     fn from_iter<I>(iter: I) -> Self
     where
@@ -75,12 +99,13 @@ impl FromIterator<PathBuf> for GitCache {
         let mut git = Self {
             repos: Vec::with_capacity(iter.size_hint().0),
             misses: Vec::new(),
+            deep_untracked: true,
         };
 
         if let Ok(path) = env::var("GIT_DIR") {
             // These flags are consistent with how `git` uses GIT_DIR:
             let flags = git2::RepositoryOpenFlags::NO_SEARCH | git2::RepositoryOpenFlags::NO_DOTGIT;
-            match GitRepo::discover(path.into(), flags) {
+            match GitRepo::discover(path.into(), flags, git.deep_untracked) {
                 Ok(repo) => {
                     debug!("Opened GIT_DIR repo");
                     git.repos.push(repo);
@@ -98,7 +123,7 @@ impl FromIterator<PathBuf> for GitCache {
                 debug!("Skipping {path:?} because we already queried it");
             } else {
                 let flags = git2::RepositoryOpenFlags::FROM_ENV;
-                match GitRepo::discover(path, flags) {
+                match GitRepo::discover(path, flags, git.deep_untracked) {
                     Ok(r) => {
                         if let Some(r2) = git.repos.iter_mut().find(|e| e.has_workdir(&r.workdir)) {
                             debug!(
@@ -150,6 +175,9 @@ pub struct GitRepo {
     /// `--ignore-submodule-contents` to prune recursion. `None` until the
     /// first query.
     submodules: Mutex<Option<Vec<PathBuf>>>,
+
+    /// Passed to the status walk; see `GitCache::deep_untracked`.
+    deep_untracked: bool,
 }
 
 /// A repository’s queried state.
@@ -221,7 +249,12 @@ impl GitRepo {
 
         debug!("Querying Git repo {:?} for the first time", self.workdir);
         let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
-        let statuses = repo_to_statuses(&repo, &self.workdir, &self.listing_roots());
+        let statuses = repo_to_statuses(
+            &repo,
+            &self.workdir,
+            &self.listing_roots(),
+            self.deep_untracked,
+        );
         let result = statuses.status(index, prefix_lookup);
         let result = self.rescue_unreported_ignore(&repo, result, prefix_lookup, index);
         let _processing = replace(&mut *contents, GitContents::After { repo, statuses });
@@ -244,7 +277,12 @@ impl GitRepo {
 
         debug!("Querying Git repo {:?} for the first time", self.workdir);
         let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
-        let statuses = repo_to_statuses(&repo, &self.workdir, &self.listing_roots());
+        let statuses = repo_to_statuses(
+            &repo,
+            &self.workdir,
+            &self.listing_roots(),
+            self.deep_untracked,
+        );
         let result = statuses.child_status(dir, file, prefix_lookup);
         let result = self.rescue_unreported_child_ignore(&repo, result, prefix_lookup, dir, file);
         let _processing = replace(&mut *contents, GitContents::After { repo, statuses });
@@ -341,7 +379,11 @@ impl GitRepo {
     /// Open a Git repository. Depending on the flags, the path is either
     /// the repository's "gitdir" (or a "gitlink" to the gitdir), or the
     /// path is the start of a rootwards search for the repository.
-    fn discover(path: PathBuf, flags: git2::RepositoryOpenFlags) -> Result<Self, PathBuf> {
+    fn discover(
+        path: PathBuf,
+        flags: git2::RepositoryOpenFlags,
+        deep_untracked: bool,
+    ) -> Result<Self, PathBuf> {
         info!("Opening Git repository for {path:?} ({flags:?})");
         let unused: [&OsStr; 0] = [];
         let repo = match git2::Repository::open_ext(&path, flags, unused) {
@@ -362,6 +404,7 @@ impl GitRepo {
                 original_path: path,
                 extra_paths: Vec::new(),
                 submodules: Mutex::new(None),
+                deep_untracked,
             })
         } else {
             warn!("Repository has no workdir?");
@@ -387,17 +430,19 @@ impl GitContents {
 /// mapping of files to their Git status.
 /// We will have already used the working directory at this point, so it gets
 /// passed in rather than deriving it from the `Repository` again.
-fn repo_to_statuses(repo: &git2::Repository, workdir: &Path, roots: &[PathBuf]) -> Git {
+fn repo_to_statuses(
+    repo: &git2::Repository,
+    workdir: &Path,
+    roots: &[PathBuf],
+    deep_untracked: bool,
+) -> Git {
     let mut statuses = Vec::new();
 
     info!("Getting Git statuses for repo with workdir {workdir:?}");
 
     // Mirror `GIT_STATUS_OPT_DEFAULTS`, which libgit2 applies when given no options.
     let mut options = git2::StatusOptions::new();
-    options
-        .include_ignored(true)
-        .include_untracked(true)
-        .recurse_untracked_dirs(true);
+    options.include_ignored(true).include_untracked(true);
 
     // Limit the scan to the listed paths: a small corner of a large repository
     // should not pay for a scan of the whole working tree. Roots at or outside
@@ -410,12 +455,28 @@ fn repo_to_statuses(repo: &git2::Repository, workdir: &Path, roots: &[PathBuf]) 
             _ => None,
         })
         .collect();
+    let limited = pathspecs.is_some();
     if let Some(pathspecs) = pathspecs {
         debug!("Limiting Git status scan to {pathspecs:?}");
         for spec in pathspecs {
             options.pathspec(spec);
         }
     }
+
+    // Describing every file inside an untracked directory is what makes a
+    // status walk expensive on a repository carrying thousands of them, and a
+    // flat listing of the working tree does not need it: it shows the
+    // directory, and one entry answers that. `git status` collapses them for
+    // the same reason.
+    //
+    // It is needed when the listing recurses, when --git-ignore has to judge
+    // each nested file, and — the case that is easy to miss — when an
+    // untracked directory is itself what was asked for, since then its
+    // contents are the listing. That last one is covered by the pathspec: a
+    // limited scan only walks what was named, so recursing inside it is
+    // bounded and cheap. The unlimited scan is the expensive one, and the only
+    // one worth narrowing.
+    options.recurse_untracked_dirs(deep_untracked || limited);
 
     match repo.statuses(Some(&mut options)) {
         Ok(es) => {
@@ -830,6 +891,7 @@ mod tests {
             original_path: sub_a.clone(),
             extra_paths: vec![sub_b.clone()],
             submodules: Mutex::new(None),
+            deep_untracked: true,
         };
 
         let roots = repo.listing_roots();
@@ -860,7 +922,7 @@ mod tests {
 
         // Query status scoped strictly to sub_a
         let roots = vec![reorient(&sub_a_path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // Status for sub_a/file_a.txt should be Modified
         let file_a_status = git_status.file_status(&file_a);
@@ -899,7 +961,7 @@ mod tests {
 
         // Listing root is repository root (workdir) -> triggers full scan fallback
         let roots = vec![reorient(&test_repo.path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // All modified files must be detected
         assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::Modified);
@@ -921,7 +983,7 @@ mod tests {
         // Listing root is outside the repo workdir -> triggers full scan fallback
         let outside_path = std::env::temp_dir();
         let roots = vec![reorient(&outside_path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
     }
@@ -1042,7 +1104,7 @@ mod tests {
 
         // Scoped to sub_a and sub_b
         let roots = vec![reorient(&sub_a_path), reorient(&sub_b_path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // sub_a and sub_b files should be modified
         assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
@@ -1067,7 +1129,7 @@ mod tests {
         let sub_a_path = test_repo.path.join("sub_a");
 
         let roots = vec![reorient(&sub_a_path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // Within sub_a: untracked is New, ignored is Ignored
         assert!(git_status.file_status(&untracked_a).unstaged == f::GitStatus::New);
@@ -1098,7 +1160,7 @@ mod tests {
 
         // Passing both a subpath and repo root triggers full scan fallback
         let roots = vec![reorient(&sub_a_path), reorient(&test_repo.path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::Modified);
         assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
@@ -1147,7 +1209,7 @@ mod tests {
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let roots = vec![reorient(&test_repo.path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // Symlink status must be Modified
         let link_status = git_status.file_status(&link);
@@ -1174,7 +1236,7 @@ mod tests {
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let roots = vec![reorient(&test_repo.path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // Symlink itself is unmodified
         let link_status = git_status.file_status(&link);
@@ -1195,7 +1257,7 @@ mod tests {
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let roots = vec![reorient(&test_repo.path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // Untracked broken symlink should be New
         let status = git_status.file_status(&broken_link);
@@ -1205,7 +1267,7 @@ mod tests {
         test_repo.commit_all("add broken symlink");
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
         let status = git_status.file_status(&broken_link);
         assert!(status.unstaged == f::GitStatus::NotModified);
 
@@ -1214,7 +1276,7 @@ mod tests {
         test_repo.create_symlink("another_non_existent.txt", "broken.txt");
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
         let status = git_status.file_status(&broken_link);
         assert!(status.unstaged == f::GitStatus::Modified);
     }
@@ -1232,7 +1294,7 @@ mod tests {
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let roots = vec![reorient(&test_repo.path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         let link_status = git_status.file_status(&link);
         assert!(link_status.staged == f::GitStatus::New);
@@ -1246,7 +1308,7 @@ mod tests {
         test_repo.add_path_to_index("link.txt");
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
         let link_status = git_status.file_status(&link);
         assert!(link_status.staged == f::GitStatus::Modified);
         assert!(link_status.unstaged == f::GitStatus::NotModified);
@@ -1258,7 +1320,7 @@ mod tests {
         test_repo.remove_path_from_index("link.txt");
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
         let link_status = git_status.file_status(&link);
         assert!(link_status.staged == f::GitStatus::Deleted);
         assert!(link_status.unstaged == f::GitStatus::NotModified);
@@ -1339,7 +1401,7 @@ mod tests {
         let src_path = test_repo.path.join("src");
 
         let roots = vec![reorient(&test_repo.path)];
-        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots);
+        let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // 1. Direct file_status on target directory when queried from root: Ignored
         assert!(git_status.file_status(&target_path).unstaged == f::GitStatus::Ignored);
