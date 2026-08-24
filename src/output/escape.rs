@@ -8,6 +8,31 @@ use super::file_name::QuoteStyle;
 use nu_ansi_term::{AnsiString as ANSIString, Style};
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 
+/// How a name has to be wrapped for a shell to read it back as one word.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Quoting {
+    /// Print the name as it is.
+    None,
+
+    /// Wrap in single quotes. Nothing inside them needs escaping.
+    Single,
+
+    /// Wrap in double quotes, for a name holding an apostrophe but no double
+    /// quote. Kept over escaping because it reads better.
+    Double,
+
+    /// Wrap in single quotes and break out of them for each apostrophe, the
+    /// way `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`.
+    /// A name holding both kinds of quote has no other correct form — wrapping
+    /// it in either kind leaves the other one bare, and the shell then reads
+    /// the name as something else entirely.
+    SingleEscaped,
+}
+
+fn is_printable(c: char) -> bool {
+    c >= 0x20 as char && c != 0x7f as char
+}
+
 pub fn escape(
     string: String,
     bits: &mut Vec<ANSIString<'_>>,
@@ -16,13 +41,21 @@ pub fn escape(
     quote_style: QuoteStyle,
 ) {
     let bits_starting_length = bits.len();
-    let needs_quotes = string.contains(' ') || string.contains('\'');
-    let quote_bit = good.paint(if string.contains('\'') { "\"" } else { "\'" });
+    let has_apostrophe = string.contains('\'');
+    let has_double_quote = string.contains('"');
+    let needs_quotes = string.contains(' ') || has_apostrophe || has_double_quote;
 
-    if string
-        .chars()
-        .all(|c| c >= 0x20 as char && c != 0x7f as char)
-    {
+    let quoting = if quote_style.quotes_needed(needs_quotes) {
+        match (has_apostrophe, has_double_quote) {
+            (true, true) => Quoting::SingleEscaped,
+            (true, false) => Quoting::Double,
+            _ => Quoting::Single,
+        }
+    } else {
+        Quoting::None
+    };
+
+    if quoting != Quoting::SingleEscaped && string.chars().all(is_printable) {
         bits.push(good.paint(string));
     } else {
         for c in string.chars() {
@@ -31,7 +64,9 @@ pub fn escape(
 
             // TODO: This allocates way too much,
             // hence the `all` check above.
-            if c >= 0x20 as char && c != 0x7f as char {
+            if quoting == Quoting::SingleEscaped && c == '\'' {
+                bits.push(good.paint("'\\''"));
+            } else if is_printable(c) {
                 bits.push(good.paint(c.to_string()));
             } else {
                 bits.push(bad.paint(c.escape_default().to_string()));
@@ -39,10 +74,13 @@ pub fn escape(
         }
     }
 
-    if quote_style.quotes_needed(needs_quotes) {
-        bits.insert(bits_starting_length, quote_bit.clone());
-        bits.push(quote_bit);
-    }
+    let quote_bit = match quoting {
+        Quoting::None => return,
+        Quoting::Double => good.paint("\""),
+        Quoting::Single | Quoting::SingleEscaped => good.paint("'"),
+    };
+    bits.insert(bits_starting_length, quote_bit.clone());
+    bits.push(quote_bit);
 }
 
 const HYPERLINK_ESCAPE_CHARS: &AsciiSet = &CONTROLS
@@ -142,6 +180,79 @@ pub fn get_hyperlink_start_tag_with_distro(abs_path: &str, wsl_distro: Option<&s
 #[cfg(test)]
 mod test {
     use super::*;
+
+    /// Render a name the way `escape` would, with styling switched off so the
+    /// assertion is about the quoting alone.
+    fn quoted(name: &str, style: QuoteStyle) -> String {
+        let mut bits = Vec::new();
+        escape(
+            name.to_string(),
+            &mut bits,
+            Style::default(),
+            Style::default(),
+            style,
+        );
+        bits.iter().map(ToString::to_string).collect()
+    }
+
+    /// Wrapping this in either kind of quote leaves the other one bare, so the
+    /// shell reads a different name than the one on disk. `ls` breaks out of
+    /// the single quotes for each apostrophe; so do we.
+    #[test]
+    fn a_name_holding_both_quotes_breaks_out_of_the_single_ones() {
+        assert_eq!(
+            quoted(r#"julia's "file".txt"#, QuoteStyle::Auto),
+            r#"'julia'\''s "file".txt'"#
+        );
+    }
+
+    #[test]
+    fn a_name_holding_only_an_apostrophe_takes_double_quotes() {
+        assert_eq!(quoted("it's.txt", QuoteStyle::Auto), r#""it's.txt""#);
+    }
+
+    #[test]
+    fn a_name_holding_only_a_double_quote_takes_single_quotes() {
+        assert_eq!(
+            quoted(r#"say"hi".txt"#, QuoteStyle::Auto),
+            r#"'say"hi".txt'"#
+        );
+    }
+
+    #[test]
+    fn a_space_still_takes_single_quotes() {
+        assert_eq!(
+            quoted("plain space.txt", QuoteStyle::Auto),
+            "'plain space.txt'"
+        );
+    }
+
+    #[test]
+    fn an_ordinary_name_is_left_bare_under_auto() {
+        assert_eq!(quoted("plain.txt", QuoteStyle::Auto), "plain.txt");
+    }
+
+    #[test]
+    fn always_and_never_still_override_the_choice() {
+        assert_eq!(quoted("plain.txt", QuoteStyle::Always), "'plain.txt'");
+        assert_eq!(
+            quoted(r#"julia's "file".txt"#, QuoteStyle::Never),
+            r#"julia's "file".txt"#
+        );
+        // Always still has to pick a form that survives the shell.
+        assert_eq!(
+            quoted(r#"julia's "file".txt"#, QuoteStyle::Always),
+            r#"'julia'\''s "file".txt'"#
+        );
+    }
+
+    /// Control characters keep their visible escape and their own style; the
+    /// quoting change must not disturb that.
+    #[test]
+    fn control_characters_keep_their_rendering() {
+        assert_eq!(quoted("with\ttab", QuoteStyle::Auto), r"with\ttab");
+        assert_eq!(quoted("it's\ttab", QuoteStyle::Auto), r#""it's\ttab""#);
+    }
 
     #[test]
     fn hyperlink_start_tag_escape_spaces() {
