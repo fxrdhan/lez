@@ -1,30 +1,93 @@
 # shellcheck shell=bash
+
+# Nine flags take an optional value and only accept it with an equals sign,
+# as `lsr --absolute=on`. Offering those values after a space would build a
+# command line the parser reads differently from what the user meant: the
+# value lands as a path and the flag silently falls back to its default.
+#
+# `=` is in COMP_WORDBREAKS, so bash splits `--absolute=on` into three words.
+# _lsr_equals_option puts them back together, setting eq_opt to the flag being
+# given a value and eq_prefix to whatever the candidates must carry back. It
+# assigns rather than echoes: a command substitution would run it in a
+# subshell, and the adjustments to cur would be lost.
+_lsr_equals_option() {
+    eq_opt=""
+    eq_prefix=""
+
+    if [[ $cur == "=" ]]; then
+        # The cursor sits just after `--flag=`. Whatever is offered replaces
+        # the `=` itself, so every candidate has to carry it back.
+        eq_opt=$prev
+        eq_prefix="="
+        cur=""
+    elif [[ $prev == "=" ]]; then
+        eq_opt=${COMP_WORDS[COMP_CWORD-2]}
+    fi
+}
+
+_lsr_equals_values() {
+    mapfile -t COMPREPLY < <(compgen -P "$eq_prefix" -W "$1" -- "$cur")
+}
+
+# --color-scale takes a comma-separated list, so completion has to hold on to
+# the fields already typed and only offer a replacement for the last one.
+_lsr_equals_list_values() {
+    if [[ $cur == *,* ]]; then
+        eq_prefix="${eq_prefix}${cur%,*},"
+        cur="${cur##*,}"
+    fi
+    _lsr_equals_values "$1"
+}
+
 _lsr() {
     cur=${COMP_WORDS[COMP_CWORD]}
     prev=${COMP_WORDS[COMP_CWORD-1]}
+    _lsr_equals_option
 
-    case "$prev" in
-        --help|-v|--version|--smart-group|--show-dotfiles|--mime-types)
-            return
-            ;;
-
+    case "$eq_opt" in
         --colour|--color)
-            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never' -- "$cur")
+            _lsr_equals_values 'always automatic auto never'
             return
             ;;
 
         --icons)
-            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never' -- "$cur")
+            _lsr_equals_values 'always automatic auto never'
             return
             ;;
 
         --quotes)
-            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never --' -- "$cur")
+            _lsr_equals_values 'always automatic auto never'
             return
             ;;
 
         --hyperlink)
-            mapfile -t COMPREPLY < <(compgen -W 'always automatic auto never' -- "$cur")
+            _lsr_equals_values 'always automatic auto never'
+            return
+            ;;
+
+        -F|--classify)
+            _lsr_equals_values 'always automatic auto never'
+            return
+            ;;
+
+        --absolute)
+            _lsr_equals_values 'on follow off'
+            return
+            ;;
+
+        --code|--loc)
+            _lsr_equals_values 'lines percent both'
+            return
+            ;;
+
+        --color-scale|--colour-scale)
+            _lsr_equals_list_values 'all age size'
+            return
+            ;;
+    esac
+
+    case "$prev" in
+        --help|-v|--version|--smart-group|--show-dotfiles|--mime-types)
             return
             ;;
 
@@ -48,32 +111,18 @@ _lsr() {
             return
             ;;
 
-        --color-scale|--colour-scale)
-            mapfile -t COMPREPLY < <(compgen -W 'all age size --' -- "$cur")
-            return
-            ;;
-
         --color-scale-mode|--colour-scale-mode)
             mapfile -t COMPREPLY < <(compgen -W 'fixed gradient --' -- "$cur")
-            return
-            ;;
-
-        --absolute)
-            mapfile -t COMPREPLY < <(compgen -W 'on follow off --' -- "$cur")
-            return
-            ;;
-
-        --code|--loc)
-            mapfile -t COMPREPLY < <(compgen -W 'lines percent both --' -- "$cur")
             return
             ;;
     esac
 
     case "$cur" in
         --*)
-            parse_help=$(lsr --help | grep -oE ' (--[[:alnum:]@-]+)' | tr -d ' ' | grep -v '\--colo')
-            completions=$(echo '--color --colour --color-scale --colour-scale --color-scale-mode --colour-scale-mode' "$parse_help")
+            parse_help=$(lsr --help | grep -oE ' (--[[:alnum:]@-]+)' | tr -d ' ' | grep -v '\--colo' | sed -E 's/^(--(absolute|classify|code|loc|quotes|icons|hyperlink))$/\1=/')
+            completions=$(echo '--color= --colour= --color-scale= --colour-scale= --color-scale-mode --colour-scale-mode' "$parse_help")
             mapfile -t COMPREPLY < <(compgen -W "$completions" -- "$cur")
+            _lsr_hold_the_equals_sign
             ;;
 
         -*)
@@ -85,5 +134,17 @@ _lsr() {
             _filedir
             ;;
     esac
-} &&
+}
+
+# A flag completed as `--icons=` is only half typed, so bash must not append
+# the space that would end the word. Held back only when every candidate ends
+# in `=`; otherwise the word is still ambiguous and bash adds nothing anyway.
+_lsr_hold_the_equals_sign() {
+    [[ ${#COMPREPLY[@]} -gt 0 ]] || return
+    for reply in "${COMPREPLY[@]}"; do
+        [[ $reply == *= ]] || return
+    done
+    compopt -o nospace
+}
+
 complete -o filenames -o bashdefault -F _lsr lsr
