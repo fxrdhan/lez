@@ -1280,13 +1280,16 @@ const MIME_WILDCARD_ICONS: Map<&'static str, char> = phf_map! {
 
 /// Lookup the icon for a file based on the file's name, if the entry is a
 /// directory, or by the lowercase file extension.
-pub fn icon_for_file(file: &File<'_>) -> char {
+pub fn icon_for_file(file: &File<'_>, empty_dir_icon: bool) -> char {
     if file.points_to_directory() {
         if let Some(icon) = SPECIAL_DIRS.get(&file.path) {
             *icon
         } else {
             *DIRECTORY_ICONS.get(file.name.as_str()).unwrap_or_else(|| {
-                if file.is_empty_dir() {
+                // `is_empty_dir` is the expensive part of drawing a listing
+                // with icons, so it is asked only when its answer can change
+                // the glyph.
+                if empty_dir_icon && file.is_empty_dir() {
                     &Icons::FOLDER_OPEN // 
                 } else {
                     &Icons::FOLDER // 

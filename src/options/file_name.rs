@@ -30,6 +30,13 @@ impl Options {
         let short_nix = matches.get_flag("short-nix");
         let show_symlink_targets = ShowSymlinkTargets::deduce(matches);
 
+        // Presence is the switch, as with the other icon variables.
+        let empty_dir_icon = vars
+            .get(vars::LSR_NO_EMPTY_DIR_ICON)
+            .or_else(|| vars.get(vars::EZA_NO_EMPTY_DIR_ICON))
+            .or_else(|| vars.get(vars::EXA_NO_EMPTY_DIR_ICON))
+            .is_none();
+
         Ok(Self {
             classify,
             show_icons,
@@ -38,6 +45,7 @@ impl Options {
             absolute,
             short_nix,
             show_symlink_targets,
+            empty_dir_icon,
             is_a_tty,
         })
     }
@@ -416,6 +424,27 @@ mod tests {
     }
 
     #[test]
+    fn the_empty_directory_icon_is_on_unless_a_variable_turns_it_off() {
+        let opts = |vars: &MockVars| {
+            Options::deduce(&mock_cli(vec![""]), vars, false)
+                .expect("options should deduce")
+                .empty_dir_icon
+        };
+
+        assert!(opts(&MockVars::default()), "on by default");
+
+        for name in [
+            vars::LSR_NO_EMPTY_DIR_ICON,
+            vars::EZA_NO_EMPTY_DIR_ICON,
+            vars::EXA_NO_EMPTY_DIR_ICON,
+        ] {
+            let mut vars = MockVars::default();
+            vars.set(name, &OsString::from("1"));
+            assert!(!opts(&vars), "{name} should turn it off");
+        }
+    }
+
+    #[test]
     fn deduce_show_icons_never_no_arg() {
         assert_eq!(
             ShowIcons::deduce(&mock_cli(vec![""]), &MockVars::default()),
@@ -530,6 +559,7 @@ mod tests {
                 short_nix: false,
                 show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
                 is_a_tty: true,
+                empty_dir_icon: true,
             })
         );
     }

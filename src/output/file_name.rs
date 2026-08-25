@@ -46,6 +46,13 @@ pub struct Options {
 
     /// Whether we are in a console or redirecting the output
     pub is_a_tty: bool,
+
+    /// Whether an empty directory gets a different glyph from a full one.
+    ///
+    /// Answering that question costs a `stat` for every directory listed,
+    /// and a read of its contents when the link count does not settle it.
+    /// See `vars::LSR_NO_EMPTY_DIR_ICON` for why anyone would turn it off.
+    pub empty_dir_icon: bool,
 }
 
 /// How many characters of a Nix store hash to keep when `--short-nix`
@@ -362,13 +369,13 @@ impl<C: Colours> FileName<'_, '_, C> {
                     } else {
                         iconify_style(self.style())
                     },
-                    icon_override
-                        .glyph
-                        .unwrap_or_else(|| icon_for_file(self.file).to_string()),
+                    icon_override.glyph.unwrap_or_else(|| {
+                        icon_for_file(self.file, self.options.empty_dir_icon).to_string()
+                    }),
                 ),
                 None => (
                     iconify_style(self.style()),
-                    icon_for_file(self.file).to_string(),
+                    icon_for_file(self.file, self.options.empty_dir_icon).to_string(),
                 ),
             };
 
@@ -435,6 +442,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                             absolute: Absolute::Off,
                             short_nix: self.options.short_nix,
                             show_symlink_targets: self.options.show_symlink_targets,
+                            empty_dir_icon: self.options.empty_dir_icon,
                         };
 
                         let target_name = FileName {
@@ -961,6 +969,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &file,
@@ -1004,6 +1013,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &file,
@@ -1038,6 +1048,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &file,
@@ -1073,6 +1084,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &file,
@@ -1107,6 +1119,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &link_file,
@@ -1141,6 +1154,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &file,
@@ -1174,6 +1188,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &link_file,
@@ -1210,6 +1225,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::NoSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &link_file,
@@ -1250,6 +1266,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::NoSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &link_file,
@@ -1384,6 +1401,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &link_file,
@@ -1426,6 +1444,7 @@ mod test {
             short_nix: false,
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
+            empty_dir_icon: true,
         };
         let file_name = FileName {
             file: &link_file,

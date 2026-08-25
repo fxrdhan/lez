@@ -147,6 +147,7 @@ fn test_r1_hyperlink_painting_with_special_characters() {
         short_nix: false,
         show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
         is_a_tty: true,
+        empty_dir_icon: true,
     };
 
     for name in test_names {
@@ -717,6 +718,7 @@ fn test_r1_adversarial_hyperlink_edge_cases() {
         short_nix: false,
         show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
         is_a_tty: true,
+        empty_dir_icon: true,
     };
 
     for name in adversarial_names {
