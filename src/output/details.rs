@@ -82,7 +82,9 @@ use crate::fs::filter::FileFilter;
 use crate::fs::filter::FileFilterFlags::OnlyFiles;
 use crate::fs::{Dir, File};
 use crate::options::parser::CodeContent;
-use crate::output::cell::{DisplayWidth, TextCell};
+#[cfg(feature = "inspect-archives")]
+use crate::output::cell::DisplayWidth;
+use crate::output::cell::TextCell;
 use crate::output::color_scale::{ColorScaleInformation, ColorScaleOptions};
 use crate::output::file_name::Options as FileStyle;
 use crate::output::table::{Options as TableOptions, Row as TableRow, Table};
@@ -532,6 +534,7 @@ impl<'a> Render<'a> {
     }
 
     /// A name-only row listing one entry of an inspected archive.
+    #[cfg(feature = "inspect-archives")]
     fn render_archive_entry(
         &self,
         archive: &File<'_>,

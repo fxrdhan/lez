@@ -21,7 +21,6 @@ pub fn is_archive_name(name: &str) -> bool {
 }
 
 /// A single entry inside an inspected archive.
-#[cfg(feature = "inspect-archives")]
 #[derive(Debug, Clone)]
 pub struct ArchiveEntry {
     /// Path of the entry as stored in the archive, directories included.
@@ -31,7 +30,6 @@ pub struct ArchiveEntry {
 }
 
 /// Human-readable byte count for archive entry annotations.
-#[cfg(feature = "inspect-archives")]
 #[must_use]
 pub fn format_size(size: u64) -> String {
     match unit_prefix::NumberPrefix::binary(size as f64) {
@@ -49,7 +47,6 @@ const MAX_ENTRIES: usize = 500;
 ///
 /// Directories are skipped; the result is capped at [`MAX_ENTRIES`] with the
 /// remaining count folded into the final synthetic entry when truncated.
-#[cfg(feature = "inspect-archives")]
 pub fn read_entries(path: &Path) -> io::Result<Vec<ArchiveEntry>> {
     use std::fs::File;
 
@@ -96,16 +93,6 @@ pub fn read_entries(path: &Path) -> io::Result<Vec<ArchiveEntry>> {
         });
     }
     Ok(out)
-}
-
-/// Without the feature the reader is unavailable; callers treat this exactly
-/// like any other read failure (silent fallback).
-#[cfg(not(feature = "inspect-archives"))]
-pub fn read_entries(_path: &Path) -> io::Result<Vec<never::Never>> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "built without inspect-archives",
-    ))
 }
 
 #[cfg(test)]

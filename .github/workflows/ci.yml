@@ -85,6 +85,42 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Run Clippy
         run: cargo clippy --all-targets --features git,inspect-archives -- -D warnings
+  feature-combinations:
+    name: Feature Combinations (${{ matrix.label }})
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: none
+            features: ""
+          - label: git
+            features: git
+          - label: inspect-archives
+            features: inspect-archives
+          - label: git+inspect-archives
+            features: git,inspect-archives
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: features-${{ matrix.label }}
+      # Library and binary only, deliberately. The integration suite builds
+      # its Git and tar fixtures with the optional crates directly, so it
+      # cannot compile with those features off -- and `cargo install
+      # --no-default-features`, which is what INSTALL.md advertises and what
+      # this job exists to protect, does not build the tests either.
+      #
+      # RUSTFLAGS carries --deny warnings from the workflow env, so an item
+      # left behind by a switched-off feature fails here rather than rotting.
+      - name: Check
+        run: cargo check --no-default-features --features "${{ matrix.features }}"
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
