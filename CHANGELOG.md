@@ -8,6 +8,24 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.24.1] - 2026-08-26
+
+### Performance Improvements
+
+- Avoid redundant string and path allocations in filesystem traversal loop
+- Perform single-pass directory grouping sort for `--group-directories-first` and `--group-directories-last`
+- Preallocate vector capacity in filename cell rendering
+
+### Testing & Quality Assurance
+
+- Add adversarial stress test suites for multi-threaded determinism, low file-descriptor resource limits (`EMFILE`), raw non-UTF-8 bytes, deep 120-level recursion, and massive workloads
+- Gate unix-only `--sort=blocks` test check behind `cfg(unix)` for Windows compatibility
+
+### Documentation
+
+- Extract upstream triage reference to `docs/UPSTREAM_TRIAGE.md` and simplify developer guide in `AGENTS.md`
+- Clarify changelog entries with explicit change descriptions and full upstream issue links
+
 ## [0.24.0] - 2026-08-25
 
 ### Bug Fixes
