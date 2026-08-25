@@ -302,4 +302,3 @@ headers.
 This project was called `lsr` through v0.24.1, until it turned out
 [rockorager/lsr](https://github.com/rockorager/lsr) and the
 [`lsr` crate](https://crates.io/crates/lsr) already held that name.
-`lez` keeps the shape of exa and eza, and is unclaimed everywhere.
