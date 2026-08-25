@@ -309,3 +309,89 @@ macFUSE mount), systemd-homed, iSH, and a GUI terminal's font.
 Declined issues, with the evidence for declining them, are in the agent's
 memory rather than here: they are conclusions about upstream reports, not rules
 for this repository.
+
+### Filtering the feature requests
+
+**Swept 2026-08-25.** The remaining 180 open issues — 160 `type: feature` plus
+the 20 labelled `chore`/`docs`/nothing — were read in full and, where the claim
+was testable, run against our binary. The point of writing this down is that
+**a large share of them are already implemented here**: a request that upstream
+still lists as open is not evidence of a gap in `lsr`.
+
+Reproduce before believing the label. Several of these are filed as features
+but are defects (653 is a DST bug, 1904 is quadratic behaviour), and several
+filed as bugs are satisfied by a flag we already ship.
+
+#### Already delivered here
+
+| upstream | what answers it |
+|---|---|
+| 341, 1847 | `--summary`, `--print-total` |
+| 420 | `--ignore-submodule-contents` |
+| 443, 710 | `--no-extended` |
+| 472, 768 | `--json` — keyed objects, one per entry |
+| 516 | `--show-symlinks` / `--no-symlinks` |
+| 520, 1003 | `--spacing` |
+| 589 | `--warn-hidden` |
+| 630 | `--help` shows `--color-scale[=<FIELDS>...]` with its values |
+| 653 | timezone offsets track DST; verified Feb/Jun/Nov across `TZ` |
+| 736, 980, 1573 | `-t` / `-lt` / `-lrt` match `/bin/ls` byte for byte (`normalize_short_time_arg`) |
+| 889 | `--octal-permissions --no-permissions` |
+| 921 | `-d` with `--stdin` |
+| 948 | `--cachedir-ignore` |
+| 981 | `--absolute` documented, `SEE ALSO` uses man notation, `$version` is substituted by `just man` |
+| 1042, 1737 | Jenkinsfile, bicep, bicepparam icons |
+| 1073 | `--mime-types` |
+| 1090 | `--absolute` |
+| 1123 | `--quotes=always` |
+| 1141 | multiple path arguments obey `--sort` |
+| 1219 | the `ca` half — `LS_COLORS` capability styling (PR #66). Decoding the xattr into `cap_…=eip` is **not** done |
+| 1446, 1778 | `--ignore-glob '**/dir/*'` hides contents and keeps the directory |
+| 1484 | `completions/pwsh` |
+| 1540 | `--no-symlink-targets` |
+| 1616 | `-H` |
+| 1657 | `--time-style relative-recent` |
+| 1734 | `libgit2-sys 0.18.5+1.9.4`, past the 1.9.2 advisories |
+| 1746 | `--follow-symlinks`, `-X` |
+| 1750 | `--ignore-glob-ci` |
+| 1773 | `--hyperlink[=WHEN]` |
+| 1835 | `--sort=path` |
+| 1904 | `Dir::contains` memoises into a set; 5000 `.log` files list in 0.07s |
+| 1912 | `palette_derive` pinned to `=0.7.5` beside `palette` |
+| 223, 579(1) | the Git column is dropped when nothing in the listing is in a repo |
+
+Partly delivered, with the remainder named: 584 (`--quotes` yes, `-N` and
+`QUOTING_STYLE` no), 600 (`.tar` yes, `.zip` no), 1466 (`--context` yes, MCS
+translation no), 1571 (`--flags` on Mac/BSD/Windows, no Linux `lsattr`), 1642
+(`--blocksize` in bytes, no block count), 1735 (csv/sqlite yes,
+parquet/hdf5/npy no), 1768 (`--show-dotfiles` yes, the other two axes no), 1823
+(`--git-glyphs` yes, choosing the glyph no).
+
+#### Reproduced here, worth fixing
+
+| upstream | reproduction |
+|---|---|
+| 509, 1743, 1448, 1892 | `natord` is the only name comparator. `LC_ALL=C lsr -1` over `00`–`FF` gives `0A 0B … 00 01`, where `ls` gives `00 01 … 0A 0B`. `--sort=name`, `.name`, `Name` all share it, so there is no lexicographic option at all. One fix closes four reports. |
+| 1919 | `script.m` and `foo.c` both render `U+E61E`. One table entry. |
+| 1868 | `--code` skips hidden directories and `-a` does not change that: 3 of this repo's 14 YAML files are counted, missing all 11 under `.github/`. |
+| 922, 558 | one `write` per entry and one `statx` per entry even for `-1`. Our own Linux probe: 2000 files → 2000 `write`, 2006 `statx`. `ls` does 71 and 0. |
+| 728 | `lsr -1 '/p/a b/c d.txt'` prints `'/p/a b'/'c d.txt'` — each component quoted separately. It still pastes back correctly, so this is cosmetic. |
+| 1498 | `--total-size` walks hidden directories whether or not `--all` is given. Upstream disagrees on whether that is wrong; a directory's size arguably includes its hidden children. |
+
+#### Not worth taking
+
+Same reasons as the PR table: eza's own packaging and infrastructure (347, 475,
+601, 646, 919, 930, 951, 1033, 1040, 1372, 1561, 1605, 1610, 1621, 1670, 1748,
+1776, 1876, plus the doc issues 969, 1099, 1100, 1487 which describe eza's own
+prose), and eza's governance (1872).
+
+Declined on the evidence in their own threads: 479 (PGO measured at ~1%, by the
+person proposing it), 756 (eza deliberately never reads file contents), 729
+(`lib.rs` is not a public API), 1117 (the proposed Unicode icons do not render
+on the platforms in the thread), 905 and 1401 (blocked on Windows ACL semantics
+and on libgit2's sha256 support respectively).
+
+Everything not named above is a real gap and a product decision, not an
+oversight. The largest cluster by far is **139 — a configuration file for
+option defaults**, which also unblocks 766, 812, 1587, 1707, 1875 and upstream
+PR 770.
