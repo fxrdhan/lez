@@ -424,6 +424,12 @@ Specifies the number of spaces to print between an icon (see the ‘`--icons`’
 
 Different terminals display icons differently, as they usually take up more than one character width on screen, so there’s no “standard” number of spaces that lsr can use to separate an icon from text. One space may place the icon too close to the text, and two spaces may place it too far away. So the choice is left up to the user to configure depending on their terminal emulator.
 
+## `LSR_NO_EMPTY_DIR_ICON`, `EZA_NO_EMPTY_DIR_ICON`
+
+Set to any value to give every directory the same icon, instead of a different one when it is empty.
+
+Telling the two apart means asking the filesystem about each directory listed: its link count, and — when that does not settle the question — a read of its contents. On a local disk this is not worth thinking about. On a FUSE mount or a network share every one of those is a round trip, and a directory of a few thousand subdirectories can take long enough that lsr looks like it has hung. This is the way to stop paying for a distinction you may not want.
+
 ## `NO_COLOR`
 
 Disables colours in the output (regardless of its value). Can be overridden by `--color` option.

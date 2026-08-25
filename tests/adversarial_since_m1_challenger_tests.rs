@@ -75,32 +75,32 @@ fn run_lsr(args: &[&str]) -> Output {
 fn test_valid_duration_units_parsing_and_filtering() {
     let fixture = TempTestDir::new("valid_units");
 
+    // Ages are relative to a clock that keeps running, and the tightest
+    // assertion below gives a file stamped 100ms ago ten seconds to still
+    // count as recent. Creating eight files can eat that on a loaded
+    // machine, so the timestamps are written after the files exist and
+    // immediately before they are read, leaving only the `lsr` runs in
+    // between. Setting them once at the top of the test is what made this
+    // fail in a full-suite run and pass on its own.
+    let ages: [(&str, Duration); 8] = [
+        ("f_500ms.txt", Duration::from_millis(100)),
+        ("f_10s.txt", Duration::from_secs(30)),
+        ("f_5m.txt", Duration::from_secs(5 * 60)),
+        ("f_2h.txt", Duration::from_secs(2 * 3600)),
+        ("f_3d.txt", Duration::from_secs(3 * 86400)),
+        ("f_1w.txt", Duration::from_secs(7 * 86400)),
+        ("f_1month.txt", Duration::from_secs(35 * 86400)),
+        ("f_1year.txt", Duration::from_secs(400 * 86400)),
+    ];
+
+    for (name, _) in ages {
+        fixture.create_file(name, name.as_bytes());
+    }
+
     let now = SystemTime::now();
-
-    // Create test files with distinct ages
-    fixture.create_file("f_500ms.txt", b"500ms");
-    fixture.set_mtime("f_500ms.txt", now - Duration::from_millis(100));
-
-    fixture.create_file("f_10s.txt", b"10s");
-    fixture.set_mtime("f_10s.txt", now - Duration::from_secs(30));
-
-    fixture.create_file("f_5m.txt", b"5m");
-    fixture.set_mtime("f_5m.txt", now - Duration::from_secs(5 * 60));
-
-    fixture.create_file("f_2h.txt", b"2h");
-    fixture.set_mtime("f_2h.txt", now - Duration::from_secs(2 * 3600));
-
-    fixture.create_file("f_3d.txt", b"3d");
-    fixture.set_mtime("f_3d.txt", now - Duration::from_secs(3 * 86400));
-
-    fixture.create_file("f_1w.txt", b"1w");
-    fixture.set_mtime("f_1w.txt", now - Duration::from_secs(7 * 86400));
-
-    fixture.create_file("f_1month.txt", b"1month");
-    fixture.set_mtime("f_1month.txt", now - Duration::from_secs(35 * 86400));
-
-    fixture.create_file("f_1year.txt", b"1year");
-    fixture.set_mtime("f_1year.txt", now - Duration::from_secs(400 * 86400));
+    for (name, age) in ages {
+        fixture.set_mtime(name, now - age);
+    }
 
     // Test --since 10s: includes f_500ms.txt, excludes f_10s.txt (30s ago)
     let out_1s = run_lsr(&["-1", "--since", "10s", fixture.path.to_str().unwrap()]);

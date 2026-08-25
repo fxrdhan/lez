@@ -233,6 +233,7 @@ See the `man` pages for further documentation of usage. They are available:
 | `LSR_MIN_LUMINANCE` / `LSR_MAX_LUMINANCE` | Minimum and maximum luminance values (0..=100) for color scaling on dates and sizes. |
 | `LSR_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
 | `LSR_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
+| `LSR_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |
 | `LSR_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin` (default: newline `\n`). |
 | `LSR_OVERRIDE_AUTO_COLOR` | Force automatic color detection behavior. |
 | `TIME_STYLE` | Default timestamp format style (`default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or `+<FORMAT>`). |

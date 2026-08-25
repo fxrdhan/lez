@@ -373,9 +373,10 @@ parquet/hdf5/npy no), 1768 (`--show-dotfiles` yes, the other two axes no), 1823
 |---|---|
 | 509, 1743, 1448, 1892 | `natord` was the only name comparator, so `LC_ALL=C lsr -1` over `00`–`FF` gave `0A 0B … 00 01` where `ls` gives `00 01 … 0A 0B`. `--sort=lexicographic` is the plain comparison; the default is unchanged. |
 | 1868 | `--code` skipped every dot-prefixed entry and `-a` did nothing: 3 of this repository's 14 YAML files were counted. The `--loc` percentage column shared the walk, so a hidden file could report 200%. |
-| 922, 558 (the two syscalls they measured) | One `write` per entry, from line-buffered stdout, and one `stat` per entry to choose a colour even when colours were off. `eza -1 dir \| wc -l`, the benchmark in 922, went from 5001 stats to 1 at 5000 files. With colours on the stat stays — the executable bit has to come from somewhere, and `ls` pays for it too. 558's `readlinkat` and `getcwd` counts came from the icon path and are **not** covered; see 1002 and 745. |
+| 922, 558 (the two syscalls they measured) | One `write` per entry, from line-buffered stdout, and one `stat` per entry to choose a colour even when colours were off. `eza -1 dir \| wc -l`, the benchmark in 922, went from 5001 stats to 1 at 5000 files. With colours on the stat stays — the executable bit has to come from somewhere, and `ls` pays for it too. 558 also counted `readlinkat` and `getcwd` per entry; those were measured on Linux by the reporter and have not been re-measured here, so treat them as unaccounted for rather than fixed. |
 | 1642 (part) | `bl` was parsed and never read; the column borrowed the file size palette. |
 | 765 | `mh` was in the list of codes accepted and discarded. |
+| 1002, 745 | `--icons` asked the filesystem about every directory to choose between the empty and full glyph — 201 stats and 199 reads for 200 directories. `LSR_NO_EMPTY_DIR_ICON` gives them all one glyph and asks nothing. Reported against FUSE and NFS mounts, where each of those is a round trip. |
 
 #### Reproduced here, still open
 
@@ -383,7 +384,6 @@ parquet/hdf5/npy no), 1768 (`--show-dotfiles` yes, the other two axes no), 1823
 |---|---|
 | 728 | `lsr -1 '/p/a b/c d.txt'` prints `'/p/a b'/'c d.txt'` — each component quoted separately. It still pastes back correctly, so this is cosmetic. |
 | 1498 | `--total-size` walks hidden directories whether or not `--all` is given. Upstream disagrees on whether that is wrong; a directory's size arguably includes its hidden children. |
-| 1002, 745 | With `--icons`, every directory is read to choose between the empty and non-empty glyph, and each entry costs a `readlinkat` and a `getcwd`. Reported against FUSE and NFS mounts, where it is the difference between instant and unusable. |
 | 1919 | `.m` renders as the C icon. Left alone deliberately: the extension belongs to Objective-C as much as to MATLAB, and Nerd Fonts has no MATLAB glyph to move it to, so any change here trades one wrong icon for another. |
 
 #### Not worth taking

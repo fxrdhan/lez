@@ -69,6 +69,19 @@ pub static LSR_ICON_SPACING: &str = "LSR_ICON_SPACING";
 pub static EXA_ICON_SPACING: &str = "EXA_ICON_SPACING";
 pub static EZA_ICON_SPACING: &str = "EZA_ICON_SPACING";
 
+/// Environment variable that stops `--icons` distinguishing an empty
+/// directory from a full one.
+///
+/// Telling the two apart means asking the filesystem about every directory
+/// listed — a `stat` for its link count, and a read of its contents when
+/// that does not settle it. On a local disk nobody notices. On a FUSE mount
+/// or a network share each of those is a round trip, and listing a few
+/// thousand directories stops being usable at all. Set this to anything to
+/// give every directory the same glyph and pay for none of it.
+pub static LSR_NO_EMPTY_DIR_ICON: &str = "LSR_NO_EMPTY_DIR_ICON";
+pub static EXA_NO_EMPTY_DIR_ICON: &str = "EXA_NO_EMPTY_DIR_ICON";
+pub static EZA_NO_EMPTY_DIR_ICON: &str = "EZA_NO_EMPTY_DIR_ICON";
+
 pub static LSR_OVERRIDE_GIT: &str = "LSR_OVERRIDE_GIT";
 pub static EXA_OVERRIDE_GIT: &str = "EXA_OVERRIDE_GIT";
 pub static EZA_OVERRIDE_GIT: &str = "EZA_OVERRIDE_GIT";
@@ -159,6 +172,15 @@ pub mod test {
         }
     }
 
+    /// The refusal above is the point of it, so it is worth a test of its
+    /// own: without it, a variable added to `Vars` and forgotten here reads
+    /// back as unset and takes a test's assertion with it.
+    #[test]
+    #[should_panic(expected = "MockVars has no field for")]
+    fn setting_an_unknown_variable_is_refused() {
+        MockVars::default().set("LSR_NOT_A_REAL_VARIABLE", &OsString::from("1"));
+    }
+
     #[derive(Default)]
     pub struct MockVars {
         pub columns: OsString,
@@ -178,6 +200,7 @@ pub mod test {
         pub min_luminance: OsString,
         pub max_luminance: OsString,
         pub icons: OsString,
+        pub no_empty_dir_icon: OsString,
         pub time: OsString,
         pub lsr_config_dir: OsString,
         pub eza_config_dir: OsString,
@@ -227,6 +250,11 @@ pub mod test {
                     if !self.grid_rows.is_empty() =>
                 {
                     Some(self.grid_rows.clone())
+                }
+                "LSR_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON"
+                    if !self.no_empty_dir_icon.is_empty() =>
+                {
+                    Some(self.no_empty_dir_icon.clone())
                 }
                 "LSR_ICON_SPACING" if !self.lsr_icon_spacing.is_empty() => {
                     Some(self.lsr_icon_spacing.clone())
@@ -336,7 +364,17 @@ pub mod test {
                 "LC_ALL" => self.lc_all = value.clone(),
                 "LC_COLLATE" => self.lc_collate = value.clone(),
                 "LANG" => self.lang = value.clone(),
-                _ => (),
+                "LSR_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON" => {
+                    self.no_empty_dir_icon = value.clone();
+                }
+                // This mock is a hand-written match, so a variable added to
+                // `Vars` but not to it reads back as unset — and a test
+                // asserting the default would pass for the wrong reason.
+                // Refuse instead of losing the value silently.
+                other => panic!(
+                    "MockVars has no field for {other}; add one beside the \
+                     variable's declaration rather than setting it into nothing"
+                ),
             };
         }
     }
