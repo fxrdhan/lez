@@ -35,6 +35,26 @@ pub mod git {
         pub fn get(&self, _index: &Path, _prefix_lookup: bool) -> f::Git {
             unreachable!();
         }
+
+        /// `--git-ignore` is accepted by the parser whether or not Git
+        /// support is compiled in, so this is reachable in a real listing
+        /// rather than dead code. Nothing is tracked, so every file reads
+        /// as untouched.
+        pub fn get_child(&self, _dir: &Path, _file: &Path, _prefix_lookup: bool) -> f::Git {
+            f::Git::default()
+        }
+
+        /// No repository is loaded, so no path is inside a submodule.
+        pub fn is_submodule_path(&self, _path: &Path) -> bool {
+            false
+        }
+
+        pub fn from_paths<I>(paths: I, _deep_untracked: bool) -> Self
+        where
+            I: IntoIterator<Item = PathBuf>,
+        {
+            paths.into_iter().collect()
+        }
     }
 
     impl f::SubdirGitRepo {
