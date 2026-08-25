@@ -133,7 +133,10 @@ fn test_r1_hyperlink_painting_with_special_characters() {
 
     let theme = Theme {
         ui: lsr::theme::UiStyles::plain(),
+        // Not `plain`: the UI styles are, but `exts` still hands out styles,
+        // which is the whole point of these cases.
         exts: Box::new(DummyFileStyle),
+        plain: false,
     };
     let file_style_opts = FileStyleOptions {
         classify: Classify::JustFilenames,
@@ -700,7 +703,10 @@ fn test_r1_adversarial_hyperlink_edge_cases() {
 
     let theme = Theme {
         ui: lsr::theme::UiStyles::plain(),
+        // Not `plain`: the UI styles are, but `exts` still hands out styles,
+        // which is the whole point of these cases.
         exts: Box::new(DummyFileStyle),
+        plain: false,
     };
     let file_style_opts = FileStyleOptions {
         classify: Classify::JustFilenames,
