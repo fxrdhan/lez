@@ -163,10 +163,13 @@ fn massive_corpus_size_and_blocks_sorting() {
     let lines: Vec<&str> = sz_out.lines().collect();
     assert!(lines.iter().any(|l| l.contains("sparse_large.bin")));
 
-    let (bl_success, bl_out, bl_err) =
-        run_lsr(&fixture.path, &["-1", "--sort=blocks", "--color=never"]);
-    assert!(bl_success, "lsr --sort=blocks failed: {bl_err}");
-    assert!(!bl_out.is_empty());
+    #[cfg(unix)]
+    {
+        let (bl_success, bl_out, bl_err) =
+            run_lsr(&fixture.path, &["-1", "--sort=blocks", "--color=never"]);
+        assert!(bl_success, "lsr --sort=blocks failed: {bl_err}");
+        assert!(!bl_out.is_empty());
+    }
 }
 
 #[test]
