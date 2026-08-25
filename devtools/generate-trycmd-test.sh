@@ -28,19 +28,21 @@ fi
 
 touch tests/cmd/"$test_name".toml
 
-echo 'bin.name = "eza"' >> tests/cmd/"$test_name".toml
+echo 'bin.name = "lsr"' >> tests/cmd/"$test_name".toml
 echo 'args = "'"$*"'"' >> tests/cmd/"$test_name".toml
 
 # Generate expected output
 
-if [ -f target/debug/eza ]; then
-    target/debug/eza "$@" > tests/cmd/"$test_name".stdout 2> tests/cmd/"$test_name".stderr
+binary="${CARGO_TARGET_DIR:-target}/debug/lsr"
+
+if [ -f "$binary" ]; then
+    "$binary" "$@" > tests/cmd/"$test_name".stdout 2> tests/cmd/"$test_name".stderr
     returncode=$?
     if [ $returncode -ne 0 ]; then
         echo -e 'status.code = '$returncode'' >> tests/cmd/"$test_name".toml
         exit 0
     fi
 else
-    echo "Please build the program first"
+    echo "Please build the program first: no binary at $binary"
     exit 1
 fi

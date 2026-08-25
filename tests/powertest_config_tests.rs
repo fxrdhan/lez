@@ -8,6 +8,11 @@
 //! rewritten. Two mistakes had already accumulated that way: the file named a
 //! binary this project does not build, and it declared flags in a form the
 //! generator renders with a space, which is not a form those flags accept.
+//!
+//! The same goes for `devtools/generate-trycmd-test.sh`, which writes cases
+//! into `tests/cmd` by hand. It carried the same stale binary name for longer,
+//! and nothing noticed, because the twenty cases already committed there were
+//! written or corrected by hand.
 
 use std::fs;
 use std::path::Path;
@@ -143,4 +148,55 @@ fn a_key_carrying_its_value_has_no_values_list() {
              generator would render `{token} <value>`"
         );
     }
+}
+
+/// The other generator. It writes `bin.name` into a `tests/cmd` case and runs
+/// the built binary to record the output, so both spellings have to be the
+/// name this project actually builds. This one went unnoticed longer than the
+/// `powertest.yaml` mistake: every case already in `tests/cmd` says `lsr`,
+/// while the script that claims to produce them said `eza`.
+#[test]
+fn the_trycmd_generator_names_the_binary_this_project_builds() {
+    let script = workspace_file("devtools/generate-trycmd-test.sh");
+    let binary = binary_name();
+
+    assert!(
+        script.contains(&format!("bin.name = \"{binary}\"")),
+        "generate-trycmd-test.sh must write `bin.name = \"{binary}\"` into the case \
+         it generates, or every case made with it names a command that is not built"
+    );
+    assert!(
+        script.contains(&format!("/debug/{binary}")),
+        "generate-trycmd-test.sh must run the {binary} binary to record the output"
+    );
+    assert!(
+        !script.contains("eza"),
+        "generate-trycmd-test.sh still mentions eza somewhere"
+    );
+}
+
+/// And what it claims to generate has to match what is already there, which is
+/// the check that would have caught the drift at any point in the last year.
+#[test]
+fn the_committed_cmd_cases_agree_with_the_generator() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/cmd");
+    let binary = binary_name();
+    let expected = format!("bin.name = \"{binary}\"");
+
+    let mut checked = 0;
+    for entry in fs::read_dir(&dir).expect("tests/cmd should be readable") {
+        let path = entry.expect("the entry should be readable").path();
+        if path.extension().is_none_or(|e| e != "toml") {
+            continue;
+        }
+        let case = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
+        assert!(
+            case.contains(&expected),
+            "{} should name the {binary} binary",
+            path.display()
+        );
+        checked += 1;
+    }
+    assert!(checked > 0, "tests/cmd should hold some cases");
 }
