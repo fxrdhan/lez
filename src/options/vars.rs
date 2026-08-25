@@ -172,6 +172,15 @@ pub mod test {
         }
     }
 
+    /// The refusal above is the point of it, so it is worth a test of its
+    /// own: without it, a variable added to `Vars` and forgotten here reads
+    /// back as unset and takes a test's assertion with it.
+    #[test]
+    #[should_panic(expected = "MockVars has no field for")]
+    fn setting_an_unknown_variable_is_refused() {
+        MockVars::default().set("LSR_NOT_A_REAL_VARIABLE", &OsString::from("1"));
+    }
+
     #[derive(Default)]
     pub struct MockVars {
         pub columns: OsString,
@@ -358,7 +367,14 @@ pub mod test {
                 "LSR_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON" => {
                     self.no_empty_dir_icon = value.clone();
                 }
-                _ => (),
+                // This mock is a hand-written match, so a variable added to
+                // `Vars` but not to it reads back as unset — and a test
+                // asserting the default would pass for the wrong reason.
+                // Refuse instead of losing the value silently.
+                other => panic!(
+                    "MockVars has no field for {other}; add one beside the \
+                     variable's declaration rather than setting it into nothing"
+                ),
             };
         }
     }
