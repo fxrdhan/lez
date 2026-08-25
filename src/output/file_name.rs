@@ -342,7 +342,7 @@ impl<C: Colours> FileName<'_, '_, C> {
     /// width calculated.
     #[must_use]
     pub fn paint(&self) -> TextCellContents {
-        let mut bits = Vec::new();
+        let mut bits = Vec::with_capacity(6);
         let (icon_override, filename_style_override) = match self.colours.style_override(self.file)
         {
             Some(FileNameStyle { icon, filename }) => (icon, filename),
