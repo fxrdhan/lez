@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 
 version = 1
-SPDX-PackageName = "eza"
+SPDX-PackageName = "lsr"
 SPDX-PackageSupplier = "Christina Sørensen <christina@cafkafk.com>"
 
 [[annotations]]

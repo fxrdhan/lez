@@ -4,7 +4,7 @@
 # SPDX-FileCopyrightText: 2014-2024 Christina Sørensen, eza contributors
 # SPDX-License-Identifier: MIT
 {
-  description = "eza: a modern, maintained replacement for ls";
+  description = "lsr: a modern, fast, and feature-rich replacement for ls";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
