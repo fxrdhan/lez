@@ -128,8 +128,20 @@ new_version := if version == "" { "$(convco version --bump)" } else { version }
 # Release driver: only the maintainer should run this.
 #
 # usage: release major, release minor, release patch
+#
+# Always pass `version=` here. `convco version` walks the tags reachable from
+# HEAD, and the v0.23.x tags inherited from eza point at commits the
+# co-author-trailer rewrite replaced — so they are unreachable, convco reports
+# a version behind Cargo.toml, and its `--bump` proposes one whose tag already
+# exists. The guard below refuses that rather than release backwards.
+#
+# The same unreachability makes the `git cliff` line here drop eza's 0.23.5
+# section: cliff cannot see that tag either, so it folds those commits into
+# the new version. Check the diff before committing, and prepend the new
+# section by hand if it has eaten history.
 [group('release')]
 release:
+    @! git rev-parse -q --verify "refs/tags/v{{new_version}}" >/dev/null || (echo "v{{new_version}} is already tagged; pass version=X.Y.Z explicitly" >&2; exit 1)
     cargo bump "{{new_version}}"
     git cliff -c .config/cliff.toml -t "{{new_version}}" > CHANGELOG.md
     cargo check
