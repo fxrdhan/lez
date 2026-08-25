@@ -415,32 +415,61 @@ impl FileFilter {
     where
         F: AsRef<File<'a>>,
     {
-        files.sort_by(|a, b| {
-            self.sort_field.compare_files_with_collator(
-                a.as_ref(),
-                b.as_ref(),
-                self.collator.as_ref(),
-            )
-        });
-
-        if self.flags.contains(&FileFilterFlags::Reverse) {
-            files.reverse();
+        if self.sort_field == SortField::Unsorted
+            && !self.flags.contains(&FileFilterFlags::Reverse)
+            && !self.flags.contains(&FileFilterFlags::ListDirsFirst)
+            && !self.flags.contains(&FileFilterFlags::ListDirsLast)
+        {
+            return;
         }
 
-        if self.flags.contains(&FileFilterFlags::ListDirsFirst) {
-            // This relies on the fact that `sort_by` is *stable*: it will keep
-            // adjacent elements next to each other.
+        let reverse = self.flags.contains(&FileFilterFlags::Reverse);
+        let list_dirs_first = self.flags.contains(&FileFilterFlags::ListDirsFirst);
+        let list_dirs_last = self.flags.contains(&FileFilterFlags::ListDirsLast);
+
+        if list_dirs_first || list_dirs_last {
             files.sort_by(|a, b| {
-                b.as_ref()
-                    .points_to_directory()
-                    .cmp(&a.as_ref().points_to_directory())
+                let file_a = a.as_ref();
+                let file_b = b.as_ref();
+
+                let dir_order = if list_dirs_first {
+                    file_b
+                        .points_to_directory()
+                        .cmp(&file_a.points_to_directory())
+                } else {
+                    file_a
+                        .points_to_directory()
+                        .cmp(&file_b.points_to_directory())
+                };
+
+                if dir_order != Ordering::Equal {
+                    return dir_order;
+                }
+
+                let sort_order = self.sort_field.compare_files_with_collator(
+                    file_a,
+                    file_b,
+                    self.collator.as_ref(),
+                );
+
+                if reverse {
+                    sort_order.reverse()
+                } else {
+                    sort_order
+                }
             });
-        } else if self.flags.contains(&FileFilterFlags::ListDirsLast) {
+        } else {
             files.sort_by(|a, b| {
-                a.as_ref()
-                    .points_to_directory()
-                    .cmp(&b.as_ref().points_to_directory())
+                self.sort_field.compare_files_with_collator(
+                    a.as_ref(),
+                    b.as_ref(),
+                    self.collator.as_ref(),
+                )
             });
+
+            if reverse {
+                files.reverse();
+            }
         }
     }
 
