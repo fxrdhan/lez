@@ -406,6 +406,13 @@ impl render::BlocksColours for Theme {
     fn blocksize(&self, prefix: Option<unit_prefix::Prefix>) -> Style {
         use unit_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
 
+        // `bl` names this column, so when it has a style that is the answer.
+        // The graduated palette below belongs to the file size column, and
+        // borrowing it here left `bl` parsed, stored and never read.
+        if let Some(style) = self.ui.blocks {
+            return style;
+        }
+
         #[rustfmt::skip]
         let style = match prefix {
             Some(Kilo | Kibi) => self.ui.size.unwrap_or_default().number_kilo,
@@ -419,6 +426,11 @@ impl render::BlocksColours for Theme {
 
     fn unit(&self, prefix: Option<unit_prefix::Prefix>) -> Style {
         use unit_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
+
+        // The unit is part of the same column, so it follows `bl` too.
+        if let Some(style) = self.ui.blocks {
+            return style;
+        }
 
         #[rustfmt::skip]
            let style = match prefix {

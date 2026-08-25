@@ -240,7 +240,7 @@ Note: `ca` is unset by default, and only when it is set does lsr ask the filesys
 : a file’s inode number
 
 `bl`
-: a file’s number of blocks
+: a file’s allocated size, as shown by `--blocksize`
 
 `hd`
 : the header row of a table
