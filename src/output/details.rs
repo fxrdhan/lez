@@ -218,7 +218,10 @@ impl<'a> Render<'a> {
             // Percentage columns need the whole tree’s code total as their
             // denominator, so walk the tree (or git repo) once up front.
             if matches!(loc_content, Some(CodeContent::Percent | CodeContent::Both)) {
-                let report = crate::loc::count_roots(&self.loc_roots());
+                let report = crate::loc::count_roots(
+                    &self.loc_roots(),
+                    self.filter.dot_filter.shows_dotfiles(),
+                );
                 table.set_loc_total(Some(report.total().code));
             }
 

@@ -352,6 +352,7 @@ impl Lsr<'_> {
                 opts: &opts,
                 roots,
                 show_icons,
+                show_hidden: self.options.filter.dot_filter.shows_dotfiles(),
             };
             r.render(&mut self.writer)?;
             return Ok(exit_status);

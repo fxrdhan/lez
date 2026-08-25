@@ -118,7 +118,7 @@ impl<'a> Render<'a> {
                         ) {
                             let roots: Vec<PathBuf> =
                                 files.iter().map(|f| f.path.clone()).collect();
-                            let report = count_roots(&roots);
+                            let report = count_roots(&roots, self.dots.shows_dotfiles());
 
                             Some(report.total().code)
                         } else {

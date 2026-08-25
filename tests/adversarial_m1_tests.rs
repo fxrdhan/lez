@@ -498,7 +498,7 @@ fn test_r3_odin_in_multi_language_tree_count_roots() {
     fs::write(&rust_file, "fn main() {\n    // Rust comment\n}\n").unwrap();
     fs::write(&py_file, "# Python comment\nprint('hi')\n").unwrap();
 
-    let report = count_roots(std::slice::from_ref(&root.to_path_buf()));
+    let report = count_roots(std::slice::from_ref(&root.to_path_buf()), false);
     let odin_stat = report.languages().find(|s| s.language.name == "Odin");
     assert!(
         odin_stat.is_some(),

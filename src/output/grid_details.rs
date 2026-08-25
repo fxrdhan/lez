@@ -261,7 +261,7 @@ impl<'a> Render<'a> {
             } else {
                 self.files.iter().map(|f| f.path.clone()).collect()
             };
-            let report = crate::loc::count_roots(&roots);
+            let report = crate::loc::count_roots(&roots, self.filter.dot_filter.shows_dotfiles());
             table.set_loc_total(Some(report.total().code));
         }
 

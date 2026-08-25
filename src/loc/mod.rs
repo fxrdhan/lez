@@ -262,13 +262,13 @@ impl Report {
 /// `is_ignored` to skip files (e.g. those matched by `.gitignore`). Hidden
 /// entries and symbolic links are always skipped, so `.git` and friends never
 /// get walked. Counting itself is parallelised across a thread pool.
-pub fn count_tree<F>(roots: &[PathBuf], is_ignored: &F) -> Report
+pub fn count_tree<F>(roots: &[PathBuf], is_ignored: &F, show_hidden: bool) -> Report
 where
     F: Fn(&Path) -> bool,
 {
     let mut jobs: Vec<(PathBuf, &'static Language)> = Vec::new();
     for root in roots {
-        collect_jobs(root, is_ignored, &mut jobs);
+        collect_jobs(root, is_ignored, show_hidden, &mut jobs);
     }
 
     let counted: Vec<(&'static Language, LocCounts, &PathBuf)> = jobs
@@ -290,8 +290,12 @@ where
 
 /// Walk one path, gathering `(file, language)` jobs for every recognised
 /// source file beneath it.
-fn collect_jobs<F>(path: &Path, is_ignored: &F, jobs: &mut Vec<(PathBuf, &'static Language)>)
-where
+fn collect_jobs<F>(
+    path: &Path,
+    is_ignored: &F,
+    show_hidden: bool,
+    jobs: &mut Vec<(PathBuf, &'static Language)>,
+) where
     F: Fn(&Path) -> bool,
 {
     let Ok(meta) = std::fs::symlink_metadata(path) else {
@@ -324,15 +328,30 @@ where
             return;
         };
         for entry in entries.flatten() {
-            // Skip hidden entries by default — this also keeps us out of `.git`.
-            if entry.file_name().to_string_lossy().starts_with('.') {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+
+            // A repository's own directory is never source, and it holds
+            // thousands of files, so it stays out even when hidden entries
+            // are wanted.
+            if name == ".git" {
                 continue;
             }
+
+            // Hidden entries are skipped unless the listing asked for them.
+            // Whoever passed `--all` wants the dot-prefixed source counted
+            // too — and for `--loc` percentages it is not optional: the
+            // denominator has to cover the same files as the numerator, or a
+            // hidden file reports more than 100% of the tree.
+            if !show_hidden && name.starts_with('.') {
+                continue;
+            }
+
             let child = entry.path();
             if is_ignored(&child) {
                 continue;
             }
-            collect_jobs(&child, is_ignored, jobs);
+            collect_jobs(&child, is_ignored, show_hidden, jobs);
         }
     }
 }
@@ -341,7 +360,7 @@ where
 /// `git` feature is enabled and the roots live inside one. This is the entry
 /// point used by both the `--loc` percentage columns and the `--code` summary.
 #[must_use]
-pub fn count_roots(roots: &[PathBuf]) -> Report {
+pub fn count_roots(roots: &[PathBuf], show_hidden: bool) -> Report {
     #[cfg(feature = "git")]
     {
         if let Some(first) = roots.first()
@@ -354,10 +373,10 @@ pub fn count_roots(roots: &[PathBuf]) -> Report {
                 let resolved = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
                 repo.is_path_ignored(&resolved).unwrap_or(false)
             };
-            return count_tree(roots, &is_ignored);
+            return count_tree(roots, &is_ignored, show_hidden);
         }
     }
-    count_tree(roots, &|_: &Path| false)
+    count_tree(roots, &|_: &Path| false, show_hidden)
 }
 
 // Comment-syntax building blocks, shared between the many languages that use
