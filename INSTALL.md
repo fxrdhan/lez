@@ -68,7 +68,7 @@ Every commit on `main` is built in CI and pushed to a public [Cachix](https://ww
 cache, so you can substitute the build instead of compiling it:
 
 ```bash
-cachix use fxrdhan-lsr
+cachix use lez
 nix run github:fxrdhan/lez
 ```
 

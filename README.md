@@ -15,7 +15,7 @@ SPDX-License-Identifier: EUPL-1.2
 
 [![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.txt)
 [![Rust](https://img.shields.io/badge/Rust-1.90%2B-orange.svg)](https://www.rust-lang.org/)
-[![binary cache](https://img.shields.io/endpoint?url=https%3A%2F%2Ffxrdhan-lsr.cachix.org%2Fapi%2Fv1%2Fcache%2Fbadges%2Fshield.svg)](https://app.cachix.org/cache/fxrdhan-lsr)
+[![binary cache](https://img.shields.io/endpoint?url=https%3A%2F%2Flez.cachix.org%2Fapi%2Fv1%2Fcache%2Fbadges%2Fshield.svg)](https://app.cachix.org/cache/lez)
 
 </div>
 
@@ -74,7 +74,7 @@ If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lez -- 
 Every commit on `main` is validated with `nix flake check` in CI, and the resulting store paths are pushed to a public binary cache on [Cachix](https://www.cachix.org). Contributors and Nix users can pull prebuilt outputs instead of compiling from scratch:
 
 ```bash
-cachix use fxrdhan-lsr
+cachix use lez
 nix run github:fxrdhan/lez
 ```
 
