@@ -13,13 +13,13 @@ SPDX-License-Identifier: EUPL-1.2
 ### Bug Fixes
 
 - Fix --dereference --sort=size
-- Carry file sizes to next unit at threshold (upstream #1908)
-- Hyperlink full explicit paths (upstream #1907)
-- Prevent --classify from consuming positional file paths (upstream #1894)
-- Prevent default flags from triggering strict mode conflicts (upstream #1882)
-- Require equals for optional value flags --icons and --hyperlink (upstream #1880, #1865)
-- Support formatting pre-unix epoch timestamps without panic (upstream #1826)
-- Return error instead of panicking on non-UTF-8 --time-style value (upstream #1848)
+- Carry file sizes to next unit at threshold ([eza#1908](https://github.com/eza-community/eza/issues/1908))
+- Hyperlink full explicit paths ([eza#1907](https://github.com/eza-community/eza/issues/1907))
+- Prevent --classify from consuming positional file paths ([eza#1894](https://github.com/eza-community/eza/issues/1894))
+- Prevent default flags from triggering strict mode conflicts ([eza#1882](https://github.com/eza-community/eza/issues/1882))
+- Require equals for optional value flags --icons and --hyperlink ([eza#1880](https://github.com/eza-community/eza/issues/1880), [eza#1865](https://github.com/eza-community/eza/issues/1865))
+- Support formatting pre-unix epoch timestamps without panic ([eza#1826](https://github.com/eza-community/eza/issues/1826))
+- Return error instead of panicking on non-UTF-8 --time-style value ([eza#1848](https://github.com/eza-community/eza/issues/1848))
 - Fix cross-platform test assertions and format workflow yaml
 - Configure USERPROFILE alongside HOME for Windows test environments
 - Prefix unused meta_obj variable in Windows targets
@@ -27,22 +27,22 @@ SPDX-License-Identifier: EUPL-1.2
 - Gate length_test module to unix platforms
 - Gate Unix path assertions in config and hyperlink tests
 - Account for Windows FILETIME resolution in pre-epoch tests
-- Account for Windows filesystem limitations in batch5 json tests
+- Account for Windows filesystem limitations in the JSON output tests
 - Gate POSIX special character filenames to unix platforms
 - Allow unused imports in m1 tests on non-unix targets
 - Ensure ThemeConfig::to_theme returns defaults when location is not readable
 - Use git2 Repository for sandboxed git integration tests
-- Treat empty-target symlinks as broken symlinks rather than directories (eza#1716)
+- Treat empty-target symlinks as broken symlinks rather than directories ([eza#1716](https://github.com/eza-community/eza/issues/1716))
 - Allow unused items on non-unix targets in symlink and recurse tests
-- Ensure /dev/null as stdin without --stdin flag defaults to positional args (eza#1726)
-- Support --across sorting in --long --grid view (eza#1647)
-- Fix -Ta max recurse handling by ignoring all_all entries (eza#1695)
-- Detect mounts even without /proc using device ID fallback (eza#1742)
-- Make LSR_COLORS/EZA_COLORS=reset clear built-in styles (eza#1718)
-- Prevent standard LS_COLORS indicators from parsing as extensions (eza#1856)
-- Separate -F and --classify in zsh completion (eza#1780, #1825)
-- Decouple icons=auto terminal detection from COLUMNS (eza#1849, eza#1843)
-- Align sort aliases so newest/new sorts newest-first (eza#1853)
+- Ensure /dev/null as stdin without --stdin flag defaults to positional args ([eza#1726](https://github.com/eza-community/eza/issues/1726))
+- Support --across sorting in --long --grid view ([eza#1647](https://github.com/eza-community/eza/issues/1647))
+- Fix -Ta max recurse handling by ignoring all_all entries ([eza#1695](https://github.com/eza-community/eza/issues/1695))
+- Detect mounts even without /proc using device ID fallback ([eza#1742](https://github.com/eza-community/eza/issues/1742))
+- Make LSR_COLORS/EZA_COLORS=reset clear built-in styles ([eza#1718](https://github.com/eza-community/eza/issues/1718))
+- Prevent standard LS_COLORS indicators from parsing as extensions ([eza#1856](https://github.com/eza-community/eza/issues/1856))
+- Separate -F and --classify in zsh completion ([eza#1780](https://github.com/eza-community/eza/issues/1780), [eza#1825](https://github.com/eza-community/eza/issues/1825))
+- Decouple icons=auto terminal detection from COLUMNS ([eza#1849](https://github.com/eza-community/eza/issues/1849), [eza#1843](https://github.com/eza-community/eza/issues/1843))
+- Align sort aliases so newest/new sorts newest-first ([eza#1853](https://github.com/eza-community/eza/issues/1853))
 - Round before unit-threshold check in size and blocks rendering
 - Handle non-Unicode paths when reorienting on Windows
 - Percent-encode unsafe URI path characters in hyperlinks
@@ -102,9 +102,9 @@ SPDX-License-Identifier: EUPL-1.2
 - Update --dereference description for sorting
 - Add lsr manual pages and update build recipes
 - Add granular commit rule to AGENTS.md
-- Update documentation and man pages for batch 3 features
-- Update documentation, man pages, and shell completions for batch 4 features
-- Update documentation and man pages for batch 5 features
+- Document --classify, and rewrite the --color and --color-scale entries
+- Document --print-total and add it to the PowerShell completions
+- Document --json in the man pages
 - Add --json option to README.md
 - Update documentation and man pages for ported features
 - Sync guide with current architecture and test layers
@@ -144,39 +144,39 @@ SPDX-License-Identifier: EUPL-1.2
 
 - Initialize lsr - ls in Rust with extended features
 - Add --sort=blocks option
-- Port batch 1 upstream fixes and features (R1-R6)
-- Support ls-compatible -t sorting without field (upstream #1915)
-- Add syntax-highlighted colors to cli help (upstream #1884)
-- Honor child git repository .gitignore rules during recursive traversal (upstream #1808)
-- Add --print-total flag to display total entry counts (upstream #1851)
-- Add path sort field for full path sorting (upstream #1836)
-- Add --json structured JSON output format (upstream #1898)
-- Decode com.apple.ResourceFork extended attributes on macOS (upstream #1541)
-- Display mount root path alongside mount info (upstream #1463)
-- Support directorynames styling in theme.yml (upstream #1806)
-- Add Apple icon for macOS Icon\r files (upstream #1824)
-- Add relative-recent time style support (upstream #1731)
-- Support tilde expansion in config and theme paths (upstream #1852, upstream #1810)
-- Automatically imply group column when smart-group is active (upstream #1854)
-- Add Janet language support in LOC engine and icons (upstream #1711)
-- Support case-insensitive ignore glob matching (upstream #1803)
-- Fix --level depth limit with explicit path arguments (eza#1717)
-- Support multi-codepoint emojis in theme.yml glyph fields (eza#1655)
-- Add --spacing parameter to configure column spacing (eza#1558)
-- Add bicep and slnx extension icons (eza#1747, #1722)
-- Respect system/user/XDG settings for special directory icons (eza#1679)
-- Add support for macOS color tags on macOS and other systems (eza#1631)
-- Decode Linux security.capability extended attributes (eza#1624)
-- Add Ada language support and filetype mappings (eza#1606)
-- Add Dev directory, .eclass, and .astro Nerd Font icons (eza#1626, #1759, #1074)
-- Accept 'r', 'm', and 'mod' as aliases for --time modified (eza#1775)
-- Add LSR_MAX_LUMINANCE env var like LSR_MIN_LUMINANCE (eza#1380)
-- Make hyperlinks usable inside a WSL environment (eza#925)
-- Add --no-symlink-targets flag (eza#1805)
-- Distinguish mount point directories with 'D' indicator (eza#1741)
-- Add --summary flag to display total counts summary (eza#1709)
-- Implement --since time-based file filtering flag (eza#1687)
-- Add -S / --blocks flag for filesystem block counts (eza#1667)
+- Percent-encode hyperlink URIs, keep filtered files out of the colour scale, add Odin to the LOC engine, clamp --width, and restore -b/-B precedence ([eza#1916](https://github.com/eza-community/eza/issues/1916), [eza#1917](https://github.com/eza-community/eza/issues/1917), [eza#1911](https://github.com/eza-community/eza/issues/1911), [eza#1909](https://github.com/eza-community/eza/issues/1909), [eza#1906](https://github.com/eza-community/eza/issues/1906))
+- Support ls-compatible -t sorting without field ([eza#1915](https://github.com/eza-community/eza/issues/1915))
+- Add syntax-highlighted colors to cli help ([eza#1884](https://github.com/eza-community/eza/issues/1884))
+- Honor child git repository .gitignore rules during recursive traversal ([eza#1808](https://github.com/eza-community/eza/issues/1808))
+- Add --print-total flag to display total entry counts ([eza#1851](https://github.com/eza-community/eza/issues/1851))
+- Add path sort field for full path sorting ([eza#1836](https://github.com/eza-community/eza/issues/1836))
+- Add --json structured JSON output format ([eza#1898](https://github.com/eza-community/eza/issues/1898))
+- Decode com.apple.ResourceFork extended attributes on macOS ([eza#1541](https://github.com/eza-community/eza/issues/1541))
+- Display mount root path alongside mount info ([eza#1463](https://github.com/eza-community/eza/issues/1463))
+- Support directorynames styling in theme.yml ([eza#1806](https://github.com/eza-community/eza/issues/1806))
+- Add Apple icon for macOS Icon\r files ([eza#1824](https://github.com/eza-community/eza/issues/1824))
+- Add relative-recent time style support ([eza#1731](https://github.com/eza-community/eza/issues/1731))
+- Support tilde expansion in config and theme paths ([eza#1852](https://github.com/eza-community/eza/issues/1852), [eza#1810](https://github.com/eza-community/eza/issues/1810))
+- Automatically imply group column when smart-group is active ([eza#1854](https://github.com/eza-community/eza/issues/1854))
+- Add Janet language support in LOC engine and icons ([eza#1711](https://github.com/eza-community/eza/issues/1711))
+- Support case-insensitive ignore glob matching ([eza#1803](https://github.com/eza-community/eza/issues/1803))
+- Fix --level depth limit with explicit path arguments ([eza#1717](https://github.com/eza-community/eza/issues/1717))
+- Support multi-codepoint emojis in theme.yml glyph fields ([eza#1655](https://github.com/eza-community/eza/issues/1655))
+- Add --spacing parameter to configure column spacing ([eza#1558](https://github.com/eza-community/eza/issues/1558))
+- Add bicep and slnx extension icons ([eza#1747](https://github.com/eza-community/eza/issues/1747), [eza#1722](https://github.com/eza-community/eza/issues/1722))
+- Respect system/user/XDG settings for special directory icons ([eza#1679](https://github.com/eza-community/eza/issues/1679))
+- Add support for macOS color tags on macOS and other systems ([eza#1631](https://github.com/eza-community/eza/issues/1631))
+- Decode Linux security.capability extended attributes ([eza#1624](https://github.com/eza-community/eza/issues/1624))
+- Add Ada language support and filetype mappings ([eza#1606](https://github.com/eza-community/eza/issues/1606))
+- Add Dev directory, .eclass, and .astro Nerd Font icons ([eza#1626](https://github.com/eza-community/eza/issues/1626), [eza#1759](https://github.com/eza-community/eza/issues/1759), [eza#1074](https://github.com/eza-community/eza/issues/1074))
+- Accept 'r', 'm', and 'mod' as aliases for --time modified ([eza#1775](https://github.com/eza-community/eza/issues/1775))
+- Add LSR_MAX_LUMINANCE env var like LSR_MIN_LUMINANCE ([eza#1380](https://github.com/eza-community/eza/issues/1380))
+- Make hyperlinks usable inside a WSL environment ([eza#925](https://github.com/eza-community/eza/issues/925))
+- Add --no-symlink-targets flag ([eza#1805](https://github.com/eza-community/eza/issues/1805))
+- Distinguish mount point directories with 'D' indicator ([eza#1741](https://github.com/eza-community/eza/issues/1741))
+- Add --summary flag to display total counts summary ([eza#1709](https://github.com/eza-community/eza/issues/1709))
+- Implement --since time-based file filtering flag ([eza#1687](https://github.com/eza-community/eza/issues/1687))
+- Add -S / --blocks flag for filesystem block counts ([eza#1667](https://github.com/eza-community/eza/issues/1667))
 - Add --show-dotfiles flag
 - Classify cb7 comic archives as images
 - Add westwood game asset extension icons
@@ -227,8 +227,8 @@ SPDX-License-Identifier: EUPL-1.2
 
 ### Performance
 
-- Look up sibling files in constant time (upstream #1905)
-- Scope git status queries to listed file paths (upstream #1899)
+- Look up sibling files in constant time ([eza#1905](https://github.com/eza-community/eza/issues/1905))
+- Scope git status queries to listed file paths ([eza#1899](https://github.com/eza-community/eza/issues/1899))
 - Streamline flake checks and add inspect-archives to buildFeatures
 - Stop reading a whole directory to ask whether it is empty
 - Filter mount points by name before canonicalising
@@ -257,7 +257,7 @@ SPDX-License-Identifier: EUPL-1.2
 
 ### Testing
 
-- Add adversarial stress test suite for batch 3 upstream ports
+- Add an adversarial suite over the long-view and tree flags
 - Add comprehensive adversarial stress test suites for upstream ports
 - Guard version substitution and page notation
 - Force colours off in the symlink challenger harness
@@ -265,7 +265,7 @@ SPDX-License-Identifier: EUPL-1.2
 - Add adversarial challenger test suites for total size calculations
 - Use portable RecSizeFileId in adversarial test oracle
 - Gate unix-specific hardlink deduplication tests on unix
-- Add comprehensive e2e test suite for batch 2 features and edge cases
+- Add the tiered end-to-end suites: features, boundaries, combinations, workloads
 - Gate unix-only index helpers behind cfg(unix)
 - Consolidate recsize stress suites into one module
 - Curate cross-feature suites into single combination module
@@ -326,39 +326,39 @@ this tree; upstream references are recorded in the pull request bodies.
 
 - Initialize lsr - ls in Rust with extended features
 - Add --sort=blocks option
-- Port batch 1 upstream fixes and features (R1-R6)
-- Support ls-compatible -t sorting without field (upstream #1915)
-- Add syntax-highlighted colors to cli help (upstream #1884)
-- Honor child git repository .gitignore rules during recursive traversal (upstream #1808)
-- Add --print-total flag to display total entry counts (upstream #1851)
-- Add path sort field for full path sorting (upstream #1836)
-- Add --json structured JSON output format (upstream #1898)
-- Decode com.apple.ResourceFork extended attributes on macOS (upstream #1541)
-- Display mount root path alongside mount info (upstream #1463)
-- Support directorynames styling in theme.yml (upstream #1806)
-- Add Apple icon for macOS Icon\r files (upstream #1824)
-- Add relative-recent time style support (upstream #1731)
-- Support tilde expansion in config and theme paths (upstream #1852, upstream #1810)
-- Automatically imply group column when smart-group is active (upstream #1854)
-- Add Janet language support in LOC engine and icons (upstream #1711)
-- Support case-insensitive ignore glob matching (upstream #1803)
-- Fix --level depth limit with explicit path arguments (eza#1717)
-- Support multi-codepoint emojis in theme.yml glyph fields (eza#1655)
-- Add --spacing parameter to configure column spacing (eza#1558)
-- Add bicep and slnx extension icons (eza#1747, #1722)
-- Respect system/user/XDG settings for special directory icons (eza#1679)
-- Add support for macOS color tags on macOS and other systems (eza#1631)
-- Decode Linux security.capability extended attributes (eza#1624)
-- Add Ada language support and filetype mappings (eza#1606)
-- Add Dev directory, .eclass, and .astro Nerd Font icons (eza#1626, #1759, #1074)
-- Accept 'r', 'm', and 'mod' as aliases for --time modified (eza#1775)
-- Add LSR_MAX_LUMINANCE env var like LSR_MIN_LUMINANCE (eza#1380)
-- Make hyperlinks usable inside a WSL environment (eza#925)
-- Add --no-symlink-targets flag (eza#1805)
-- Distinguish mount point directories with 'D' indicator (eza#1741)
-- Add --summary flag to display total counts summary (eza#1709)
-- Implement --since time-based file filtering flag (eza#1687)
-- Add -S / --blocks flag for filesystem block counts (eza#1667)
+- Percent-encode hyperlink URIs, keep filtered files out of the colour scale, add Odin to the LOC engine, clamp --width, and restore -b/-B precedence ([eza#1916](https://github.com/eza-community/eza/issues/1916), [eza#1917](https://github.com/eza-community/eza/issues/1917), [eza#1911](https://github.com/eza-community/eza/issues/1911), [eza#1909](https://github.com/eza-community/eza/issues/1909), [eza#1906](https://github.com/eza-community/eza/issues/1906))
+- Support ls-compatible -t sorting without field ([eza#1915](https://github.com/eza-community/eza/issues/1915))
+- Add syntax-highlighted colors to cli help ([eza#1884](https://github.com/eza-community/eza/issues/1884))
+- Honor child git repository .gitignore rules during recursive traversal ([eza#1808](https://github.com/eza-community/eza/issues/1808))
+- Add --print-total flag to display total entry counts ([eza#1851](https://github.com/eza-community/eza/issues/1851))
+- Add path sort field for full path sorting ([eza#1836](https://github.com/eza-community/eza/issues/1836))
+- Add --json structured JSON output format ([eza#1898](https://github.com/eza-community/eza/issues/1898))
+- Decode com.apple.ResourceFork extended attributes on macOS ([eza#1541](https://github.com/eza-community/eza/issues/1541))
+- Display mount root path alongside mount info ([eza#1463](https://github.com/eza-community/eza/issues/1463))
+- Support directorynames styling in theme.yml ([eza#1806](https://github.com/eza-community/eza/issues/1806))
+- Add Apple icon for macOS Icon\r files ([eza#1824](https://github.com/eza-community/eza/issues/1824))
+- Add relative-recent time style support ([eza#1731](https://github.com/eza-community/eza/issues/1731))
+- Support tilde expansion in config and theme paths ([eza#1852](https://github.com/eza-community/eza/issues/1852), [eza#1810](https://github.com/eza-community/eza/issues/1810))
+- Automatically imply group column when smart-group is active ([eza#1854](https://github.com/eza-community/eza/issues/1854))
+- Add Janet language support in LOC engine and icons ([eza#1711](https://github.com/eza-community/eza/issues/1711))
+- Support case-insensitive ignore glob matching ([eza#1803](https://github.com/eza-community/eza/issues/1803))
+- Fix --level depth limit with explicit path arguments ([eza#1717](https://github.com/eza-community/eza/issues/1717))
+- Support multi-codepoint emojis in theme.yml glyph fields ([eza#1655](https://github.com/eza-community/eza/issues/1655))
+- Add --spacing parameter to configure column spacing ([eza#1558](https://github.com/eza-community/eza/issues/1558))
+- Add bicep and slnx extension icons ([eza#1747](https://github.com/eza-community/eza/issues/1747), [eza#1722](https://github.com/eza-community/eza/issues/1722))
+- Respect system/user/XDG settings for special directory icons ([eza#1679](https://github.com/eza-community/eza/issues/1679))
+- Add support for macOS color tags on macOS and other systems ([eza#1631](https://github.com/eza-community/eza/issues/1631))
+- Decode Linux security.capability extended attributes ([eza#1624](https://github.com/eza-community/eza/issues/1624))
+- Add Ada language support and filetype mappings ([eza#1606](https://github.com/eza-community/eza/issues/1606))
+- Add Dev directory, .eclass, and .astro Nerd Font icons ([eza#1626](https://github.com/eza-community/eza/issues/1626), [eza#1759](https://github.com/eza-community/eza/issues/1759), [eza#1074](https://github.com/eza-community/eza/issues/1074))
+- Accept 'r', 'm', and 'mod' as aliases for --time modified ([eza#1775](https://github.com/eza-community/eza/issues/1775))
+- Add LSR_MAX_LUMINANCE env var like LSR_MIN_LUMINANCE ([eza#1380](https://github.com/eza-community/eza/issues/1380))
+- Make hyperlinks usable inside a WSL environment ([eza#925](https://github.com/eza-community/eza/issues/925))
+- Add --no-symlink-targets flag ([eza#1805](https://github.com/eza-community/eza/issues/1805))
+- Distinguish mount point directories with 'D' indicator ([eza#1741](https://github.com/eza-community/eza/issues/1741))
+- Add --summary flag to display total counts summary ([eza#1709](https://github.com/eza-community/eza/issues/1709))
+- Implement --since time-based file filtering flag ([eza#1687](https://github.com/eza-community/eza/issues/1687))
+- Add -S / --blocks flag for filesystem block counts ([eza#1667](https://github.com/eza-community/eza/issues/1667))
 - Add --show-dotfiles flag
 - Classify cb7 comic archives as images
 - Add westwood game asset extension icons
@@ -391,13 +391,13 @@ this tree; upstream references are recorded in the pull request bodies.
 ### Bug Fixes
 
 - Fix --dereference --sort=size
-- Carry file sizes to next unit at threshold (upstream #1908)
-- Hyperlink full explicit paths (upstream #1907)
-- Prevent --classify from consuming positional file paths (upstream #1894)
-- Prevent default flags from triggering strict mode conflicts (upstream #1882)
-- Require equals for optional value flags --icons and --hyperlink (upstream #1880, #1865)
-- Support formatting pre-unix epoch timestamps without panic (upstream #1826)
-- Return error instead of panicking on non-UTF-8 --time-style value (upstream #1848)
+- Carry file sizes to next unit at threshold ([eza#1908](https://github.com/eza-community/eza/issues/1908))
+- Hyperlink full explicit paths ([eza#1907](https://github.com/eza-community/eza/issues/1907))
+- Prevent --classify from consuming positional file paths ([eza#1894](https://github.com/eza-community/eza/issues/1894))
+- Prevent default flags from triggering strict mode conflicts ([eza#1882](https://github.com/eza-community/eza/issues/1882))
+- Require equals for optional value flags --icons and --hyperlink ([eza#1880](https://github.com/eza-community/eza/issues/1880), [eza#1865](https://github.com/eza-community/eza/issues/1865))
+- Support formatting pre-unix epoch timestamps without panic ([eza#1826](https://github.com/eza-community/eza/issues/1826))
+- Return error instead of panicking on non-UTF-8 --time-style value ([eza#1848](https://github.com/eza-community/eza/issues/1848))
 - Fix cross-platform test assertions and format workflow yaml
 - Configure USERPROFILE alongside HOME for Windows test environments
 - Prefix unused meta_obj variable in Windows targets
@@ -405,22 +405,22 @@ this tree; upstream references are recorded in the pull request bodies.
 - Gate length_test module to unix platforms
 - Gate Unix path assertions in config and hyperlink tests
 - Account for Windows FILETIME resolution in pre-epoch tests
-- Account for Windows filesystem limitations in batch5 json tests
+- Account for Windows filesystem limitations in the JSON output tests
 - Gate POSIX special character filenames to unix platforms
 - Allow unused imports in m1 tests on non-unix targets
 - Ensure ThemeConfig::to_theme returns defaults when location is not readable
 - Use git2 Repository for sandboxed git integration tests
-- Treat empty-target symlinks as broken symlinks rather than directories (eza#1716)
+- Treat empty-target symlinks as broken symlinks rather than directories ([eza#1716](https://github.com/eza-community/eza/issues/1716))
 - Allow unused items on non-unix targets in symlink and recurse tests
-- Ensure /dev/null as stdin without --stdin flag defaults to positional args (eza#1726)
-- Support --across sorting in --long --grid view (eza#1647)
-- Fix -Ta max recurse handling by ignoring all_all entries (eza#1695)
-- Detect mounts even without /proc using device ID fallback (eza#1742)
-- Make LSR_COLORS/EZA_COLORS=reset clear built-in styles (eza#1718)
-- Prevent standard LS_COLORS indicators from parsing as extensions (eza#1856)
-- Separate -F and --classify in zsh completion (eza#1780, #1825)
-- Decouple icons=auto terminal detection from COLUMNS (eza#1849, eza#1843)
-- Align sort aliases so newest/new sorts newest-first (eza#1853)
+- Ensure /dev/null as stdin without --stdin flag defaults to positional args ([eza#1726](https://github.com/eza-community/eza/issues/1726))
+- Support --across sorting in --long --grid view ([eza#1647](https://github.com/eza-community/eza/issues/1647))
+- Fix -Ta max recurse handling by ignoring all_all entries ([eza#1695](https://github.com/eza-community/eza/issues/1695))
+- Detect mounts even without /proc using device ID fallback ([eza#1742](https://github.com/eza-community/eza/issues/1742))
+- Make LSR_COLORS/EZA_COLORS=reset clear built-in styles ([eza#1718](https://github.com/eza-community/eza/issues/1718))
+- Prevent standard LS_COLORS indicators from parsing as extensions ([eza#1856](https://github.com/eza-community/eza/issues/1856))
+- Separate -F and --classify in zsh completion ([eza#1780](https://github.com/eza-community/eza/issues/1780), [eza#1825](https://github.com/eza-community/eza/issues/1825))
+- Decouple icons=auto terminal detection from COLUMNS ([eza#1849](https://github.com/eza-community/eza/issues/1849), [eza#1843](https://github.com/eza-community/eza/issues/1843))
+- Align sort aliases so newest/new sorts newest-first ([eza#1853](https://github.com/eza-community/eza/issues/1853))
 - Round before unit-threshold check in size and blocks rendering
 - Handle non-Unicode paths when reorienting on Windows
 - Percent-encode unsafe URI path characters in hyperlinks
@@ -459,9 +459,9 @@ this tree; upstream references are recorded in the pull request bodies.
 - Update --dereference description for sorting
 - Add lsr manual pages and update build recipes
 - Add granular commit rule to AGENTS.md
-- Update documentation and man pages for batch 3 features
-- Update documentation, man pages, and shell completions for batch 4 features
-- Update documentation and man pages for batch 5 features
+- Document --classify, and rewrite the --color and --color-scale entries
+- Document --print-total and add it to the PowerShell completions
+- Document --json in the man pages
 - Add --json option to README.md
 - Update documentation and man pages for ported features
 - Sync guide with current architecture and test layers
@@ -487,8 +487,8 @@ this tree; upstream references are recorded in the pull request bodies.
 
 ### Performance
 
-- Look up sibling files in constant time (upstream #1905)
-- Scope git status queries to listed file paths (upstream #1899)
+- Look up sibling files in constant time ([eza#1905](https://github.com/eza-community/eza/issues/1905))
+- Scope git status queries to listed file paths ([eza#1899](https://github.com/eza-community/eza/issues/1899))
 - Streamline flake checks and add inspect-archives to buildFeatures
 
 ### Refactor
@@ -509,7 +509,7 @@ this tree; upstream references are recorded in the pull request bodies.
 
 ### Testing
 
-- Add adversarial stress test suite for batch 3 upstream ports
+- Add an adversarial suite over the long-view and tree flags
 - Add comprehensive adversarial stress test suites for upstream ports
 - Guard version substitution and page notation
 - Force colours off in the symlink challenger harness
@@ -517,7 +517,7 @@ this tree; upstream references are recorded in the pull request bodies.
 - Add adversarial challenger test suites for total size calculations
 - Use portable RecSizeFileId in adversarial test oracle
 - Gate unix-specific hardlink deduplication tests on unix
-- Add comprehensive e2e test suite for batch 2 features and edge cases
+- Add the tiered end-to-end suites: features, boundaries, combinations, workloads
 - Gate unix-only index helpers behind cfg(unix)
 - Consolidate recsize stress suites into one module
 - Curate cross-feature suites into single combination module

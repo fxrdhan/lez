@@ -48,8 +48,29 @@ filter_unconventional = true
 # process each line of a commit as an individual commit
 split_commits = false
 # regex for preprocessing the commit messages
+# Several early commit subjects named the internal batch a change belonged to
+# rather than what it did — "batch 3 features" tells a reader nothing. The
+# subjects are history and stay as they are; these rewrite them into the
+# changelog as descriptions, so regenerating it does not bring them back.
 commit_preprocessors = [
+  # Upstream references arrived in two spellings, and GitHub treats them very
+  # differently. This repository is a fork of eza-community/eza, so a bare
+  # `#1803` resolves against the parent and renders as a link; `eza#1717` is
+  # dead text. Normalise both into an explicit markdown link so every one of
+  # them reads the same and every one of them is clickable. `/issues/N`
+  # redirects to `/pull/N`, so it is right for either kind.
+  { pattern = '\(upstream #', replace = "(eza#" },
+  { pattern = ', upstream #', replace = ", eza#" },
+  { pattern = ', #(\d{3,4})', replace = ", eza#${1}" },
+  { pattern = 'eza#(\d{3,4})', replace = "[eza#${1}](https://github.com/eza-community/eza/issues/${1})" },
   # { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/orhun/git-cliff/issues/${2}))"}, # replace issue numbers
+  { pattern = 'port batch 1 upstream fixes and features \(R1-R6\)', replace = "percent-encode hyperlink URIs, keep filtered files out of the colour scale, add Odin to the LOC engine, clamp --width, and restore -b/-B precedence ([eza#1916](https://github.com/eza-community/eza/issues/1916), [eza#1917](https://github.com/eza-community/eza/issues/1917), [eza#1911](https://github.com/eza-community/eza/issues/1911), [eza#1909](https://github.com/eza-community/eza/issues/1909), [eza#1906](https://github.com/eza-community/eza/issues/1906))" },
+  { pattern = 'update documentation and man pages for batch 3 features', replace = "document --classify, and rewrite the --color and --color-scale entries" },
+  { pattern = 'update documentation, man pages, and shell completions for batch 4 features', replace = "document --print-total and add it to the PowerShell completions" },
+  { pattern = 'update documentation and man pages for batch 5 features', replace = "document --json in the man pages" },
+  { pattern = 'add adversarial stress test suite for batch 3 upstream ports', replace = "add an adversarial suite over the long-view and tree flags" },
+  { pattern = 'add comprehensive e2e test suite for batch 2 features and edge cases', replace = "add the tiered end-to-end suites: features, boundaries, combinations, workloads" },
+  { pattern = 'account for Windows filesystem limitations in batch5 json tests', replace = "account for Windows filesystem limitations in the JSON output tests" },
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
