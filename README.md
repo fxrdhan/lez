@@ -42,7 +42,13 @@ SPDX-License-Identifier: EUPL-1.2
 
 ### Cargo / Build from Source
 
-Install `lez` directly with Cargo:
+Install `lez` from crates.io:
+
+```bash
+cargo install lez
+```
+
+Or track the latest commit on `main`:
 
 ```bash
 cargo install --git https://github.com/fxrdhan/lez.git

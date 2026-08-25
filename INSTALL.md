@@ -17,7 +17,13 @@ SPDX-License-Identifier: EUPL-1.2
 
 ### Cargo (git)
 
-Install `lez` directly via Cargo:
+Install `lez` from crates.io:
+
+```bash
+cargo install lez
+```
+
+To track the latest commit on `main` instead:
 
 ```bash
 cargo install --git https://github.com/fxrdhan/lez.git
@@ -37,7 +43,7 @@ Building requires a C compiler and libgit2 for the `git2` crate. To skip Git
 support entirely and drop that requirement:
 
 ```bash
-cargo install --git https://github.com/fxrdhan/lez.git --no-default-features
+cargo install lez --no-default-features
 ```
 
 ### Nix (Linux, macOS)
