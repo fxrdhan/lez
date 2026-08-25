@@ -290,6 +290,13 @@ with `CARGO_TARGET_DIR=/tmp/target` and a mounted read-only checkout. Only
 `Windows Repro Probe` workflow (`.github/workflows/windows-probe.yml`), a
 manual job that walks a set of reproductions on a runner and prints the result.
 
+`nix flake check` does not pass on a Mac, and never has. Its `trycmd`
+derivation runs the generated suites, whose snapshots were recorded under
+Linux Nix: the build user there is `nixbld` where macOS gives `_nixbld1`, and
+macOS adds the `@` extended-attribute marker to every mode string. Both suites
+fail on those two differences alone, before anything about the change under
+test. `nix develop` and `nix build` are fine; for the flake check, read CI.
+
 Out of reach either way: real hardware (a specific USB device, a CIFS or
 macFUSE mount), systemd-homed, iSH, and a GUI terminal's font.
 
