@@ -1,0 +1,132 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Publishes a release when a v* tag is pushed.
+#
+# The binaries are built on GitHub runners, one target per runner, natively.
+# The justfile's `cross` recipe builds seven targets through Docker instead;
+# that path needs a working `--no-default-features` build, which the tree does
+# not currently have, and it runs containers on the maintainer's machine. This
+# does neither.
+#
+# The release is created as a draft. Nothing reaches anyone until it is
+# published by hand.
+name: Release
+on:
+  push:
+    tags:
+      - "v*"
+permissions:
+  contents: write
+jobs:
+  binaries:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }} --features git,inspect-archives
+      - name: Package (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          mkdir -p dist
+          tar czf "dist/lsr_${{ matrix.target }}.tar.gz" -C "target/${{ matrix.target }}/release" lsr
+      - name: Package (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "target/${{ matrix.target }}/release/lsr.exe" -DestinationPath "dist/lsr_${{ matrix.target }}.zip"
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+  docs:
+    name: Man pages and completions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install pandoc
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq pandoc
+      - name: Build the tarballs
+        run: |
+          version="${GITHUB_REF_NAME}"
+          mkdir -p "man-${version}" "completions-${version}" dist
+          for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5; do
+            sed "s/\$version/${version}/g" "man/${page}.md" \
+              | pandoc --standalone -f markdown -t man > "man-${version}/${page}"
+          done
+          cp completions/*/* "completions-${version}/"
+          tar czf "dist/man-${version}.tar.gz" "man-${version}"
+          tar czf "dist/completions-${version}.tar.gz" "completions-${version}"
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: dist/*
+          if-no-files-found: error
+  publish:
+    name: Draft the release
+    needs: [binaries, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Collect the artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten
+        run: |
+          mkdir -p dist
+          find artifacts -type f -exec mv {} dist/ \;
+          ls -l dist
+      - name: Write the release notes
+        run: |
+          version="${GITHUB_REF_NAME}"
+          cargo install git-cliff --locked --version 2.13.1
+          git cliff -c .config/cliff.toml -t "${version}" --current > NOTES.md
+          {
+            echo
+            echo "## Checksums"
+            echo
+            echo '```'
+            (cd dist && sha256sum ./*)
+            echo '```'
+          } >> NOTES.md
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --draft \
+            --title "lsr ${GITHUB_REF_NAME}" \
+            --notes-file NOTES.md \
+            dist/*
