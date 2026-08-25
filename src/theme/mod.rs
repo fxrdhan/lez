@@ -65,6 +65,17 @@ pub struct Definitions {
 pub struct Theme {
     pub ui: UiStyles,
     pub exts: Box<dyn FileStyle>,
+
+    /// Whether every style this theme can hand out is the default one.
+    ///
+    /// That means both halves: `ui` carries no colours *and* `exts` cannot
+    /// produce one either. A theme with plain `ui` and a live `exts` is not
+    /// plain — the extension styles would be thrown away.
+    ///
+    /// Worth recording rather than rediscovering: knowing that no style can
+    /// differ lets a listing skip the work of choosing between them, and
+    /// part of that work costs a `stat` for every regular file.
+    pub plain: bool,
 }
 
 impl Options {
@@ -95,6 +106,7 @@ impl Options {
                         return Theme {
                             ui,
                             exts: Box::new(NoFileStyle),
+                            plain: true,
                         };
                     }
                     let (exts, use_default_filetypes) = self.definitions.parse_color_vars(&mut ui);
@@ -105,7 +117,11 @@ impl Options {
                             (true, false) => Box::new(exts),
                             (true, true) => Box::new((exts, FileTypes)),
                         };
-                    return Theme { ui, exts };
+                    return Theme {
+                        ui,
+                        exts,
+                        plain: false,
+                    };
                 }
                 self.default_theme(use_colours)
             }
@@ -125,6 +141,7 @@ impl Options {
             return Theme {
                 ui,
                 exts: Box::new(NoFileStyle),
+                plain: true,
             };
         }
         let (exts, use_default_filetypes) = self.definitions.parse_color_vars(&mut ui);
@@ -134,7 +151,11 @@ impl Options {
             (true, false) => Box::new(exts),
             (true, true) => Box::new((exts, FileTypes)),
         };
-        Theme { ui, exts }
+        Theme {
+            ui,
+            exts,
+            plain: false,
+        }
     }
 }
 
@@ -596,6 +617,7 @@ impl FileNameColours for Theme {
     fn executable_file(&self)     -> Style { self.ui.filekinds.unwrap_or_default().executable() }
     fn mount_point(&self)         -> Style { self.ui.filekinds.unwrap_or_default().mount_point() }
     fn capability(&self)          -> Option<Style> { self.ui.capability }
+    fn is_plain(&self)            -> bool { self.plain }
     fn multi_hardlink(&self)      -> Option<Style> { self.ui.multi_hardlink }
     fn btrfs_subvol(&self)        -> Style { self.ui.filekinds.unwrap_or_default().btrfs_subvol() }
     fn classify_char(&self)       -> Style { self.ui.punctuation() }
@@ -1009,6 +1031,43 @@ mod customs_test {
         );
     }
 
+    /// `plain` is what licenses the listing to skip choosing a style, so it
+    /// has to mean exactly "no style here can differ from the default".
+    #[test]
+    fn a_theme_knows_whether_any_of_its_styles_can_differ() {
+        let opts = |use_colours| Options {
+            use_colours,
+            colour_scale: ColorScaleOptions::default(),
+            definitions: Definitions::default(),
+            theme_config: None,
+        };
+
+        assert!(opts(UseColours::Never).to_theme(true).plain);
+        assert!(!opts(UseColours::Always).to_theme(false).plain);
+
+        // Automatic follows the terminal, and so must this.
+        assert!(opts(UseColours::Automatic).to_theme(false).plain);
+        assert!(!opts(UseColours::Automatic).to_theme(true).plain);
+    }
+
+    /// `EZA_COLORS=reset` clears the styles but leaves colours on, so a
+    /// later entry can still set one. Calling that plain would throw the
+    /// entry away.
+    #[test]
+    fn resetting_the_styles_does_not_make_a_theme_plain() {
+        let opts = Options {
+            use_colours: UseColours::Always,
+            colour_scale: ColorScaleOptions::default(),
+            definitions: Definitions {
+                ls: None,
+                exa: Some("reset".into()),
+            },
+            theme_config: None,
+        };
+
+        assert!(!opts.to_theme(true).plain);
+    }
+
     #[test]
     fn test_to_theme_with_reset() {
         let opts = Options {
@@ -1118,6 +1177,7 @@ mod customs_test {
         let theme = Theme {
             ui,
             exts: Box::new(NoFileStyle),
+            plain: false,
         };
 
         // 1. File with unmapped extension -> .default_file (📄)
@@ -1184,6 +1244,7 @@ mod customs_test {
         let theme = Theme {
             ui,
             exts: Box::new(NoFileStyle),
+            plain: false,
         };
 
         // Extensionless file falls back to .default_file when .default_file_unknown is not set

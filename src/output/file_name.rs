@@ -652,6 +652,12 @@ impl<C: Colours> FileName<'_, '_, C> {
     /// if there’s nowhere else for that fact to be shown.)
     #[must_use]
     pub fn style(&self) -> Style {
+        // Everything below picks between styles that are all the default
+        // one here, so the answer is known before any of it runs.
+        if self.colours.is_plain() {
+            return Style::default();
+        }
+
         if let LinkStyle::JustFilenames = self.link_style
             && let Some(ref target) = self.target
             && target.is_broken()
@@ -752,6 +758,20 @@ pub trait Colours: FiletypeColours {
     /// `None` when it was not, which is the signal to skip looking: finding
     /// out costs a syscall per file.
     fn capability(&self) -> Option<Style>;
+
+    /// Whether every style this can return is the default one, which is how
+    /// a colours-off run is built.
+    ///
+    /// When nothing can differ, choosing between styles is wasted work — and
+    /// it is not free work: deciding whether a file is executable needs its
+    /// mode, which is a `stat` for every regular file in the listing. `ls`
+    /// does not pay that for `ls -1 --color=never`, and neither should we.
+    ///
+    /// Defaults to `false`, so an implementation that has not thought about
+    /// it keeps the slower, always-correct path.
+    fn is_plain(&self) -> bool {
+        false
+    }
 
     /// The style for a regular file that has more than one hard link, if one
     /// was asked for. `None` when it was not — `ls` leaves `mh` unset by
