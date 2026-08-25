@@ -406,6 +406,13 @@ impl render::BlocksColours for Theme {
     fn blocksize(&self, prefix: Option<unit_prefix::Prefix>) -> Style {
         use unit_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
 
+        // `bl` names this column, so when it has a style that is the answer.
+        // The graduated palette below belongs to the file size column, and
+        // borrowing it here left `bl` parsed, stored and never read.
+        if let Some(style) = self.ui.blocks {
+            return style;
+        }
+
         #[rustfmt::skip]
         let style = match prefix {
             Some(Kilo | Kibi) => self.ui.size.unwrap_or_default().number_kilo,
@@ -419,6 +426,11 @@ impl render::BlocksColours for Theme {
 
     fn unit(&self, prefix: Option<unit_prefix::Prefix>) -> Style {
         use unit_prefix::Prefix::{Gibi, Giga, Kibi, Kilo, Mebi, Mega};
+
+        // The unit is part of the same column, so it follows `bl` too.
+        if let Some(style) = self.ui.blocks {
+            return style;
+        }
 
         #[rustfmt::skip]
            let style = match prefix {
@@ -584,6 +596,7 @@ impl FileNameColours for Theme {
     fn executable_file(&self)     -> Style { self.ui.filekinds.unwrap_or_default().executable() }
     fn mount_point(&self)         -> Style { self.ui.filekinds.unwrap_or_default().mount_point() }
     fn capability(&self)          -> Option<Style> { self.ui.capability }
+    fn multi_hardlink(&self)      -> Option<Style> { self.ui.multi_hardlink }
     fn btrfs_subvol(&self)        -> Style { self.ui.filekinds.unwrap_or_default().btrfs_subvol() }
     fn classify_char(&self)       -> Style { self.ui.punctuation() }
 
@@ -798,6 +811,7 @@ mod customs_test {
     test!(exa_sv:   ls "", exa "sv=36"  =>  colours c -> { c.filekinds().btrfs_subvol = Some(Cyan.normal()); });
     test!(ls_or:   ls "or=33", exa ""  =>  colours c -> { c.broken_symlink         = Some(Yellow.normal()); });
     test!(ls_ca:   ls "ca=33", exa ""  =>  colours c -> { c.capability             = Some(Yellow.normal()); });
+    test!(ls_mh:   ls "mh=33", exa ""  =>  colours c -> { c.multi_hardlink         = Some(Yellow.normal()); });
 
     // EZA_COLORS can affect all those colours too:
     test!(exa_di:  ls "", exa "di=32"  =>  colours c -> { c.filekinds().directory    = Some(Green.normal());  });

@@ -50,6 +50,10 @@ pub struct Render<'a> {
 
     /// Whether to prefix each language with a representative file icon.
     pub show_icons: bool,
+
+    /// Whether the listing asked for hidden entries, so the walk should
+    /// descend into dot-prefixed directories and count dot-prefixed files.
+    pub show_hidden: bool,
 }
 
 /// How a summary column lines its contents up.
@@ -80,7 +84,7 @@ impl Cell {
 
 impl Render<'_> {
     pub fn render<W: Write>(self, w: &mut W) -> io::Result<()> {
-        let report = crate::loc::count_roots(&self.roots);
+        let report = crate::loc::count_roots(&self.roots, self.show_hidden);
 
         if report.is_empty() {
             let style = self.theme.ui.punctuation.unwrap_or_default();

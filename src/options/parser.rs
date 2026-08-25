@@ -30,7 +30,8 @@ const HELP_STYLES: Styles = Styles::styled()
     .invalid(AnsiColor::Yellow.on_default().effects(Effects::BOLD));
 
 const SORT_FIELDS_HELP: &str = "[default: name] [possible values:
-  name, Name, .name, .Name, ext, Ext, path, Path, created,
+  name, Name, .name, .Name, lexicographic, Lexicographic,
+  ext, Ext, path, Path, created,
   date, age, accessed, changed,
   size, inode, type, none]";
 
@@ -283,6 +284,8 @@ impl ValueEnum for SortField {
             Self::Name(SortCase::ABCabc),
             Self::NameMixHidden(SortCase::AaBbCc),
             Self::NameMixHidden(SortCase::ABCabc),
+            Self::NameLexicographic(SortCase::AaBbCc),
+            Self::NameLexicographic(SortCase::ABCabc),
             Self::Path(SortCase::AaBbCc),
             Self::Path(SortCase::ABCabc),
             Self::Size,
@@ -308,6 +311,12 @@ impl ValueEnum for SortField {
             Self::Name(SortCase::ABCabc) => PossibleValue::new("Name").alias("Filename"),
             Self::NameMixHidden(SortCase::AaBbCc) => PossibleValue::new(".name").alias(".filename"),
             Self::NameMixHidden(SortCase::ABCabc) => PossibleValue::new(".Name").alias(".Filename"),
+            Self::NameLexicographic(SortCase::AaBbCc) => {
+                PossibleValue::new("lexicographic").aliases(["lex", "lg"])
+            }
+            Self::NameLexicographic(SortCase::ABCabc) => {
+                PossibleValue::new("Lexicographic").aliases(["Lex", "Lg"])
+            }
             Self::Path(SortCase::AaBbCc) => PossibleValue::new("path").aliases([
                 "relative-path",
                 "relpath",
@@ -905,6 +914,27 @@ pub mod test {
             Some(&SortField::ModifiedAge)
         );
         assert!(cli.get_flag("reverse"));
+    }
+
+    #[test]
+    fn the_lexicographic_sort_field_answers_to_all_its_spellings() {
+        for spelling in ["lexicographic", "lex", "lg"] {
+            let cli = mock_cli(vec!["--sort", spelling]);
+            assert_eq!(
+                cli.get_one::<SortField>("sort"),
+                Some(&SortField::NameLexicographic(SortCase::AaBbCc)),
+                "--sort={spelling} should fold case",
+            );
+        }
+
+        for spelling in ["Lexicographic", "Lex", "Lg"] {
+            let cli = mock_cli(vec!["--sort", spelling]);
+            assert_eq!(
+                cli.get_one::<SortField>("sort"),
+                Some(&SortField::NameLexicographic(SortCase::ABCabc)),
+                "--sort={spelling} should sort uppercase first",
+            );
+        }
     }
 
     #[test]

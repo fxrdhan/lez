@@ -97,7 +97,7 @@ _eza() {
             ;;
 
         -s|--sort)
-            mapfile -t COMPREPLY < <(compgen -W 'name filename Name Filename size filesize blocks block blocksize extension Extension path Path relative-path Relative-path relpath Relpath relative_path Relative_path date time mod modified old oldest age new newest changed accessed created type inode none --' -- "$cur")
+            mapfile -t COMPREPLY < <(compgen -W 'name filename Name Filename lexicographic lex lg Lexicographic Lex Lg size filesize blocks block blocksize extension Extension path Path relative-path Relative-path relpath Relpath relative_path Relative_path date time mod modified old oldest age new newest changed accessed created type inode none --' -- "$cur")
             return
             ;;
 

@@ -210,7 +210,7 @@ These options are available when running with `--long` (`-l`):
 Some of the options accept parameters:
 
 - Valid **--colo\[u\]r** options are **always**, **automatic** (or **auto** for short), and **never**.
-- Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **modified**, **name**, **Name**, **path**, **Path**, **size**, **block**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, **mod**, **old**, and **oldest**, while its reverse has the aliases **age**, **new**, and **newest**. The **block** field has the aliases **blocks** and **blocksize**.
+- Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **lexicographic**, **Lexicographic**, **modified**, **name**, **Name**, **path**, **Path**, **size**, **block**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, **mod**, **old**, and **oldest**, while its reverse has the aliases **age**, **new**, and **newest**. The **block** field has the aliases **blocks** and **blocksize**. The **lexicographic** field has the aliases **lex** and **lg**, and compares names code point by code point — no natural ordering of digit runs, no locale collation — so **Lexicographic** matches `ls` under the C locale.
 - Valid time fields are **modified**, **changed**, **accessed**, and **created**.
 - Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, **relative**, and **relative-recent** (or **recent**).
 

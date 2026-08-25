@@ -529,6 +529,18 @@ pub enum SortField {
     /// The file's name, however if the name of the file begins with `.`
     /// ignore the leading `.` and then sort as Name
     NameMixHidden(SortCase),
+
+    /// The file name, compared code point by code point, with no natural
+    /// ordering of digit runs and no locale collation.
+    ///
+    /// Every other name-based field here reorders digits: `natord` does it
+    /// when there is no collator, and the collator does it too, because it is
+    /// built with `Numeric::On`. That is usually what someone naming files
+    /// `chapter2` and `chapter10` wants, but it is not what `ls` does, and it
+    /// reorders names that only look numeric — hexadecimal ids, timestamps,
+    /// checksums — into an order with no useful meaning. This field is the
+    /// way to ask for the plain one.
+    NameLexicographic(SortCase),
 }
 
 /// Whether a field should be sorted case-sensitively or case-insensitively.
@@ -641,6 +653,13 @@ impl SortField {
                 }
             }
 
+            // Deliberately ignores `collator`: asking for a lexicographic
+            // sort is asking for the locale *not* to reorder anything.
+            Self::NameLexicographic(case) => match case {
+                ABCabc => a.name.cmp(&b.name),
+                AaBbCc => Self::compare_ignoring_case(&a.name, &b.name),
+            },
+
             Self::NameMixHidden(case) => match collator {
                 Some(c) => c.compare(Self::strip_dot(&a.name), Self::strip_dot(&b.name), case),
                 None => match case {
@@ -651,6 +670,23 @@ impl SortField {
                     ),
                 },
             },
+        }
+    }
+
+    /// Compares two names by lowercased code points, falling back to the
+    /// code points themselves when they only differ in case. Without that
+    /// fallback `README` and `readme` would compare equal, and which one came
+    /// first would be decided by whatever order the filesystem handed them
+    /// back in.
+    fn compare_ignoring_case(a: &str, b: &str) -> Ordering {
+        let folded = a
+            .chars()
+            .flat_map(char::to_lowercase)
+            .cmp(b.chars().flat_map(char::to_lowercase));
+
+        match folded {
+            Ordering::Equal => a.cmp(b),
+            order => order,
         }
     }
 

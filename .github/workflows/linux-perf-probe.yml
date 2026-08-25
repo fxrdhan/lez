@@ -70,7 +70,7 @@ jobs:
           for build in before after; do
             echo "=== $build ==="
             strace -c -f /tmp/$build --color=never --icons=always /tmp/fixture 2>&1 >/dev/null \
-              | grep -E "getdents64|getcwd|readlinkat|statx|seconds|-----|total" | head -8
+              | grep -E "getdents64|getcwd|readlinkat|statx|write|seconds|-----|total" | head -9
             for run in 1 2 3; do
               /usr/bin/time -f "  wall %e s" /tmp/$build --color=never --icons=always /tmp/fixture >/dev/null
             done
