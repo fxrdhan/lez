@@ -53,7 +53,7 @@ __lsr() {
         {-L,--level}"+[Limit the depth of recursion]" \
         {-w,--width}"+[Limits column output of grid, 0 implies auto-width]" \
         {-r,--reverse}"[Reverse the sort order]" \
-        {-s,--sort}="[Which field to sort by]:(sort field):(accessed age block blocks blocksize changed created date extension Extension filename Filename inode mod modified name Name new newest none old oldest path Path relative-path Relative-path relpath Relpath relative_path Relative_path size time type)" \
+        {-s,--sort}="[Which field to sort by]:(sort field):(accessed age block blocks blocksize changed created date extension Extension filename Filename inode lex Lex lexicographic Lexicographic lg Lg mod modified name Name new newest none old oldest path Path relative-path Relative-path relpath Relpath relative_path Relative_path size time type)" \
         {-I,--ignore-glob}"[Ignore files that match these glob patterns]" \
         --ignore-glob-ci"[Ignore files that match these glob patterns case-insensitively]" \
         {-b,--binary}"[List file sizes with binary prefixes]" \

@@ -5,7 +5,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
     $ArrayWhen           = @('always', 'auto', 'never')
-    $ArraySort           = @('name', 'Name', 'extension', 'Extension', 'path', 'Path', 'relative-path', 'Relative-path', 'Relative-Path', 'relpath', 'Relpath', 'relative_path', 'Relative_path', 'size', 'block', 'blocks', 'blocksize', 'type', 'created', 'modified', 'mod', 'date', 'time', 'old', 'oldest', 'age', 'new', 'newest', 'accessed', 'changed', 'inode', 'none')
+    $ArraySort           = @('name', 'Name', 'lexicographic', 'Lexicographic', 'lex', 'Lex', 'lg', 'Lg', 'extension', 'Extension', 'path', 'Path', 'relative-path', 'Relative-path', 'Relative-Path', 'relpath', 'Relpath', 'relative_path', 'Relative_path', 'size', 'block', 'blocks', 'blocksize', 'type', 'created', 'modified', 'mod', 'date', 'time', 'old', 'oldest', 'age', 'new', 'newest', 'accessed', 'changed', 'inode', 'none')
     $ArrayColorScaleMode = @('fixed', 'gradient')
     $ArrayColorScale     = @('all', 'age', 'size')
     $ArrayAbsolute       = @('on', 'follow', 'off')
