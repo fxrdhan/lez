@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_stdin_behavior_{prefix}_{}_{}",
+            "lez_stdin_behavior_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,7 +52,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -68,13 +68,13 @@ fn test_stdin_ignored_by_default_without_flag() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr");
+        .expect("Failed to spawn lez");
 
     {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");
-        // Write filenames that do NOT exist in the directory; if lsr were to read stdin,
+        // Write filenames that do NOT exist in the directory; if lez were to read stdin,
         // it would fail or attempt to list nonexistent_1 / nonexistent_2.
-        // Ignore BrokenPipe since lsr does not read stdin when --stdin is omitted and may exit quickly.
+        // Ignore BrokenPipe since lez does not read stdin when --stdin is omitted and may exit quickly.
         let _ = stdin.write_all(b"nonexistent_1.txt\nnonexistent_2.txt\n");
     }
 
@@ -98,7 +98,7 @@ fn test_stdin_ignored_with_positional_arguments() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr");
+        .expect("Failed to spawn lez");
 
     {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");
@@ -127,7 +127,7 @@ fn test_stdin_explicit_flag_reads_paths() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr");
+        .expect("Failed to spawn lez");
 
     {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");
@@ -154,7 +154,7 @@ fn test_stdin_explicit_flag_with_empty_input() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr");
+        .expect("Failed to spawn lez");
 
     {
         let _stdin = child.stdin.take().expect("Failed to open stdin");
@@ -168,21 +168,21 @@ fn test_stdin_explicit_flag_with_empty_input() {
 }
 
 #[test]
-fn test_stdin_custom_separator_lsr_env() {
-    let temp = TempTestDir::new("custom_sep_lsr");
+fn test_stdin_custom_separator_lez_env() {
+    let temp = TempTestDir::new("custom_sep_lez");
     temp.create_file("item_a.txt", b"a");
     temp.create_file("item_b.txt", b"b");
     temp.create_file("item_c.txt", b"c");
 
     let mut child = Command::new(bin_path())
         .current_dir(&temp.path)
-        .env("LSR_STDIN_SEPARATOR", ",")
+        .env("LEZ_STDIN_SEPARATOR", ",")
         .args(["--stdin", "-1"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr");
+        .expect("Failed to spawn lez");
 
     {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");
@@ -206,14 +206,14 @@ fn test_stdin_custom_separator_eza_fallback() {
 
     let mut child = Command::new(bin_path())
         .current_dir(&temp.path)
-        .env_remove("LSR_STDIN_SEPARATOR")
+        .env_remove("LEZ_STDIN_SEPARATOR")
         .env("EZA_STDIN_SEPARATOR", ";")
         .args(["--stdin", "-1"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr");
+        .expect("Failed to spawn lez");
 
     {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");
@@ -229,21 +229,21 @@ fn test_stdin_custom_separator_eza_fallback() {
 }
 
 #[test]
-fn test_stdin_lsr_separator_precedence_over_eza() {
+fn test_stdin_lez_separator_precedence_over_eza() {
     let temp = TempTestDir::new("custom_sep_prec");
     temp.create_file("doc1.txt", b"1");
     temp.create_file("doc2.txt", b"2");
 
     let mut child = Command::new(bin_path())
         .current_dir(&temp.path)
-        .env("LSR_STDIN_SEPARATOR", ":")
+        .env("LEZ_STDIN_SEPARATOR", ":")
         .env("EZA_STDIN_SEPARATOR", ";")
         .args(["--stdin", "-1"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr");
+        .expect("Failed to spawn lez");
 
     {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");
@@ -271,7 +271,7 @@ fn test_stdin_combined_positional_and_stdin() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr");
+        .expect("Failed to spawn lez");
 
     {
         let mut stdin = child.stdin.take().expect("Failed to open stdin");

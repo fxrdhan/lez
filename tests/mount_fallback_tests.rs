@@ -13,7 +13,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -24,7 +24,7 @@ fn test_root_directory_is_mount_point() {
         .arg("-M")
         .arg("/")
         .output()
-        .expect("Failed to execute lsr -ld -M /");
+        .expect("Failed to execute lez -ld -M /");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -40,7 +40,7 @@ fn test_mount_details_cli_flag() {
         .arg("--mounts")
         .arg(&temp_dir)
         .output()
-        .expect("Failed to execute lsr -ld --mounts");
+        .expect("Failed to execute lez -ld --mounts");
 
     assert!(output.status.success());
 }

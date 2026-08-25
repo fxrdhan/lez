@@ -419,7 +419,7 @@ mod windows_tests {
             .duration_since(UNIX_EPOCH)
             .expect("time went backwards")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("lsr-show-dotfiles-{nanos}"));
+        let path = std::env::temp_dir().join(format!("lez-show-dotfiles-{nanos}"));
         fs::create_dir_all(&path).expect("failed to create temp dir");
         path
     }
@@ -498,7 +498,7 @@ mod tests {
     impl TestDir {
         fn new(name: &str) -> Self {
             let path =
-                std::env::temp_dir().join(format!("lsr_test_dir_{}_{}", name, std::process::id()));
+                std::env::temp_dir().join(format!("lez_test_dir_{}_{}", name, std::process::id()));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
             Self { path }

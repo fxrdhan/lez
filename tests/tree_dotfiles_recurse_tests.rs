@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_tree_dot_{prefix}_{}_{}",
+            "lez_tree_dot_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -58,7 +58,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn test_tree_mode_with_all_flag_does_not_infinite_recurse() {
         .arg("-Ta")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr -Ta");
+        .expect("Failed to execute lez -Ta");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -93,7 +93,7 @@ fn test_long_tree_mode_with_double_all_flag() {
         .arg("-laT")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr -laT");
+        .expect("Failed to execute lez -laT");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

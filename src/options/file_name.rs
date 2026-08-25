@@ -32,7 +32,7 @@ impl Options {
 
         // Presence is the switch, as with the other icon variables.
         let empty_dir_icon = vars
-            .get(vars::LSR_NO_EMPTY_DIR_ICON)
+            .get(vars::LEZ_NO_EMPTY_DIR_ICON)
             .or_else(|| vars.get(vars::EZA_NO_EMPTY_DIR_ICON))
             .or_else(|| vars.get(vars::EXA_NO_EMPTY_DIR_ICON))
             .is_none();
@@ -64,7 +64,7 @@ impl Classify {
 impl ShowIcons {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<Self, OptionsError> {
         let force_icons = vars
-            .get_with_fallback(vars::LSR_ICONS_AUTO, vars::EZA_ICONS_AUTO)
+            .get_with_fallback(vars::LEZ_ICONS_AUTO, vars::EZA_ICONS_AUTO)
             .is_some();
         let mode_opt = &matches.get_one("icons");
         if !force_icons && mode_opt.is_none() {
@@ -80,7 +80,7 @@ impl ShowIcons {
 
     fn get_width<V: Vars>(vars: &V) -> Result<u32, OptionsError> {
         if let Some(columns) = vars
-            .get(vars::LSR_ICON_SPACING)
+            .get(vars::LEZ_ICON_SPACING)
             .or_else(|| vars.get(vars::EZA_ICON_SPACING))
             .or_else(|| vars.get(vars::EXA_ICON_SPACING))
             .map(|s| s.to_string_lossy().to_string())
@@ -88,8 +88,8 @@ impl ShowIcons {
             match columns.parse() {
                 Ok(width) => Ok(width),
                 Err(e) => {
-                    let source = NumberSource::Env(if vars.get(vars::LSR_ICON_SPACING).is_some() {
-                        vars::LSR_ICON_SPACING
+                    let source = NumberSource::Env(if vars.get(vars::LEZ_ICON_SPACING).is_some() {
+                        vars::LEZ_ICON_SPACING
                     } else {
                         vars.source(vars::EZA_ICON_SPACING, vars::EXA_ICON_SPACING)
                             .unwrap_or("1")
@@ -105,9 +105,9 @@ impl ShowIcons {
 
 impl QuoteStyle {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
-        // Environment default; `LSR_QUOTING_STYLE` wins over `EZA_QUOTING_STYLE`.
+        // Environment default; `LEZ_QUOTING_STYLE` wins over `EZA_QUOTING_STYLE`.
         let from_env = vars
-            .get_with_fallback(vars::LSR_QUOTING_STYLE, vars::EZA_QUOTING_STYLE)
+            .get_with_fallback(vars::LEZ_QUOTING_STYLE, vars::EZA_QUOTING_STYLE)
             .and_then(
                 |value| match value.to_string_lossy().to_ascii_lowercase().as_str() {
                     "always" => Some(Self::Always),
@@ -361,7 +361,7 @@ mod tests {
         );
 
         let mut vars = MockVars::default();
-        vars.set(vars::LSR_QUOTING_STYLE, &OsString::from("never"));
+        vars.set(vars::LEZ_QUOTING_STYLE, &OsString::from("never"));
         assert_eq!(
             QuoteStyle::deduce(&mock_cli(vec![""]), &vars),
             QuoteStyle::Never
@@ -434,7 +434,7 @@ mod tests {
         assert!(opts(&MockVars::default()), "on by default");
 
         for name in [
-            vars::LSR_NO_EMPTY_DIR_ICON,
+            vars::LEZ_NO_EMPTY_DIR_ICON,
             vars::EZA_NO_EMPTY_DIR_ICON,
             vars::EXA_NO_EMPTY_DIR_ICON,
         ] {

@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_recurse_level_{prefix}_{}_{}",
+            "lez_recurse_level_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,12 +52,12 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> std::process::Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> std::process::Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn test_recurse_level_1_with_explicit_relative_path() {
     fixture.create_file("root/level1/sub_l2/sub_l3/file_l3.txt", b"level 3");
 
     let target_dir = fixture.path.join("root/level1");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-R",
         "--level=1",
         "--color=never",
@@ -102,7 +102,7 @@ fn test_recurse_level_2_with_explicit_relative_path() {
     fixture.create_file("base/a/child2/file_child2.txt", b"c2");
 
     let target_dir = fixture.path.join("base/a");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-R",
         "--level=2",
         "--color=never",
@@ -138,7 +138,7 @@ fn test_recurse_level_3_with_explicit_relative_path() {
     fixture.create_file("root/l1/l2/l3/l4/f4.txt", b"4");
 
     let target_dir = fixture.path.join("root/l1");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-R",
         "--level=3",
         "--color=never",
@@ -181,7 +181,7 @@ fn test_recurse_level_with_explicit_absolute_path() {
         .expect("canonicalize failed");
 
     // Level 1 with absolute path
-    let output_l1 = run_lsr(&[
+    let output_l1 = run_lez(&[
         "-R",
         "--level=1",
         "--color=never",
@@ -194,7 +194,7 @@ fn test_recurse_level_with_explicit_absolute_path() {
     assert!(!stdout_l1.contains("f_y.txt"), "level 1:\n{stdout_l1}");
 
     // Level 2 with absolute path
-    let output_l2 = run_lsr(&[
+    let output_l2 = run_lez(&[
         "-R",
         "--level=2",
         "--color=never",
@@ -226,7 +226,7 @@ fn test_recurse_level_multi_directory_arguments() {
     let dir_alpha = fixture.path.join("dir_alpha");
     let dir_beta = fixture.path.join("dir_beta");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-R",
         "--level=2",
         "--color=never",
@@ -260,7 +260,7 @@ fn test_recurse_level_zero() {
     fixture.create_file("root/child/sub.txt", b"sub");
 
     let target_dir = fixture.path.join("root");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-R",
         "--level=0",
         "--color=never",
@@ -287,7 +287,7 @@ fn test_recurse_level_json_mode() {
     let target_dir = fixture.path.join("jsontest");
 
     // Level 1 JSON
-    let output_l1 = run_lsr(&["--json", "-R", "--level=1", target_dir.to_str().unwrap()]);
+    let output_l1 = run_lez(&["--json", "-R", "--level=1", target_dir.to_str().unwrap()]);
     assert!(output_l1.status.success());
     let stdout_l1 = String::from_utf8_lossy(&output_l1.stdout);
     let parsed_l1: serde_json::Value =
@@ -302,7 +302,7 @@ fn test_recurse_level_json_mode() {
     );
 
     // Level 2 JSON
-    let output_l2 = run_lsr(&["--json", "-R", "--level=2", target_dir.to_str().unwrap()]);
+    let output_l2 = run_lez(&["--json", "-R", "--level=2", target_dir.to_str().unwrap()]);
     assert!(output_l2.status.success());
     let stdout_l2 = String::from_utf8_lossy(&output_l2.stdout);
     let parsed_l2: serde_json::Value =
@@ -325,7 +325,7 @@ fn test_recurse_level_with_empty_directories() {
     fixture.create_file("parent/regular.txt", b"reg");
 
     let target_dir = fixture.path.join("parent");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-R",
         "--level=1",
         "--color=never",
@@ -342,7 +342,7 @@ fn test_recurse_level_with_empty_directories() {
 
 #[test]
 fn test_recurse_options_is_too_deep_unit() {
-    use lsr::fs::dir_action::RecurseOptions;
+    use lez::fs::dir_action::RecurseOptions;
 
     let unconstrained = RecurseOptions {
         tree: false,

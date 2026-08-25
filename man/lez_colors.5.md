@@ -1,6 +1,6 @@
-% lsr_colors(5) $version
+% lez_colors(5) $version
 
-<!-- This is the lsr_colors(5) man page, written in Markdown. -->
+<!-- This is the lez_colors(5) man page, written in Markdown. -->
 <!-- To generate the roff version, run `just man`, -->
 <!-- and the man page will appear in the ‘target’ directory. -->
 
@@ -8,13 +8,13 @@
 NAME
 ====
 
-lsr_colors — customising the file and UI colours of lsr
+lez_colors — customising the file and UI colours of lez
 
 
 SYNOPSIS
 ========
 
-The `LSR_COLORS` or `EZA_COLORS` environment variable can be used to customise the colours that `lsr` uses to highlight file names, file metadata, and parts of the UI.
+The `LEZ_COLORS` or `EZA_COLORS` environment variable can be used to customise the colours that `lez` uses to highlight file names, file metadata, and parts of the UI.
 
 You can use the `dircolors` program to generate a script that sets the variable from an input file, or if you don’t mind editing long strings of text, you can just type it out directly. These variables have the following structure:
 
@@ -24,25 +24,25 @@ You can use the `dircolors` program to generate a script that sets the variable 
 
 The key half of the pair can either be a two-letter code or a file glob, and anything that’s not a valid code will be treated as a glob, including keys that happen to be two letters long.
 
-For backwards compatibility `EZA_COLORS` and `EXA_COLORS` environment variables are checked if `LSR_COLORS` is unset.
+For backwards compatibility `EZA_COLORS` and `EXA_COLORS` environment variables are checked if `LEZ_COLORS` is unset.
 
 
 EXAMPLES
 ========
 
-`LSR_COLORS="uu=0:gu=0"`
+`LEZ_COLORS="uu=0:gu=0"`
 : Disable the “current user” highlighting
 
-`LSR_COLORS="da=32"`
+`LEZ_COLORS="da=32"`
 : Turn the date column green
 
-`LSR_COLORS="Vagrantfile=1;4;33"`
+`LEZ_COLORS="Vagrantfile=1;4;33"`
 : Highlight Vagrantfiles
 
-`LSR_COLORS="*.zip=38;5;125"`
+`LEZ_COLORS="*.zip=38;5;125"`
 : Override the existing zip colour
 
-`LSR_COLORS="*.md=38;5;121:*.log=38;5;248"`
+`LEZ_COLORS="*.md=38;5;121:*.log=38;5;248"`
 : Markdown files a shade of green, log files a shade of grey
 
 
@@ -84,12 +84,12 @@ LIST OF CODES
 `mh`
 : regular files with more than one hard link
 
-Note: `ca` is unset by default, and only when it is set does lsr ask the filesystem whether a file has capabilities — one extra syscall per file. GNU `ls` stopped colouring these by default in coreutils 8.31 for the same reason. The attribute is Linux's alone; the code is accepted and ignored elsewhere.
+Note: `ca` is unset by default, and only when it is set does lez ask the filesystem whether a file has capabilities — one extra syscall per file. GNU `ls` stopped colouring these by default in coreutils 8.31 for the same reason. The attribute is Linux's alone; the code is accepted and ignored elsewhere.
 
 Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are coloured like any other file until it is given a style. It applies to regular files only — directories are linked from each of their subdirectories, so colouring those would light up almost everything. Unix only.
 
 
-`LSR_COLORS` (and `EZA_COLORS`) can use many more:
+`LEZ_COLORS` (and `EZA_COLORS`) can use many more:
 
 `oc`
 : the permissions displayed as octal
@@ -322,15 +322,15 @@ Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are 
 `ff`
 : BSD file flags
 
-Values in `LSR_COLORS` or `EZA_COLORS` override those given in `LS_COLORS`, so you don’t need to re-write an existing `LS_COLORS` variable with proprietary extensions.
+Values in `LEZ_COLORS` or `EZA_COLORS` override those given in `LS_COLORS`, so you don’t need to re-write an existing `LS_COLORS` variable with proprietary extensions.
 
 
 LIST OF STYLES
 ==============
 
-Unlike some versions of `ls`, the given ANSI values must be valid colour codes: lsr won’t just print out whichever characters are given.
+Unlike some versions of `ls`, the given ANSI values must be valid colour codes: lez won’t just print out whichever characters are given.
 
-The codes accepted by lsr are:
+The codes accepted by lez are:
 
 `1`
 : for bold
@@ -394,25 +394,25 @@ The codes accepted by lsr are:
 
 Many terminals will treat bolded text as a different colour, or at least provide the option to.
 
-lsr provides its own built-in set of file extension mappings that cover a large range of common file extensions, including documents, archives, media, and temporary files.
-Any mappings in the environment variables will override this default set: running lsr with `LS_COLORS="*.zip=32"` will turn zip files green but leave the colours of other compressed files alone.
+lez provides its own built-in set of file extension mappings that cover a large range of common file extensions, including documents, archives, media, and temporary files.
+Any mappings in the environment variables will override this default set: running lez with `LS_COLORS="*.zip=32"` will turn zip files green but leave the colours of other compressed files alone.
 
-You can also disable this built-in set entirely by including a `reset` entry at the beginning of `LSR_COLORS` or `EZA_COLORS`.
-So setting `LSR_COLORS="reset:*.txt=31"` will highlight only text files in addition to any styles in `LS_COLORS`; setting `LSR_COLORS="reset"` will highlight nothing.
+You can also disable this built-in set entirely by including a `reset` entry at the beginning of `LEZ_COLORS` or `EZA_COLORS`.
+So setting `LEZ_COLORS="reset:*.txt=31"` will highlight only text files in addition to any styles in `LS_COLORS`; setting `LEZ_COLORS="reset"` will highlight nothing.
 
 
 AUTHOR
 ======
 
-lsr is maintained by fxrdhan <https://github.com/fxrdhan>.
+lez is maintained by fxrdhan <https://github.com/fxrdhan>.
 
-**Source code:** `https://github.com/fxrdhan/lsr` \
-**Contributors:** `https://github.com/fxrdhan/lsr/graphs/contributors`
+**Source code:** `https://github.com/fxrdhan/lez` \
+**Contributors:** `https://github.com/fxrdhan/lez/graphs/contributors`
 
-Lineage: `exa` (by Benjamin Sago) ➔ `eza` (community fork) ➔ `lsr` (by fxrdhan).
+Lineage: `exa` (by Benjamin Sago) ➔ `eza` (community fork) ➔ `lez` (by fxrdhan).
 
 
 SEE ALSO
 ========
 
-**lsr**(1), **lsr_colors-explanation**(5)
+**lez**(1), **lez_colors-explanation**(5)

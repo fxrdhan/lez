@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_adv_m4_{prefix}_{}_{}",
+            "lez_adv_m4_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -45,7 +45,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn test_m4_janet_code_summary() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -77,14 +77,14 @@ fn test_m4_janet_code_summary() {
 #[test]
 fn test_m4_jdn_code_summary() {
     let temp = TempTestDir::new("jdn_summary");
-    let jdn_content = b"# Janet Data Notation\n{:name \"lsr\"\n :version \"0.24.0\"\n # configuration data\n :features [:loc :icons]}\n";
+    let jdn_content = b"# Janet Data Notation\n{:name \"lez\"\n :version \"0.24.0\"\n # configuration data\n :features [:loc :icons]}\n";
     temp.create_file("config.jdn", jdn_content);
 
     let output = Command::new(bin_path())
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -106,7 +106,7 @@ fn test_m4_mixed_janet_and_other_languages() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -125,7 +125,7 @@ fn test_m4_janet_loc_columns_in_long_view() {
         .arg("--loc")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -148,7 +148,7 @@ fn test_m4_icons_output_for_janet_and_jdn() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -171,7 +171,7 @@ fn test_m4_janet_empty_file_and_blanks() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
 }
@@ -186,7 +186,7 @@ fn test_m4_janet_comments_and_strings() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -202,13 +202,13 @@ fn test_m4_code_summary_modes() {
         .arg("--code=lines")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
     assert!(output_lines.status.success());
 
     let output_percent = Command::new(bin_path())
         .arg("--code=percent")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
     assert!(output_percent.status.success());
 }

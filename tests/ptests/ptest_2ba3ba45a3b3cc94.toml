@@ -1,2 +1,2 @@
-bin.name = "lsr"
+bin.name = "lez"
 args = "tests/test_dir -T -L 0"

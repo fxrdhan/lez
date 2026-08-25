@@ -17,7 +17,7 @@
       shellcheck = {
         includes = [
           "*.sh"
-          "./completions/bash/lsr"
+          "./completions/bash/lez"
           "./completions/bash/eza"
         ];
         excludes = [ ".envrc" ];

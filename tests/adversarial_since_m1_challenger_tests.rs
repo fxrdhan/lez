@@ -21,7 +21,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_chal_since_{prefix}_{}_{}",
+            "lez_chal_since_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -57,14 +57,14 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         // Assertions match on bare entry names; never let colour escape in.
         .arg("--color=never")
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 // -------------------------------------------------------------------------
@@ -79,7 +79,7 @@ fn test_valid_duration_units_parsing_and_filtering() {
     // assertion below gives a file stamped 100ms ago ten seconds to still
     // count as recent. Creating eight files can eat that on a loaded
     // machine, so the timestamps are written after the files exist and
-    // immediately before they are read, leaving only the `lsr` runs in
+    // immediately before they are read, leaving only the `lez` runs in
     // between. Setting them once at the top of the test is what made this
     // fail in a full-suite run and pass on its own.
     let ages: [(&str, Duration); 8] = [
@@ -103,7 +103,7 @@ fn test_valid_duration_units_parsing_and_filtering() {
     }
 
     // Test --since 10s: includes f_500ms.txt, excludes f_10s.txt (30s ago)
-    let out_1s = run_lsr(&["-1", "--since", "10s", fixture.path.to_str().unwrap()]);
+    let out_1s = run_lez(&["-1", "--since", "10s", fixture.path.to_str().unwrap()]);
     assert!(out_1s.status.success());
     let s_1s = String::from_utf8_lossy(&out_1s.stdout);
     assert!(s_1s.contains("f_500ms.txt"), "Should contain f_500ms.txt");
@@ -111,7 +111,7 @@ fn test_valid_duration_units_parsing_and_filtering() {
     assert!(!s_1s.contains("f_5m.txt"), "Should not contain f_5m.txt");
 
     // Test --since 60s: includes f_500ms, f_10s
-    let out_30s = run_lsr(&["-1", "--since", "60s", fixture.path.to_str().unwrap()]);
+    let out_30s = run_lez(&["-1", "--since", "60s", fixture.path.to_str().unwrap()]);
     assert!(out_30s.status.success());
     let s_30s = String::from_utf8_lossy(&out_30s.stdout);
     assert!(s_30s.contains("f_500ms.txt"));
@@ -119,7 +119,7 @@ fn test_valid_duration_units_parsing_and_filtering() {
     assert!(!s_30s.contains("f_5m.txt"));
 
     // Test --since 10m: includes f_500ms, f_10s, f_5m
-    let out_10m = run_lsr(&["-1", "--since", "10m", fixture.path.to_str().unwrap()]);
+    let out_10m = run_lez(&["-1", "--since", "10m", fixture.path.to_str().unwrap()]);
     assert!(out_10m.status.success());
     let s_10m = String::from_utf8_lossy(&out_10m.stdout);
     assert!(s_10m.contains("f_500ms.txt"));
@@ -128,35 +128,35 @@ fn test_valid_duration_units_parsing_and_filtering() {
     assert!(!s_10m.contains("f_2h.txt"));
 
     // Test --since 4h: includes up to f_2h
-    let out_4h = run_lsr(&["-1", "--since", "4h", fixture.path.to_str().unwrap()]);
+    let out_4h = run_lez(&["-1", "--since", "4h", fixture.path.to_str().unwrap()]);
     assert!(out_4h.status.success());
     let s_4h = String::from_utf8_lossy(&out_4h.stdout);
     assert!(s_4h.contains("f_2h.txt"));
     assert!(!s_4h.contains("f_3d.txt"));
 
     // Test --since 4d: includes up to f_3d
-    let out_4d = run_lsr(&["-1", "--since", "4d", fixture.path.to_str().unwrap()]);
+    let out_4d = run_lez(&["-1", "--since", "4d", fixture.path.to_str().unwrap()]);
     assert!(out_4d.status.success());
     let s_4d = String::from_utf8_lossy(&out_4d.stdout);
     assert!(s_4d.contains("f_3d.txt"));
     assert!(!s_4d.contains("f_1w.txt"));
 
     // Test --since 2w: includes up to f_1w
-    let out_2w = run_lsr(&["-1", "--since", "2w", fixture.path.to_str().unwrap()]);
+    let out_2w = run_lez(&["-1", "--since", "2w", fixture.path.to_str().unwrap()]);
     assert!(out_2w.status.success());
     let s_2w = String::from_utf8_lossy(&out_2w.stdout);
     assert!(s_2w.contains("f_1w.txt"));
     assert!(!s_2w.contains("f_1month.txt"));
 
     // Test --since 2months: includes up to f_1month
-    let out_2mo = run_lsr(&["-1", "--since", "2months", fixture.path.to_str().unwrap()]);
+    let out_2mo = run_lez(&["-1", "--since", "2months", fixture.path.to_str().unwrap()]);
     assert!(out_2mo.status.success());
     let s_2mo = String::from_utf8_lossy(&out_2mo.stdout);
     assert!(s_2mo.contains("f_1month.txt"));
     assert!(!s_2mo.contains("f_1year.txt"));
 
     // Test --since 2years: includes everything
-    let out_2yr = run_lsr(&["-1", "--since", "2years", fixture.path.to_str().unwrap()]);
+    let out_2yr = run_lez(&["-1", "--since", "2years", fixture.path.to_str().unwrap()]);
     assert!(out_2yr.status.success());
     let s_2yr = String::from_utf8_lossy(&out_2yr.stdout);
     assert!(s_2yr.contains("f_1year.txt"));
@@ -174,7 +174,7 @@ fn test_compound_and_verbose_duration_strings() {
     fixture.set_mtime("f_3h.txt", now - Duration::from_secs(3 * 3600));
 
     // Compound duration "2 hours 15 minutes" or "2h 15m"
-    let out_comp = run_lsr(&["-1", "--since", "2h 15m", fixture.path.to_str().unwrap()]);
+    let out_comp = run_lez(&["-1", "--since", "2h 15m", fixture.path.to_str().unwrap()]);
     assert!(out_comp.status.success());
     let s_comp = String::from_utf8_lossy(&out_comp.stdout);
     assert!(
@@ -187,7 +187,7 @@ fn test_compound_and_verbose_duration_strings() {
     );
 
     // Spaced verbose duration "2 hours"
-    let out_verbose = run_lsr(&["-1", "--since", "2 hours", fixture.path.to_str().unwrap()]);
+    let out_verbose = run_lez(&["-1", "--since", "2 hours", fixture.path.to_str().unwrap()]);
     assert!(out_verbose.status.success());
     let s_verbose = String::from_utf8_lossy(&out_verbose.stdout);
     assert!(s_verbose.contains("f_90m.txt"));
@@ -218,7 +218,7 @@ fn test_invalid_durations_rejection() {
     ];
 
     for arg in invalid_cases {
-        let output = run_lsr(&["--since", arg]);
+        let output = run_lez(&["--since", arg]);
         assert!(
             !output.status.success(),
             "CLI should reject invalid duration '{arg}'"
@@ -249,7 +249,7 @@ fn test_future_timestamps_and_boundary_conditions() {
     fixture.set_mtime("past_file.txt", now - Duration::from_secs(2 * 3600));
 
     // For any positive duration (e.g. 10m), future file has mtime >= cutoff and is included
-    let out_10m = run_lsr(&["-1", "--since", "10m", fixture.path.to_str().unwrap()]);
+    let out_10m = run_lez(&["-1", "--since", "10m", fixture.path.to_str().unwrap()]);
     assert!(out_10m.status.success());
     let s_10m = String::from_utf8_lossy(&out_10m.stdout);
     assert!(
@@ -262,7 +262,7 @@ fn test_future_timestamps_and_boundary_conditions() {
     );
 
     // For zero duration: --since 0s (cutoff is now; past file excluded, future file included)
-    let out_0s = run_lsr(&["-1", "--since", "0s", fixture.path.to_str().unwrap()]);
+    let out_0s = run_lez(&["-1", "--since", "0s", fixture.path.to_str().unwrap()]);
     assert!(out_0s.status.success());
     let s_0s = String::from_utf8_lossy(&out_0s.stdout);
     assert!(
@@ -289,13 +289,13 @@ fn test_since_with_hidden_files_and_dot_filter() {
     fixture.set_mtime(".old_hidden.txt", now - Duration::from_secs(10 * 86400));
 
     // Without -a: hidden files not shown
-    let out_no_a = run_lsr(&["-1", "--since", "1d", fixture.path.to_str().unwrap()]);
+    let out_no_a = run_lez(&["-1", "--since", "1d", fixture.path.to_str().unwrap()]);
     assert!(out_no_a.status.success());
     let s_no_a = String::from_utf8_lossy(&out_no_a.stdout);
     assert!(!s_no_a.contains(".recent_hidden.txt"));
 
     // With -a: .recent_hidden.txt shown, .old_hidden.txt excluded
-    let out_a = run_lsr(&["-1", "-a", "--since", "1d", fixture.path.to_str().unwrap()]);
+    let out_a = run_lez(&["-1", "-a", "--since", "1d", fixture.path.to_str().unwrap()]);
     assert!(out_a.status.success());
     let s_a = String::from_utf8_lossy(&out_a.stdout);
     assert!(s_a.contains(".recent_hidden.txt"));
@@ -321,7 +321,7 @@ fn test_since_with_tree_and_nested_structure() {
         now - Duration::from_secs(10 * 86400),
     );
 
-    let out_tree = run_lsr(&["-T", "--since", "1d", fixture.path.to_str().unwrap()]);
+    let out_tree = run_lez(&["-T", "--since", "1d", fixture.path.to_str().unwrap()]);
     assert!(out_tree.status.success());
     let s_tree = String::from_utf8_lossy(&out_tree.stdout);
     assert!(s_tree.contains("recent_nested.txt"));
@@ -345,7 +345,7 @@ fn test_since_with_ignore_globs_and_sorting() {
     fixture.set_mtime("cherry_old.txt", now - Duration::from_secs(10 * 86400));
 
     // Combine --since 1h + ignore-glob *.tmp + sort=name
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-1",
         "--since",
         "1h",
@@ -374,7 +374,7 @@ fn test_since_with_empty_matches_and_direct_arguments() {
     fixture.set_mtime("only_old.txt", now - Duration::from_secs(30 * 86400));
 
     // In directory with only old files, --since 1h outputs nothing and exits with 0
-    let out_dir = run_lsr(&["-1", "--since", "1h", fixture.path.to_str().unwrap()]);
+    let out_dir = run_lez(&["-1", "--since", "1h", fixture.path.to_str().unwrap()]);
     assert_eq!(
         out_dir.status.code(),
         Some(0),
@@ -387,7 +387,7 @@ fn test_since_with_empty_matches_and_direct_arguments() {
     );
 
     // Direct argument file test: pass old_file directly on CLI with --since 1h
-    let out_arg = run_lsr(&["-1", "--since", "1h", old_file.to_str().unwrap()]);
+    let out_arg = run_lez(&["-1", "--since", "1h", old_file.to_str().unwrap()]);
     assert_eq!(out_arg.status.code(), Some(0));
     let s_arg = String::from_utf8_lossy(&out_arg.stdout);
     assert!(
@@ -414,7 +414,7 @@ fn test_since_with_symlinks() {
     symlink(&target_old, &link_path).unwrap();
 
     // In non-dereference mode, listing root with --since 1h shows the recently created symlink
-    let out = run_lsr(&["-1", "--since", "1h", fixture.path.to_str().unwrap()]);
+    let out = run_lez(&["-1", "--since", "1h", fixture.path.to_str().unwrap()]);
     assert!(out.status.success());
     let s = String::from_utf8_lossy(&out.stdout);
     let entries: Vec<&str> = s.lines().map(|l| l.trim()).collect();

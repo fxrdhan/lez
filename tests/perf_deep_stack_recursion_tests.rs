@@ -21,7 +21,7 @@ impl DeepTreeTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_deep_{prefix}_{}_{}",
+            "lez_deep_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -64,14 +64,14 @@ impl Drop for DeepTreeTestDir {
     }
 }
 
-fn run_lsr(dir: &Path, args: &[&str]) -> (bool, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(dir: &Path, args: &[&str]) -> (bool, String, String) {
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .current_dir(dir)
         .args(args)
         .env("NO_COLOR", "1")
-        .env("LSR_COLORS", "reset")
+        .env("LEZ_COLORS", "reset")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     (
         output.status.success(),
@@ -86,10 +86,10 @@ fn deep_tree_view_traversal_does_not_overflow_stack() {
     // 120 nested levels deep
     fixture.create_deep_chain(120);
 
-    let (success, stdout, stderr) = run_lsr(&fixture.path, &["-T", "--color=never"]);
+    let (success, stdout, stderr) = run_lez(&fixture.path, &["-T", "--color=never"]);
     assert!(
         success,
-        "lsr -T failed on 120-depth directory: stderr: {stderr}"
+        "lez -T failed on 120-depth directory: stderr: {stderr}"
     );
     assert!(!stderr.contains("panicked at"));
     assert!(stdout.contains("deep_leaf.txt"));
@@ -102,10 +102,10 @@ fn deep_recurse_flat_view_does_not_overflow_stack() {
     let fixture = DeepTreeTestDir::new("deep_recurse");
     fixture.create_deep_chain(100);
 
-    let (success, stdout, stderr) = run_lsr(&fixture.path, &["-R", "--color=never"]);
+    let (success, stdout, stderr) = run_lez(&fixture.path, &["-R", "--color=never"]);
     assert!(
         success,
-        "lsr -R failed on 100-depth directory: stderr: {stderr}"
+        "lez -R failed on 100-depth directory: stderr: {stderr}"
     );
     assert!(!stderr.contains("panicked at"));
     assert!(stdout.contains("deep_leaf.txt"));
@@ -117,8 +117,8 @@ fn deep_level_limitation_stops_recursion_accurately() {
     fixture.create_deep_chain(80);
 
     // Limit recursion to 5 levels
-    let (success, stdout, stderr) = run_lsr(&fixture.path, &["-T", "-L", "5", "--color=never"]);
-    assert!(success, "lsr -T -L 5 failed: {stderr}");
+    let (success, stdout, stderr) = run_lez(&fixture.path, &["-T", "-L", "5", "--color=never"]);
+    assert!(success, "lez -T -L 5 failed: {stderr}");
     assert!(stdout.contains("d_000"));
     assert!(stdout.contains("d_004"));
     // Levels beyond 5 should not be reached
@@ -131,11 +131,11 @@ fn deep_total_size_aggregates_without_overflow() {
     let fixture = DeepTreeTestDir::new("total_size_deep");
     fixture.create_deep_chain(70);
 
-    let (success, stdout, stderr) = run_lsr(
+    let (success, stdout, stderr) = run_lez(
         &fixture.path,
         &["-l", "--total-size", "--color=never", "--bytes"],
     );
-    assert!(success, "lsr -l --total-size failed: {stderr}");
+    assert!(success, "lez -l --total-size failed: {stderr}");
     assert!(!stderr.contains("panicked at"));
     // The leaf file has 30 bytes, so total size must be at least 30
     assert!(!stdout.is_empty());
@@ -147,8 +147,8 @@ fn wide_and_deep_branching_stress() {
     // 8 branches x 25 depth = 200 subdirectories with 200 files
     fixture.create_branching_deep_tree(8, 25);
 
-    let (success, stdout, stderr) = run_lsr(&fixture.path, &["-T", "--color=never"]);
-    assert!(success, "lsr -T failed on branching deep tree: {stderr}");
+    let (success, stdout, stderr) = run_lez(&fixture.path, &["-T", "--color=never"]);
+    assert!(success, "lez -T failed on branching deep tree: {stderr}");
     assert!(stdout.contains("branch_00"));
     assert!(stdout.contains("branch_07"));
     assert!(stdout.contains("step_24"));

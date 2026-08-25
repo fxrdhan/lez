@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://raw.githubusercontent.com/fxrdhan/lsr/main/docs/theme-schema.json",
-    "title": "lsr theme",
+    "$id": "https://raw.githubusercontent.com/fxrdhan/lez/main/docs/theme-schema.json",
+    "title": "lez theme",
     "$defs": {
         "color": {
             "oneOf": [

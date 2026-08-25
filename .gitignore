@@ -18,11 +18,11 @@ target
 
 # Compiled artifacts
 # (see devtools/*-package-for-*.sh)
-/lsr-linux-x86_64
-/lsr-linux-x86_64-*.zip
-/lsr-macos-x86_64
-/lsr-macos-x86_64-*.zip
-/lsr_*.deb
+/lez-linux-x86_64
+/lez-linux-x86_64-*.zip
+/lez-macos-x86_64
+/lez-macos-x86_64-*.zip
+/lez_*.deb
 /MD5SUMS
 /SHA1SUMS
 

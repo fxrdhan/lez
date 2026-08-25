@@ -12,7 +12,7 @@ struct TempTestDir {
 impl TempTestDir {
     fn new(label: &str) -> Self {
         let unique = format!(
-            "lsr_mime_test_{label}_{}_{}",
+            "lez_mime_test_{label}_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -43,13 +43,13 @@ fn test_mime_types_cli_flag_png_icon() {
     )
     .unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
     // 1. Without --mime-types: should not detect image icon
-    let output_without = Command::new(lsr_bin)
+    let output_without = Command::new(lez_bin)
         .args(["--icons=always", png_no_ext.to_str().unwrap()])
         .output()
-        .expect("run lsr without --mime-types");
+        .expect("run lez without --mime-types");
     assert!(output_without.status.success());
     let stdout_without = String::from_utf8_lossy(&output_without.stdout);
     // Image icon is \u{f1c5} () or \u{f03e}
@@ -59,14 +59,14 @@ fn test_mime_types_cli_flag_png_icon() {
     );
 
     // 2. With --mime-types: should detect image/png icon (\u{f1c5})
-    let output_with = Command::new(lsr_bin)
+    let output_with = Command::new(lez_bin)
         .args([
             "--icons=always",
             "--mime-types",
             png_no_ext.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with --mime-types");
+        .expect("run lez with --mime-types");
     assert!(output_with.status.success());
     let stdout_with = String::from_utf8_lossy(&output_with.stdout);
     assert!(
@@ -76,8 +76,8 @@ fn test_mime_types_cli_flag_png_icon() {
 }
 
 #[test]
-fn test_mime_types_lsr_env_var() {
-    let temp = TempTestDir::new("lsr_env");
+fn test_mime_types_lez_env_var() {
+    let temp = TempTestDir::new("lez_env");
     let png_file = temp.path.join("png_sample");
     fs::write(
         &png_file,
@@ -85,18 +85,18 @@ fn test_mime_types_lsr_env_var() {
     )
     .unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
-    let output = Command::new(lsr_bin)
-        .env("LSR_MIME_TYPES", "1")
+    let output = Command::new(lez_bin)
+        .env("LEZ_MIME_TYPES", "1")
         .args(["--icons=always", png_file.to_str().unwrap()])
         .output()
-        .expect("run lsr with LSR_MIME_TYPES=1");
+        .expect("run lez with LEZ_MIME_TYPES=1");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains('\u{f1c5}'),
-        "With LSR_MIME_TYPES=1, image icon MUST be shown: {stdout}"
+        "With LEZ_MIME_TYPES=1, image icon MUST be shown: {stdout}"
     );
 }
 
@@ -110,14 +110,14 @@ fn test_mime_types_eza_env_var() {
     )
     .unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
-    let output = Command::new(lsr_bin)
-        .env_remove("LSR_MIME_TYPES")
+    let output = Command::new(lez_bin)
+        .env_remove("LEZ_MIME_TYPES")
         .env("EZA_MIME_TYPES", "1")
         .args(["--icons=always", png_file.to_str().unwrap()])
         .output()
-        .expect("run lsr with EZA_MIME_TYPES=1");
+        .expect("run lez with EZA_MIME_TYPES=1");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -132,9 +132,9 @@ fn test_mime_types_directory_not_sniffed() {
     let subdir = temp.path.join("subfolder");
     fs::create_dir_all(&subdir).unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
-    let output = Command::new(lsr_bin)
+    let output = Command::new(lez_bin)
         .args([
             "--icons=always",
             "--mime-types",
@@ -142,7 +142,7 @@ fn test_mime_types_directory_not_sniffed() {
             subdir.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with --mime-types on directory");
+        .expect("run lez with --mime-types on directory");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Folder icon is \u{e5fe} () or \u{f115} ()
@@ -163,16 +163,16 @@ fn test_mime_types_gzip_archive() {
     )
     .unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
-    let output = Command::new(lsr_bin)
+    let output = Command::new(lez_bin)
         .args([
             "--icons=always",
             "--mime-types",
             gz_no_ext.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with --mime-types on gzip");
+        .expect("run lez with --mime-types on gzip");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -191,16 +191,16 @@ fn test_mime_types_python_script() {
     )
     .unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
-    let output = Command::new(lsr_bin)
+    let output = Command::new(lez_bin)
         .args([
             "--icons=always",
             "--mime-types",
             py_no_ext.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with --mime-types on python script");
+        .expect("run lez with --mime-types on python script");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Python icon is \u{e73c} () or \u{e606} ()
@@ -220,12 +220,12 @@ fn test_mime_types_c_source() {
     )
     .unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
-    let output = Command::new(lsr_bin)
+    let output = Command::new(lez_bin)
         .args(["--icons=always", "--mime-types", c_no_ext.to_str().unwrap()])
         .output()
-        .expect("run lsr with --mime-types on c source");
+        .expect("run lez with --mime-types on c source");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     // C icon is \u{e61e} () or \u{e649}
@@ -245,16 +245,16 @@ fn test_mime_types_gif_wildcard_fallback() {
     )
     .unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
-    let output = Command::new(lsr_bin)
+    let output = Command::new(lez_bin)
         .args([
             "--icons=always",
             "--mime-types",
             gif_no_ext.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with --mime-types on gif");
+        .expect("run lez with --mime-types on gif");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Image wildcard icon is \u{f1c5} ()
@@ -288,10 +288,10 @@ mimetypes:
     )
     .unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
-    let output = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let output = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--mime-types",
@@ -299,7 +299,7 @@ mimetypes:
             png_file.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with theme.yml mimetypes override");
+        .expect("run lez with theme.yml mimetypes override");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 

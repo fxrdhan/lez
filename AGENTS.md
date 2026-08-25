@@ -3,16 +3,16 @@ SPDX-FileCopyrightText: 2026 fxrdhan
 SPDX-License-Identifier: EUPL-1.2
 -->
 
-# AGENTS.md — Agent & Developer Guide for `lsr`
+# AGENTS.md — Agent & Developer Guide for `lez`
 
-> **`lsr`** is a fast, modern, and feature-rich replacement for `ls` written in Rust (Rust 2024 edition, MSRV 1.90+).
-> Lineage: `exa` (original by Benjamin Sago) ➔ `eza` (community fork) ➔ `lsr` (by fxrdhan).
+> **`lez`** is a fast, modern, and feature-rich replacement for `ls` written in Rust (Rust 2024 edition, MSRV 1.90+).
+> Lineage: `exa` (original by Benjamin Sago) ➔ `eza` (community fork) ➔ `lez` (by fxrdhan).
 
 ---
 
 ## 1. System Overview & Architecture
 
-`lsr` reads directories and files from the filesystem, extracts rich metadata (permissions, ownership, sizes, Git status, extended attributes, mounts, timestamps), formats them with syntax highlighting, Nerd Font icons, and renders them in various display modes (Grid, Long Details, Grid Details, One-line, Tree, Lines of Code Summary via `--code`, and JSON via `--json`).
+`lez` reads directories and files from the filesystem, extracts rich metadata (permissions, ownership, sizes, Git status, extended attributes, mounts, timestamps), formats them with syntax highlighting, Nerd Font icons, and renders them in various display modes (Grid, Long Details, Grid Details, One-line, Tree, Lines of Code Summary via `--code`, and JSON via `--json`).
 
 Mode selection priority (`Mode::deduce` in `src/options/view.rs`): `--code` → `--json` → strict-mode checks → TTY default (Grid on TTY, Lines otherwise) → `--long` (+ `--grid` = GridDetails) → `--tree` → `--oneline`. Only `--binary`/`--bytes` use last-argument-wins semantics (clap `overrides_with`).
 
@@ -44,19 +44,19 @@ CLI Input (Args & Env)
 - [`build.rs`](build.rs): Generates `version_string.txt` during compilation (git commit hash, date, features) consumed by clap in `src/options/parser.rs`.
 - [`justfile`](justfile): Command runner recipes for building, testing, linting, packaging, and man page generation.
 - [`flake.nix`](flake.nix): Nix flake definition for reproducible dev environment and CI builds.
-- [`man/`](man/): Pandoc markdown sources for man pages (`lsr.1.md`, `lsr_colors.5.md`, `lsr_colors-explanation.5.md`).
+- [`man/`](man/): Pandoc markdown sources for man pages (`lez.1.md`, `lez_colors.5.md`, `lez_colors-explanation.5.md`).
 - [`completions/`](completions/): Shell completion scripts for `bash`, `zsh`, `fish`, `nushell`, and `powershell`.
 - [`docs/`](docs/): Documentation, theme schema, and upstream triage reference ([`docs/UPSTREAM_TRIAGE.md`](docs/UPSTREAM_TRIAGE.md)).
 - [`tests/`](tests/): Integration tests, trycmd CLI snapshots, LOC tests, and powertests.
 
 ### `src/` Architecture
 
-- **Entry & Orchestration** ([`src/main.rs`](src/main.rs), [`src/lib.rs`](src/lib.rs), [`src/logger.rs`](src/logger.rs)): Argument parsing, logging configuration (`LSR_DEBUG`), signal handling, file traversal, and execution dispatch.
+- **Entry & Orchestration** ([`src/main.rs`](src/main.rs), [`src/lib.rs`](src/lib.rs), [`src/logger.rs`](src/logger.rs)): Argument parsing, logging configuration (`LEZ_DEBUG`), signal handling, file traversal, and execution dispatch.
   - Exit codes: `0` (Success), `1` (Runtime/IO error), `2` (Missing input path), `3` (Options error), `13` (Permission denied).
 - **CLI & Configuration** ([`src/options/`](src/options/)):
   - [`parser.rs`](src/options/parser.rs): Clap CLI specification, flags, options, headings, value parsers, defaults.
   - [`mod.rs`](src/options/mod.rs), [`view.rs`](src/options/view.rs), [`filter.rs`](src/options/filter.rs): Option deduction and validation.
-  - [`theme.rs`](src/options/theme.rs), [`config.rs`](src/options/config.rs), [`vars.rs`](src/options/vars.rs): Theme YAML parsing (`$LSR_CONFIG_DIR`) and environment variables (`LS_COLORS`, `LSR_COLORS`, etc.).
+  - [`theme.rs`](src/options/theme.rs), [`config.rs`](src/options/config.rs), [`vars.rs`](src/options/vars.rs): Theme YAML parsing (`$LEZ_CONFIG_DIR`) and environment variables (`LS_COLORS`, `LEZ_COLORS`, etc.).
   - [`stdin.rs`](src/options/stdin.rs): Handles `--stdin` filename input.
 - **Filesystem & Metadata Layer** ([`src/fs/`](src/fs/)):
   - [`file.rs`](src/fs/file.rs): Fundamental `File` struct with `OnceLock` lazy caching for metadata, xattr, mounts, security context, and recursive size.
@@ -114,10 +114,10 @@ Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `jus
 1. **Define argument** in [`src/options/parser.rs`](src/options/parser.rs) using `clap`.
 2. **Handle option deduction** in [`src/options/mod.rs`](src/options/mod.rs) or the appropriate sub-options module (`view.rs`, `filter.rs`; recursion lives in `src/fs/dir_action.rs`).
 3. **Propagate into runtime** in [`src/main.rs`](src/main.rs) and the corresponding `src/output/` or `src/fs/` renderer.
-4. **Update documentation**: [README.md](README.md) and [`man/lsr.1.md`](man/lsr.1.md).
+4. **Update documentation**: [README.md](README.md) and [`man/lez.1.md`](man/lez.1.md).
 5. **Update Shell Completions**:
-   - Update primary completions: `completions/{bash/lsr, zsh/_lsr, fish/lsr.fish, nush/lsr.nu, pwsh/_lsr.ps1}`.
-   - Regenerate `eza` compatibility copies with `sed 's/lsr/eza/g'` (checked by `tests/completion_equals_tests.rs`).
+   - Update primary completions: `completions/{bash/lez, zsh/_lez, fish/lez.fish, nush/lez.nu, pwsh/_lez.ps1}`.
+   - Regenerate `eza` compatibility copies with `sed 's/lez/eza/g'` (checked by `tests/completion_equals_tests.rs`).
    - If a flag uses `require_equals`, ensure all 5 shell backends complete values after `=` rather than a space.
 6. **Add Tests** in [`tests/`](tests/).
 
@@ -142,7 +142,7 @@ Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `jus
 
 ## 5. Upstream Policy & Triage Summary
 
-`lsr` ports unmerged `eza-community/eza` work by hand rather than maintaining a git tracking branch.
+`lez` ports unmerged `eza-community/eza` work by hand rather than maintaining a git tracking branch.
 
 ### Key Guidelines
 1. **Audit & Verification**: Before implementing any upstream report or feature request, reproduce against our binary first. Many upstream issues are already solved here or caused by external factors.

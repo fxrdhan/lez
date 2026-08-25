@@ -1,35 +1,35 @@
-% lsr_colors-explanation(5) $version
+% lez_colors-explanation(5) $version
 
-<!-- This is the lsr_colors-explanation(5) man page, written in Markdown. -->
+<!-- This is the lez_colors-explanation(5) man page, written in Markdown. -->
 <!-- To generate the roff version, run `just man`, -->
 <!-- and the man page will appear in the ‘target’ directory. -->
 
 # Name
 
-lsr_colors-explanation — more details on customizing lsr colors and themes
+lez_colors-explanation — more details on customizing lez colors and themes
 
-# lsr Color Explanation
+# lez Color Explanation
 
-lsr provides its own built\-in set of file extension mappings that cover a large range of common file extensions, including documents, archives, media, and temporary files. 
-Any mappings in the environment variables will override this default set: running lsr with `LS_COLORS="*.zip=32"` will turn zip files green but leave the colours of other compressed files alone.
+lez provides its own built\-in set of file extension mappings that cover a large range of common file extensions, including documents, archives, media, and temporary files. 
+Any mappings in the environment variables will override this default set: running lez with `LS_COLORS="*.zip=32"` will turn zip files green but leave the colours of other compressed files alone.
 
 You can also disable this built\-in set entirely by including a
-`reset` entry at the beginning of `LSR_COLORS` or `EZA_COLORS`.
-So setting `LSR_COLORS="reset:*.txt=31"` will highlight only text
-files in addition to any styles in `LS_COLORS`; setting `LSR_COLORS="reset"` will highlight nothing.
+`reset` entry at the beginning of `LEZ_COLORS` or `EZA_COLORS`.
+So setting `LEZ_COLORS="reset:*.txt=31"` will highlight only text
+files in addition to any styles in `LS_COLORS`; setting `LEZ_COLORS="reset"` will highlight nothing.
 
 ## Examples
 
-- Disable the "current user" highlighting: `LSR_COLORS="uu=0:gu=0"`
-- Turn the date column green: `LSR_COLORS="da=32"`
-- Highlight Vagrantfiles: `LSR_COLORS="Vagrantfile=1;4;33"`
-- Override the existing zip colour: `LSR_COLORS="*.zip=38;5;125"`
+- Disable the "current user" highlighting: `LEZ_COLORS="uu=0:gu=0"`
+- Turn the date column green: `LEZ_COLORS="da=32"`
+- Highlight Vagrantfiles: `LEZ_COLORS="Vagrantfile=1;4;33"`
+- Override the existing zip colour: `LEZ_COLORS="*.zip=38;5;125"`
 - Markdown files a shade of green, log files a shade of grey:
-`LSR_COLORS="*.md=38;5;121:*.log=38;5;248"`
+`LEZ_COLORS="*.md=38;5;121:*.log=38;5;248"`
 
 ## BUILT\-IN EXTENSIONS
 
-- lsr supports bright colours! As supported by most modern 256\-colour terminals, you can now choose from `bright` colour codes when selecting your custom colours in your `LSR_COLORS` / `EZA_COLORS` environment variable.
+- lez supports bright colours! As supported by most modern 256\-colour terminals, you can now choose from `bright` colour codes when selecting your custom colours in your `LEZ_COLORS` / `EZA_COLORS` environment variable.
 
 - Build (Makefile, Cargo.toml, package.json) are yellow and underlined.
 - Images (png, jpeg, gif) are purple.
@@ -49,8 +49,8 @@ in the same directory as one of its source files: styles.css will count as compi
 
 Now you can specify these options and more in a `theme.yml` file with convenient syntax for defining your styles.
 
-Set `LSR_CONFIG_DIR` or `EZA_CONFIG_DIR` to specify which directory you would like lsr to look for your `theme.yml` file,
-otherwise lsr will look for `$XDG_CONFIG_HOME/lsr/theme.yml` or `$XDG_CONFIG_HOME/eza/theme.yml`.
+Set `LEZ_CONFIG_DIR` or `EZA_CONFIG_DIR` to specify which directory you would like lez to look for your `theme.yml` file,
+otherwise lez will look for `$XDG_CONFIG_HOME/lez/theme.yml` or `$XDG_CONFIG_HOME/eza/theme.yml`.
 
 
 These are the available options:
@@ -243,4 +243,4 @@ You must name the file `theme.yml`, no matter the directory you specify.
 
 ## See also
 
-**lsr**(1), **lsr_colors**(5)
+**lez**(1), **lez_colors**(5)

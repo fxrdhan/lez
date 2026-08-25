@@ -35,7 +35,7 @@ jobs:
       - name: Build
         run: |
           cargo build --release --quiet
-          cp target/release/lsr /tmp/lsr
+          cp target/release/lez /tmp/lez
       - name: Build the fixture repository
         run: |
           root=/tmp/repo
@@ -55,12 +55,12 @@ jobs:
           cd /tmp/repo
           echo "--- git status itself, as a floor ---"
           /usr/bin/time -f "  wall %e s" git status --porcelain >/dev/null
-          echo "--- lsr -l, no git ---"
-          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l . >/dev/null; done
-          echo "--- lsr -l --git at the repository root ---"
-          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l --git . >/dev/null; done
-          echo "--- lsr -l --git inside one subdirectory (the pathspec path) ---"
-          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l --git d1 >/dev/null; done
+          echo "--- lez -l, no git ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lez --color=never -l . >/dev/null; done
+          echo "--- lez -l --git at the repository root ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lez --color=never -l --git . >/dev/null; done
+          echo "--- lez -l --git inside one subdirectory (the pathspec path) ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lez --color=never -l --git d1 >/dev/null; done
       - name: Time it with untracked files present
         run: |
           cd /tmp/repo
@@ -68,7 +68,7 @@ jobs:
           seq 1 5000 | sed "s|^|untracked_dir/u|" | xargs -n 250 touch
           echo "--- git status itself ---"
           /usr/bin/time -f "  wall %e s" git status --porcelain >/dev/null
-          echo "--- lsr -l --git at the root, with 5000 untracked files present ---"
-          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l --git . >/dev/null; done
+          echo "--- lez -l --git at the root, with 5000 untracked files present ---"
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lez --color=never -l --git . >/dev/null; done
           echo "--- and inside a tracked subdirectory ---"
-          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -l --git d1 >/dev/null; done
+          for r in 1 2; do /usr/bin/time -f "  wall %e s" /tmp/lez --color=never -l --git d1 >/dev/null; done

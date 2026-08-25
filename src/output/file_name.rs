@@ -51,7 +51,7 @@ pub struct Options {
     ///
     /// Answering that question costs a `stat` for every directory listed,
     /// and a read of its contents when the link count does not settle it.
-    /// See `vars::LSR_NO_EMPTY_DIR_ICON` for why anyone would turn it off.
+    /// See `vars::LEZ_NO_EMPTY_DIR_ICON` for why anyone would turn it off.
     pub empty_dir_icon: bool,
 }
 

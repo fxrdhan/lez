@@ -21,8 +21,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
-use lsr::fs::fields::Size;
-use lsr::fs::{Dir, DotFilter, File};
+use lez::fs::fields::Size;
+use lez::fs::{Dir, DotFilter, File};
 
 struct TempTestDir {
     path: PathBuf,
@@ -35,7 +35,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_recsize_{prefix}_{}_{}",
+            "lez_recsize_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -85,7 +85,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.push("lsr");
+    path.push("lez");
     path
 }
 
@@ -162,11 +162,11 @@ fn test_parent_dir_exclusion_under_flag_permutations() {
             .args(&flags)
             .arg(&child)
             .output()
-            .unwrap_or_else(|_| panic!("failed to execute lsr with flags {flags:?}"));
+            .unwrap_or_else(|_| panic!("failed to execute lez with flags {flags:?}"));
 
         assert!(
             output.status.success(),
-            "lsr failed with flags {flags:?}: {}",
+            "lez failed with flags {flags:?}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -353,7 +353,7 @@ fn test_hardlink_mesh_across_nested_subdirectories() {
         .arg("--total-size")
         .arg(&root.path)
         .output()
-        .expect("lsr command");
+        .expect("lez command");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -436,7 +436,7 @@ fn test_hardlink_partition_hidden_vs_visible() {
         .arg("--total-size")
         .arg(&root.path)
         .output()
-        .expect("lsr no a");
+        .expect("lez no a");
     assert!(out_no_a.status.success());
     let stdout_no_a = String::from_utf8_lossy(&out_no_a.stdout);
     assert!(
@@ -449,7 +449,7 @@ fn test_hardlink_partition_hidden_vs_visible() {
         .arg("--total-size")
         .arg(&root.path)
         .output()
-        .expect("lsr with a");
+        .expect("lez with a");
     assert!(out_with_a.status.success());
     let stdout_with_a = String::from_utf8_lossy(&out_with_a.stdout);
     assert!(
@@ -479,14 +479,14 @@ fn test_multi_directory_arguments_shared_hardlinks() {
 
     // dir1 size should be 64K + 16K = 80,000 bytes
     // dir2 size should be 64K + 32K = 96,000 bytes
-    // When passed together as `lsr -ld --total-size dir1 dir2`, both should compute their independent sizes properly!
+    // When passed together as `lez -ld --total-size dir1 dir2`, both should compute their independent sizes properly!
     let output = Command::new(bin_path())
         .arg("-ld")
         .arg("--total-size")
         .arg(&dir1)
         .arg(&dir2)
         .output()
-        .expect("lsr multi-arg");
+        .expect("lez multi-arg");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -545,7 +545,7 @@ fn oracle_calculate_size(root: &Path, dot_filter: DotFilter) -> u64 {
             };
 
             if file_type.is_symlink() {
-                // Symlink: lsr gets symlink metadata size without following
+                // Symlink: lez gets symlink metadata size without following
                 if let Ok(md) = fs::symlink_metadata(&path) {
                     #[cfg(unix)]
                     let is_unvisited = visited.insert((md.dev(), md.ino()));
@@ -685,8 +685,8 @@ fn test_property_fuzz_random_tree_matches_oracle() {
         let oracle_no_dots = oracle_calculate_size(&temp.path, DotFilter::JustFiles);
         let oracle_dots = oracle_calculate_size(&temp.path, DotFilter::Dotfiles);
 
-        // Test with lsr File API
-        let lsr_no_dots = File::from_args_with_filter(
+        // Test with lez File API
+        let lez_no_dots = File::from_args_with_filter(
             temp.path.clone(),
             None,
             File::filename(&temp.path),
@@ -696,7 +696,7 @@ fn test_property_fuzz_random_tree_matches_oracle() {
             None,
             Some(DotFilter::JustFiles),
         );
-        let lsr_dots = File::from_args_with_filter(
+        let lez_dots = File::from_args_with_filter(
             temp.path.clone(),
             None,
             File::filename(&temp.path),
@@ -708,18 +708,18 @@ fn test_property_fuzz_random_tree_matches_oracle() {
         );
 
         assert_eq!(
-            lsr_no_dots.length(),
+            lez_no_dots.length(),
             oracle_no_dots,
-            "Seed {seed}: lsr length without dotfiles must match oracle ({}) vs ({})",
-            lsr_no_dots.length(),
+            "Seed {seed}: lez length without dotfiles must match oracle ({}) vs ({})",
+            lez_no_dots.length(),
             oracle_no_dots
         );
 
         assert_eq!(
-            lsr_dots.length(),
+            lez_dots.length(),
             oracle_dots,
-            "Seed {seed}: lsr length with dotfiles must match oracle ({}) vs ({})",
-            lsr_dots.length(),
+            "Seed {seed}: lez length with dotfiles must match oracle ({}) vs ({})",
+            lez_dots.length(),
             oracle_dots
         );
     }
@@ -832,7 +832,7 @@ fn test_empty_directory_sizes() {
         .arg("--total-size")
         .arg(&empty_single)
         .output()
-        .expect("lsr command");
+        .expect("lez command");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -992,7 +992,7 @@ fn test_symlink_directory_cycles_not_followed() {
         .arg("--total-size")
         .arg(&container)
         .output()
-        .expect("lsr command");
+        .expect("lez command");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -1064,7 +1064,7 @@ fn test_symlinks_to_hardlinks_deduplication() {
         .arg("--total-size")
         .arg(&tree)
         .output()
-        .expect("lsr command");
+        .expect("lez command");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -1347,10 +1347,10 @@ fn test_broken_symlinks_in_directory_tree() {
         .arg("--total-size")
         .arg(&container)
         .output()
-        .expect("lsr command");
+        .expect("lez command");
     assert!(
         output.status.success(),
-        "lsr on directory with broken symlinks must succeed"
+        "lez on directory with broken symlinks must succeed"
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(

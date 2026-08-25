@@ -38,7 +38,7 @@ impl Options {
 impl ThemeConfig {
     pub(crate) fn deduce<V: Vars>(vars: &V) -> Option<Self> {
         let custom = vars
-            .get_with_fallback(vars::LSR_CONFIG_DIR, vars::EZA_CONFIG_DIR)
+            .get_with_fallback(vars::LEZ_CONFIG_DIR, vars::EZA_CONFIG_DIR)
             .map(PathBuf::from);
         let xdg = vars.get(vars::XDG_CONFIG_HOME).map(PathBuf::from);
         let home = vars.get(vars::HOME).map(PathBuf::from);
@@ -80,7 +80,7 @@ impl Definitions {
             .get(vars::LS_COLORS)
             .map(|e| e.to_string_lossy().to_string());
         let exa = vars
-            .get(vars::LSR_COLORS)
+            .get(vars::LEZ_COLORS)
             .or_else(|| vars.get_with_fallback(vars::EZA_COLORS, vars::EXA_COLORS))
             .map(|e| e.to_string_lossy().to_string());
         Self { ls, exa }
@@ -123,9 +123,9 @@ mod tests {
     }
 
     #[test]
-    fn deduce_definitions_lsr_colors_precedence() {
+    fn deduce_definitions_lez_colors_precedence() {
         let mut vars = MockVars::default();
-        vars.set(vars::LSR_COLORS, &OsString::from("reset:da=32"));
+        vars.set(vars::LEZ_COLORS, &OsString::from("reset:da=32"));
         vars.set(vars::EZA_COLORS, &OsString::from("da=33"));
         vars.set(vars::EXA_COLORS, &OsString::from("da=34"));
 
@@ -227,7 +227,7 @@ mod tests {
                 .unwrap()
                 .as_nanos();
             let path = std::env::temp_dir().join(format!(
-                "lsr_theme_test_{prefix}_{}_{}",
+                "lez_theme_test_{prefix}_{}_{}",
                 std::process::id(),
                 nanos
             ));
@@ -253,12 +253,12 @@ mod tests {
     }
 
     #[test]
-    fn test_theme_config_deduce_lsr_config_dir_yml() {
-        let temp = TempDir::new("lsr_yml");
+    fn test_theme_config_deduce_lez_config_dir_yml() {
+        let temp = TempDir::new("lez_yml");
         temp.create_file("theme.yml", b"colourful: true\n");
 
         let mut vars = MockVars::default();
-        vars.set(vars::LSR_CONFIG_DIR, &temp.path.clone().into_os_string());
+        vars.set(vars::LEZ_CONFIG_DIR, &temp.path.clone().into_os_string());
 
         let theme_cfg = ThemeConfig::deduce(&vars);
         assert!(theme_cfg.is_some());
@@ -269,12 +269,12 @@ mod tests {
     }
 
     #[test]
-    fn test_theme_config_deduce_lsr_config_dir_yaml() {
-        let temp = TempDir::new("lsr_yaml");
+    fn test_theme_config_deduce_lez_config_dir_yaml() {
+        let temp = TempDir::new("lez_yaml");
         temp.create_file("theme.yaml", b"colourful: true\n");
 
         let mut vars = MockVars::default();
-        vars.set(vars::LSR_CONFIG_DIR, &temp.path.clone().into_os_string());
+        vars.set(vars::LEZ_CONFIG_DIR, &temp.path.clone().into_os_string());
 
         let theme_cfg = ThemeConfig::deduce(&vars);
         assert!(theme_cfg.is_some());
@@ -310,7 +310,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::HOME, &temp.path.clone().into_os_string());
         vars.set(
-            vars::LSR_CONFIG_DIR,
+            vars::LEZ_CONFIG_DIR,
             &OsString::from("~/themes_folder"),
         );
 
@@ -332,7 +332,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::HOME, &temp.path.clone().into_os_string());
         vars.set(
-            vars::LSR_CONFIG_DIR,
+            vars::LEZ_CONFIG_DIR,
             &OsString::from("$HOME/custom_dir"),
         );
 
@@ -349,7 +349,7 @@ mod tests {
         let temp = TempDir::new("empty_dir");
 
         let mut vars = MockVars::default();
-        vars.set(vars::LSR_CONFIG_DIR, &temp.path.clone().into_os_string());
+        vars.set(vars::LEZ_CONFIG_DIR, &temp.path.clone().into_os_string());
 
         let theme_cfg = ThemeConfig::deduce(&vars);
         assert!(theme_cfg.is_none());

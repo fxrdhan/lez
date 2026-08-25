@@ -21,7 +21,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_inspect_{prefix}_{}_{}",
+            "lez_inspect_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -68,11 +68,11 @@ const ENTRIES: [&str; 3] = [
     "foo.tar/nested/main.rs",
 ];
 
-fn run_lsr(args: &[&str]) -> String {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(args: &[&str]) -> String {
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(output.status.success());
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
@@ -89,7 +89,7 @@ fn fixture(prefix: &str) -> TempTestDir {
 fn long_view_lists_tar_entries_below_the_archive() {
     let fixture = fixture("list");
 
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-1",
         "-l",
         "--color=never",
@@ -114,7 +114,7 @@ fn long_view_lists_tar_entries_below_the_archive() {
 fn the_last_archive_entry_closes_the_branch() {
     let fixture = fixture("edges");
 
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-1",
         "-l",
         "--color=never",
@@ -147,7 +147,7 @@ fn the_last_archive_entry_closes_the_branch() {
 fn archive_entry_leaf_name_is_coloured_by_type() {
     let fixture = fixture("colour");
 
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-1",
         "-l",
         "--color=always",
@@ -185,7 +185,7 @@ fn archive_entry_leaf_name_is_coloured_by_type() {
 fn archive_entries_stay_plain_without_colour() {
     let fixture = fixture("plain_colour");
 
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-1",
         "-l",
         "--color=never",
@@ -203,7 +203,7 @@ fn archive_entries_stay_plain_without_colour() {
 fn without_the_flag_archives_stay_opaque() {
     let fixture = fixture("off");
 
-    let stdout = run_lsr(&["-l", "--color=never", fixture.path.to_str().unwrap()]);
+    let stdout = run_lez(&["-l", "--color=never", fixture.path.to_str().unwrap()]);
     assert!(stdout.contains("foo.tar"), "{stdout}");
     assert!(!stdout.contains("inner.txt"), "{stdout}");
 }
@@ -212,7 +212,7 @@ fn without_the_flag_archives_stay_opaque() {
 fn corrupt_archive_fails_silently() {
     let fixture = fixture("corrupt");
 
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-l",
         "--color=never",
         "--inspect-archives",

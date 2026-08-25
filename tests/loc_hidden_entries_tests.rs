@@ -10,12 +10,12 @@
 use std::fs;
 use std::path::PathBuf;
 
-use lsr::loc::count_roots;
+use lez::loc::count_roots;
 
 /// Builds a directory holding one visible and two hidden Rust files, one of
 /// them inside a hidden directory.
 fn fixture(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lsr-loc-hidden-{name}"));
+    let root = std::env::temp_dir().join(format!("lez-loc-hidden-{name}"));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(root.join(".hidden")).expect("fixture directory");
     fs::write(root.join("visible.rs"), "fn main() {}\n").expect("visible file");

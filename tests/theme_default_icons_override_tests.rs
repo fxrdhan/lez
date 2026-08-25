@@ -12,7 +12,7 @@ struct TempTestDir {
 impl TempTestDir {
     fn new(label: &str) -> Self {
         let unique = format!(
-            "lsr_theme_default_icons_test_{label}_{}_{}",
+            "lez_theme_default_icons_test_{label}_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -49,16 +49,16 @@ extensions:
     let unmapped_file = temp.path.join("data.unmapped_custom_ext_xyz");
     fs::write(&unmapped_file, b"content").unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
-    let output = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
+    let output = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
             unmapped_file.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with .default_file override");
+        .expect("run lez with .default_file override");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -87,16 +87,16 @@ extensions:
     let no_ext_file = temp.path.join("extensionless_binary");
     fs::write(&no_ext_file, b"content").unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
-    let output = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
+    let output = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
             no_ext_file.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with .default_file_unknown override");
+        .expect("run lez with .default_file_unknown override");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -123,16 +123,16 @@ extensions:
     let no_ext_file = temp.path.join("extensionless_document");
     fs::write(&no_ext_file, b"content").unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
-    let output = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
+    let output = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
             no_ext_file.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with fallback to .default_file");
+        .expect("run lez with fallback to .default_file");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -165,11 +165,11 @@ extensions:
     let empty_dir = temp.path.join("my_empty_folder");
     fs::create_dir_all(&empty_dir).unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
     // 1. Non-empty directory should render .default_directory (📁)
-    let output_non_empty = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let output_non_empty = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
@@ -177,7 +177,7 @@ extensions:
             non_empty_dir.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with .default_directory override");
+        .expect("run lez with .default_directory override");
     assert!(output_non_empty.status.success());
     let stdout_non_empty = String::from_utf8_lossy(&output_non_empty.stdout);
     assert!(
@@ -186,8 +186,8 @@ extensions:
     );
 
     // 2. Empty directory should render .default_directory_empty (📂)
-    let output_empty = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let output_empty = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
@@ -195,7 +195,7 @@ extensions:
             empty_dir.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with .default_directory_empty override");
+        .expect("run lez with .default_directory_empty override");
     assert!(output_empty.status.success());
     let stdout_empty = String::from_utf8_lossy(&output_empty.stdout);
     assert!(
@@ -222,9 +222,9 @@ extensions:
     let empty_dir = temp.path.join("empty_folder");
     fs::create_dir_all(&empty_dir).unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
-    let output = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
+    let output = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
@@ -232,7 +232,7 @@ extensions:
             empty_dir.to_str().unwrap(),
         ])
         .output()
-        .expect("run lsr with fallback to .default_directory");
+        .expect("run lez with fallback to .default_directory");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -281,11 +281,11 @@ extensions:
     fs::create_dir_all(&special_dir).unwrap();
     fs::write(special_dir.join("sub.txt"), b"sub").unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
     // Specific filename matches ⭐ instead of 📄
-    let out_file = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let out_file = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
@@ -296,8 +296,8 @@ extensions:
     assert!(String::from_utf8_lossy(&out_file.stdout).contains('⭐'));
 
     // Specific extension matches 🦀 instead of 📄
-    let out_rs = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let out_rs = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
@@ -308,8 +308,8 @@ extensions:
     assert!(String::from_utf8_lossy(&out_rs.stdout).contains('🦀'));
 
     // Specific directoryname matches 💎 instead of 📁
-    let out_dir = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let out_dir = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
@@ -346,11 +346,11 @@ extensions:
     let other_ext_file = temp.path.join("other.unknown_ext_123");
     fs::write(&other_ext_file, b"content").unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
     // my_sample.default_file should match explicit extension `default_file` (🎯)
-    let out_real = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let out_real = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",
@@ -361,8 +361,8 @@ extensions:
     assert!(String::from_utf8_lossy(&out_real.stdout).contains('🎯'));
 
     // other.unknown_ext_123 should match fallback `.default_file` (📄)
-    let out_other = Command::new(lsr_bin)
-        .env("LSR_CONFIG_DIR", &config_dir)
+    let out_other = Command::new(lez_bin)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
             "--color=always",

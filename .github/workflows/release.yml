@@ -52,13 +52,13 @@ jobs:
         if: matrix.archive == 'tar.gz'
         run: |
           mkdir -p dist
-          tar czf "dist/lsr_${{ matrix.target }}.tar.gz" -C "target/${{ matrix.target }}/release" lsr
+          tar czf "dist/lez_${{ matrix.target }}.tar.gz" -C "target/${{ matrix.target }}/release" lez
       - name: Package (zip)
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path "target/${{ matrix.target }}/release/lsr.exe" -DestinationPath "dist/lsr_${{ matrix.target }}.zip"
+          Compress-Archive -Path "target/${{ matrix.target }}/release/lez.exe" -DestinationPath "dist/lez_${{ matrix.target }}.zip"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -77,7 +77,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME}"
           mkdir -p "man-${version}" "completions-${version}" dist
-          for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5; do
+          for page in lez.1 lez_colors.5 lez_colors-explanation.5; do
             sed "s/\$version/${version}/g" "man/${page}.md" \
               | pandoc --standalone -f markdown -t man > "man-${version}/${page}"
           done
@@ -127,6 +127,6 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             --draft \
-            --title "lsr ${GITHUB_REF_NAME}" \
+            --title "lez ${GITHUB_REF_NAME}" \
             --notes-file NOTES.md \
             dist/*

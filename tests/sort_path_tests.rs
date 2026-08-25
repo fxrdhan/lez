@@ -18,7 +18,7 @@ impl TempDirSetup {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_path_sort_{prefix}_{}_{}",
+            "lez_path_sort_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -44,8 +44,8 @@ impl Drop for TempDirSetup {
     }
 }
 
-fn run_lsr_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .current_dir(working_dir)
         // Pin collation to the POSIX C locale so expectations rely on plain
@@ -56,7 +56,7 @@ fn run_lsr_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
         .env("LC_ALL", "C")
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 // ----------------------------------------------------------------------------
@@ -83,7 +83,7 @@ fn test_f5_sort_path_and_aliases_accepted() {
 
     for alias in aliases {
         let sort_arg = format!("--sort={alias}");
-        let output = run_lsr_in(
+        let output = run_lez_in(
             &temp.path,
             &["-1", "--tree", &sort_arg, "--color=never", "."],
         );
@@ -93,7 +93,7 @@ fn test_f5_sort_path_and_aliases_accepted() {
             String::from_utf8_lossy(&output.stderr)
         );
 
-        let output_short = run_lsr_in(
+        let output_short = run_lez_in(
             &temp.path,
             &["-1", "--tree", "-s", alias, "--color=never", "."],
         );
@@ -116,7 +116,7 @@ fn test_f5_sort_path_ordering_files() {
     let fa1_str = fa1.to_str().unwrap();
     let fa2_str = fa2.to_str().unwrap();
 
-    let output_path = run_lsr_in(
+    let output_path = run_lez_in(
         &temp.path,
         &[
             "-1d",
@@ -151,7 +151,7 @@ fn test_f5_sort_path_ordering_files() {
     // Verify all aliases produce the exact same order
     for alias in ["relative-path", "relpath", "relative_path"] {
         let sort_arg = format!("--sort={alias}");
-        let output_alias = run_lsr_in(
+        let output_alias = run_lez_in(
             &temp.path,
             &["-1d", &sort_arg, "--color=never", fb_str, fa1_str, fa2_str],
         );
@@ -174,7 +174,7 @@ fn test_f5_sort_path_reverse() {
     let fa_str = fa.to_str().unwrap();
     let fb_str = fb.to_str().unwrap();
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &["-1d", "--sort=path", "-r", "--color=never", fa_str, fb_str],
     );
@@ -195,7 +195,7 @@ fn test_f5_sort_path_reverse() {
     );
 
     // Verify with --sort=relative-path -r
-    let output_rel = run_lsr_in(
+    let output_rel = run_lez_in(
         &temp.path,
         &[
             "-1d",
@@ -225,7 +225,7 @@ fn test_f5_distinguish_leaf_name_sorting_from_path_sorting() {
     let fb_a_str = fb_a.to_str().unwrap();
 
     // 1. Sort by name (basename)
-    let output_name = run_lsr_in(
+    let output_name = run_lez_in(
         &temp.path,
         &["-1d", "--sort=name", "--color=never", fa_z_str, fb_a_str],
     );
@@ -245,7 +245,7 @@ fn test_f5_distinguish_leaf_name_sorting_from_path_sorting() {
     );
 
     // 2. Sort by relative-path
-    let output_relpath = run_lsr_in(
+    let output_relpath = run_lez_in(
         &temp.path,
         &[
             "-1d",
@@ -271,7 +271,7 @@ fn test_f5_distinguish_leaf_name_sorting_from_path_sorting() {
     );
 
     // 3. Sort by path (alias)
-    let output_path = run_lsr_in(
+    let output_path = run_lez_in(
         &temp.path,
         &["-1d", "--sort=path", "--color=never", fa_z_str, fb_a_str],
     );
@@ -301,7 +301,7 @@ fn test_f5_sort_path_case_sensitive_variants() {
 
     // Under case-sensitive sort (ABCabc): uppercase-initial directories
     // (Yankee, Zulu) come before lowercase-initial ones (whiskey, xray).
-    let output_case = run_lsr_in(
+    let output_case = run_lez_in(
         &temp.path,
         &[
             "-1d",
@@ -326,7 +326,7 @@ fn test_f5_sort_path_case_sensitive_variants() {
     // Test case-sensitive aliases: Relative-path, Relative-Path, Relpath, Relative_path
     for case_alias in ["Relative-path", "Relative-Path", "Relpath", "Relative_path"] {
         let sort_arg = format!("--sort={case_alias}");
-        let output_alias = run_lsr_in(
+        let output_alias = run_lez_in(
             &temp.path,
             &[
                 "-1d",

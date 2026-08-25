@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_adv_m5_{prefix}_{}_{}",
+            "lez_adv_m5_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -45,7 +45,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn test_ignore_glob_ci_case_folding_single() {
         .arg("--ignore-glob-ci=*.txt")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -86,7 +86,7 @@ fn test_ignore_glob_case_sensitive_does_not_fold() {
         .arg("-I=*.txt")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -110,7 +110,7 @@ fn test_ignore_glob_ci_pipe_separated_globs() {
         .arg("--ignore-glob-ci=*.jpg|*.png|*.gif")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -134,7 +134,7 @@ fn test_combining_case_sensitive_and_case_insensitive_ignore_globs() {
         .arg("--ignore-glob-ci=*.key")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -161,7 +161,7 @@ fn test_ignore_glob_ci_recursive_traversal() {
         .arg("--ignore-glob-ci=*.log")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -186,7 +186,7 @@ fn test_ignore_glob_ci_with_exact_filename() {
         .arg("--ignore-glob-ci=makefile")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -211,7 +211,7 @@ fn test_ignore_glob_ci_with_wildcards_and_character_classes() {
         .arg("--ignore-glob-ci=doc_v[0-9].pdf")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -229,7 +229,7 @@ fn test_ignore_glob_ci_invalid_glob_syntax_fails_gracefully() {
     let output = Command::new(bin_path())
         .arg("--ignore-glob-ci=[")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(
         !output.status.success(),
@@ -249,7 +249,7 @@ fn test_ignore_glob_ci_empty_and_isolated_pipes() {
         .arg("--ignore-glob-ci=")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output_empty.status.success());
     let stdout_empty = String::from_utf8_lossy(&output_empty.stdout);
@@ -262,7 +262,7 @@ fn test_ignore_glob_ci_empty_and_isolated_pipes() {
         .arg("--ignore-glob-ci=*.tmp|")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output_pipe.status.success());
     let stdout_pipe = String::from_utf8_lossy(&output_pipe.stdout);
@@ -284,7 +284,7 @@ fn test_ignore_glob_ci_color_scale_recursive() {
         .arg("--ignore-glob-ci=*.bak")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -303,7 +303,7 @@ fn test_ignore_glob_ci_direct_argument_files() {
         .arg(&file1)
         .arg(&file2)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

@@ -1451,7 +1451,7 @@ mod length_test {
     #[cfg(unix)]
     fn dereference_symlink_length() {
         let temp_dir =
-            std::env::temp_dir().join(format!("lsr_test_deref_len_{}", std::process::id()));
+            std::env::temp_dir().join(format!("lez_test_deref_len_{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).unwrap();
 
@@ -1543,7 +1543,7 @@ mod broken_symlink_test {
     #[test]
     fn empty_target_symlink_is_not_directory() {
         let temp_dir =
-            std::env::temp_dir().join(format!("lsr_test_empty_symlink_{}", std::process::id()));
+            std::env::temp_dir().join(format!("lez_test_empty_symlink_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
 
@@ -1581,7 +1581,7 @@ mod broken_symlink_test {
     #[test]
     fn deleted_target_symlink_is_not_directory() {
         let temp_dir =
-            std::env::temp_dir().join(format!("lsr_test_deleted_symlink_{}", std::process::id()));
+            std::env::temp_dir().join(format!("lez_test_deleted_symlink_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
 
@@ -1631,7 +1631,7 @@ mod recursive_size_test {
     fn temp_dir(label: &str) -> PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::SeqCst);
         let path =
-            std::env::temp_dir().join(format!("lsr_recsize_{label}_{}_{}", std::process::id(), n));
+            std::env::temp_dir().join(format!("lez_recsize_{label}_{}_{}", std::process::id(), n));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
         path
@@ -1776,7 +1776,7 @@ mod mime_type_test {
 
     fn temp_dir(label: &str) -> PathBuf {
         let path = std::env::temp_dir().join(format!(
-            "lsr_mime_test_{label}_{}_{}",
+            "lez_mime_test_{label}_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1811,7 +1811,7 @@ mod mime_type_test {
     #[cfg(windows)]
     #[test]
     fn windows_executable_detection_uses_pathext() {
-        let dir = std::env::temp_dir().join(format!("lsr_pathext_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lez_pathext_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
 
         let exe = File::from_args(dir.join("app.EXE"), None, None, false, false, false, None);
@@ -1840,7 +1840,7 @@ mod is_empty_dir_test {
                 .unwrap()
                 .as_nanos();
             let path = std::env::temp_dir().join(format!(
-                "lsr_empty_{tag}_{}_{}",
+                "lez_empty_{tag}_{}_{}",
                 std::process::id(),
                 nanos
             ));
@@ -1920,7 +1920,7 @@ mod is_mount_point_test {
 
     #[test]
     fn an_ordinary_directory_is_not() {
-        let dir = std::env::temp_dir().join(format!("lsr_mount_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lez_mount_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         assert!(!mount_point(dir.to_str().unwrap()));
         let _ = std::fs::remove_dir_all(&dir);

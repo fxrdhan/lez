@@ -126,8 +126,8 @@ fn every_generated_case_points_only_at_its_fixture() {
             continue;
         }
 
-        let command = lsr::options::parser::get_command().no_binary_name(true);
-        let normalized = lsr::options::parser::normalize_args(words.clone(), &command);
+        let command = lez::options::parser::get_command().no_binary_name(true);
+        let normalized = lez::options::parser::normalize_args(words.clone(), &command);
         let matches = match command.try_get_matches_from(normalized) {
             Ok(matches) => matches,
             Err(e)

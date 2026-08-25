@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_pos_sort_test_{prefix}_{}_{}",
+            "lez_pos_sort_test_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -77,13 +77,13 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .current_dir(working_dir)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn test_positional_dirs_default_sort_by_name() {
     temp.create_file("dir_m/file_m.txt", b"content m");
 
     // Pass directories in reverse order
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &["-1", "--color=never", "dir_z", "dir_a", "dir_m"],
     );
@@ -124,7 +124,7 @@ fn test_positional_dirs_reverse_sort() {
     temp.create_file("dir_z/file_z.txt", b"content z");
 
     // Pass directories with -r
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &["-1", "-r", "--color=never", "dir_a", "dir_m", "dir_z"],
     );
@@ -153,7 +153,7 @@ fn test_positional_dirs_sort_none_preserves_argv_order() {
     temp.create_file("dir_m/file_m.txt", b"content m");
 
     // Test --sort=none
-    let output_none = run_lsr_in(
+    let output_none = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -180,7 +180,7 @@ fn test_positional_dirs_sort_none_preserves_argv_order() {
     );
 
     // Test -s none (short flag for --sort=none)
-    let output_s = run_lsr_in(
+    let output_s = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -212,7 +212,7 @@ fn test_positional_dirs_sort_by_modified() {
     temp.set_dir_mtime("dir_mid", now - Duration::from_secs(150));
     temp.set_dir_mtime("dir_new", now - Duration::from_secs(10));
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -234,7 +234,7 @@ fn test_positional_dirs_sort_by_modified() {
     );
 
     // Test --sort=newest / -r --sort=modified
-    let output_newest = run_lsr_in(
+    let output_newest = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -263,7 +263,7 @@ fn test_positional_files_sort_by_extension() {
     temp.create_file("item.aaa", b"aaa");
     temp.create_file("item.mmm", b"mmm");
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -280,7 +280,7 @@ fn test_positional_files_sort_by_extension() {
     assert_eq!(lines, vec!["item.aaa", "item.mmm", "item.zzz"]);
 
     // With --reverse
-    let output_rev = run_lsr_in(
+    let output_rev = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -305,7 +305,7 @@ fn test_positional_files_sort_by_size() {
     temp.create_file("small.txt", &[b'x'; 10]);
     temp.create_file("medium.txt", &[b'x'; 500]);
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -322,7 +322,7 @@ fn test_positional_files_sort_by_size() {
     assert_eq!(lines, vec!["small.txt", "medium.txt", "large.txt"]);
 
     // With reverse
-    let output_rev = run_lsr_in(
+    let output_rev = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -352,7 +352,7 @@ fn test_positional_files_sort_by_modified() {
     temp.set_mtime("file_mid.txt", now - Duration::from_secs(150));
     temp.set_mtime("file_new.txt", now - Duration::from_secs(10));
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -369,7 +369,7 @@ fn test_positional_files_sort_by_modified() {
     assert_eq!(lines, vec!["file_old.txt", "file_mid.txt", "file_new.txt"]);
 
     // With --sort=newest / --sort=new
-    let output_newest = run_lsr_in(
+    let output_newest = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -398,7 +398,7 @@ fn test_mixed_positional_files_and_directories() {
     temp.create_file("dir_a/child.txt", b"dir a child");
 
     // Pass in interleaved order: file_z, dir_z, file_a, dir_a
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -428,7 +428,7 @@ fn test_mixed_positional_files_and_directories() {
     );
 
     // With reverse (-r)
-    let output_rev = run_lsr_in(
+    let output_rev = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -464,7 +464,7 @@ fn test_json_output_mode_positional_dirs_sorting() {
     temp.create_file("dir_b/b.txt", b"b");
 
     // Pass directories in reverse order: dir_c, dir_b, dir_a
-    let output = run_lsr_in(&temp.path, &["--json", "dir_c", "dir_b", "dir_a"]);
+    let output = run_lez_in(&temp.path, &["--json", "dir_c", "dir_b", "dir_a"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -489,7 +489,7 @@ fn test_json_output_mode_single_directory_children_sorting() {
     temp.create_file("mydir/a.txt", b"a");
     temp.create_file("mydir/m.txt", b"m");
 
-    let output = run_lsr_in(&temp.path, &["--json", "mydir"]);
+    let output = run_lez_in(&temp.path, &["--json", "mydir"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -511,7 +511,7 @@ fn test_positional_files_with_non_existent_entry_and_sorting() {
     temp.create_file("file_z.txt", b"z");
     temp.create_file("file_a.txt", b"a");
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &[
             "-1",
@@ -538,7 +538,7 @@ fn test_positional_empty_dirs_sort_by_name() {
     temp.create_dir("empty_a");
     temp.create_dir("empty_m");
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &["-1", "--color=never", "empty_z", "empty_a", "empty_m"],
     );
@@ -555,7 +555,7 @@ fn test_positional_dirs_treated_as_files_sort() {
     temp.create_dir("dir_a");
     temp.create_file("file_m.txt", b"m");
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &["-1", "-d", "--color=never", "dir_z", "file_m.txt", "dir_a"],
     );
@@ -565,7 +565,7 @@ fn test_positional_dirs_treated_as_files_sort() {
     assert_eq!(lines, vec!["dir_a", "dir_z", "file_m.txt"]);
 
     // With --group-directories-first
-    let output_dirs_first = run_lsr_in(
+    let output_dirs_first = run_lez_in(
         &temp.path,
         &[
             "-1",

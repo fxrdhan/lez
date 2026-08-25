@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_test_icons_auto_{prefix}_{}_{}",
+            "lez_test_icons_auto_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -51,7 +51,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 const RUST_ICON: char = '\u{e68b}'; // 
@@ -70,7 +70,7 @@ fn test_icons_auto_in_pipe_with_columns_does_not_render_icons() {
         .arg(&temp.path)
         .env("COLUMNS", "120")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -106,7 +106,7 @@ fn test_icons_always_in_pipe_renders_icons() {
         .arg(&temp.path)
         .env("COLUMNS", "120")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -133,7 +133,7 @@ fn test_icons_never_in_pipe_does_not_render_icons() {
         .arg(&temp.path)
         .env("COLUMNS", "120")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -155,7 +155,7 @@ fn test_icons_auto_long_view_in_pipe_with_columns_does_not_render_icons() {
         .arg(&temp.path)
         .env("COLUMNS", "160")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -187,7 +187,7 @@ fn test_icons_always_long_view_in_pipe_renders_icons() {
         .arg(&temp.path)
         .env("COLUMNS", "160")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -210,7 +210,7 @@ fn test_eza_icons_auto_env_in_pipe_with_columns() {
         .env("EZA_ICONS_AUTO", "1")
         .env("COLUMNS", "120")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -237,7 +237,7 @@ fn test_icons_auto_width_flag_in_pipe_does_not_render_icons() {
         .arg("--icons=auto")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -257,7 +257,7 @@ fn test_icons_precedence_always_overrides_auto() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -275,7 +275,7 @@ fn test_icons_precedence_auto_overrides_always() {
         .arg("--icons=auto")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -295,7 +295,7 @@ fn test_icons_auto_tree_mode_in_pipe_with_columns() {
         .arg(&temp.path)
         .env("COLUMNS", "120")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

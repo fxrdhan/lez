@@ -39,7 +39,7 @@ impl TempHarness {
             .unwrap()
             .as_nanos();
         let root = std::env::temp_dir().join(format!(
-            "lsr_chal2_m2_full_{}_{}_{}",
+            "lez_chal2_m2_full_{}_{}_{}",
             name,
             std::process::id(),
             nanos
@@ -110,32 +110,32 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.push("lsr");
+    path.push("lez");
     path
 }
 
-fn run_lsr(args: &[&str]) -> Output {
+fn run_lez(args: &[&str]) -> Output {
     Command::new(bin_path())
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
-fn run_lsr_in_dir(args: &[&str], dir: &Path) -> Output {
+fn run_lez_in_dir(args: &[&str], dir: &Path) -> Output {
     Command::new(bin_path())
         .args(args)
         .current_dir(dir)
         .output()
-        .expect("Failed to execute lsr binary in dir")
+        .expect("Failed to execute lez binary in dir")
 }
 
-fn run_lsr_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
+fn run_lez_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
     let mut cmd = Command::new(bin_path());
     cmd.args(args);
     for (k, v) in envs {
         cmd.env(k, v);
     }
-    cmd.output().expect("Failed to execute lsr with env")
+    cmd.output().expect("Failed to execute lez with env")
 }
 
 /// Strict equivalence assertion between `-S`, `--blocks`, and `--blocksize`
@@ -152,9 +152,9 @@ fn assert_blocks_equivalence(args_without_flag: &[&str], paths: &[&str]) {
     full_blocksize.push("--blocksize");
     full_blocksize.extend_from_slice(paths);
 
-    let out_s = run_lsr(&full_s);
-    let out_blocks = run_lsr(&full_blocks);
-    let out_blocksize = run_lsr(&full_blocksize);
+    let out_s = run_lez(&full_s);
+    let out_blocks = run_lez(&full_blocks);
+    let out_blocksize = run_lez(&full_blocksize);
 
     assert_eq!(
         out_s.status.code(),
@@ -197,7 +197,7 @@ fn test_file_types_regular_small_medium_large_empty() {
     h.create_file("medium.dat", &vec![0xAA; 64 * 1024]); // 64 KB
     h.create_file("large.dat", &vec![0x55; 1024 * 1024]); // 1 MB
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "-h",
@@ -222,7 +222,7 @@ fn test_file_types_sparse_file() {
     // Nominal size 10 MB, but only 1 byte written at the end (allocated blocks is small)
     h.create_sparse_file("sparse.img", 10 * 1024 * 1024, b"X");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "-h",
@@ -249,7 +249,7 @@ fn test_file_types_directories() {
     h.create_file("dir_with_files/file1.txt", b"hello");
     h.create_file("dir_with_files/file2.txt", b"world");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "-h",
@@ -282,7 +282,7 @@ fn test_file_types_symlinks_valid_and_broken() {
     // Self loop symlink
     h.create_symlink("self_loop", "self_loop");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "-h",
@@ -307,11 +307,11 @@ fn test_file_types_symlinks_dereference() {
     h.create_symlink("target.txt", "sym.txt");
 
     // Without dereference
-    let out_normal = run_lsr(&["-l", "-S", "--color=never", h.path().to_str().unwrap()]);
+    let out_normal = run_lez(&["-l", "-S", "--color=never", h.path().to_str().unwrap()]);
     assert!(out_normal.status.success());
 
     // With dereference (-X / --dereference)
-    let out_deref = run_lsr(&[
+    let out_deref = run_lez(&[
         "-l",
         "-S",
         "-X",
@@ -337,7 +337,7 @@ fn test_file_types_unix_domain_socket() {
     let listener = UnixListener::bind(&sock_path);
 
     if let Ok(_l) = listener {
-        let out = run_lsr(&[
+        let out = run_lez(&[
             "-l",
             "-S",
             "-h",
@@ -362,7 +362,7 @@ fn test_file_types_fifo_named_pipe() {
     let res = unsafe { libc::mkfifo(c_path.as_ptr(), 0o666) };
 
     if res == 0 {
-        let out = run_lsr(&[
+        let out = run_lez(&[
             "-l",
             "-S",
             "-h",
@@ -432,7 +432,7 @@ fn test_tree_mode_deep_hierarchy() {
     h.create_file("level1/level2/level3/level4/deep.dat", &vec![0x22; 16384]);
     h.create_symlink("level1/level2/f2.txt", "link_to_f2");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-T",
         "-l",
         "-S",
@@ -479,7 +479,7 @@ fn test_tree_mode_with_level_restriction() {
     h.create_file("d1/d2/d3/l4.txt", b"l4");
 
     // --level=2
-    let out_l2 = run_lsr(&[
+    let out_l2 = run_lez(&[
         "-T",
         "-l",
         "-S",
@@ -507,7 +507,7 @@ fn test_tree_mode_with_all_and_header() {
     h.create_file(".hidden_dir/sub.txt", b"sub hidden");
     h.create_file("visible.txt", b"visible");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-T",
         "-l",
         "-S",
@@ -536,7 +536,7 @@ fn test_tree_mode_with_total_size() {
     h.create_file("d1/f1.txt", &vec![0u8; 10000]);
     h.create_file("d1/d2/f2.txt", &vec![0u8; 20000]);
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-T",
         "-l",
         "-S",
@@ -561,7 +561,7 @@ fn test_positional_single_file() {
     let h = TempHarness::new("pos_single_file");
     let file_path = h.create_file("single.txt", b"Single file direct argument");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "-h",
@@ -586,7 +586,7 @@ fn test_positional_single_dir() {
     h.create_file("f1.txt", b"a");
     h.create_file("f2.txt", b"b");
 
-    let out = run_lsr(&["-l", "-S", "--color=never", h.path().to_str().unwrap()]);
+    let out = run_lez(&["-l", "-S", "--color=never", h.path().to_str().unwrap()]);
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
 
@@ -603,7 +603,7 @@ fn test_positional_multiple_files() {
     let f2 = h.create_file("beta.dat", &vec![1u8; 4096]);
     let f3 = h.create_file("gamma.log", b"Gamma log");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "--color=never",
@@ -639,7 +639,7 @@ fn test_positional_multiple_directories() {
     h.create_file("dir2/item2.txt", b"item 2");
     h.create_file("dir3/item3.txt", b"item 3");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "--color=never",
@@ -678,7 +678,7 @@ fn test_positional_mixed_files_and_directories() {
     h.create_file("folder_1/inside_1.txt", b"inside 1");
     h.create_file("folder_2/inside_2.txt", b"inside 2");
 
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "--color=never",
@@ -713,15 +713,15 @@ fn test_positional_relative_paths() {
     let h = TempHarness::new("pos_relative");
     h.create_file("a/b/c.txt", b"nested");
 
-    let out_dot = run_lsr_in_dir(&["-l", "-S", "--color=never", "."], h.path());
+    let out_dot = run_lez_in_dir(&["-l", "-S", "--color=never", "."], h.path());
     assert!(out_dot.status.success());
 
-    let out_rel = run_lsr_in_dir(&["-l", "-S", "--color=never", "a/b"], h.path());
+    let out_rel = run_lez_in_dir(&["-l", "-S", "--color=never", "a/b"], h.path());
     assert!(out_rel.status.success());
     let stdout_rel = String::from_utf8_lossy(&out_rel.stdout);
     assert!(stdout_rel.contains("c.txt"));
 
-    let out_dotdot = run_lsr_in_dir(
+    let out_dotdot = run_lez_in_dir(
         &["-l", "-S", "--color=never", ".."],
         &h.path().join("a").join("b"),
     );
@@ -737,7 +737,7 @@ fn test_positional_dash_prefixed_files_with_separator() {
     h.create_file("--another-weird.txt", b"starts with double dash");
 
     // Using `--` as separator
-    let out = run_lsr_in_dir(
+    let out = run_lez_in_dir(
         &[
             "-l",
             "-S",
@@ -759,7 +759,7 @@ fn test_positional_nonexistent_file_handling() {
     let h = TempHarness::new("pos_nonexistent");
     let missing_path = h.path().join("does_not_exist.txt");
 
-    let out = run_lsr(&["-l", "-S", "--color=never", missing_path.to_str().unwrap()]);
+    let out = run_lez(&["-l", "-S", "--color=never", missing_path.to_str().unwrap()]);
     assert!(!out.status.success());
     assert_eq!(out.status.code(), Some(2));
 }
@@ -774,7 +774,7 @@ fn test_combos_all_metadata_columns() {
     h.create_file("sample.txt", b"sample payload");
 
     // Combine -l -S with -i (inode), -m (modified), -u (user), -g (group), -o (octal), -h (header)
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "-i",
@@ -808,7 +808,7 @@ fn test_combos_color_scale() {
     h.create_file("f3.txt", &vec![0xBB; 100000]);
 
     // --color-scale should colorize size and blocks without errors
-    let out = run_lsr(&[
+    let out = run_lez(&[
         "-l",
         "-S",
         "--color=always",
@@ -829,7 +829,7 @@ fn test_combos_only_dirs_and_only_files() {
     h.create_dir("dir");
 
     // Only dirs (-D)
-    let out_dirs = run_lsr(&[
+    let out_dirs = run_lez(&[
         "-l",
         "-S",
         "-D",
@@ -842,7 +842,7 @@ fn test_combos_only_dirs_and_only_files() {
     assert!(!stdout_dirs.contains("file.txt"));
 
     // Only files (-f)
-    let out_files = run_lsr(&[
+    let out_files = run_lez(&[
         "-l",
         "-S",
         "-f",
@@ -864,7 +864,7 @@ fn test_combos_sorting_by_various_fields() {
 
     for sort in &["name", "size", "blocks", "type", "extension", "modified"] {
         let sort_arg = format!("--sort={sort}");
-        let out = run_lsr(&[
+        let out = run_lez(&[
             "-l",
             "-S",
             &sort_arg,
@@ -896,19 +896,19 @@ fn test_flag_ordering_variations() {
     let p = h.path().to_str().unwrap();
 
     // -S -l
-    let out1 = run_lsr(&["-S", "-l", "--color=never", p]);
+    let out1 = run_lez(&["-S", "-l", "--color=never", p]);
     // -l -S
-    let out2 = run_lsr(&["-l", "-S", "--color=never", p]);
+    let out2 = run_lez(&["-l", "-S", "--color=never", p]);
     // -Sl combined
-    let out3 = run_lsr(&["-Sl", "--color=never", p]);
+    let out3 = run_lez(&["-Sl", "--color=never", p]);
     // -lS combined
-    let out4 = run_lsr(&["-lS", "--color=never", p]);
+    let out4 = run_lez(&["-lS", "--color=never", p]);
     // --blocks -l
-    let out5 = run_lsr(&["--blocks", "-l", "--color=never", p]);
+    let out5 = run_lez(&["--blocks", "-l", "--color=never", p]);
     // -l --blocks
-    let out6 = run_lsr(&["-l", "--blocks", "--color=never", p]);
+    let out6 = run_lez(&["-l", "--blocks", "--color=never", p]);
     // --blocksize -l
-    let out7 = run_lsr(&["--blocksize", "-l", "--color=never", p]);
+    let out7 = run_lez(&["--blocksize", "-l", "--color=never", p]);
 
     assert!(out1.status.success());
     assert!(out2.status.success());
@@ -941,8 +941,8 @@ fn test_flag_repeated_idempotent() {
 
     let p = h.path().to_str().unwrap();
 
-    let out_single = run_lsr(&["-l", "-S", "--color=never", p]);
-    let out_multi = run_lsr(&[
+    let out_single = run_lez(&["-l", "-S", "--color=never", p]);
+    let out_multi = run_lez(&[
         "-l",
         "-S",
         "-S",

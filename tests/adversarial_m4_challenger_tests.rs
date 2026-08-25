@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use lsr::loc::{LocCounts, language_for};
-use lsr::output::icons::icon_for_name_ext;
+use lez::loc::{LocCounts, language_for};
+use lez::output::icons::icon_for_name_ext;
 
 struct TempDir {
     path: PathBuf,
@@ -21,7 +21,7 @@ impl TempDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_adv_challenger_m4_{prefix}_{}_{}",
+            "lez_adv_challenger_m4_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -48,7 +48,7 @@ impl Drop for TempDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 // 1. Janet String Literals with '#' and Escaped Quotes (CLI)
@@ -67,7 +67,7 @@ fn test_janet_string_literals_with_hash_and_escapes() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -91,7 +91,7 @@ fn test_janet_unicode_strings_and_comments() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -109,9 +109,9 @@ fn test_jdn_complex_structures_and_comments() {
   :options @{
     :timeout 30
     :retry-count 3
-    :banner "Welcome to \"lsr\" # fast ls"
+    :banner "Welcome to \"lez\" # fast ls"
   }
-  :tags @["#lsr" "#rust" "#janet"]
+  :tags @["#lez" "#rust" "#janet"]
 }
 "##;
     temp.create_file("config.jdn", content.as_bytes());
@@ -120,7 +120,7 @@ fn test_jdn_complex_structures_and_comments() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -150,7 +150,7 @@ fn test_janet_large_file_stress_and_performance() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     let duration = start.elapsed();
 
     assert!(output.status.success());
@@ -183,7 +183,7 @@ fn test_janet_empty_blanks_comments_boundary() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -204,7 +204,7 @@ fn test_janet_nerd_font_icons_cli_permutations() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_always.status.success());
     let stdout_always = String::from_utf8_lossy(&out_always.stdout);
     assert!(
@@ -218,7 +218,7 @@ fn test_janet_nerd_font_icons_cli_permutations() {
         .arg("--icons=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_never.status.success());
     let stdout_never = String::from_utf8_lossy(&out_never.stdout);
     assert!(
@@ -232,7 +232,7 @@ fn test_janet_nerd_font_icons_cli_permutations() {
         .arg("--icons=auto")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_auto.status.success());
 
     // Bare --icons flag
@@ -240,7 +240,7 @@ fn test_janet_nerd_font_icons_cli_permutations() {
         .arg("--icons")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_bare.status.success());
 }
 
@@ -255,13 +255,13 @@ fn test_janet_loc_in_long_view_and_sorting() {
     );
     temp.create_file("data.jdn", b"# JDN\n{:version \"1.0\"}\n");
 
-    // lsr -l --loc
+    // lez -l --loc
     let out_loc = Command::new(bin_path())
         .arg("-l")
         .arg("--loc")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_loc.status.success());
     let stdout_loc = String::from_utf8_lossy(&out_loc.stdout);
     assert!(stdout_loc.contains("Janet"));
@@ -269,14 +269,14 @@ fn test_janet_loc_in_long_view_and_sorting() {
     assert!(stdout_loc.contains("longer.janet"));
     assert!(stdout_loc.contains("data.jdn"));
 
-    // lsr -l --loc --sort=extension
+    // lez -l --loc --sort=extension
     let out_sort_ext = Command::new(bin_path())
         .arg("-l")
         .arg("--loc")
         .arg("--sort=extension")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_sort_ext.status.success());
     let stdout_sort = String::from_utf8_lossy(&out_sort_ext.stdout);
     assert!(stdout_sort.contains("Janet"));
@@ -299,7 +299,7 @@ fn test_janet_in_nested_directory_tree() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_tree.status.success());
     let stdout_tree = String::from_utf8_lossy(&out_tree.stdout);
     assert!(stdout_tree.contains("Janet"));
@@ -321,7 +321,7 @@ fn test_janet_symlink_handling() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("real.janet"));
@@ -344,7 +344,7 @@ fn test_janet_hidden_files_long_listing() {
         .arg("--loc")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_no_a.status.success());
     let stdout_no_a = String::from_utf8_lossy(&out_no_a.stdout);
     assert!(!stdout_no_a.contains(".janet_init.janet"));
@@ -356,7 +356,7 @@ fn test_janet_hidden_files_long_listing() {
         .arg("--loc")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_a.status.success());
     let stdout_a = String::from_utf8_lossy(&out_a.stdout);
     assert!(stdout_a.contains(".janet_init.janet"));

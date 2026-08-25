@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use chrono::Datelike;
-use lsr::fs::File;
-use lsr::fs::filter::{SortCase, SortField};
-use lsr::options::Options;
-use lsr::options::parser::get_command;
-use lsr::options::vars::Vars;
-use lsr::output::Mode;
-use lsr::output::time::TimeFormat;
+use lez::fs::File;
+use lez::fs::filter::{SortCase, SortField};
+use lez::options::Options;
+use lez::options::parser::get_command;
+use lez::options::vars::Vars;
+use lez::output::Mode;
+use lez::output::time::TimeFormat;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -44,7 +44,7 @@ impl Vars for MockVars {
 }
 
 fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
-    let mut full_args = vec!["lsr"];
+    let mut full_args = vec!["lez"];
     full_args.extend(args);
     get_command()
         .try_get_matches_from(full_args)
@@ -63,7 +63,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_adv_b4_{prefix}_{}_{}",
+            "lez_adv_b4_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -101,7 +101,7 @@ impl Drop for TempTestDir {
 
 #[test]
 fn test_m1_child_git_repo_gitignore_respected_under_parent_dir() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("child_git_ignore");
 
     // Parent directory is NOT a git repo
@@ -145,11 +145,11 @@ fn test_m1_child_git_repo_gitignore_respected_under_parent_dir() {
             .unwrap();
     }
 
-    // Run lsr --tree --git-ignore on parent
+    // Run lez --tree --git-ignore on parent
     let output = Command::new(bin_path)
         .args(["--tree", "--git-ignore", "-a", parent.to_str().unwrap()])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -173,7 +173,7 @@ fn test_m1_child_git_repo_gitignore_respected_under_parent_dir() {
 
 #[test]
 fn test_m1_multiple_sibling_git_repos_under_common_parent() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("sibling_repos");
 
     // Parent dir containing two separate repos: repo_a and repo_b
@@ -198,7 +198,7 @@ fn test_m1_multiple_sibling_git_repos_under_common_parent() {
     let output = Command::new(bin_path)
         .args(["--tree", "--git-ignore", "-a", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -216,7 +216,7 @@ fn test_m1_multiple_sibling_git_repos_under_common_parent() {
 
 #[test]
 fn test_m1_submodule_dot_git_file_handled() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("submod_file");
 
     // Simulate submodule where .git is a file
@@ -241,7 +241,7 @@ fn test_m1_submodule_dot_git_file_handled() {
             temp.path.to_str().unwrap(),
         ])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -340,13 +340,13 @@ fn test_m2_systemtime_to_naivedatetime_far_past_dates() {
 
 #[test]
 fn test_m3_print_total_empty_directory() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_empty");
 
     let output = Command::new(bin_path)
         .args(["--print-total", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -358,7 +358,7 @@ fn test_m3_print_total_empty_directory() {
 
 #[test]
 fn test_m3_print_total_multiple_files_and_dirs() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_entries");
 
     temp.create_file("f1.txt", b"1");
@@ -371,7 +371,7 @@ fn test_m3_print_total_multiple_files_and_dirs() {
     let output = Command::new(bin_path)
         .args(["--print-total", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -384,7 +384,7 @@ fn test_m3_print_total_multiple_files_and_dirs() {
     let output_l = Command::new(bin_path)
         .args(["-l", "--print-total", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(output_l.status.success());
     let stdout_l = String::from_utf8_lossy(&output_l.stdout);
     assert!(
@@ -396,7 +396,7 @@ fn test_m3_print_total_multiple_files_and_dirs() {
     let output_1 = Command::new(bin_path)
         .args(["-1", "--print-total", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(output_1.status.success());
     let stdout_1 = String::from_utf8_lossy(&output_1.stdout);
     assert!(
@@ -407,7 +407,7 @@ fn test_m3_print_total_multiple_files_and_dirs() {
 
 #[test]
 fn test_m3_print_total_with_filters_only_dirs_and_only_files() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_filters");
 
     temp.create_file("file1.txt", b"a");
@@ -441,7 +441,7 @@ fn test_m3_print_total_with_filters_only_dirs_and_only_files() {
 
 #[test]
 fn test_m3_print_total_with_hidden_files() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_hidden");
 
     temp.create_file("normal.txt", b"norm");
@@ -574,7 +574,7 @@ fn test_m4_sort_by_path_natural_number_ordering() {
 
 #[test]
 fn test_m4_sort_by_path_cli_e2e() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("sort_path_cli");
 
     let p1 = temp.create_file("b_dir/a.txt", b"1");
@@ -625,7 +625,7 @@ fn test_m5_non_utf8_time_style_returns_invalid_utf8_error() {
     use std::os::unix::ffi::OsStringExt;
 
     let args = vec![
-        OsString::from("lsr"),
+        OsString::from("lez"),
         OsString::from("--time-style"),
         OsString::from_vec(b"\xff\xfe".to_vec()),
     ];
@@ -655,7 +655,7 @@ fn test_m5_invalid_time_style_string_returns_invalid_value_error() {
     ];
 
     for style in invalid_styles {
-        let args = ["lsr", "--time-style", style];
+        let args = ["lez", "--time-style", style];
         let result = get_command().try_get_matches_from(args);
         assert!(
             result.is_err(),
@@ -688,7 +688,7 @@ fn test_m5_valid_time_styles_pass() {
     ];
 
     for style in valid_styles {
-        let args = ["lsr", "-l", "--time-style", style];
+        let args = ["lez", "-l", "--time-style", style];
         let result = get_command().try_get_matches_from(args);
         assert!(
             result.is_ok(),
@@ -700,13 +700,13 @@ fn test_m5_valid_time_styles_pass() {
 
 #[test]
 fn test_m5_time_style_cli_process_exit_code() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
 
     // Invalid format string -> Clap error with exit code 2
     let output_invalid = Command::new(bin_path)
         .args(["--time-style", "bogus_time_style"])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert_eq!(
         output_invalid.status.code(),
@@ -737,7 +737,7 @@ fn test_m5_time_style_env_var_fallback() {
 
 #[test]
 fn test_m1_deeply_nested_git_repo_traversal() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("deep_nested_repo");
 
     let deep_repo_dir = temp.create_dir("l1/l2/l3/l4/deep_repo");
@@ -750,7 +750,7 @@ fn test_m1_deeply_nested_git_repo_traversal() {
     let output = Command::new(bin_path)
         .args(["--tree", "--git-ignore", "-a", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -779,7 +779,7 @@ fn test_m2_pre_epoch_leap_year_dates() {
 
 #[test]
 fn test_m3_print_total_with_stdin() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("stdin_total");
 
     let f1 = temp.create_file("file_alpha.txt", b"a");
@@ -798,7 +798,7 @@ fn test_m3_print_total_with_stdin() {
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lsr process");
+        .expect("Failed to spawn lez process");
 
     {
         let stdin = child.stdin.as_mut().expect("Failed to open stdin");
@@ -816,7 +816,7 @@ fn test_m3_print_total_with_stdin() {
 
 #[test]
 fn test_m4_sort_by_path_reverse() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("sort_path_rev");
 
     let p1 = temp.create_file("b_dir/a.txt", b"1");

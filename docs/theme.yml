@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/fxrdhan/lsr/main/docs/theme-schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fxrdhan/lez/main/docs/theme-schema.json
 filekinds:
   normal:
     foreground: Blue

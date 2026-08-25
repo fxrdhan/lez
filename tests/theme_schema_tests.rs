@@ -27,7 +27,7 @@ fn schema_is_valid_json_with_expected_structure() {
 }
 
 #[test]
-fn schema_covers_every_theme_section_lsr_accepts() {
+fn schema_covers_every_theme_section_lez_accepts() {
     let schema: serde_json::Value = serde_json::from_str(&docs_file("theme-schema.json")).unwrap();
     let props = schema["properties"].as_object().unwrap();
     for section in [

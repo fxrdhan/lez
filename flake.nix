@@ -4,7 +4,7 @@
 # SPDX-FileCopyrightText: 2014-2024 Christina Sørensen, eza contributors
 # SPDX-License-Identifier: MIT
 {
-  description = "lsr: a modern, fast, and feature-rich replacement for ls";
+  description = "lez: a modern, fast, and feature-rich replacement for ls";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -88,7 +88,7 @@
         formatter = treefmtEval.config.build.wrapper;
 
         packages = {
-          default = import ./nix/lsr.nix { inherit pkgs naersk' buildInputs; };
+          default = import ./nix/lez.nix { inherit pkgs naersk' buildInputs; };
 
           check = naersk'.buildPackage {
             inherit buildInputs;

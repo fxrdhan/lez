@@ -13,12 +13,12 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
 fn test_time_field_aliases_modified_cli() {
-    let temp_dir = std::env::temp_dir().join("lsr_test_time_aliases");
+    let temp_dir = std::env::temp_dir().join("lez_test_time_aliases");
     let _ = fs::remove_dir_all(&temp_dir);
     fs::create_dir_all(&temp_dir).unwrap();
 
@@ -41,11 +41,11 @@ fn test_time_field_aliases_modified_cli() {
             .arg(arg)
             .arg(&test_file)
             .output()
-            .unwrap_or_else(|e| panic!("Failed to execute lsr -l {arg}: {e}"));
+            .unwrap_or_else(|e| panic!("Failed to execute lez -l {arg}: {e}"));
 
         assert!(
             output.status.success(),
-            "lsr -l {arg} failed with stderr: {}",
+            "lez -l {arg} failed with stderr: {}",
             String::from_utf8_lossy(&output.stderr)
         );
     }
@@ -58,11 +58,11 @@ fn test_time_field_aliases_modified_cli() {
             .arg(time_arg)
             .arg(&test_file)
             .output()
-            .unwrap_or_else(|e| panic!("Failed to execute lsr -l -t {time_arg}: {e}"));
+            .unwrap_or_else(|e| panic!("Failed to execute lez -l -t {time_arg}: {e}"));
 
         assert!(
             output.status.success(),
-            "lsr -l -t {time_arg} failed with stderr: {}",
+            "lez -l -t {time_arg} failed with stderr: {}",
             String::from_utf8_lossy(&output.stderr)
         );
     }
@@ -72,11 +72,11 @@ fn test_time_field_aliases_modified_cli() {
         .arg("-ltr")
         .arg(&temp_dir)
         .output()
-        .expect("Failed to execute lsr -ltr");
+        .expect("Failed to execute lez -ltr");
 
     assert!(
         output_ltr.status.success(),
-        "lsr -ltr failed with stderr: {}",
+        "lez -ltr failed with stderr: {}",
         String::from_utf8_lossy(&output_ltr.stderr)
     );
 

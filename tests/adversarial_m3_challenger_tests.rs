@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_chal_m3_{prefix}_{}_{}",
+            "lez_chal_m3_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -53,7 +53,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 // -----------------------------------------------------------------------------
@@ -62,7 +62,7 @@ fn bin_path() -> &'static str {
 
 #[test]
 fn test_alias_sim_ll_with_smart_group() {
-    // Alias simulation: user aliases `ll="lsr -l"` and runs `ll --smart-group`
+    // Alias simulation: user aliases `ll="lez -l"` and runs `ll --smart-group`
     let temp = TempTestDir::new("alias_ll");
     temp.create_file("sample.txt", b"content");
 
@@ -71,7 +71,7 @@ fn test_alias_sim_ll_with_smart_group() {
         .arg("--smart-group") // user argument
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -80,7 +80,7 @@ fn test_alias_sim_ll_with_smart_group() {
 
 #[test]
 fn test_alias_sim_lsg_with_flag_overrides() {
-    // Alias simulation: user aliases `lsg="lsr -l --smart-group"`
+    // Alias simulation: user aliases `lsg="lez -l --smart-group"`
     // and tests appending various overriding/modifying flags
     let temp = TempTestDir::new("alias_lsg");
     temp.create_file("alpha.txt", b"alpha data");
@@ -157,7 +157,7 @@ fn test_alias_sim_lsg_with_flag_overrides() {
 
 #[test]
 fn test_alias_sim_ls_bare_smart_group() {
-    // Alias simulation: user aliases `ls="lsr --smart-group"`
+    // Alias simulation: user aliases `ls="lez --smart-group"`
     let temp = TempTestDir::new("alias_ls");
     temp.create_file("one.txt", b"one");
     temp.create_file("two.txt", b"two");

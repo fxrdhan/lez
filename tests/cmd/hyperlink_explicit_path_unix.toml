@@ -1,2 +1,2 @@
-bin.name = "lsr"
+bin.name = "lez"
 args = "tests/itest/index.svg --hyperlink=always"

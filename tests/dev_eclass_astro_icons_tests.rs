@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_icons_{prefix}_{}_{}",
+            "lez_icons_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -58,7 +58,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn test_dev_eclass_astro_icons_rendering() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr with icons");
+        .expect("Failed to execute lez with icons");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -115,7 +115,7 @@ fn test_dev_case_sensitivity_and_contrast() {
         .arg("--icons=always")
         .arg(&dev_dir)
         .output()
-        .expect("Failed to run lsr on Dev");
+        .expect("Failed to run lez on Dev");
     assert!(output_dev.status.success());
     let stdout_dev = String::from_utf8_lossy(&output_dev.stdout);
     assert!(
@@ -129,7 +129,7 @@ fn test_dev_case_sensitivity_and_contrast() {
         .arg("--icons=always")
         .arg(&lower_dir)
         .output()
-        .expect("Failed to run lsr on dev");
+        .expect("Failed to run lez on dev");
     assert!(output_lower.status.success());
     let stdout_lower = String::from_utf8_lossy(&output_lower.stdout);
     assert!(
@@ -152,7 +152,7 @@ fn test_dev_eclass_astro_tree_and_long_view() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr --tree");
+        .expect("Failed to run lez --tree");
     assert!(output_tree.status.success());
     let stdout_tree = String::from_utf8_lossy(&output_tree.stdout);
     assert!(stdout_tree.contains('\u{f121}')); // Dev
@@ -165,6 +165,6 @@ fn test_dev_eclass_astro_tree_and_long_view() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr -l");
+        .expect("Failed to run lez -l");
     assert!(output_long.status.success());
 }

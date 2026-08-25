@@ -27,7 +27,7 @@ fn main() -> io::Result<()> {
     #![allow(clippy::write_with_newline)]
 
     let tagline = "A modern, fast, and feature-rich replacement for ls written in Rust";
-    let url = "https://github.com/fxrdhan/lsr";
+    let url = "https://github.com/fxrdhan/lez";
 
     let ver = if is_debug_build() {
         format!(

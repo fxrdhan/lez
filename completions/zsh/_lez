@@ -1,16 +1,16 @@
-#compdef lsr
+#compdef lez
 
-# Save this file as _lsr in /usr/local/share/zsh/site-functions or in any
+# Save this file as _lez in /usr/local/share/zsh/site-functions or in any
 # other folder in $fpath.  E.g. save it in a folder called ~/.zfunc and add a
 # line containing `fpath=(~/.zfunc $fpath)` somewhere before `compinit` in your
 # ~/.zshrc.
 
-__lsr() {
+__lez() {
     # Give completions using the `_arguments` utility function with
-    # `-s` for option stacking like `lsr -ab` for `lsr -a -b` and
-    # `-S` for delimiting options with `--` like in `lsr -- -a`.
+    # `-s` for option stacking like `lez -ab` for `lez -a -b` and
+    # `-S` for delimiting options with `--` like in `lez -- -a`.
     _arguments -s -S \
-        "(- *)"{-v,--version}"[Show version of lsr]" \
+        "(- *)"{-v,--version}"[Show version of lez]" \
         "(- *)"--help"[Show list of command-line options]" \
         {-1,--oneline}"[Display one entry per line]" \
         {-l,--long}"[Display extended file metadata as a table]" \
@@ -93,9 +93,9 @@ __lsr() {
         {-M,--mounts}"[Show mount details (long mode only)]" \
         '*:filename:_files' \
         --smart-group"[Only show group if it has a different name from owner]" \
-        --stdin"[When piping to lsr. Read file names from stdin]" \
+        --stdin"[When piping to lez. Read file names from stdin]" \
         --print-total"[Display total number of entries]" \
         --mime-types"[determine file MIME types to better inform styling decisions (unix only)]"
 }
 
-__lsr
+__lez

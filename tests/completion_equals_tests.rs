@@ -16,11 +16,11 @@ use std::process::Command;
 
 /// `(directory, primary, compatibility copy)` for every backend we ship.
 const BACKENDS: [(&str, &str, &str); 5] = [
-    ("bash", "lsr", "eza"),
-    ("zsh", "_lsr", "_eza"),
-    ("fish", "lsr.fish", "eza.fish"),
-    ("nush", "lsr.nu", "eza.nu"),
-    ("pwsh", "_lsr.ps1", "_eza.ps1"),
+    ("bash", "lez", "eza"),
+    ("zsh", "_lez", "_eza"),
+    ("fish", "lez.fish", "eza.fish"),
+    ("nush", "lez.nu", "eza.nu"),
+    ("pwsh", "_lez.ps1", "_eza.ps1"),
 ];
 
 fn repo_root() -> PathBuf {
@@ -36,7 +36,7 @@ fn completion(dir: &str, file: &str) -> String {
 /// Every long name, aliases included, that clap will only accept with `=`.
 fn flags_requiring_equals() -> Vec<String> {
     let mut names = Vec::new();
-    for arg in lsr::options::parser::get_command().get_arguments() {
+    for arg in lez::options::parser::get_command().get_arguments() {
         if !arg.is_require_equals_set() {
             continue;
         }
@@ -77,7 +77,7 @@ fn names_a_case_arm(body: &str, flag: &str) -> bool {
 
 #[test]
 fn bash_moves_the_value_lists_behind_the_equals_sign() {
-    let script = completion("bash", "lsr");
+    let script = completion("bash", "lez");
     let equals_arms = case_body(&script, "case \"$eq_opt\" in");
     let space_arms = case_body(&script, "case \"$prev\" in");
 
@@ -113,8 +113,8 @@ fn fish_statements(script: &str) -> Vec<String> {
 
 #[test]
 fn fish_gates_the_value_lists_on_an_equals_sign() {
-    let script = completion("fish", "lsr.fish");
-    let condition = "__lsr_value_follows_an_equals_sign";
+    let script = completion("fish", "lez.fish");
+    let condition = "__lez_value_follows_an_equals_sign";
     assert!(
         script.contains(&format!("function {condition}")),
         "fish completion should define {condition}"
@@ -142,7 +142,7 @@ fn fish_gates_the_value_lists_on_an_equals_sign() {
 
 #[test]
 fn nushell_leaves_the_equals_flags_undeclared() {
-    let script = completion("nush", "lsr.nu");
+    let script = completion("nush", "lez.nu");
     for flag in flags_requiring_equals() {
         for line in script.lines() {
             let declared = line.trim_start();
@@ -163,8 +163,8 @@ fn nushell_leaves_the_equals_flags_undeclared() {
 /// parse error inside nushell before the binary ever sees it.
 #[test]
 fn nushell_declares_a_type_for_every_flag_that_takes_a_value() {
-    let script = completion("nush", "lsr.nu");
-    let command = lsr::options::parser::get_command();
+    let script = completion("nush", "lez.nu");
+    let command = lez::options::parser::get_command();
 
     for arg in command.get_arguments() {
         let takes_value = !matches!(
@@ -202,7 +202,7 @@ fn nushell_declares_a_type_for_every_flag_that_takes_a_value() {
 
 #[test]
 fn powershell_completes_the_equals_flags_as_whole_words() {
-    let script = completion("pwsh", "_lsr.ps1");
+    let script = completion("pwsh", "_lez.ps1");
     assert!(
         script.contains("$wordToComplete -like '*=*'"),
         "the PowerShell completer should serve the equals form before the switch"
@@ -228,10 +228,10 @@ fn powershell_completes_the_equals_flags_as_whole_words() {
 fn the_compat_copies_are_the_primary_files_with_the_name_rewritten() {
     for (dir, primary, compat) in BACKENDS {
         assert_eq!(
-            completion(dir, primary).replace("lsr", "eza"),
+            completion(dir, primary).replace("lez", "eza"),
             completion(dir, compat),
             "completions/{dir}/{compat} must be completions/{dir}/{primary} with \
-             `lsr` rewritten to `eza`; regenerate it rather than editing it"
+             `lez` rewritten to `eza`; regenerate it rather than editing it"
         );
     }
 }
@@ -268,12 +268,12 @@ fn usable_bash() -> Option<PathBuf> {
     None
 }
 
-/// Drive `_lsr` the way readline does — COMP_WORDS split on COMP_WORDBREAKS,
+/// Drive `_lez` the way readline does — COMP_WORDS split on COMP_WORDBREAKS,
 /// which is why `--absolute=on` arrives as three words — and read back what it
 /// would insert.
 fn bash_completions_for(bash: &Path, words: &[&str], cword: usize) -> (Vec<String>, bool) {
     let root = repo_root();
-    let binary_dir = Path::new(env!("CARGO_BIN_EXE_lsr"))
+    let binary_dir = Path::new(env!("CARGO_BIN_EXE_lez"))
         .parent()
         .expect("the test binary should live in a directory")
         .to_owned();
@@ -288,12 +288,12 @@ COMP_WORDS=({words})
 COMP_CWORD={cword}
 COMPREPLY=()
 NOSPACE=no
-_lsr
+_lez
 printf '%s\n' "${{COMPREPLY[@]}}"
 printf 'NOSPACE=%s\n' "$NOSPACE"
 "#,
         binary_dir = binary_dir,
-        source = root.join("completions").join("bash").join("lsr"),
+        source = root.join("completions").join("bash").join("lez"),
         words = quoted.join(" "),
         cword = cword,
     );
@@ -334,15 +334,15 @@ fn bash_really_offers_the_values_only_after_an_equals_sign() {
     };
 
     // `--absolute=` — the value replaces the `=`, so each candidate carries it.
-    let (replies, _) = bash_completions_for(&bash, &["lsr", "--absolute", "="], 2);
+    let (replies, _) = bash_completions_for(&bash, &["lez", "--absolute", "="], 2);
     assert_eq!(replies, ["=on", "=follow", "=off"]);
 
     // `--absolute=o` — the value replaces the partial word on its own.
-    let (replies, _) = bash_completions_for(&bash, &["lsr", "--absolute", "=", "o"], 3);
+    let (replies, _) = bash_completions_for(&bash, &["lez", "--absolute", "=", "o"], 3);
     assert_eq!(replies, ["on", "off"]);
 
     // A space is a new word, and a new word here is a path.
-    let (replies, _) = bash_completions_for(&bash, &["lsr", "--absolute", ""], 2);
+    let (replies, _) = bash_completions_for(&bash, &["lez", "--absolute", ""], 2);
     assert_eq!(
         replies,
         ["FILEDIR"],
@@ -350,15 +350,15 @@ fn bash_really_offers_the_values_only_after_an_equals_sign() {
     );
 
     // The short form requires the sign too.
-    let (replies, _) = bash_completions_for(&bash, &["lsr", "-F", "="], 2);
+    let (replies, _) = bash_completions_for(&bash, &["lez", "-F", "="], 2);
     assert_eq!(replies, ["=always", "=automatic", "=auto", "=never"]);
 
     // --color-scale takes a comma-separated list; the fields already typed stay.
-    let (replies, _) = bash_completions_for(&bash, &["lsr", "--color-scale", "=", "age,s"], 3);
+    let (replies, _) = bash_completions_for(&bash, &["lez", "--color-scale", "=", "age,s"], 3);
     assert_eq!(replies, ["age,size"]);
 
     // The flag itself completes to the equals sign, with the space held back.
-    let (replies, nospace) = bash_completions_for(&bash, &["lsr", "--abso"], 1);
+    let (replies, nospace) = bash_completions_for(&bash, &["lez", "--abso"], 1);
     assert_eq!(replies, ["--absolute="]);
     assert!(
         nospace,
@@ -366,6 +366,6 @@ fn bash_really_offers_the_values_only_after_an_equals_sign() {
     );
 
     // Flags that take their value after a space are left alone.
-    let (replies, _) = bash_completions_for(&bash, &["lsr", "--color-scale-mode", ""], 2);
+    let (replies, _) = bash_completions_for(&bash, &["lez", "--color-scale-mode", ""], 2);
     assert_eq!(replies, ["fixed", "gradient", "--"]);
 }

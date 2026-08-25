@@ -21,7 +21,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_warn_hidden_{prefix}_{}_{}",
+            "lez_warn_hidden_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -45,11 +45,11 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> String {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(args: &[&str]) -> String {
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(output.status.success());
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
@@ -66,7 +66,7 @@ fn fixture(prefix: &str) -> TempTestDir {
 fn warn_hidden_stays_silent_when_nothing_was_filtered() {
     let fixture = fixture("silent");
 
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-1",
         "--color=never",
         "-W",
@@ -83,7 +83,7 @@ fn warn_hidden_stays_silent_when_nothing_was_filtered() {
 fn warn_hidden_reports_once_something_was_hidden() {
     let fixture = fixture("auto");
 
-    let stdout = run_lsr(&["-1", "--color=never", "-W", fixture.path.to_str().unwrap()]);
+    let stdout = run_lez(&["-1", "--color=never", "-W", fixture.path.to_str().unwrap()]);
     assert!(stdout.contains("visible.txt"), "{stdout}");
     assert!(
         stdout.contains("hidden items"),
@@ -96,7 +96,7 @@ fn warn_hidden_twice_always_prints_the_tally() {
     let fixture = fixture("verbose");
 
     // A directory whose contents are all visible still gets a tally line.
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-1",
         "--color=never",
         "-WW",
@@ -107,6 +107,6 @@ fn warn_hidden_twice_always_prints_the_tally() {
         "double flag forces the tally: {stdout}"
     );
 
-    let stdout = run_lsr(&["-1", "--color=never", "-WW", fixture.path.to_str().unwrap()]);
+    let stdout = run_lez(&["-1", "--color=never", "-WW", fixture.path.to_str().unwrap()]);
     assert!(stdout.contains("1 hidden"), "{stdout}");
 }

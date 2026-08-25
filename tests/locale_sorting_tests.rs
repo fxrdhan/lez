@@ -5,12 +5,12 @@ use std::cmp::Ordering;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use lsr::fs::filter::{
+use lez::fs::filter::{
     FileFilter, GitIgnore, IgnoreCacheDir, IgnorePatterns, LocaleCollator, SortCase, SortField,
 };
-use lsr::fs::{DotFilter, File};
-use lsr::options::Vars;
-use lsr::output::hidden_count::WarnHiddenMode;
+use lez::fs::{DotFilter, File};
+use lez::options::Vars;
+use lez::output::hidden_count::WarnHiddenMode;
 
 #[derive(Default)]
 struct TestVars {

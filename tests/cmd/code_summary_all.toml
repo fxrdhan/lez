@@ -1,4 +1,4 @@
-bin.name = "lsr"
+bin.name = "lez"
 args = "--code tests/itest-loc"
 [env.add]
 LC_ALL = "C"

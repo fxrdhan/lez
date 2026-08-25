@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_test_summary_{prefix}_{}_{}",
+            "lez_test_summary_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -63,7 +63,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ fn test_summary_empty_directory() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -110,7 +110,7 @@ fn test_summary_mixed_plural() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -134,7 +134,7 @@ fn test_summary_singular() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -163,7 +163,7 @@ fn test_summary_oneline_mode() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -189,7 +189,7 @@ fn test_summary_long_details_mode() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -215,7 +215,7 @@ fn test_summary_grid_details_mode() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -247,7 +247,7 @@ fn test_summary_tree_mode_nested() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -270,7 +270,7 @@ fn test_summary_tree_mode_nested() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output_long.status.success());
     let stdout_long = String::from_utf8_lossy(&output_long.stdout);
@@ -300,7 +300,7 @@ fn test_summary_with_only_dirs() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -326,7 +326,7 @@ fn test_summary_with_only_files() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -351,7 +351,7 @@ fn test_summary_with_no_symlinks() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -377,7 +377,7 @@ fn test_summary_with_ignore_glob() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -406,7 +406,7 @@ fn test_summary_with_icons_always() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -457,7 +457,7 @@ fn test_summary_with_icons_never() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -503,7 +503,7 @@ fn test_summary_multi_directory_arguments() {
         .arg(&temp1.path)
         .arg(&temp2.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

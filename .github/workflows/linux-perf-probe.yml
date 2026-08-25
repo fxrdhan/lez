@@ -44,13 +44,13 @@ jobs:
       - name: Build this ref
         run: |
           cargo build --release --quiet
-          cp target/release/lsr /tmp/after
+          cp target/release/lez /tmp/after
       - name: Build main for comparison
         run: |
           git worktree add /tmp/base origin/main
           cd /tmp/base
           CARGO_TARGET_DIR=/tmp/base-target cargo build --release --quiet
-          cp /tmp/base-target/release/lsr /tmp/before
+          cp /tmp/base-target/release/lez /tmp/before
       - name: Build the fixture
         run: |
           root=/tmp/fixture

@@ -23,7 +23,7 @@ impl TempGitRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_gitignore_{prefix}_{}_{}",
+            "lez_gitignore_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -83,12 +83,12 @@ fn git_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 // ----------------------------------------------------------------------------
@@ -105,7 +105,7 @@ fn test_f7_gitignore_filters_unlisted_target() {
     repo.write_file("target/build.bin", b"binary\n");
     repo.write_file("scratch.tmp", b"scratch\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--git-ignore",
         "--color=never",
@@ -137,7 +137,7 @@ fn test_f7_explicit_positional_dir_displayed_despite_gitignore() {
     let target_dir = repo.path.join("target");
 
     // Explicitly listing target/ with --git-ignore must display contents of target/
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--git-ignore",
         "--color=never",
@@ -167,7 +167,7 @@ fn test_f7_no_git_overrides_git_ignore() {
     repo.write_file("public.txt", b"public\n");
 
     // --no-git with --git-ignore disables gitignore filtering
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--git-ignore",
         "--no-git",
@@ -196,7 +196,7 @@ fn test_f7_no_git_first_overrides_git_ignore() {
     repo.write_file(".gitignore", b"ignored.txt\n");
     repo.write_file("ignored.txt", b"ignored\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--no-git",
         "--git-ignore",
@@ -220,7 +220,7 @@ fn test_f7_explicit_positional_file_displayed_despite_gitignore() {
     repo.write_file(".gitignore", b"config.local.json\n");
     let file_path = repo.write_file("config.local.json", b"{\"key\": \"val\"}\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--git-ignore",
         "--color=never",
@@ -246,7 +246,7 @@ fn test_f7_positional_dir_filters_nested_ignored_files() {
 
     let subdir = repo.path.join("subdir");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--git-ignore",
         "--color=never",
@@ -275,7 +275,7 @@ fn test_f7_positional_dir_in_tree_mode() {
 
     let build_dir = repo.path.join("build");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-T",
         "--git-ignore",
         "--color=never",
@@ -306,7 +306,7 @@ fn test_f7_env_var_override_git_ignore() {
     repo.write_file(".gitignore", b"secret.txt\n");
     repo.write_file("secret.txt", b"secret\n");
 
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let output = Command::new(bin_path)
         .args([
             "-1",
@@ -314,16 +314,16 @@ fn test_f7_env_var_override_git_ignore() {
             "--color=never",
             repo.path.to_str().unwrap(),
         ])
-        .env("LSR_OVERRIDE_GIT", "1")
+        .env("LEZ_OVERRIDE_GIT", "1")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert!(
         stdout.contains("secret.txt"),
-        "LSR_OVERRIDE_GIT=1 should override --git-ignore: {stdout}"
+        "LEZ_OVERRIDE_GIT=1 should override --git-ignore: {stdout}"
     );
 }
 
@@ -345,7 +345,7 @@ fn test_lone_star_gitignore_hides_top_level_files() {
     repo.write_file("dropped.log", b"dropped\n");
     repo.write_file("sub/nested.log", b"nested\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "-a",
         "--git-ignore",
@@ -383,7 +383,7 @@ fn test_lone_star_gitignore_marks_files_in_the_git_column() {
     repo.write_file("kept.txt", b"kept\n");
     repo.write_file("dropped.log", b"dropped\n");
 
-    let output = run_lsr(&["-la", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output = run_lez(&["-la", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -419,7 +419,7 @@ fn test_lone_star_gitignore_leaves_tracked_files_alone() {
     repo.git(&["add", "-f", ".gitignore", "tracked.log"]);
     repo.git(&["commit", "-qm", "force-add an ignored file"]);
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "-a",
         "--git-ignore",

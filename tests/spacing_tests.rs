@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_spacing_{prefix}_{}_{}",
+            "lez_spacing_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,7 +52,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -66,14 +66,14 @@ fn test_long_view_with_custom_spacing() {
         .arg("--spacing=1")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr -l --spacing=1");
+        .expect("Failed to execute lez -l --spacing=1");
 
     let output_spacing_6 = Command::new(bin_path())
         .arg("-l")
         .arg("--spacing=6")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr -l --spacing=6");
+        .expect("Failed to execute lez -l --spacing=6");
 
     assert!(output_spacing_1.status.success());
     assert!(output_spacing_6.status.success());
@@ -98,7 +98,7 @@ fn test_grid_view_with_zero_spacing() {
         .arg("--spacing=0")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr --grid --spacing=0");
+        .expect("Failed to execute lez --grid --spacing=0");
 
     assert!(output.status.success());
     let out = String::from_utf8_lossy(&output.stdout);

@@ -32,7 +32,7 @@ jobs:
         run: cargo build --features git,inspect-archives
       - name: Report the version under test
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           "exe = $exe"
           & $exe --version
           $global:LASTEXITCODE = 0
@@ -40,7 +40,7 @@ jobs:
       # expand globs, so the binary receives the literal `t*`.
       - name: 'eza#337 — a wildcard argument'
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           $d = Join-Path $env:RUNNER_TEMP 'p337'
           New-Item -ItemType Directory -Force -Path $d | Out-Null
           'x' | Set-Content (Join-Path $d 'test1.txt')
@@ -48,7 +48,7 @@ jobs:
           'x' | Set-Content (Join-Path $d 'other.txt')
           Set-Location $d
           foreach ($pattern in @('t*', 't*.*', 't?st1.txt')) {
-            "--- lsr $pattern ---"
+            "--- lez $pattern ---"
             (& $exe $pattern 2>&1 | Out-String).Trim()
             "exit=$LASTEXITCODE"
           }
@@ -57,9 +57,9 @@ jobs:
       # 123. This is what tab completion in PowerShell produces.
       - name: 'eza#404 — a path with a trailing separator'
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           foreach ($path in @('C:\Program Files\', 'C:\Program Files', 'C:\Progra~1')) {
-            "--- lsr '$path' ---"
+            "--- lez '$path' ---"
             (& $exe $path 2>&1 | Select-Object -First 4 | Out-String).Trim()
             "exit=$LASTEXITCODE"
           }
@@ -68,7 +68,7 @@ jobs:
       # broken link, and its contents never appear.
       - name: 'eza#853 — a relative directory symlink'
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           $d = Join-Path $env:RUNNER_TEMP 'p853'
           New-Item -ItemType Directory -Force -Path (Join-Path $d 'dir') | Out-Null
           'x' | Set-Content (Join-Path $d 'dir\test-file')
@@ -77,7 +77,7 @@ jobs:
           "mklink exit=$LASTEXITCODE"
           if (Test-Path 'test') {
             Set-Location 'test'
-            '--- lsr -la inside the link ---'
+            '--- lez -la inside the link ---'
             (& $exe -la 2>&1 | Out-String).Trim()
             "exit=$LASTEXITCODE"
           } else {
@@ -88,7 +88,7 @@ jobs:
       # children.
       - name: 'eza#1025 — listing from inside a directory symlink'
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           $d = Join-Path $env:RUNNER_TEMP 'p1025'
           New-Item -ItemType Directory -Force -Path (Join-Path $d 'test1') | Out-Null
           'test' | Set-Content (Join-Path $d 'test1\temp.txt')
@@ -99,7 +99,7 @@ jobs:
             Set-Location 'test2'
             '--- dir ---'
             (cmd /c dir /b | Out-String).Trim()
-            '--- lsr -l ---'
+            '--- lez -l ---'
             (& $exe -l 2>&1 | Out-String).Trim()
             "exit=$LASTEXITCODE"
           } else {
@@ -110,7 +110,7 @@ jobs:
       # "Access is denied" line per pipe.
       - name: 'eza#1104 — the named pipe filesystem'
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           $out = & $exe '\\.\pipe\' 2>&1 | Out-String
           "exit=$LASTEXITCODE"
           $lines = $out -split "`n"
@@ -123,37 +123,37 @@ jobs:
       # a dotfile, so Python dunder files vanish from a plain listing.
       - name: 'eza#1220 — files beginning with an underscore'
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           $d = Join-Path $env:RUNNER_TEMP 'p1220'
           New-Item -ItemType Directory -Force -Path $d | Out-Null
           foreach ($f in @('__init__.py', '__main__.py', '_private.py', 'normal.py')) {
             'x' | Set-Content (Join-Path $d $f)
           }
           Set-Location $d
-          '--- lsr (no -a) ---'
+          '--- lez (no -a) ---'
           (& $exe --color=never 2>&1 | Out-String).Trim()
-          '--- lsr -a ---'
+          '--- lez -a ---'
           (& $exe -a --color=never 2>&1 | Out-String).Trim()
           $global:LASTEXITCODE = 0
       # eza#1665 — --ignore-glob has no effect once -a is also given.
       - name: 'eza#1665 — --ignore-glob together with -a'
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           $d = Join-Path $env:RUNNER_TEMP 'p1665'
           New-Item -ItemType Directory -Force -Path $d | Out-Null
           foreach ($f in @('keep.txt', 'skip.log', 'also-skip.log')) {
             'x' | Set-Content (Join-Path $d $f)
           }
           Set-Location $d
-          '--- lsr --ignore-glob=*.log ---'
+          '--- lez --ignore-glob=*.log ---'
           (& $exe --color=never "--ignore-glob=*.log" 2>&1 | Out-String).Trim()
-          '--- lsr -a --ignore-glob=*.log  (the .log files must not appear) ---'
+          '--- lez -a --ignore-glob=*.log  (the .log files must not appear) ---'
           (& $exe -a --color=never "--ignore-glob=*.log" 2>&1 | Out-String).Trim()
           $global:LASTEXITCODE = 0
       # eza#1769 — -g and -a together collapse the listing to one column.
       - name: 'eza#1769 — -g together with -a'
         run: |
-          $exe = Join-Path $PWD 'target\debug\lsr.exe'
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
           $d = Join-Path $env:RUNNER_TEMP 'p1769'
           New-Item -ItemType Directory -Force -Path $d | Out-Null
           foreach ($n in 1..12) { 'x' | Set-Content (Join-Path $d "file$n") }
@@ -161,7 +161,7 @@ jobs:
           # Not $args: PowerShell reserves that name for a function's own
           # arguments, and assigning to it at script scope is asking for trouble.
           foreach ($flags in @(@('-w', '100'), @('-a', '-w', '100'), @('-g', '-w', '100'), @('-g', '-a', '-w', '100'))) {
-            "--- lsr $($flags -join ' ') ---"
+            "--- lez $($flags -join ' ') ---"
             $out = & $exe --color=never @flags 2>&1 | Out-String
             "rows: $(($out.Trim() -split "`n").Count)"
             $out.Trim()

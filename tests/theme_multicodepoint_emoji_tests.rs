@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_theme_emoji_{prefix}_{}_{}",
+            "lez_theme_emoji_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -58,7 +58,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -114,9 +114,9 @@ extensions:
         .arg("--color=always")
         .arg("--icons=always")
         .arg(&temp.path)
-        .env("LSR_CONFIG_DIR", &config_dir)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .output()
-        .expect("Failed to execute lsr with custom emoji theme");
+        .expect("Failed to execute lez with custom emoji theme");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -151,9 +151,9 @@ filenames:
         .arg("--color=always")
         .arg("--icons=always")
         .arg(&temp.path)
-        .env("LSR_CONFIG_DIR", &config_dir)
+        .env("LEZ_CONFIG_DIR", &config_dir)
         .output()
-        .expect("Failed to execute lsr with family emoji");
+        .expect("Failed to execute lez with family emoji");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

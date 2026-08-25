@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lsr_ada_{prefix}_{}_{}", std::process::id(), nanos));
+            std::env::temp_dir().join(format!("lez_ada_{prefix}_{}_{}", std::process::id(), nanos));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("Failed to create temp test directory");
         Self { path }
@@ -49,7 +49,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn test_ada_icons_cli() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr with icons");
+        .expect("Failed to execute lez with icons");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -98,7 +98,7 @@ fn test_ada_code_summary_cli() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr --code");
+        .expect("Failed to execute lez --code");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -129,7 +129,7 @@ fn test_ada_code_summary_with_icons_cli() {
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr --code --icons=always");
+        .expect("Failed to execute lez --code --icons=always");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -154,7 +154,7 @@ fn test_ada_comment_counting_edge_cases() {
         .arg("--code")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr --code");
+        .expect("Failed to execute lez --code");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

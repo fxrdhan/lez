@@ -14,9 +14,9 @@ use std::path::Path;
 /// Every page under `man/`. The build recipes name the same set, and
 /// `every_source_under_man_is_built` fails if the two ever disagree.
 const MAN_PAGES: [&str; 3] = [
-    "man/lsr.1.md",
-    "man/lsr_colors.5.md",
-    "man/lsr_colors-explanation.5.md",
+    "man/lez.1.md",
+    "man/lez_colors.5.md",
+    "man/lez_colors-explanation.5.md",
 ];
 
 fn workspace_file(name: &str) -> String {

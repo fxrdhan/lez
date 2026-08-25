@@ -30,12 +30,12 @@ pub static LC_ALL: &str = "LC_ALL";
 pub static LC_COLLATE: &str = "LC_COLLATE";
 pub static LANG: &str = "LANG";
 
-// lsr-specific variables
+// lez-specific variables
 
-/// Environment variable used to colour lsr’s interface when colours are
+/// Environment variable used to colour lez’s interface when colours are
 /// enabled. This includes all the colours that `LS_COLORS` would recognise,
-/// overriding them if necessary. It can also contain lsr-specific codes.
-pub static LSR_COLORS: &str = "LSR_COLORS";
+/// overriding them if necessary. It can also contain lez-specific codes.
+pub static LEZ_COLORS: &str = "LEZ_COLORS";
 pub static EXA_COLORS: &str = "EXA_COLORS";
 pub static EZA_COLORS: &str = "EZA_COLORS";
 
@@ -44,20 +44,20 @@ pub static EZA_COLORS: &str = "EZA_COLORS";
 /// This is meant to be so you don’t accidentally introduce the wrong
 /// behaviour in a script, rather than for general command-line use.
 /// Any non-empty value will turn strict mode on.
-pub static LSR_STRICT: &str = "LSR_STRICT";
+pub static LEZ_STRICT: &str = "LEZ_STRICT";
 pub static EXA_STRICT: &str = "EXA_STRICT";
 pub static EZA_STRICT: &str = "EZA_STRICT";
 
-/// Environment variable used to make lsr print out debugging information as
+/// Environment variable used to make lez print out debugging information as
 /// it runs. Any non-empty value will turn debug mode on.
-pub static LSR_DEBUG: &str = "LSR_DEBUG";
+pub static LEZ_DEBUG: &str = "LEZ_DEBUG";
 pub static EXA_DEBUG: &str = "EXA_DEBUG";
 pub static EZA_DEBUG: &str = "EZA_DEBUG";
 
 /// Environment variable used to limit the grid-details view
 /// (`--grid --long`) so it’s only activated if there’s at least the given
 /// number of rows of output.
-pub static LSR_GRID_ROWS: &str = "LSR_GRID_ROWS";
+pub static LEZ_GRID_ROWS: &str = "LEZ_GRID_ROWS";
 pub static EXA_GRID_ROWS: &str = "EXA_GRID_ROWS";
 pub static EZA_GRID_ROWS: &str = "EZA_GRID_ROWS";
 
@@ -65,7 +65,7 @@ pub static EZA_GRID_ROWS: &str = "EZA_GRID_ROWS";
 /// icon and its file name. Different terminals display icons differently,
 /// with 1 space bringing them too close together or 2 spaces putting them too
 /// far apart, so this may be necessary depending on how they are shown.
-pub static LSR_ICON_SPACING: &str = "LSR_ICON_SPACING";
+pub static LEZ_ICON_SPACING: &str = "LEZ_ICON_SPACING";
 pub static EXA_ICON_SPACING: &str = "EXA_ICON_SPACING";
 pub static EZA_ICON_SPACING: &str = "EZA_ICON_SPACING";
 
@@ -78,36 +78,36 @@ pub static EZA_ICON_SPACING: &str = "EZA_ICON_SPACING";
 /// or a network share each of those is a round trip, and listing a few
 /// thousand directories stops being usable at all. Set this to anything to
 /// give every directory the same glyph and pay for none of it.
-pub static LSR_NO_EMPTY_DIR_ICON: &str = "LSR_NO_EMPTY_DIR_ICON";
+pub static LEZ_NO_EMPTY_DIR_ICON: &str = "LEZ_NO_EMPTY_DIR_ICON";
 pub static EXA_NO_EMPTY_DIR_ICON: &str = "EXA_NO_EMPTY_DIR_ICON";
 pub static EZA_NO_EMPTY_DIR_ICON: &str = "EZA_NO_EMPTY_DIR_ICON";
 
-pub static LSR_OVERRIDE_GIT: &str = "LSR_OVERRIDE_GIT";
+pub static LEZ_OVERRIDE_GIT: &str = "LEZ_OVERRIDE_GIT";
 pub static EXA_OVERRIDE_GIT: &str = "EXA_OVERRIDE_GIT";
 pub static EZA_OVERRIDE_GIT: &str = "EZA_OVERRIDE_GIT";
 
 /// Environment variable used to set the minimum luminance in `color_scale`. Its value
 /// can be between -100 and 100
-pub static LSR_MIN_LUMINANCE: &str = "LSR_MIN_LUMINANCE";
+pub static LEZ_MIN_LUMINANCE: &str = "LEZ_MIN_LUMINANCE";
 pub static EZA_MIN_LUMINANCE: &str = "EZA_MIN_LUMINANCE";
 pub static EXA_MIN_LUMINANCE: &str = "EXA_MIN_LUMINANCE";
 
 /// Environment variable used to set the maximum luminance in `color_scale`. Its value
 /// can be between -100 and 100
-pub static LSR_MAX_LUMINANCE: &str = "LSR_MAX_LUMINANCE";
+pub static LEZ_MAX_LUMINANCE: &str = "LEZ_MAX_LUMINANCE";
 pub static EZA_MAX_LUMINANCE: &str = "EZA_MAX_LUMINANCE";
 pub static EXA_MAX_LUMINANCE: &str = "EXA_MAX_LUMINANCE";
 
 /// Environment variable used to automate the same behavior as `--icons=auto` if set.
 /// Any explicit use of `--icons=WHEN` overrides this behavior.
-pub static LSR_ICONS_AUTO: &str = "LSR_ICONS_AUTO";
+pub static LEZ_ICONS_AUTO: &str = "LEZ_ICONS_AUTO";
 pub static EZA_ICONS_AUTO: &str = "EZA_ICONS_AUTO";
 
-pub static LSR_STDIN_SEPARATOR: &str = "LSR_STDIN_SEPARATOR";
+pub static LEZ_STDIN_SEPARATOR: &str = "LEZ_STDIN_SEPARATOR";
 pub static EZA_STDIN_SEPARATOR: &str = "EZA_STDIN_SEPARATOR";
 
 /// Environment variable used to determine MIME types for styling decisions.
-pub static LSR_MIME_TYPES: &str = "LSR_MIME_TYPES";
+pub static LEZ_MIME_TYPES: &str = "LEZ_MIME_TYPES";
 pub static EZA_MIME_TYPES: &str = "EZA_MIME_TYPES";
 
 /// Environment variable for user home directory.
@@ -116,19 +116,19 @@ pub static HOME: &str = "HOME";
 /// Environment variable for XDG configuration directory.
 pub static XDG_CONFIG_HOME: &str = "XDG_CONFIG_HOME";
 
-/// Environment variable used to override the configuration directory for lsr.
-pub static LSR_CONFIG_DIR: &str = "LSR_CONFIG_DIR";
+/// Environment variable used to override the configuration directory for lez.
+pub static LEZ_CONFIG_DIR: &str = "LEZ_CONFIG_DIR";
 pub static EZA_CONFIG_DIR: &str = "EZA_CONFIG_DIR";
 
 /// Environment variable used to choose when file names are quoted:
 /// `always`, `auto`, or `never`.
-pub static LSR_QUOTING_STYLE: &str = "LSR_QUOTING_STYLE";
+pub static LEZ_QUOTING_STYLE: &str = "LEZ_QUOTING_STYLE";
 pub static EZA_QUOTING_STYLE: &str = "EZA_QUOTING_STYLE";
 
 /// Environment variable used to choose how windows attributes are displayed.
 /// Short will display a single character for each set attribute, long will
 /// display a comma separated list of descriptions.
-pub static LSR_WINDOWS_ATTRIBUTES: &str = "LSR_WINDOWS_ATTRIBUTES";
+pub static LEZ_WINDOWS_ATTRIBUTES: &str = "LEZ_WINDOWS_ATTRIBUTES";
 pub static EZA_WINDOWS_ATTRIBUTES: &str = "EZA_WINDOWS_ATTRIBUTES";
 
 /// Mockable wrapper for `std::env::var_os`.
@@ -178,14 +178,14 @@ pub mod test {
     #[test]
     #[should_panic(expected = "MockVars has no field for")]
     fn setting_an_unknown_variable_is_refused() {
-        MockVars::default().set("LSR_NOT_A_REAL_VARIABLE", &OsString::from("1"));
+        MockVars::default().set("LEZ_NOT_A_REAL_VARIABLE", &OsString::from("1"));
     }
 
     #[derive(Default)]
     pub struct MockVars {
         pub columns: OsString,
         pub colors: OsString,
-        pub lsr_colors: OsString,
+        pub lez_colors: OsString,
         pub eza_colors: OsString,
         pub exa_colors: OsString,
         pub ls_colors: OsString,
@@ -193,7 +193,7 @@ pub mod test {
         pub strict: OsString,
         pub debug: OsString,
         pub grid_rows: OsString,
-        pub lsr_icon_spacing: OsString,
+        pub lez_icon_spacing: OsString,
         pub eza_icon_spacing: OsString,
         pub exa_icon_spacing: OsString,
         pub icon_spacing: OsString,
@@ -202,15 +202,15 @@ pub mod test {
         pub icons: OsString,
         pub no_empty_dir_icon: OsString,
         pub time: OsString,
-        pub lsr_config_dir: OsString,
+        pub lez_config_dir: OsString,
         pub eza_config_dir: OsString,
         pub quoting_style: OsString,
         pub xdg_config_home: OsString,
         pub home: OsString,
-        pub lsr_stdin_separator: OsString,
+        pub lez_stdin_separator: OsString,
         pub eza_stdin_separator: OsString,
         pub stdin_separator: OsString,
-        pub lsr_mime_types: OsString,
+        pub lez_mime_types: OsString,
         pub eza_mime_types: OsString,
         pub mimetypes: OsString,
         pub lc_all: OsString,
@@ -231,33 +231,33 @@ pub mod test {
 
         fn get(&self, name: &'static str) -> Option<OsString> {
             match name {
-                "LSR_STRICT" | "EXA_STRICT" | "EZA_STRICT" if !self.strict.is_empty() => {
+                "LEZ_STRICT" | "EXA_STRICT" | "EZA_STRICT" if !self.strict.is_empty() => {
                     Some(self.strict.clone())
                 }
-                "LSR_COLORS" if !self.lsr_colors.is_empty() => Some(self.lsr_colors.clone()),
+                "LEZ_COLORS" if !self.lez_colors.is_empty() => Some(self.lez_colors.clone()),
                 "EZA_COLORS" if !self.eza_colors.is_empty() => Some(self.eza_colors.clone()),
                 "EXA_COLORS" if !self.exa_colors.is_empty() => Some(self.exa_colors.clone()),
                 "LS_COLORS" if !self.ls_colors.is_empty() => Some(self.ls_colors.clone()),
-                "LSR_COLORS" | "EZA_COLORS" | "LS_COLORS" | "EXA_COLORS"
+                "LEZ_COLORS" | "EZA_COLORS" | "LS_COLORS" | "EXA_COLORS"
                     if !self.colors.is_empty() =>
                 {
                     Some(self.colors.clone())
                 }
-                "LSR_DEBUG" | "EXA_DEBUG" | "EZA_DEBUG" if !self.debug.is_empty() => {
+                "LEZ_DEBUG" | "EXA_DEBUG" | "EZA_DEBUG" if !self.debug.is_empty() => {
                     Some(self.debug.clone())
                 }
-                "LSR_GRID_ROWS" | "EXA_GRID_ROWS" | "EZA_GRID_ROWS"
+                "LEZ_GRID_ROWS" | "EXA_GRID_ROWS" | "EZA_GRID_ROWS"
                     if !self.grid_rows.is_empty() =>
                 {
                     Some(self.grid_rows.clone())
                 }
-                "LSR_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON"
+                "LEZ_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON"
                     if !self.no_empty_dir_icon.is_empty() =>
                 {
                     Some(self.no_empty_dir_icon.clone())
                 }
-                "LSR_ICON_SPACING" if !self.lsr_icon_spacing.is_empty() => {
-                    Some(self.lsr_icon_spacing.clone())
+                "LEZ_ICON_SPACING" if !self.lez_icon_spacing.is_empty() => {
+                    Some(self.lez_icon_spacing.clone())
                 }
                 "EZA_ICON_SPACING" if !self.eza_icon_spacing.is_empty() => {
                     Some(self.eza_icon_spacing.clone())
@@ -265,58 +265,58 @@ pub mod test {
                 "EXA_ICON_SPACING" if !self.exa_icon_spacing.is_empty() => {
                     Some(self.exa_icon_spacing.clone())
                 }
-                "LSR_ICON_SPACING" | "EXA_ICON_SPACING" | "EZA_ICON_SPACING"
+                "LEZ_ICON_SPACING" | "EXA_ICON_SPACING" | "EZA_ICON_SPACING"
                     if !self.icon_spacing.is_empty() =>
                 {
                     Some(self.icon_spacing.clone())
                 }
-                "LSR_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE"
+                "LEZ_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE"
                     if !self.min_luminance.is_empty() =>
                 {
                     Some(self.min_luminance.clone())
                 }
-                "LSR_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE"
+                "LEZ_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE"
                     if !self.max_luminance.is_empty() =>
                 {
                     Some(self.max_luminance.clone())
                 }
-                "LSR_ICONS_AUTO" | "EZA_ICONS_AUTO" if !self.icons.is_empty() => {
+                "LEZ_ICONS_AUTO" | "EZA_ICONS_AUTO" if !self.icons.is_empty() => {
                     Some(self.icons.clone())
                 }
                 "COLUMNS" if !self.columns.is_empty() => Some(self.columns.clone()),
                 "NO_COLOR" if !self.no_colors.is_empty() => Some(self.no_colors.clone()),
                 "TIME_STYLE" if !self.time.is_empty() => Some(self.time.clone()),
-                "LSR_CONFIG_DIR" if !self.lsr_config_dir.is_empty() => {
-                    Some(self.lsr_config_dir.clone())
+                "LEZ_CONFIG_DIR" if !self.lez_config_dir.is_empty() => {
+                    Some(self.lez_config_dir.clone())
                 }
                 "EZA_CONFIG_DIR" if !self.eza_config_dir.is_empty() => {
                     Some(self.eza_config_dir.clone())
                 }
-                "LSR_QUOTING_STYLE" | "EZA_QUOTING_STYLE" if !self.quoting_style.is_empty() => {
+                "LEZ_QUOTING_STYLE" | "EZA_QUOTING_STYLE" if !self.quoting_style.is_empty() => {
                     Some(self.quoting_style.clone())
                 }
                 "XDG_CONFIG_HOME" if !self.xdg_config_home.is_empty() => {
                     Some(self.xdg_config_home.clone())
                 }
                 "HOME" if !self.home.is_empty() => Some(self.home.clone()),
-                "LSR_STDIN_SEPARATOR" if !self.lsr_stdin_separator.is_empty() => {
-                    Some(self.lsr_stdin_separator.clone())
+                "LEZ_STDIN_SEPARATOR" if !self.lez_stdin_separator.is_empty() => {
+                    Some(self.lez_stdin_separator.clone())
                 }
                 "EZA_STDIN_SEPARATOR" if !self.eza_stdin_separator.is_empty() => {
                     Some(self.eza_stdin_separator.clone())
                 }
-                "LSR_STDIN_SEPARATOR" | "EZA_STDIN_SEPARATOR"
+                "LEZ_STDIN_SEPARATOR" | "EZA_STDIN_SEPARATOR"
                     if !self.stdin_separator.is_empty() =>
                 {
                     Some(self.stdin_separator.clone())
                 }
-                "LSR_MIME_TYPES" if !self.lsr_mime_types.is_empty() => {
-                    Some(self.lsr_mime_types.clone())
+                "LEZ_MIME_TYPES" if !self.lez_mime_types.is_empty() => {
+                    Some(self.lez_mime_types.clone())
                 }
                 "EZA_MIME_TYPES" if !self.eza_mime_types.is_empty() => {
                     Some(self.eza_mime_types.clone())
                 }
-                "LSR_MIME_TYPES" | "EZA_MIME_TYPES" if !self.mimetypes.is_empty() => {
+                "LEZ_MIME_TYPES" | "EZA_MIME_TYPES" if !self.mimetypes.is_empty() => {
                     Some(self.mimetypes.clone())
                 }
                 "LC_ALL" if !self.lc_all.is_empty() => Some(self.lc_all.clone()),
@@ -330,41 +330,41 @@ pub mod test {
     impl MockVars {
         pub fn set(&mut self, var: &'static str, value: &OsString) {
             match var {
-                "LSR_STRICT" | "EXA_STRICT" | "EZA_STRICT" => self.strict = value.clone(),
-                "LSR_COLORS" => self.lsr_colors = value.clone(),
+                "LEZ_STRICT" | "EXA_STRICT" | "EZA_STRICT" => self.strict = value.clone(),
+                "LEZ_COLORS" => self.lez_colors = value.clone(),
                 "EZA_COLORS" => self.eza_colors = value.clone(),
                 "EXA_COLORS" => self.exa_colors = value.clone(),
                 "LS_COLORS" => self.ls_colors = value.clone(),
-                "LSR_DEBUG" | "EXA_DEBUG" | "EZA_DEBUG" => self.debug = value.clone(),
-                "LSR_GRID_ROWS" | "EXA_GRID_ROWS" | "EZA_GRID_ROWS" => {
+                "LEZ_DEBUG" | "EXA_DEBUG" | "EZA_DEBUG" => self.debug = value.clone(),
+                "LEZ_GRID_ROWS" | "EXA_GRID_ROWS" | "EZA_GRID_ROWS" => {
                     self.grid_rows = value.clone()
                 }
-                "LSR_ICON_SPACING" => self.lsr_icon_spacing = value.clone(),
+                "LEZ_ICON_SPACING" => self.lez_icon_spacing = value.clone(),
                 "EZA_ICON_SPACING" => self.eza_icon_spacing = value.clone(),
                 "EXA_ICON_SPACING" => self.exa_icon_spacing = value.clone(),
-                "LSR_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE" => {
+                "LEZ_MIN_LUMINANCE" | "EZA_MIN_LUMINANCE" | "EXA_MIN_LUMINANCE" => {
                     self.min_luminance = value.clone()
                 }
-                "LSR_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE" => {
+                "LEZ_MAX_LUMINANCE" | "EZA_MAX_LUMINANCE" | "EXA_MAX_LUMINANCE" => {
                     self.max_luminance = value.clone()
                 }
-                "LSR_ICONS_AUTO" | "EZA_ICONS_AUTO" => self.icons = value.clone(),
+                "LEZ_ICONS_AUTO" | "EZA_ICONS_AUTO" => self.icons = value.clone(),
                 "COLUMNS" => self.columns = value.clone(),
                 "NO_COLOR" => self.no_colors = value.clone(),
                 "TIME_STYLE" => self.time = value.clone(),
-                "LSR_CONFIG_DIR" => self.lsr_config_dir = value.clone(),
+                "LEZ_CONFIG_DIR" => self.lez_config_dir = value.clone(),
                 "EZA_CONFIG_DIR" => self.eza_config_dir = value.clone(),
-                "LSR_QUOTING_STYLE" | "EZA_QUOTING_STYLE" => self.quoting_style = value.clone(),
+                "LEZ_QUOTING_STYLE" | "EZA_QUOTING_STYLE" => self.quoting_style = value.clone(),
                 "XDG_CONFIG_HOME" => self.xdg_config_home = value.clone(),
                 "HOME" => self.home = value.clone(),
-                "LSR_STDIN_SEPARATOR" => self.lsr_stdin_separator = value.clone(),
+                "LEZ_STDIN_SEPARATOR" => self.lez_stdin_separator = value.clone(),
                 "EZA_STDIN_SEPARATOR" => self.eza_stdin_separator = value.clone(),
-                "LSR_MIME_TYPES" => self.lsr_mime_types = value.clone(),
+                "LEZ_MIME_TYPES" => self.lez_mime_types = value.clone(),
                 "EZA_MIME_TYPES" => self.eza_mime_types = value.clone(),
                 "LC_ALL" => self.lc_all = value.clone(),
                 "LC_COLLATE" => self.lc_collate = value.clone(),
                 "LANG" => self.lang = value.clone(),
-                "LSR_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON" => {
+                "LEZ_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON" => {
                     self.no_empty_dir_icon = value.clone();
                 }
                 // This mock is a hand-written match, so a variable added to
@@ -388,8 +388,8 @@ pub mod test {
         vars.set(TIME_STYLE, &OsString::from("iso"));
         assert_eq!(vars.get(TIME_STYLE), Some(OsString::from("iso")));
 
-        vars.set(LSR_COLORS, &OsString::from("reset:da=32"));
-        assert_eq!(vars.get(LSR_COLORS), Some(OsString::from("reset:da=32")));
+        vars.set(LEZ_COLORS, &OsString::from("reset:da=32"));
+        assert_eq!(vars.get(LEZ_COLORS), Some(OsString::from("reset:da=32")));
 
         vars.set(EZA_COLORS, &OsString::from("da=33"));
         assert_eq!(vars.get(EZA_COLORS), Some(OsString::from("da=33")));
@@ -400,10 +400,10 @@ pub mod test {
         vars.set(LS_COLORS, &OsString::from("di=35"));
         assert_eq!(vars.get(LS_COLORS), Some(OsString::from("di=35")));
 
-        vars.set(LSR_CONFIG_DIR, &OsString::from("~/.config/lsr"));
+        vars.set(LEZ_CONFIG_DIR, &OsString::from("~/.config/lez"));
         assert_eq!(
-            vars.get(LSR_CONFIG_DIR),
-            Some(OsString::from("~/.config/lsr"))
+            vars.get(LEZ_CONFIG_DIR),
+            Some(OsString::from("~/.config/lez"))
         );
 
         vars.set(EZA_CONFIG_DIR, &OsString::from("~/.config/eza"));
@@ -421,20 +421,20 @@ pub mod test {
         vars.set(HOME, &OsString::from("/home/user"));
         assert_eq!(vars.get(HOME), Some(OsString::from("/home/user")));
 
-        vars.set(LSR_MIN_LUMINANCE, &OsString::from("25"));
-        assert_eq!(vars.get(LSR_MIN_LUMINANCE), Some(OsString::from("25")));
+        vars.set(LEZ_MIN_LUMINANCE, &OsString::from("25"));
+        assert_eq!(vars.get(LEZ_MIN_LUMINANCE), Some(OsString::from("25")));
 
-        vars.set(LSR_MAX_LUMINANCE, &OsString::from("85"));
-        assert_eq!(vars.get(LSR_MAX_LUMINANCE), Some(OsString::from("85")));
+        vars.set(LEZ_MAX_LUMINANCE, &OsString::from("85"));
+        assert_eq!(vars.get(LEZ_MAX_LUMINANCE), Some(OsString::from("85")));
 
-        vars.set(LSR_STDIN_SEPARATOR, &OsString::from(","));
-        assert_eq!(vars.get(LSR_STDIN_SEPARATOR), Some(OsString::from(",")));
+        vars.set(LEZ_STDIN_SEPARATOR, &OsString::from(","));
+        assert_eq!(vars.get(LEZ_STDIN_SEPARATOR), Some(OsString::from(",")));
 
         vars.set(EZA_STDIN_SEPARATOR, &OsString::from(";"));
         assert_eq!(vars.get(EZA_STDIN_SEPARATOR), Some(OsString::from(";")));
 
-        vars.set(LSR_MIME_TYPES, &OsString::from("1"));
-        assert_eq!(vars.get(LSR_MIME_TYPES), Some(OsString::from("1")));
+        vars.set(LEZ_MIME_TYPES, &OsString::from("1"));
+        assert_eq!(vars.get(LEZ_MIME_TYPES), Some(OsString::from("1")));
 
         vars.set(EZA_MIME_TYPES, &OsString::from("1"));
         assert_eq!(vars.get(EZA_MIME_TYPES), Some(OsString::from("1")));

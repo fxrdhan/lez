@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_tags_{prefix}_{}_{}",
+            "lez_tags_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,7 +52,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn test_tags_cli_flag() {
         .arg("--tags")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr with --tags");
+        .expect("Failed to execute lez with --tags");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -83,7 +83,7 @@ fn test_macos_finder_tags_display() {
         .arg("-e")
         .arg(&file)
         .output()
-        .expect("Failed to execute lsr -l -e");
+        .expect("Failed to execute lez -l -e");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

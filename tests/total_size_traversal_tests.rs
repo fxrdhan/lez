@@ -22,7 +22,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_test_recsize_{prefix}_{}_{}",
+            "lez_test_recsize_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -54,7 +54,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.push("lsr");
+    path.push("lez");
     path
 }
 
@@ -86,7 +86,7 @@ fn test_total_size_aal_parent_exclusion() {
         .arg("--total-size")
         .arg(&child_dir)
         .output()
-        .expect("failed to execute lsr");
+        .expect("failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -142,7 +142,7 @@ fn test_total_size_dotfile_filter_parity() {
         .arg("--total-size")
         .arg(&target_dir)
         .output()
-        .expect("failed to execute lsr without -a");
+        .expect("failed to execute lez without -a");
 
     assert!(out_no_a.status.success());
     let stdout_no_a = String::from_utf8_lossy(&out_no_a.stdout);
@@ -168,7 +168,7 @@ fn test_total_size_dotfile_filter_parity() {
         .arg("--total-size")
         .arg(&target_dir)
         .output()
-        .expect("failed to execute lsr with -a");
+        .expect("failed to execute lez with -a");
 
     assert!(out_with_a.status.success());
     let stdout_with_a = String::from_utf8_lossy(&out_with_a.stdout);
@@ -206,7 +206,7 @@ fn test_total_size_hardlink_deduplication() {
         .arg("--total-size")
         .arg(&target_dir)
         .output()
-        .expect("failed to execute lsr");
+        .expect("failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

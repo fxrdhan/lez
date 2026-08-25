@@ -1,6 +1,6 @@
-% lsr(1) $version
+% lez(1) $version
 
-<!-- This is the lsr(1) man page, written in Markdown. -->
+<!-- This is the lez(1) man page, written in Markdown. -->
 <!-- To generate the roff version, run `just man`, -->
 <!-- and the man page will appear in the ‘target’ directory. -->
 
@@ -8,15 +8,15 @@
 NAME
 ====
 
-lsr — a modern, fast, and feature-rich replacement for ls written in Rust
+lez — a modern, fast, and feature-rich replacement for ls written in Rust
 
 
 SYNOPSIS
 ========
 
-`lsr [options] [files...]`
+`lez [options] [files...]`
 
-**lsr** is a fast, modern replacement for `ls` written in Rust.
+**lez** is a fast, modern replacement for `ls` written in Rust.
 It uses colours for information by default, helping you distinguish between many types of files, such as whether you are the owner, or in the owning group.
 
 It also has extra features not present in the original `ls`, such as viewing the Git status for a directory, or recursing into directories with a tree view, Lines of Code statistics (`--code`), and disk block allocation sorting (`--sort=blocks`).
@@ -25,19 +25,19 @@ It also has extra features not present in the original `ls`, such as viewing the
 EXAMPLES
 ========
 
-`lsr`
+`lez`
 : Lists the contents of the current directory in a grid.
 
-`lsr --oneline --reverse --sort=size`
+`lez --oneline --reverse --sort=size`
 : Displays a list of files with the largest at the top.
 
-`lsr --long --header --inode --git`
+`lez --long --header --inode --git`
 : Displays a table of files with a header, showing each file’s metadata, inode, and Git status.
 
-`lsr --long --tree --level=3`
+`lez --long --tree --level=3`
 : Displays a tree of files, three levels deep, as well as each file’s metadata.
 
-`lsr --code`
+`lez --code`
 : Displays a summary of lines of code by language across the tree.
 
 
@@ -48,7 +48,7 @@ META OPTIONS
 : Show list of command-line options with syntax-highlighted ANSI colors.
 
 `-v`, `--version`
-: Show version of lsr.
+: Show version of lez.
 
 
 DISPLAY OPTIONS
@@ -75,7 +75,7 @@ When used without a value, defaults to '`on`'. Note: when providing an explicit 
 Valid settings are ‘`always`’, ‘`automatic`’ (or ‘`auto`’ for short), and ‘`never`’.
 When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--classify=WHEN`).
 
-`automatic` or `auto` will display file kind indicators only when the standard output is connected to a real terminal. If `lsr` is run while in a `tty`, or the output of `lsr` is either redirected to a file or piped into another program, file kind indicators will not be used. Setting this option to ‘`always`’ causes `lsr` to always display file kind indicators, while ‘`never`’ disables the use of file kind indicators.
+`automatic` or `auto` will display file kind indicators only when the standard output is connected to a real terminal. If `lez` is run while in a `tty`, or the output of `lez` is either redirected to a file or piped into another program, file kind indicators will not be used. Setting this option to ‘`always`’ causes `lez` to always display file kind indicators, while ‘`never`’ disables the use of file kind indicators.
 
 `-G`, `--grid`
 : Display entries as a grid (default).
@@ -131,7 +131,7 @@ The size gradient runs over orders of magnitude rather than bytes, so a single l
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
 When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--icons=WHEN`).
 
-`automatic` or `auto` will display icons only when the standard output is connected to a real terminal. If `lsr` is run while in a `tty`, or the output of `lsr` is either redirected to a file or piped into another program, icons will not be used. Setting this option to ‘`always`’ causes `lsr` to always display icons, while ‘`never`’ disables the use of icons.
+`automatic` or `auto` will display icons only when the standard output is connected to a real terminal. If `lez` is run while in a `tty`, or the output of `lez` is either redirected to a file or piped into another program, icons will not be used. Setting this option to ‘`always`’ causes `lez` to always display icons, while ‘`never`’ disables the use of icons.
 
 `--quotes=WHEN`
 : When to quote file names. The default, `auto`, quotes names that contain spaces or quotes; `always` quotes every name; `never` quotes nothing (like `ls -N`).
@@ -159,7 +159,7 @@ Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), a
 When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--hyperlink=WHEN`).
 
 `--mime-types`
-: Determine file MIME types to better inform styling decisions and icon selection (Unix only). Can also be enabled via the `LSR_MIME_TYPES` or `EZA_MIME_TYPES` environment variable.
+: Determine file MIME types to better inform styling decisions and icon selection (Unix only). Can also be enabled via the `LEZ_MIME_TYPES` or `EZA_MIME_TYPES` environment variable.
 
 `-w`, `--width=COLS`
 : Set screen width in columns (clamped to the safe range `1..65535` to prevent integer overflow and division-by-zero).
@@ -179,7 +179,7 @@ Use this twice to also show the ‘`.`’ and ‘`..`’ directories.
 : Show dot-prefixed files without showing other hidden files.
 
 `-d`, `--treat-dirs-as-files`
-: This flag, inherited from `ls`, changes how `lsr` handles directory arguments.
+: This flag, inherited from `ls`, changes how `lez` handles directory arguments.
 
 : Instead of recursing into directories and listing their contents (the default behavior), it treats directories as regular files and lists information about the directory entry itself.
 
@@ -217,7 +217,7 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--ignore-glob-ci=GLOBS`
 : Glob patterns, pipe-separated, of files to ignore, matched case-insensitively.
 
-`--git-ignore` [if lsr was built with git support]
+`--git-ignore` [if lez was built with git support]
 : Do not list files that are ignored by Git.
 
 `--cachedir-ignore`
@@ -300,7 +300,7 @@ These options are available when running with `--long` (`-l`):
 : List numeric user and group IDs.
 
 `-O`, `--flags`
-: List file flags on macOS and BSD systems and file attributes on Windows systems. By default, Windows attributes are displayed in a long form. To display in attributes as single character set the environment variable `LSR_WINDOWS_ATTRIBUTES=short` (or `EZA_WINDOWS_ATTRIBUTES=short`, which is honoured as a fallback). On BSD systems see chflags(1) for a list of file flags and their meanings.
+: List file flags on macOS and BSD systems and file attributes on Windows systems. By default, Windows attributes are displayed in a long form. To display in attributes as single character set the environment variable `LEZ_WINDOWS_ATTRIBUTES=short` (or `EZA_WINDOWS_ATTRIBUTES=short`, which is honoured as a fallback). On BSD systems see chflags(1) for a list of file flags and their meanings.
 
 `-S`, `--blocks`, `--blocksize`
 : List each file’s size of allocated file system blocks.
@@ -347,7 +347,7 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 : Suppress the time field.
 
 `--stdin`
-: When you wish to pipe directories to lsr/read from stdin. Separate one per line or define custom separation char in `LSR_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
+: When you wish to pipe directories to lez/read from stdin. Separate one per line or define custom separation char in `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
 
 `--print-total`
 : Print the total number of files and directories listed at the bottom of the output.
@@ -367,18 +367,18 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `-Z`, `--context`
 : List each file's security context.
 
-`--git` [if lsr was built with git support]
+`--git` [if lez was built with git support]
 : List each file’s Git status, if tracked.
 This adds a two-character column indicating the staged and unstaged statuses respectively. The status character can be ‘`-`’ for not modified, ‘`M`’ for a modified file, ‘`N`’ for a new file, ‘`D`’ for deleted, ‘`R`’ for renamed, ‘`T`’ for type-change, ‘`I`’ for ignored, and ‘`U`’ for conflicted. Directories will be shown to have the status of their contents, which is how ‘deleted’ is possible if a directory contains a file that has a certain status, it will be shown to have that status.
 
-`--git-glyphs` [if lsr was built with git support]
+`--git-glyphs` [if lez was built with git support]
 : Display Git status with Nerd Font glyphs / icons instead of standard ASCII characters.
 
-`--git-repos` [if lsr was built with git support]
+`--git-repos` [if lez was built with git support]
 : List each directory’s Git status, if tracked.
 Symbols shown are `|`= clean, `+`= dirty, and `~`= for unknown.
 
-`--git-repos-no-status` [if lsr was built with git support]
+`--git-repos-no-status` [if lez was built with git support]
 : List if a directory is a Git repository, but not its status.
 All Git repository directories will be shown as (themed) `-` without status indicated.
 
@@ -389,46 +389,46 @@ All Git repository directories will be shown as (themed) `-` without status indi
 ENVIRONMENT VARIABLES
 =====================
 
-If an environment variable prefixed with `LSR_` is not set, for backward compatibility, it will default to its counterpart starting with `EZA_` or `EXA_`.
+If an environment variable prefixed with `LEZ_` is not set, for backward compatibility, it will default to its counterpart starting with `EZA_` or `EXA_`.
 
-lsr responds to the following environment variables:
+lez responds to the following environment variables:
 
 ## `COLUMNS`
 
 Overrides the width of the terminal, in characters, however, `-w` takes precedence.
 
-For example, ‘`COLUMNS=80 lsr`’ will show a grid view with a maximum width of 80 characters.
+For example, ‘`COLUMNS=80 lez`’ will show a grid view with a maximum width of 80 characters.
 
-This option won’t do anything when lsr’s output doesn’t wrap, such as when using the `--long` view.
+This option won’t do anything when lez’s output doesn’t wrap, such as when using the `--long` view.
 
-## `LSR_STRICT`, `EZA_STRICT`
+## `LEZ_STRICT`, `EZA_STRICT`
 
-Enables _strict mode_, which will make lsr error when two command-line options are incompatible.
+Enables _strict mode_, which will make lez error when two command-line options are incompatible.
 
-Usually, options can override each other going right-to-left on the command line, so that lsr can be given aliases: creating an alias ‘`lsr=lsr --sort=ext`’ then running ‘`lsr --sort=size`’ with that alias will run ‘`lsr --sort=ext --sort=size`’, and the sorting specified by the user will override the sorting specified by the alias.
+Usually, options can override each other going right-to-left on the command line, so that lez can be given aliases: creating an alias ‘`lez=lez --sort=ext`’ then running ‘`lez --sort=size`’ with that alias will run ‘`lez --sort=ext --sort=size`’, and the sorting specified by the user will override the sorting specified by the alias.
 
-In strict mode, the two options will not co-operate, and lsr will error.
+In strict mode, the two options will not co-operate, and lez will error.
 
 This option is intended for use with automated scripts and other situations where you want to be certain you’re typing in the right command.
 
-## `LSR_GRID_ROWS`, `EZA_GRID_ROWS`
+## `LEZ_GRID_ROWS`, `EZA_GRID_ROWS`
 
-Limits the grid-details view (‘`lsr --grid --long`’) so it’s only activated when at least the given number of rows of output would be generated.
+Limits the grid-details view (‘`lez --grid --long`’) so it’s only activated when at least the given number of rows of output would be generated.
 
 With widescreen displays, it’s possible for the grid to look very wide and sparse, on just one or two lines with none of the columns lining up.
 By specifying a minimum number of rows, you can only use the view if it’s going to be worth using.
 
-## `LSR_ICON_SPACING`, `EZA_ICON_SPACING`
+## `LEZ_ICON_SPACING`, `EZA_ICON_SPACING`
 
 Specifies the number of spaces to print between an icon (see the ‘`--icons`’ option) and its file name.
 
-Different terminals display icons differently, as they usually take up more than one character width on screen, so there’s no “standard” number of spaces that lsr can use to separate an icon from text. One space may place the icon too close to the text, and two spaces may place it too far away. So the choice is left up to the user to configure depending on their terminal emulator.
+Different terminals display icons differently, as they usually take up more than one character width on screen, so there’s no “standard” number of spaces that lez can use to separate an icon from text. One space may place the icon too close to the text, and two spaces may place it too far away. So the choice is left up to the user to configure depending on their terminal emulator.
 
-## `LSR_NO_EMPTY_DIR_ICON`, `EZA_NO_EMPTY_DIR_ICON`
+## `LEZ_NO_EMPTY_DIR_ICON`, `EZA_NO_EMPTY_DIR_ICON`
 
 Set to any value to give every directory the same icon, instead of a different one when it is empty.
 
-Telling the two apart means asking the filesystem about each directory listed: its link count, and — when that does not settle the question — a read of its contents. On a local disk this is not worth thinking about. On a FUSE mount or a network share every one of those is a round trip, and a directory of a few thousand subdirectories can take long enough that lsr looks like it has hung. This is the way to stop paying for a distinction you may not want.
+Telling the two apart means asking the filesystem about each directory listed: its link count, and — when that does not settle the question — a read of its contents. On a local disk this is not worth thinking about. On a FUSE mount or a network share every one of those is a round trip, and a directory of a few thousand subdirectories can take long enough that lez looks like it has hung. This is the way to stop paying for a distinction you may not want.
 
 ## `NO_COLOR`
 
@@ -436,39 +436,39 @@ Disables colours in the output (regardless of its value). Can be overridden by `
 
 See `https://no-color.org/` for details.
 
-## `LS_COLORS`, `LSR_COLORS`, `EZA_COLORS`
+## `LS_COLORS`, `LEZ_COLORS`, `EZA_COLORS`
 
 Specifies the colour scheme used to highlight files based on their name and kind, as well as highlighting metadata and parts of the UI.
 
-For more information on the format of these environment variables, see the **lsr_colors**(5) manual page.
+For more information on the format of these environment variables, see the **lez_colors**(5) manual page.
 
-## `LSR_OVERRIDE_GIT`, `EZA_OVERRIDE_GIT`
+## `LEZ_OVERRIDE_GIT`, `EZA_OVERRIDE_GIT`
 
 Overrides any `--git` or `--git-repos` argument.
 
-## `LSR_MIN_LUMINANCE`, `EZA_MIN_LUMINANCE`
+## `LEZ_MIN_LUMINANCE`, `EZA_MIN_LUMINANCE`
 
 Specifies the minimum luminance to use when color-scale is active. Its value can be between -100 to 100.
 
-## `LSR_MAX_LUMINANCE`, `EZA_MAX_LUMINANCE`
+## `LEZ_MAX_LUMINANCE`, `EZA_MAX_LUMINANCE`
 
 Specifies the maximum luminance to use when color-scale is active. Its value can be between -100 to 100.
 
-## `LSR_ICONS_AUTO`, `EZA_ICONS_AUTO`
+## `LEZ_ICONS_AUTO`, `EZA_ICONS_AUTO`
 
 If set, automates the same behavior as using `--icons` or `--icons=auto`. Useful for if you always want to have icons enabled.
 
 Any explicit use of the `--icons=WHEN` flag overrides this behavior.
 
-## `LSR_STDIN_SEPARATOR`, `EZA_STDIN_SEPARATOR`
+## `LEZ_STDIN_SEPARATOR`, `EZA_STDIN_SEPARATOR`
 
 Specifies the separator to use when file names are piped from stdin. Defaults to newline.
 
-## `LSR_CONFIG_DIR`, `EZA_CONFIG_DIR`
+## `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR`
 
-Specifies the directory where lsr will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lsr`, `$XDG_CONFIG_HOME/eza`, `$HOME/.config/lsr`, or `$HOME/.config/eza` if `XDG_CONFIG_HOME` is not set.
+Specifies the directory where lez will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lez`, `$XDG_CONFIG_HOME/eza`, `$HOME/.config/lez`, or `$HOME/.config/eza` if `XDG_CONFIG_HOME` is not set.
 
-## `LSR_QUOTING_STYLE`, `EZA_QUOTING_STYLE`
+## `LEZ_QUOTING_STYLE`, `EZA_QUOTING_STYLE`
 
 Specifies when file names are quoted, as if `--quotes` had been given. Valid values are `always`, `auto`, and `never`; invalid or unset values fall back to `auto`. `--quotes=never` is equivalent to `ls -N`, and the command-line option overrides this variable.
 
@@ -491,15 +491,15 @@ EXIT STATUSES
 AUTHOR
 ======
 
-lsr is maintained by fxrdhan <https://github.com/fxrdhan>.
+lez is maintained by fxrdhan <https://github.com/fxrdhan>.
 
-**Source code:** `https://github.com/fxrdhan/lsr` \
-**Contributors:** `https://github.com/fxrdhan/lsr/graphs/contributors`
+**Source code:** `https://github.com/fxrdhan/lez` \
+**Contributors:** `https://github.com/fxrdhan/lez/graphs/contributors`
 
-Lineage: `exa` (by Benjamin Sago) ➔ `eza` (community fork) ➔ `lsr` (by fxrdhan).
+Lineage: `exa` (by Benjamin Sago) ➔ `eza` (community fork) ➔ `lez` (by fxrdhan).
 
 
 SEE ALSO
 ========
 
-**lsr_colors**(5), **lsr_colors-explanation**(5)
+**lez_colors**(5), **lez_colors-explanation**(5)

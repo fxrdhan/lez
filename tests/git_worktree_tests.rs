@@ -23,7 +23,7 @@ impl TempWorkspace {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_worktree_test_{prefix}_{}_{}",
+            "lez_worktree_test_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -128,22 +128,22 @@ fn git_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
-fn run_lsr_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let mut cmd = Command::new(bin_path);
     cmd.args(args);
     for (k, v) in envs {
         cmd.env(k, v);
     }
-    cmd.output().expect("Failed to execute lsr binary with env")
+    cmd.output().expect("Failed to execute lez binary with env")
 }
 
 // ----------------------------------------------------------------------------
@@ -159,7 +159,7 @@ fn test_worktree_detection_unit() {
     let wt_path = ws.create_worktree(&main_repo, "wt_feature", "feature-branch");
 
     // 1. Worktree detection on worktree root
-    let wt_status = lsr::fs::fields::SubdirGitRepo::from_path(&wt_path, true);
+    let wt_status = lez::fs::fields::SubdirGitRepo::from_path(&wt_path, true);
     assert!(
         wt_status.is_worktree,
         "Expected is_worktree == true for worktree root"
@@ -171,7 +171,7 @@ fn test_worktree_detection_unit() {
     );
     assert_eq!(
         wt_status.status,
-        Some(lsr::fs::fields::SubdirGitRepoStatus::GitClean)
+        Some(lez::fs::fields::SubdirGitRepoStatus::GitClean)
     );
 
     // 2. Modify a file in the worktree -> Dirty status
@@ -186,15 +186,15 @@ fn test_worktree_detection_unit() {
     )
     .unwrap();
 
-    let wt_dirty_status = lsr::fs::fields::SubdirGitRepo::from_path(&wt_path, true);
+    let wt_dirty_status = lez::fs::fields::SubdirGitRepo::from_path(&wt_path, true);
     assert!(wt_dirty_status.is_worktree);
     assert_eq!(
         wt_dirty_status.status,
-        Some(lsr::fs::fields::SubdirGitRepoStatus::GitDirty)
+        Some(lez::fs::fields::SubdirGitRepoStatus::GitDirty)
     );
 
     // 3. Main repository must have is_worktree == false
-    let main_status = lsr::fs::fields::SubdirGitRepo::from_path(&main_repo, true);
+    let main_status = lez::fs::fields::SubdirGitRepo::from_path(&main_repo, true);
     assert!(
         !main_status.is_worktree,
         "Expected is_worktree == false for main repository"
@@ -213,7 +213,7 @@ fn test_submodule_not_marked_as_worktree() {
     let main_repo = ws.create_repo("main_repo");
     let sub_path = ws.create_submodule(&main_repo, "nested_sub");
 
-    let sub_status = lsr::fs::fields::SubdirGitRepo::from_path(&sub_path, true);
+    let sub_status = lez::fs::fields::SubdirGitRepo::from_path(&sub_path, true);
     assert!(
         !sub_status.is_worktree,
         "Expected is_worktree == false for submodule, got is_worktree == true"
@@ -229,11 +229,11 @@ fn test_non_repo_dir_has_no_worktree() {
     let plain_dir = ws.path.join("plain_dir");
     fs::create_dir_all(&plain_dir).unwrap();
 
-    let status = lsr::fs::fields::SubdirGitRepo::from_path(&plain_dir, true);
+    let status = lez::fs::fields::SubdirGitRepo::from_path(&plain_dir, true);
     assert!(!status.is_worktree);
     assert_eq!(
         status.status,
-        Some(lsr::fs::fields::SubdirGitRepoStatus::NoRepo)
+        Some(lez::fs::fields::SubdirGitRepoStatus::NoRepo)
     );
     assert_eq!(status.branch, None);
 }
@@ -252,7 +252,7 @@ fn test_cli_git_repos_worktree_table_output() {
     let plain_dir = ws.path.join("plain_dir");
     fs::create_dir_all(&plain_dir).unwrap();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git-repos",
         "--color=never",
@@ -306,7 +306,7 @@ fn test_cli_git_repos_no_stat_worktree_output() {
     let main_repo = ws.create_repo("main_repo");
     let _ = ws.create_worktree(&main_repo, "worktree_repo", "wt-nostat");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git-repos-no-status",
         "--color=never",
@@ -342,7 +342,7 @@ fn test_cli_git_repos_json_output() {
     let main_repo = ws.create_repo("main_repo");
     let _ = ws.create_worktree(&main_repo, "worktree_repo", "wt-json-branch");
 
-    let output = run_lsr(&["-l", "--git-repos", "--json", ws.path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--git-repos", "--json", ws.path.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -357,26 +357,26 @@ fn test_cli_git_repos_json_output() {
 }
 
 // ----------------------------------------------------------------------------
-// Integration Tests: Styling via LSR_COLORS, EZA_COLORS, and theme.yml
+// Integration Tests: Styling via LEZ_COLORS, EZA_COLORS, and theme.yml
 // ----------------------------------------------------------------------------
 
 #[test]
-fn test_worktree_styling_via_lsr_colors() {
-    let Some(ws) = TempWorkspace::new("lsr_colors") else {
+fn test_worktree_styling_via_lez_colors() {
+    let Some(ws) = TempWorkspace::new("lez_colors") else {
         return;
     };
     let main_repo = ws.create_repo("main_repo");
     let _ = ws.create_worktree(&main_repo, "wt_color", "custom-wt-branch");
 
     // Gw=35;4 sets Magenta (35) with Underline (4) for worktree branch
-    let output = run_lsr_with_env(
+    let output = run_lez_with_env(
         &[
             "-l",
             "--git-repos",
             "--color=always",
             ws.path.to_str().unwrap(),
         ],
-        &[("LSR_COLORS", "Gw=35;4")],
+        &[("LEZ_COLORS", "Gw=35;4")],
     );
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -406,7 +406,7 @@ fn test_worktree_styling_via_eza_colors() {
     let _ = ws.create_worktree(&main_repo, "wt_eza", "eza-wt-branch");
 
     // Gw=36;1 sets Cyan (36) Bold (1) for worktree branch
-    let output = run_lsr_with_env(
+    let output = run_lez_with_env(
         &[
             "-l",
             "--git-repos",
@@ -449,14 +449,14 @@ git_repo:
     let mut f = StdFile::create(&theme_file).unwrap();
     f.write_all(theme_content.as_bytes()).unwrap();
 
-    let output = run_lsr_with_env(
+    let output = run_lez_with_env(
         &[
             "-l",
             "--git-repos",
             "--color=always",
             ws.path.to_str().unwrap(),
         ],
-        &[("LSR_CONFIG_DIR", config_dir.to_str().unwrap())],
+        &[("LEZ_CONFIG_DIR", config_dir.to_str().unwrap())],
     );
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

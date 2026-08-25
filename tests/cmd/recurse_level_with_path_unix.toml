@@ -1,2 +1,2 @@
-bin.name = "lsr"
+bin.name = "lez"
 args = "-R --level=2 tests/itest"

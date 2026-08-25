@@ -23,7 +23,7 @@ impl TempGitRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_glyphs_{prefix}_{}_{}",
+            "lez_glyphs_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -83,12 +83,12 @@ fn git_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 // ----------------------------------------------------------------------------
@@ -102,7 +102,7 @@ fn test_f8_git_glyphs_flag_accepted() {
     };
     repo.write_file("file.txt", b"content\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git",
         "--git-glyphs",
@@ -127,7 +127,7 @@ fn test_f8_git_glyphs_replaces_ascii_status_modified() {
 
     fs::write(&f_mod, b"v2\n").unwrap();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git",
         "--git-glyphs",
@@ -164,7 +164,7 @@ fn test_f8_git_glyphs_untracked_and_added() {
     repo.write_file("staged.txt", b"staged\n");
     assert!(repo.git(&["add", "staged.txt"]));
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git",
         "--git-glyphs",
@@ -211,7 +211,7 @@ fn test_f8_default_without_git_glyphs_is_ascii() {
     assert!(repo.git(&["commit", "-q", "-m", "init"]));
     fs::write(&f_mod, b"v2\n").unwrap();
 
-    let output = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -232,7 +232,7 @@ fn test_f8_git_glyphs_with_icons() {
     };
     repo.write_file("script.py", b"print(1)\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git",
         "--git-glyphs",
@@ -258,7 +258,7 @@ fn test_f8_git_glyphs_deleted_and_renamed() {
     fs::remove_file(&f1).unwrap();
     fs::rename(&f2, repo.path.join("new.txt")).unwrap();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git",
         "--git-glyphs",
@@ -282,7 +282,7 @@ fn test_f8_git_glyphs_ignored_and_clean() {
     assert!(repo.git(&["add", ".gitignore", "clean.txt"]));
     assert!(repo.git(&["commit", "-q", "-m", "init"]));
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "-a",
         "--git",
@@ -325,7 +325,7 @@ fn test_f8_git_glyphs_with_git_repos() {
     };
     repo.write_file("file.txt", b"file\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git",
         "--git-repos",
@@ -345,7 +345,7 @@ fn test_f8_git_glyphs_in_tree_view() {
     };
     repo.write_file("sub/file.txt", b"content\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--tree",
         "--git",
@@ -366,7 +366,7 @@ fn test_f8_git_glyphs_in_grid_details() {
     repo.write_file("f1.txt", b"content1\n");
     repo.write_file("f2.txt", b"content2\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "-G",
         "--git",

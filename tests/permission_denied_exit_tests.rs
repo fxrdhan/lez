@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! `lsr` documents exit code 13 for directories it was not allowed to read.
+//! `lez` documents exit code 13 for directories it was not allowed to read.
 //! These tests pin that the code is actually returned rather than only being
 //! printed inside the stderr message.
 
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 /// A directory that chmods its unreadable children back before removal, so a
@@ -25,7 +25,7 @@ struct LockedTree {
 
 impl LockedTree {
     fn new(label: &str) -> Self {
-        let root = std::env::temp_dir().join(format!("lsr_perm_{label}_{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("lez_perm_{label}_{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("temp root should be creatable");
         Self {
@@ -60,9 +60,9 @@ fn run(args: &[&Path]) -> (i32, String) {
     let output = Command::new(bin_path())
         .args(args)
         .output()
-        .expect("lsr should be runnable");
+        .expect("lez should be runnable");
     (
-        output.status.code().expect("lsr should exit normally"),
+        output.status.code().expect("lez should exit normally"),
         String::from_utf8_lossy(&output.stderr).into_owned(),
     )
 }

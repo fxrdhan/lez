@@ -38,7 +38,7 @@ jobs:
       - name: Build
         run: |
           cargo build --release --quiet
-          cp target/release/lsr /tmp/lsr
+          cp target/release/lez /tmp/lez
       - name: Fetch the repository from the report
         run: |
           git clone --depth 1 https://github.com/rust-lang/cargo /tmp/cargo
@@ -48,18 +48,18 @@ jobs:
       - name: Time a full tree of it
         run: |
           for run in 1 2 3; do
-            /usr/bin/time -f "  wall %e s   max rss %M KB" /tmp/lsr --color=never -T /tmp/cargo >/dev/null
+            /usr/bin/time -f "  wall %e s   max rss %M KB" /tmp/lez --color=never -T /tmp/cargo >/dev/null
           done
           echo "--- with --all, which is what a full listing costs ---"
-          /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -T --all /tmp/cargo >/dev/null
+          /usr/bin/time -f "  wall %e s" /tmp/lez --color=never -T --all /tmp/cargo >/dev/null
       - name: Do descriptors accumulate?
         run: |
           echo "--- openat against close over the whole tree ---"
-          strace -c -f /tmp/lsr --color=never -T /tmp/cargo 2>&1 >/dev/null \
+          strace -c -f /tmp/lez --color=never -T /tmp/cargo 2>&1 >/dev/null \
             | grep -E "openat|close|getdents64|-----|total" | head -6
           echo
           echo "--- the same tree under a limit of 64 descriptors ---"
-          bash -c 'ulimit -n 64; /tmp/lsr --color=never -T /tmp/cargo >/dev/null 2>/tmp/err; echo "  exit=$?"'
+          bash -c 'ulimit -n 64; /tmp/lez --color=never -T /tmp/cargo >/dev/null 2>/tmp/err; echo "  exit=$?"'
           echo "  stderr: $(head -c 200 /tmp/err)"
       - name: A tree the size of a built checkout
         run: |
@@ -75,10 +75,10 @@ jobs:
           done
           echo "entries: $(find "$root" | wc -l)"
           for run in 1 2 3; do
-            /usr/bin/time -f "  wall %e s   max rss %M KB" /tmp/lsr --color=never -T "$root" >/dev/null
+            /usr/bin/time -f "  wall %e s   max rss %M KB" /tmp/lez --color=never -T "$root" >/dev/null
           done
           echo "--- and the same under a limit of 64 descriptors ---"
-          bash -c 'ulimit -n 64; /tmp/lsr --color=never -T /tmp/built >/dev/null 2>/tmp/err3; echo "  exit=$?"'
+          bash -c 'ulimit -n 64; /tmp/lez --color=never -T /tmp/built >/dev/null 2>/tmp/err3; echo "  exit=$?"'
           echo "  stderr: $(head -c 200 /tmp/err3)"
       - name: A deeply nested tree, where recursion is deepest
         run: |
@@ -90,6 +90,6 @@ jobs:
           done
           mkdir -p "$path"
           echo "levels: ${{ inputs.depth }}"
-          bash -c 'ulimit -n 64; /tmp/lsr --color=never -T /tmp/deep >/dev/null 2>/tmp/err2; echo "  exit=$?"'
+          bash -c 'ulimit -n 64; /tmp/lez --color=never -T /tmp/deep >/dev/null 2>/tmp/err2; echo "  exit=$?"'
           echo "  stderr: $(head -c 200 /tmp/err2)"
-          /usr/bin/time -f "  wall %e s" /tmp/lsr --color=never -T /tmp/deep >/dev/null
+          /usr/bin/time -f "  wall %e s" /tmp/lez --color=never -T /tmp/deep >/dev/null

@@ -7,7 +7,7 @@
 use clap::ArgMatches;
 
 use crate::options::Vars;
-use crate::options::vars::{EZA_STDIN_SEPARATOR, LSR_STDIN_SEPARATOR};
+use crate::options::vars::{EZA_STDIN_SEPARATOR, LEZ_STDIN_SEPARATOR};
 use std::ffi::OsString;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -20,7 +20,7 @@ impl FilesInput {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
         if matches.get_flag("stdin") {
             let separator = vars
-                .get_with_fallback(LSR_STDIN_SEPARATOR, EZA_STDIN_SEPARATOR)
+                .get_with_fallback(LEZ_STDIN_SEPARATOR, EZA_STDIN_SEPARATOR)
                 .unwrap_or(OsString::from("\n"));
             FilesInput::Stdin(separator)
         } else {
@@ -53,10 +53,10 @@ mod tests {
     }
 
     #[test]
-    fn deduce_stdin_custom_separator_lsr() {
+    fn deduce_stdin_custom_separator_lez() {
         let cli = mock_cli(vec!["--stdin"]);
         let mut vars = MockVars::default();
-        vars.set(LSR_STDIN_SEPARATOR, &OsString::from("\0"));
+        vars.set(LEZ_STDIN_SEPARATOR, &OsString::from("\0"));
         assert_eq!(
             FilesInput::deduce(&cli, &vars),
             FilesInput::Stdin(OsString::from("\0"))
@@ -75,10 +75,10 @@ mod tests {
     }
 
     #[test]
-    fn deduce_stdin_lsr_takes_precedence_over_eza() {
+    fn deduce_stdin_lez_takes_precedence_over_eza() {
         let cli = mock_cli(vec!["--stdin"]);
         let mut vars = MockVars::default();
-        vars.set(LSR_STDIN_SEPARATOR, &OsString::from(":"));
+        vars.set(LEZ_STDIN_SEPARATOR, &OsString::from(":"));
         vars.set(EZA_STDIN_SEPARATOR, &OsString::from(";"));
         assert_eq!(
             FilesInput::deduce(&cli, &vars),

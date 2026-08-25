@@ -22,7 +22,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_blocks_test_{prefix}_{}_{}",
+            "lez_blocks_test_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -54,33 +54,33 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop(); // Remove deps
     }
-    path.push("lsr");
+    path.push("lez");
     path
 }
 
-fn run_lsr(args: &[&str]) -> Output {
+fn run_lez(args: &[&str]) -> Output {
     Command::new(bin_path())
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
-fn run_lsr_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
+fn run_lez_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
     let mut cmd = Command::new(bin_path());
     cmd.args(args);
     for (k, v) in envs {
         cmd.env(k, v);
     }
-    cmd.output().expect("Failed to execute lsr binary with env")
+    cmd.output().expect("Failed to execute lez binary with env")
 }
 
-fn run_lsr_non_strict(args: &[&str]) -> Output {
+fn run_lez_non_strict(args: &[&str]) -> Output {
     Command::new(bin_path())
         .args(args)
         .env_remove("EZA_STRICT")
         .env_remove("EXA_STRICT")
         .output()
-        .expect("Failed to execute lsr binary non-strict")
+        .expect("Failed to execute lez binary non-strict")
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ fn test_long_view_with_short_s_flag_renders_blocks_column() {
     let temp = TempTestDir::new("short_s");
     temp.create_file("test_file.txt", b"Hello, block test!");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "-S",
         "-h",
@@ -116,7 +116,7 @@ fn test_long_view_with_blocks_flag_renders_blocks_column() {
     let temp = TempTestDir::new("blocks_long");
     temp.create_file("sample.dat", b"Testing --blocks flag");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--blocks",
         "-h",
@@ -139,7 +139,7 @@ fn test_long_view_with_blocksize_flag_renders_blocks_column() {
     let temp = TempTestDir::new("blocksize_long");
     temp.create_file("data.bin", b"Testing --blocksize flag");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--blocksize",
         "-h",
@@ -163,21 +163,21 @@ fn test_output_equivalence_between_s_and_blocks_and_blocksize() {
     temp.create_file("file1.txt", b"First content");
     temp.create_file("file2.txt", b"Second content longer payload");
 
-    let out_s = run_lsr(&[
+    let out_s = run_lez(&[
         "-l",
         "-S",
         "--color=never",
         "--time-style=iso",
         temp.path.to_str().unwrap(),
     ]);
-    let out_blocks = run_lsr(&[
+    let out_blocks = run_lez(&[
         "-l",
         "--blocks",
         "--color=never",
         "--time-style=iso",
         temp.path.to_str().unwrap(),
     ]);
-    let out_blocksize = run_lsr(&[
+    let out_blocksize = run_lez(&[
         "-l",
         "--blocksize",
         "--color=never",
@@ -213,7 +213,7 @@ fn test_strict_mode_blocks_without_long_fails() {
     temp.create_file("test.txt", b"data");
 
     for flag in &["-S", "--blocks", "--blocksize"] {
-        let output = run_lsr_with_env(&[flag, temp.path.to_str().unwrap()], &[("EZA_STRICT", "1")]);
+        let output = run_lez_with_env(&[flag, temp.path.to_str().unwrap()], &[("EZA_STRICT", "1")]);
 
         assert!(
             !output.status.success(),
@@ -238,7 +238,7 @@ fn test_strict_mode_blocks_with_long_succeeds() {
     temp.create_file("test.txt", b"data");
 
     for flag in &["-S", "--blocks", "--blocksize"] {
-        let output = run_lsr_with_env(
+        let output = run_lez_with_env(
             &["-l", flag, temp.path.to_str().unwrap()],
             &[("EZA_STRICT", "1")],
         );
@@ -261,7 +261,7 @@ fn test_non_strict_mode_blocks_without_long_succeeds() {
     temp.create_file("test.txt", b"data");
 
     for flag in &["-S", "--blocks", "--blocksize"] {
-        let output = run_lsr_non_strict(&[flag, temp.path.to_str().unwrap()]);
+        let output = run_lez_non_strict(&[flag, temp.path.to_str().unwrap()]);
 
         assert!(
             output.status.success(),
@@ -284,7 +284,7 @@ fn test_blocks_column_with_binary_and_bytes_prefixes() {
     temp.create_file("file.bin", &vec![0u8; 10000]);
 
     // Binary prefixes
-    let output_bin = run_lsr(&[
+    let output_bin = run_lez(&[
         "-l",
         "-S",
         "-b",
@@ -294,7 +294,7 @@ fn test_blocks_column_with_binary_and_bytes_prefixes() {
     assert!(output_bin.status.success());
 
     // Bytes without prefix
-    let output_bytes = run_lsr(&[
+    let output_bytes = run_lez(&[
         "-l",
         "--blocks",
         "-B",
@@ -317,7 +317,7 @@ fn test_sort_by_blocks_options() {
 
     for sort_field in &["blocks", "block", "blocksize"] {
         let arg = format!("--sort={sort_field}");
-        let output = run_lsr(&[
+        let output = run_lez(&[
             "-l",
             "-S",
             &arg,

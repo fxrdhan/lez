@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_test_theme_iso_{prefix}_{}_{}",
+            "lez_test_theme_iso_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -47,7 +47,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
@@ -83,10 +83,10 @@ fn test_builtin_indicators_in_ls_colors_not_applied_to_filenames() {
         .env("LS_COLORS", ls_colors)
         .env_remove("EZA_COLORS")
         .env_remove("EXA_COLORS")
-        .env_remove("LSR_COLORS")
+        .env_remove("LEZ_COLORS")
         .env_remove("NO_COLOR")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -146,10 +146,10 @@ fn test_extension_globs_work_properly_alongside_ls_colors_indicators() {
         .env("LS_COLORS", ls_colors)
         .env_remove("EZA_COLORS")
         .env_remove("EXA_COLORS")
-        .env_remove("LSR_COLORS")
+        .env_remove("LEZ_COLORS")
         .env_remove("NO_COLOR")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -195,10 +195,10 @@ fn test_non_builtin_keys_in_ls_colors_still_treated_as_globs() {
         .env("LS_COLORS", ls_colors)
         .env_remove("EZA_COLORS")
         .env_remove("EXA_COLORS")
-        .env_remove("LSR_COLORS")
+        .env_remove("LEZ_COLORS")
         .env_remove("NO_COLOR")
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
