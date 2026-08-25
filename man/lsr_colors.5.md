@@ -81,7 +81,12 @@ LIST OF CODES
 `ca`
 : files carrying Linux capabilities
 
+`mh`
+: regular files with more than one hard link
+
 Note: `ca` is unset by default, and only when it is set does lsr ask the filesystem whether a file has capabilities — one extra syscall per file. GNU `ls` stopped colouring these by default in coreutils 8.31 for the same reason. The attribute is Linux's alone; the code is accepted and ignored elsewhere.
+
+Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are coloured like any other file until it is given a style. It applies to regular files only — directories are linked from each of their subdirectories, so colouring those would light up almost everything. Unix only.
 
 
 `LSR_COLORS` (and `EZA_COLORS`) can use many more:

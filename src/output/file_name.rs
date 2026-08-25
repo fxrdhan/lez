@@ -673,6 +673,9 @@ impl<C: Colours> FileName<'_, '_, C> {
             f if self.colours.capability().is_some() && f.has_capabilities()
                                          => self.colours.capability().unwrap_or_default(),
             f if f.is_executable_file()  => self.colours.executable_file(),
+            #[cfg(unix)]
+            f if self.colours.multi_hardlink().is_some() && f.links().multiple
+                                         => self.colours.multi_hardlink().unwrap_or_default(),
             f if f.is_link()             => match self.colours.symlink() {
                 LinkColouring::AnsiStyle(style) => style,
                 LinkColouring::Target => match self.target.as_ref() {
@@ -749,6 +752,15 @@ pub trait Colours: FiletypeColours {
     /// `None` when it was not, which is the signal to skip looking: finding
     /// out costs a syscall per file.
     fn capability(&self) -> Option<Style>;
+
+    /// The style for a regular file that has more than one hard link, if one
+    /// was asked for. `None` when it was not — `ls` leaves `mh` unset by
+    /// default, and so do we, because most people never want it.
+    ///
+    /// Declared on every platform even though only Unix consults it: the
+    /// link count comes from `File::links`, which is Unix-only, so the call
+    /// site is what carries the `cfg`, not this.
+    fn multi_hardlink(&self) -> Option<Style>;
 
     /// The style to paint a directory representing a Btrfs subvolume.
     fn btrfs_subvol(&self) -> Style;
@@ -891,6 +903,9 @@ mod test {
             Style::default()
         }
         fn capability(&self) -> Option<Style> {
+            None
+        }
+        fn multi_hardlink(&self) -> Option<Style> {
             None
         }
 
@@ -1295,6 +1310,9 @@ mod test {
             Style::default()
         }
         fn capability(&self) -> Option<Style> {
+            None
+        }
+        fn multi_hardlink(&self) -> Option<Style> {
             None
         }
 

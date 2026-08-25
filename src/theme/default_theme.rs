@@ -145,6 +145,7 @@ impl Default for UiStyles {
             // Off unless asked for: colouring it costs a getxattr per
             // file, which is why coreutils stopped doing it by default.
             capability: None,
+            multi_hardlink: None,
 
             filenames: None,
             extensions: None,
