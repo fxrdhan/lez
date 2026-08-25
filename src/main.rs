@@ -12,7 +12,7 @@
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs as stdfs;
-use std::io::{self, ErrorKind, IsTerminal, Read, Write, stdin};
+use std::io::{self, BufWriter, ErrorKind, IsTerminal, Read, Write, stdin};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
@@ -88,7 +88,7 @@ fn main() {
             }
 
             let git = git_options(&options, &input_paths);
-            let writer = io::stdout();
+            let writer = BufWriter::new(io::stdout());
             let git_repos = git_repos(&options, &input_paths);
 
             let console_width = options.view.width.actual_terminal_width();
@@ -135,7 +135,11 @@ pub struct Lsr<'args> {
     pub options: Options,
 
     /// The output handle that we write to.
-    pub writer: io::Stdout,
+    ///
+    /// Buffered: `Stdout` on its own is line-buffered, which costs one
+    /// `write` syscall per entry listed. See `run` for why the flush is
+    /// still done by hand.
+    pub writer: BufWriter<io::Stdout>,
 
     /// List of the free command-line arguments that should correspond to file
     /// names (anything that isn’t an option).
@@ -317,6 +321,22 @@ impl Lsr<'_> {
     ///
     /// Will return `Err` if printing to stderr fails.
     pub fn run(mut self) -> io::Result<i32> {
+        let listing = self.run_listing();
+
+        // `BufWriter`'s destructor does flush, since `self` is dropped here
+        // rather than at the `exit` in `main` — but it throws the result
+        // away. Line-buffered `Stdout` used to return a write failure
+        // straight out of the `writeln!` that hit it, so leaving the last
+        // partial buffer to the destructor would quietly turn a full disk
+        // into a successful exit. Flush by hand and keep the error.
+        //
+        // A listing failure is reported ahead of a flush failure: the first
+        // thing to go wrong is the one that explains the rest.
+        let flushed = self.writer.flush();
+        listing.and_then(|exit_status| flushed.map(|()| exit_status))
+    }
+
+    fn run_listing(&mut self) -> io::Result<i32> {
         debug!("Running with options: {:#?}", self.options);
 
         // The `--code` summary doesn’t list files: it walks the given paths and
