@@ -260,14 +260,16 @@ impl<'dir> Files<'dir, '_, '_> {
     fn next_visible_file(&mut self) -> Option<File<'dir>> {
         loop {
             if let Some(entry) = self.inner.next() {
-                let path = entry.path();
-                let filename = File::filename(&path);
-                if !self.dotfiles && filename.starts_with('.') {
+                let file_name = entry.file_name();
+                if !self.dotfiles && file_name.as_encoded_bytes().starts_with(b".") {
                     if let Some(count) = &mut self.hidden_count {
                         count.inc_hidden();
                     }
                     continue;
                 }
+
+                let path = entry.path();
+                let filename = file_name.to_string_lossy().to_string();
 
                 if self.git_ignoring {
                     let git_status = self

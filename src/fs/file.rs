@@ -188,7 +188,7 @@ impl<'dir> File<'dir> {
     {
         let parent_dir = parent_dir.into();
         let name = filename.into().unwrap_or_else(|| File::filename(&path));
-        let ext = File::ext(&path);
+        let ext = File::ext_from_name(&name);
 
         let is_all_all = false;
         let recursive_size = if total_size {
@@ -238,7 +238,7 @@ impl<'dir> File<'dir> {
         mime_read_contents: bool,
         dot_filter: Option<super::DotFilter>,
     ) -> File<'dir> {
-        let ext = File::ext(&path);
+        let ext = File::ext_from_name(name);
 
         let is_all_all = true;
         let parent_dir = Some(parent_dir);
@@ -329,10 +329,13 @@ impl<'dir> File<'dir> {
     /// ASCII lowercasing is used because these extensions are only compared
     /// against a pre-compiled list of extensions which are known to only exist
     /// within ASCII, so it’s alright.
-    fn ext(path: &Path) -> Option<String> {
-        let name = path.file_name().map(|f| f.to_string_lossy().to_string())?;
-
+    fn ext_from_name(name: &str) -> Option<String> {
         name.rfind('.').map(|p| name[p + 1..].to_ascii_lowercase())
+    }
+
+    fn ext(path: &Path) -> Option<String> {
+        let name = path.file_name()?;
+        Self::ext_from_name(&name.to_string_lossy())
     }
 
     /// Read the extended attributes of a file path.
