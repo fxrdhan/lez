@@ -8,6 +8,19 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.25.1] - 2026-08-26
+
+### Bug Fixes
+
+- Complete the `GitCache` stub used when the `git` feature is off, so `--no-default-features` compiles again. `--no-git` and `--ignore-submodule-contents` had added `get_child` and `is_submodule_path` to the real cache and called them unconditionally, and `git_options` calls `from_paths` on every run; none of the three reached the stub.
+- Gate the archive module at its own boundary. Its placeholder reader named a `never` crate that is not a dependency and so had never compiled, while `render_archive_entry` carried no gate of its own and outlived the types it needs.
+
+This restores `cargo install lez --no-default-features`, documented in `INSTALL.md` as the way to drop the libgit2 requirement, and the justfile's `binary_no_libgit` and `binary_static_no_libgit` recipes.
+
+### Continuous Integration
+
+- Check all four feature combinations — none, `git`, `inspect-archives`, both — so a switched-off feature cannot strand code again
+
 ## [0.25.0] - 2026-08-26
 
 ### Breaking Changes
