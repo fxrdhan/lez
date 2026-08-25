@@ -9,9 +9,9 @@ fn get_repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// The completion `lsr` itself ships and that `#compdef lsr` binds.
+/// The completion `lez` itself ships and that `#compdef lez` binds.
 fn get_zsh_completion_path() -> PathBuf {
-    get_repo_root().join("completions").join("zsh").join("_lsr")
+    get_repo_root().join("completions").join("zsh").join("_lez")
 }
 
 /// The compatibility copy installed for anyone still invoking the binary as
@@ -21,7 +21,7 @@ fn get_zsh_compat_completion_path() -> PathBuf {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
@@ -29,7 +29,7 @@ fn test_zsh_completion_file_exists() {
     let path = get_zsh_completion_path();
     assert!(
         path.exists(),
-        "Zsh completion file must exist at completions/zsh/_lsr"
+        "Zsh completion file must exist at completions/zsh/_lez"
     );
 
     let compat = get_zsh_compat_completion_path();
@@ -43,11 +43,11 @@ fn test_zsh_completion_file_exists() {
 /// claim `eza`, or which one zsh loads comes down to order.
 #[test]
 fn test_zsh_completions_claim_distinct_commands() {
-    let primary = fs::read_to_string(get_zsh_completion_path()).expect("_lsr should be readable");
+    let primary = fs::read_to_string(get_zsh_completion_path()).expect("_lez should be readable");
     let compat =
         fs::read_to_string(get_zsh_compat_completion_path()).expect("_eza should be readable");
 
-    assert_eq!(primary.lines().next(), Some("#compdef lsr"));
+    assert_eq!(primary.lines().next(), Some("#compdef lez"));
     assert_eq!(compat.lines().next(), Some("#compdef eza"));
 }
 
@@ -123,20 +123,20 @@ fn test_cli_f_flag_and_classify_option_parity() {
     let output_short = Command::new(bin_path())
         .arg("-F")
         .output()
-        .expect("Failed to run lsr -F");
+        .expect("Failed to run lez -F");
     assert!(output_short.status.success());
 
     // Verify that the CLI accepts --classify=always
     let output_long = Command::new(bin_path())
         .arg("--classify=always")
         .output()
-        .expect("Failed to run lsr --classify=always");
+        .expect("Failed to run lez --classify=always");
     assert!(output_long.status.success());
 
     // Verify that the CLI accepts --classify=never
     let output_never = Command::new(bin_path())
         .arg("--classify=never")
         .output()
-        .expect("Failed to run lsr --classify=never");
+        .expect("Failed to run lez --classify=never");
     assert!(output_never.status.success());
 }

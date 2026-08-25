@@ -23,7 +23,7 @@ impl TempGitRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_dotgit_test_{prefix}_{}_{}",
+            "lez_dotgit_test_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -112,12 +112,12 @@ fn git_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 // ----------------------------------------------------------------------------
@@ -133,7 +133,7 @@ fn test_f2_root_dotgit_excluded_from_git_repos_column() {
     assert!(repo.git(&["add", "main_file.txt"]));
     assert!(repo.git(&["commit", "-q", "-m", "init"]));
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--git-repos",
         "--color=never",
@@ -169,7 +169,7 @@ fn test_f2_nested_subrepo_shows_branch_while_dotgit_does_not() {
     assert!(repo.git(&["add", "readme.md"]));
     assert!(repo.git(&["commit", "-q", "-m", "root init"]));
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--git-repos",
         "--color=never",
@@ -217,7 +217,7 @@ fn test_f2_git_repos_no_stat_dotgit_exclusion() {
     assert!(repo.git(&["add", "readme.md"]));
     assert!(repo.git(&["commit", "-q", "-m", "root init"]));
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--git-repos-no-status",
         "--color=never",
@@ -253,7 +253,7 @@ fn test_f2_json_mode_dotgit_exclusion() {
     repo.write_file("app.rs", b"fn main() {}\n");
     repo.create_subrepo("sub_module");
 
-    let output = run_lsr(&["--json", "-la", "--git-repos", repo.path.to_str().unwrap()]);
+    let output = run_lez(&["--json", "-la", "--git-repos", repo.path.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("Valid JSON");
@@ -316,7 +316,7 @@ fn test_f2_tree_view_dotgit_exclusion() {
         return;
     };
     repo.write_file("file1.txt", b"hello\n");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--tree",
         "--git-repos",
@@ -341,7 +341,7 @@ fn test_f2_empty_repo_dotgit_no_subrepo_status() {
     let Some(repo) = TempGitRepo::new("empty_dotgit") else {
         return;
     };
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--git-repos",
         "--color=never",

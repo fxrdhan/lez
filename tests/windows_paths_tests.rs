@@ -4,7 +4,7 @@
 //! Two Windows-only defects, both confirmed on a `windows-latest` runner
 //! before being fixed here (see issue #57):
 //!
-//! - `cmd` and PowerShell do not expand wildcards, so `lsr t*` reached the
+//! - `cmd` and PowerShell do not expand wildcards, so `lez t*` reached the
 //!   binary as the literal `t*` and failed with `os error 123`.
 //! - Windows has no `.` entry on disk, so listing from inside a directory
 //!   symlink stat'd the link and printed one `. -> target` row instead of the
@@ -31,7 +31,7 @@ impl Fixture {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lsr_win_{tag}_{}_{}", std::process::id(), nanos));
+            std::env::temp_dir().join(format!("lez_win_{tag}_{}_{}", std::process::id(), nanos));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("the fixture directory should be creatable");
         Self { path }
@@ -49,14 +49,14 @@ impl Drop for Fixture {
     }
 }
 
-/// Run lsr from inside `dir`, returning its exit code, stdout and stderr.
+/// Run lez from inside `dir`, returning its exit code, stdout and stderr.
 fn run_in(dir: &Path, args: &[&str]) -> (i32, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .arg("--color=never")
         .args(args)
         .current_dir(dir)
         .output()
-        .expect("lsr should run");
+        .expect("lez should run");
     (
         output.status.code().unwrap_or(-1),
         String::from_utf8_lossy(&output.stdout).into_owned(),

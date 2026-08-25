@@ -19,7 +19,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_xattr_resilience_{prefix}_{}_{}",
+            "lez_xattr_resilience_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -42,7 +42,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn test_xattr_extended_view_does_not_hang() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

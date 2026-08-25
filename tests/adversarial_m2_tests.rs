@@ -19,7 +19,7 @@ struct TempEnv {
 
 impl TempEnv {
     fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("lsr_adv_m2_{}_{}", name, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lez_adv_m2_{}_{}", name, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("failed to create temp dir");
         Self { dir }
@@ -69,7 +69,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop(); // Remove deps
     }
-    path.push("lsr");
+    path.push("lez");
     path
 }
 
@@ -92,7 +92,7 @@ fn test_cli_repeated_flags() {
         .arg("--color=never")
         .arg(temp.path().join("sub"))
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -108,7 +108,7 @@ fn test_cli_invalid_value_passed_to_flag() {
     let output = Command::new(bin_path())
         .arg("--no-symlink-targets=invalid")
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(!output.status.success());
     assert_eq!(output.status.code(), Some(2)); // Clap argument parsing error code
@@ -129,7 +129,7 @@ fn test_cli_interaction_with_dereference() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -161,7 +161,7 @@ fn test_cli_interaction_with_no_symlinks_and_no_symlink_targets() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -184,7 +184,7 @@ fn test_cli_interaction_with_hyperlinks() {
         .arg("--no-symlink-targets")
         .arg(temp.path().join("sub"))
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -208,7 +208,7 @@ fn test_cli_interaction_with_icons() {
         .arg("--no-symlink-targets")
         .arg(temp.path().join("sub"))
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -233,7 +233,7 @@ fn test_cli_interaction_with_octal_and_time_style() {
         .arg("--color=never")
         .arg(temp.path().join("sub"))
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -260,7 +260,7 @@ fn test_view_mode_grid() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -282,7 +282,7 @@ fn test_view_mode_lines() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
     let stdout_def = String::from_utf8_lossy(&out_default.stdout);
     assert!(stdout_def.contains("link.txt"));
     assert!(!stdout_def.contains("link.txt -> target.txt"));
@@ -295,7 +295,7 @@ fn test_view_mode_lines() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
     let stdout_sup = String::from_utf8_lossy(&out_suppressed.stdout);
     assert!(stdout_sup.contains("link.txt"));
     assert!(!stdout_sup.contains("link.txt -> target.txt"));
@@ -318,7 +318,7 @@ fn test_view_mode_grid_details() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -341,7 +341,7 @@ fn test_view_mode_tree_details() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -366,7 +366,7 @@ fn test_circular_symlink() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -387,7 +387,7 @@ fn test_mutual_circular_symlinks() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -413,7 +413,7 @@ fn test_deep_symlink_chain() {
         .arg("--color=never")
         .arg(temp.path().join("sub"))
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -437,7 +437,7 @@ fn test_extremely_long_symlink_target_path() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -460,7 +460,7 @@ fn test_symlink_as_direct_cli_positional_arg() {
         .arg("--color=never")
         .arg(&link_path)
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -486,7 +486,7 @@ fn test_symlink_via_stdin() {
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()
-        .expect("failed to spawn lsr");
+        .expect("failed to spawn lez");
 
     {
         let stdin = child.stdin.as_mut().expect("failed to open stdin");
@@ -521,7 +521,7 @@ fn test_unicode_and_spaces_in_symlinks() {
         .arg("--color=never")
         .arg(temp.path().join("sub"))
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -555,7 +555,7 @@ fn test_stress_large_batch_symlinks() {
         .arg("--color=never")
         .arg(temp.path())
         .output()
-        .expect("lsr command failed");
+        .expect("lez command failed");
     let elapsed = start.elapsed();
 
     assert!(output.status.success());

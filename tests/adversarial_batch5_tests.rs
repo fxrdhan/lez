@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_adv_b5_{prefix}_{}_{}",
+            "lez_adv_b5_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,7 +52,7 @@ impl Drop for TempTestDir {
 
 #[test]
 fn test_m1_json_cli_short_single_directory() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_short");
     temp.create_file("alpha.txt", b"a");
     temp.create_file("beta.rs", b"b");
@@ -61,7 +61,7 @@ fn test_m1_json_cli_short_single_directory() {
     let output = Command::new(bin_path)
         .args(["--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -77,13 +77,13 @@ fn test_m1_json_cli_short_single_directory() {
 
 #[test]
 fn test_m1_json_cli_short_empty_directory() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_empty");
 
     let output = Command::new(bin_path)
         .args(["--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -96,14 +96,14 @@ fn test_m1_json_cli_short_empty_directory() {
 
 #[test]
 fn test_m1_json_cli_short_single_file() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_file");
     let file_path = temp.create_file("solo.txt", b"solo");
 
     let output = Command::new(bin_path)
         .args(["--json", file_path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -117,7 +117,7 @@ fn test_m1_json_cli_short_single_file() {
 
 #[test]
 fn test_m1_json_cli_short_multi_directories() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_multidir");
     let dir_a = temp.create_dir("dirA");
     let dir_b = temp.create_dir("dirB");
@@ -127,7 +127,7 @@ fn test_m1_json_cli_short_multi_directories() {
     let output = Command::new(bin_path)
         .args(["--json", dir_a.to_str().unwrap(), dir_b.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -148,7 +148,7 @@ fn test_m1_json_cli_short_multi_directories() {
 
 #[test]
 fn test_m1_json_cli_short_mixed_files_and_directories() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_mixed");
     let f1 = temp.create_file("top.txt", b"top");
     let dir1 = temp.create_dir("subfolder");
@@ -157,7 +157,7 @@ fn test_m1_json_cli_short_mixed_files_and_directories() {
     let output = Command::new(bin_path)
         .args(["--json", f1.to_str().unwrap(), dir1.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -171,7 +171,7 @@ fn test_m1_json_cli_short_mixed_files_and_directories() {
 
 #[test]
 fn test_m1_json_cli_long_metadata_schema() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long");
     temp.create_file("test.txt", b"content of test file");
 
@@ -183,7 +183,7 @@ fn test_m1_json_cli_long_metadata_schema() {
             temp.path.to_str().unwrap(),
         ])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -206,13 +206,13 @@ fn test_m1_json_cli_long_metadata_schema() {
 
 #[test]
 fn test_m1_json_cli_long_empty_directory() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long_empty");
 
     let output = Command::new(bin_path)
         .args(["-l", "--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -224,7 +224,7 @@ fn test_m1_json_cli_long_empty_directory() {
 
 #[test]
 fn test_m1_json_cli_all_hidden_files() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_hidden");
     temp.create_file(".secret.txt", b"secret");
     temp.create_file("visible.txt", b"visible");
@@ -232,7 +232,7 @@ fn test_m1_json_cli_all_hidden_files() {
     let output = Command::new(bin_path)
         .args(["-a", "--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -246,7 +246,7 @@ fn test_m1_json_cli_all_hidden_files() {
 
 #[test]
 fn test_m1_json_cli_bytes_and_binary_units() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_units");
     temp.create_file("large.bin", &vec![0u8; 1024 * 1024]);
 
@@ -254,7 +254,7 @@ fn test_m1_json_cli_bytes_and_binary_units() {
     let out_bytes = Command::new(bin_path)
         .args(["-l", "--bytes", "--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_bytes.status.success());
     let val_bytes: serde_json::Value =
         serde_json::from_str(&String::from_utf8_lossy(&out_bytes.stdout)).unwrap();
@@ -275,7 +275,7 @@ fn test_m1_json_cli_bytes_and_binary_units() {
     let out_binary = Command::new(bin_path)
         .args(["-l", "--binary", "--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
     assert!(out_binary.status.success());
     let val_binary: serde_json::Value =
         serde_json::from_str(&String::from_utf8_lossy(&out_binary.stdout)).unwrap();
@@ -291,7 +291,7 @@ fn test_m1_json_cli_bytes_and_binary_units() {
 
 #[test]
 fn test_m1_json_cli_time_styles() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_time");
     temp.create_file("stamp.txt", b"timestamp test");
 
@@ -303,7 +303,7 @@ fn test_m1_json_cli_time_styles() {
             temp.path.to_str().unwrap(),
         ])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -322,7 +322,7 @@ fn test_m1_json_cli_time_styles() {
 
 #[test]
 fn test_m1_json_cli_recursive_tree() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_tree");
     temp.create_file("root_file.txt", b"root");
     temp.create_file("sub/nested_file.txt", b"nested");
@@ -330,7 +330,7 @@ fn test_m1_json_cli_recursive_tree() {
     let output = Command::new(bin_path)
         .args(["-R", "--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -346,7 +346,7 @@ fn test_m1_json_cli_recursive_tree() {
 
 #[test]
 fn test_m1_json_cli_recursive_long_tree() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long_tree");
     temp.create_file("root_file.txt", b"root");
     temp.create_file("sub/nested_file.txt", b"nested");
@@ -354,7 +354,7 @@ fn test_m1_json_cli_recursive_long_tree() {
     let output = Command::new(bin_path)
         .args(["-l", "-R", "--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -375,7 +375,7 @@ fn test_m1_json_cli_recursive_long_tree() {
 
 #[test]
 fn test_m1_json_cli_special_characters_escaping() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_escaping");
     temp.create_file("file with spaces.txt", b"1");
     #[cfg(unix)]
@@ -386,7 +386,7 @@ fn test_m1_json_cli_special_characters_escaping() {
     let output = Command::new(bin_path)
         .args(["--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -404,7 +404,7 @@ fn test_m1_json_cli_special_characters_escaping() {
 
 #[test]
 fn test_m1_json_cli_no_ansi_escapes() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_no_ansi");
     temp.create_file("plain.txt", b"plain");
 
@@ -416,7 +416,7 @@ fn test_m1_json_cli_no_ansi_escapes() {
             temp.path.to_str().unwrap(),
         ])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -430,7 +430,7 @@ fn test_m1_json_cli_no_ansi_escapes() {
 #[test]
 #[cfg(unix)]
 fn test_m1_json_cli_symlinks() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_symlink");
     let target = temp.create_file("target.txt", b"target");
     let link_path = temp.path.join("link.txt");
@@ -439,7 +439,7 @@ fn test_m1_json_cli_symlinks() {
     let output = Command::new(bin_path)
         .args(["-l", "--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -455,7 +455,7 @@ fn test_m1_json_cli_symlinks() {
 #[test]
 #[cfg(feature = "git")]
 fn test_m1_json_cli_git_status() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_git");
     let repo = git2::Repository::init(&temp.path).expect("Failed to init git repo");
 
@@ -471,7 +471,7 @@ fn test_m1_json_cli_git_status() {
     let output = Command::new(bin_path)
         .args(["-l", "--git", "--json", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -490,7 +490,7 @@ fn test_m1_json_cli_git_status() {
 fn test_m2_resourcefork_xattr_decoding_unit() {
     #[cfg(target_os = "macos")]
     {
-        use lsr::fs::feature::xattr::Attribute;
+        use lez::fs::feature::xattr::Attribute;
 
         let mut data = vec![0u8; 64];
         // Header
@@ -525,11 +525,11 @@ fn test_m2_resourcefork_xattr_decoding_unit() {
 #[test]
 #[cfg(unix)]
 fn test_m3_mounts_cli_display() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let output = Command::new(bin_path)
         .args(["-l", "-M", "/"])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
 }
@@ -544,7 +544,7 @@ directorynames:
 "#;
     let temp = TempTestDir::new("theme_dir");
     let theme_file = temp.create_file("theme.yml", yaml.as_bytes());
-    let cfg = lsr::options::config::ThemeConfig::from_path(theme_file);
+    let cfg = lez::options::config::ThemeConfig::from_path(theme_file);
     let theme = cfg.to_theme().expect("Failed to parse theme");
     assert!(theme.directorynames.is_some());
     let dir_styles = theme.directorynames.unwrap();
@@ -553,14 +553,14 @@ directorynames:
 
 #[test]
 fn test_m5_icons_apple_and_configs() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("icons_test");
     temp.create_file("hyprland.conf", b"");
 
     let output = Command::new(bin_path)
         .args(["--icons=always", temp.path.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

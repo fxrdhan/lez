@@ -3,26 +3,26 @@
 
 #![allow(unused_imports, dead_code)]
 
-use lsr::fs::fields::Size;
-use lsr::fs::filter::{
+use lez::fs::fields::Size;
+use lez::fs::filter::{
     FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase, SortField,
 };
-use lsr::fs::{DotFilter, File};
-use lsr::loc::{LocCounts, count_roots, language_for};
-use lsr::options::parser::get_command;
-use lsr::options::vars::Vars;
-use lsr::options::{Options, OptionsError};
-use lsr::output::color_scale::{
+use lez::fs::{DotFilter, File};
+use lez::loc::{LocCounts, count_roots, language_for};
+use lez::options::parser::get_command;
+use lez::options::vars::Vars;
+use lez::options::{Options, OptionsError};
+use lez::output::color_scale::{
     ColorScaleInformation, ColorScaleMode, ColorScaleOptions, Extremes, Scale,
 };
-use lsr::output::file_name::{
+use lez::output::file_name::{
     Absolute, Classify, EmbedHyperlinks, Options as FileStyleOptions, QuoteStyle, ShowIcons,
     ShowSymlinkTargets,
 };
-use lsr::output::hidden_count::WarnHiddenMode;
-use lsr::output::table::SizeFormat;
-use lsr::output::{Mode, TerminalWidth};
-use lsr::theme::Theme;
+use lez::output::hidden_count::WarnHiddenMode;
+use lez::output::table::SizeFormat;
+use lez::output::{Mode, TerminalWidth};
+use lez::theme::Theme;
 use nu_ansi_term::{Color as Colour, Style};
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -42,7 +42,7 @@ impl TempTestDir {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("lsr_test_{prefix}_{nanos}"));
+        let path = std::env::temp_dir().join(format!("lez_test_{prefix}_{nanos}"));
         fs::create_dir_all(&path).expect("Failed to create temp test directory");
         Self { path }
     }
@@ -55,7 +55,7 @@ impl Drop for TempTestDir {
 }
 
 struct DummyFileStyle;
-impl lsr::theme::FileStyle for DummyFileStyle {
+impl lez::theme::FileStyle for DummyFileStyle {
     fn get_style(&self, _file: &File<'_>, _theme: &Theme) -> Option<Style> {
         None
     }
@@ -84,7 +84,7 @@ impl Vars for MockVars {
 }
 
 fn parse_options(args: &[&str], vars: &MockVars) -> Result<Options, OptionsError> {
-    let mut full_args = vec!["lsr"];
+    let mut full_args = vec!["lez"];
     full_args.extend_from_slice(args);
     let command = get_command();
     let matches = command
@@ -132,7 +132,7 @@ fn test_r1_hyperlink_painting_with_special_characters() {
     ];
 
     let theme = Theme {
-        ui: lsr::theme::UiStyles::plain(),
+        ui: lez::theme::UiStyles::plain(),
         // Not `plain`: the UI styles are, but `exts` still hands out styles,
         // which is the whole point of these cases.
         exts: Box::new(DummyFileStyle),
@@ -703,7 +703,7 @@ fn test_r1_adversarial_hyperlink_edge_cases() {
     ];
 
     let theme = Theme {
-        ui: lsr::theme::UiStyles::plain(),
+        ui: lez::theme::UiStyles::plain(),
         // Not `plain`: the UI styles are, but `exts` still hands out styles,
         // which is the whole point of these cases.
         exts: Box::new(DummyFileStyle),
@@ -810,7 +810,7 @@ fn test_r2_adversarial_deep_hierarchy_with_multiple_filters() {
 
     // Filter ignoring *.bak, *.tmp, and ignored_dir
     let filter = make_filter(vec![], vec!["*.bak", "*.tmp", "ignored_dir"]);
-    let recurse_opts = lsr::fs::dir_action::RecurseOptions {
+    let recurse_opts = lez::fs::dir_action::RecurseOptions {
         tree: true,
         max_depth: None,
     };
@@ -900,17 +900,17 @@ fn test_r4_adversarial_grid_formatting_under_extreme_widths() {
         fs::write(temp.path.join(name), b"test").unwrap();
     }
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
     // Execute with width = 1, 2, 3, 40, 80, 65535, 100000
     for width in ["1", "2", "3", "40", "80", "65535", "100000"] {
-        let output = Command::new(lsr_bin)
+        let output = Command::new(lez_bin)
             .args(["--grid", "--width", width, temp.path.to_str().unwrap()])
             .output()
-            .expect("lsr command");
+            .expect("lez command");
         assert!(
             output.status.success(),
-            "lsr --grid --width {} failed with status {:?}",
+            "lez --grid --width {} failed with status {:?}",
             width,
             output.status
         );
@@ -923,10 +923,10 @@ fn test_r5_adversarial_precedence_in_details_and_grid_modes() {
     let test_file = temp.path.join("file_2048.txt");
     fs::write(&test_file, vec![0u8; 2048]).unwrap();
 
-    let lsr_bin = env!("CARGO_BIN_EXE_lsr");
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
 
     // Permutation 1: -b then -B -> shows 2048 or 2,048 (bytes)
-    let out1 = Command::new(lsr_bin)
+    let out1 = Command::new(lez_bin)
         .args(["-l", "-b", "-B", test_file.to_str().unwrap()])
         .output()
         .unwrap();
@@ -935,7 +935,7 @@ fn test_r5_adversarial_precedence_in_details_and_grid_modes() {
     assert!(!s1.contains("KiB"));
 
     // Permutation 2: -B then -b -> shows 2.0 KiB or 2.0K (binary)
-    let out2 = Command::new(lsr_bin)
+    let out2 = Command::new(lez_bin)
         .args(["-l", "-B", "-b", test_file.to_str().unwrap()])
         .output()
         .unwrap();
@@ -943,7 +943,7 @@ fn test_r5_adversarial_precedence_in_details_and_grid_modes() {
     assert!(s2.contains("KiB") || s2.contains("2.0K"));
 
     // Permutation 3: -b -B -b -B -> shows bytes
-    let out3 = Command::new(lsr_bin)
+    let out3 = Command::new(lez_bin)
         .args(["-l", "-b", "-B", "-b", "-B", test_file.to_str().unwrap()])
         .output()
         .unwrap();
@@ -951,7 +951,7 @@ fn test_r5_adversarial_precedence_in_details_and_grid_modes() {
     assert!(s3.contains("2048") || s3.contains("2,048"));
 
     // Permutation 4: -B -b -B -b -> shows binary
-    let out4 = Command::new(lsr_bin)
+    let out4 = Command::new(lez_bin)
         .args(["-l", "-B", "-b", "-B", "-b", test_file.to_str().unwrap()])
         .output()
         .unwrap();

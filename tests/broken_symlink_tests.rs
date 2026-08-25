@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_broken_symlink_{prefix}_{}_{}",
+            "lez_broken_symlink_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -65,12 +65,12 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 // ----------------------------------------------------------------------------
@@ -90,7 +90,7 @@ fn test_empty_symlink_with_group_directories_first() {
         return;
     }
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "--group-directories-first",
         "-1",
         "--color=never",
@@ -148,7 +148,7 @@ fn test_empty_symlink_with_icons_does_not_display_folder_icon() {
         return;
     }
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "--icons=always",
         "-1",
         "--color=never",
@@ -200,7 +200,7 @@ fn test_empty_symlink_classify_indicator() {
     }
 
     // In grid mode with --classify=always:
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-G",
         "--classify=always",
         "--color=never",
@@ -245,7 +245,7 @@ fn test_empty_symlink_filtering_dirs_and_files() {
     }
 
     // Test 1: --only-dirs (-D) alone
-    let out_dirs_alone = run_lsr(&["-D", "-1", "--color=never", fixture.path.to_str().unwrap()]);
+    let out_dirs_alone = run_lez(&["-D", "-1", "--color=never", fixture.path.to_str().unwrap()]);
     assert!(out_dirs_alone.status.success());
     let stdout_dirs_alone = String::from_utf8_lossy(&out_dirs_alone.stdout);
     assert!(stdout_dirs_alone.contains("actual_dir"));
@@ -254,7 +254,7 @@ fn test_empty_symlink_filtering_dirs_and_files() {
 
     // Test 2: --only-dirs with --show-symlinks (-D --show-symlinks)
     // Points-to-directory symlink (dir_symlink) is included, broken empty symlink is excluded
-    let out_dirs_show = run_lsr(&[
+    let out_dirs_show = run_lez(&[
         "-D",
         "--show-symlinks",
         "-1",
@@ -272,7 +272,7 @@ fn test_empty_symlink_filtering_dirs_and_files() {
 
     // Test 3: --only-files with --show-symlinks (-f --show-symlinks)
     // Regular file and broken empty symlink are included, dir_symlink is excluded
-    let out_files_show = run_lsr(&[
+    let out_files_show = run_lez(&[
         "-f",
         "--show-symlinks",
         "-1",
@@ -309,7 +309,7 @@ fn test_empty_symlink_as_positional_cli_argument() {
         None => return,
     };
 
-    let output = run_lsr(&["--color=never", link_path.to_str().unwrap()]);
+    let output = run_lez(&["--color=never", link_path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -337,7 +337,7 @@ fn test_empty_symlink_with_dereference_flag() {
         return;
     }
 
-    let output = run_lsr(&["-l", "-X", "--color=never", fixture.path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "-X", "--color=never", fixture.path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -359,7 +359,7 @@ fn test_empty_symlink_long_view_arrow() {
         return;
     }
 
-    let output = run_lsr(&["-l", "--color=never", fixture.path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--color=never", fixture.path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -388,7 +388,7 @@ fn test_deleted_dir_symlink_in_tree_mode() {
     // Remove the target directory
     let _ = fs::remove_dir_all(&target);
 
-    let output = run_lsr(&["-T", "--color=never", fixture.path.to_str().unwrap()]);
+    let output = run_lez(&["-T", "--color=never", fixture.path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -410,7 +410,7 @@ fn test_empty_symlink_in_json_mode() {
         return;
     }
 
-    let output = run_lsr(&["--json", fixture.path.to_str().unwrap()]);
+    let output = run_lez(&["--json", fixture.path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

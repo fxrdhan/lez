@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_adv_m3_{prefix}_{}_{}",
+            "lez_adv_m3_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -53,7 +53,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn test_m3_cli_smart_group_basic() {
         .arg("--smart-group")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -83,7 +83,7 @@ fn test_m3_cli_smart_group_vs_plain_long() {
         .arg("-l")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
     assert!(out_plain.status.success());
 
     // Run with -l --smart-group
@@ -92,7 +92,7 @@ fn test_m3_cli_smart_group_vs_plain_long() {
         .arg("--smart-group")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
     assert!(out_smart.status.success());
 
     let stdout_smart = String::from_utf8_lossy(&out_smart.stdout);
@@ -110,7 +110,7 @@ fn test_m3_cli_smart_group_with_group_flag() {
         .arg("--smart-group")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -128,7 +128,7 @@ fn test_m3_cli_smart_group_json_mode() {
         .arg("--json")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -158,7 +158,7 @@ fn test_m3_cli_plain_long_json_mode_has_no_group() {
         .arg("--json")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -189,7 +189,7 @@ fn test_m3_cli_smart_group_with_multiple_files_and_dirs() {
         .arg("--tree")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -213,7 +213,7 @@ fn test_m3_cli_smart_group_with_other_long_flags() {
         .arg("--time-style=iso")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr");
+        .expect("Failed to execute lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

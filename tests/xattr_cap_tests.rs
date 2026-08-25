@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_xattr_cap_{prefix}_{}_{}",
+            "lez_xattr_cap_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,7 +52,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn test_extended_attributes_cli_flag() {
         .arg("-@")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr with -l -@");
+        .expect("Failed to execute lez with -l -@");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -82,7 +82,7 @@ fn test_extended_attributes_long_option() {
         .arg("--extended")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr with -l --extended");
+        .expect("Failed to execute lez with -l --extended");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

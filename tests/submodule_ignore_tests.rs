@@ -24,7 +24,7 @@ impl TempRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_submodule_{prefix}_{}_{}",
+            "lez_submodule_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -110,11 +110,11 @@ fn git_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-fn run_lsr(args: &[&str]) -> String {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(args: &[&str]) -> String {
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(output.status.success());
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
@@ -132,7 +132,7 @@ fn ignore_submodule_contents_prunes_recursion() {
     let nested = Path::new("sub").join("deep").join("nested.txt");
 
     // Without the flag recursion descends into the submodule.
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-R",
         "--color=never",
         repo.path.join("sub").to_str().unwrap(),
@@ -140,7 +140,7 @@ fn ignore_submodule_contents_prunes_recursion() {
     assert!(stdout.contains("inner.txt"), "{stdout}");
 
     // With it, the submodule's own tree is pruned but the entry remains.
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-R",
         "--color=never",
         "--ignore-submodule-contents",

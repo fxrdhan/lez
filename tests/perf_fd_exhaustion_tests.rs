@@ -23,7 +23,7 @@ impl FdTestDir {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lsr_fd_{prefix}_{}_{}", std::process::id(), nanos));
+            std::env::temp_dir().join(format!("lez_fd_{prefix}_{}_{}", std::process::id(), nanos));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("Failed to create temp test directory");
         Self { path }
@@ -57,11 +57,11 @@ impl Drop for FdTestDir {
     }
 }
 
-fn run_with_fd_limit(dir: &Path, lsr_args: &[&str], fd_limit: u64) -> (bool, String, String) {
-    let binary = env!("CARGO_BIN_EXE_lsr");
-    let args_joined = lsr_args.join(" ");
+fn run_with_fd_limit(dir: &Path, lez_args: &[&str], fd_limit: u64) -> (bool, String, String) {
+    let binary = env!("CARGO_BIN_EXE_lez");
+    let args_joined = lez_args.join(" ");
 
-    // Use sh to set ulimit -n and execute lsr
+    // Use sh to set ulimit -n and execute lez
     let script = format!("ulimit -n {fd_limit} && \"{binary}\" {args_joined}");
     let output = Command::new("sh")
         .current_dir(dir)
@@ -88,7 +88,7 @@ fn recursive_traversal_does_not_leak_descriptors_under_tight_limit() {
 
     assert!(
         success,
-        "lsr -R failed under ulimit -n 128: stderr: {stderr}"
+        "lez -R failed under ulimit -n 128: stderr: {stderr}"
     );
     assert!(!stdout.is_empty(), "Expected output from recursive listing");
     assert!(stdout.contains("leaf_deep.txt"));
@@ -103,7 +103,7 @@ fn tree_view_survives_tight_descriptor_limit() {
 
     assert!(
         success,
-        "lsr -T failed under ulimit -n 128: stderr: {stderr}"
+        "lez -T failed under ulimit -n 128: stderr: {stderr}"
     );
     assert!(!stdout.is_empty());
     assert!(stdout.contains("dir_000"));
@@ -119,7 +119,7 @@ fn total_size_recursive_scan_handles_bounded_descriptors() {
 
     assert!(
         success,
-        "lsr -l --total-size failed under ulimit -n 128: stderr: {stderr}"
+        "lez -l --total-size failed under ulimit -n 128: stderr: {stderr}"
     );
     assert!(!stdout.is_empty());
 }
@@ -135,6 +135,6 @@ fn extreme_fd_exhaustion_does_not_panic() {
     // Ensure no Rust panic occurred (stderr should not contain 'panicked at')
     assert!(
         !stderr.contains("panicked at"),
-        "lsr panicked under extreme FD starvation: {stderr}"
+        "lez panicked under extreme FD starvation: {stderr}"
     );
 }

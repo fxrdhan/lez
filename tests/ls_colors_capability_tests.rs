@@ -22,7 +22,7 @@ impl Fixture {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_capability_{tag}_{}_{}",
+            "lez_capability_{tag}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -37,16 +37,16 @@ impl Fixture {
         p
     }
 
-    fn lsr(&self, ls_colors: &str, args: &[&str]) -> String {
-        let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    fn lez(&self, ls_colors: &str, args: &[&str]) -> String {
+        let output = Command::new(env!("CARGO_BIN_EXE_lez"))
             .args(["--color=always"])
             .args(args)
             .current_dir(&self.path)
             .env("LS_COLORS", ls_colors)
             .env_remove("EZA_COLORS")
-            .env_remove("LSR_COLORS")
+            .env_remove("LEZ_COLORS")
             .output()
-            .expect("lsr should run");
+            .expect("lez should run");
         String::from_utf8_lossy(&output.stdout).into_owned()
     }
 }
@@ -86,7 +86,7 @@ fn a_file_with_capabilities_takes_the_ca_colour() {
         return;
     }
 
-    let listing = dir.lsr("ca=38;5;17", &["with_caps"]);
+    let listing = dir.lez("ca=38;5;17", &["with_caps"]);
     assert!(
         listing.contains("38;5;17"),
         "the ca style should have been used: {listing:?}"
@@ -100,7 +100,7 @@ fn a_file_without_capabilities_does_not() {
     let dir = Fixture::new("plain");
     dir.file("no_caps");
 
-    let listing = dir.lsr("ca=38;5;17", &["no_caps"]);
+    let listing = dir.lez("ca=38;5;17", &["no_caps"]);
     assert!(
         !listing.contains("38;5;17"),
         "a file without capabilities should not borrow the ca style: {listing:?}"
@@ -115,8 +115,8 @@ fn without_a_ca_entry_the_listing_is_untouched() {
     let dir = Fixture::new("unset");
     dir.file("some_file");
 
-    let with_ca = dir.lsr("ca=38;5;17:fi=0", &["some_file"]);
-    let without = dir.lsr("fi=0", &["some_file"]);
+    let with_ca = dir.lez("ca=38;5;17:fi=0", &["some_file"]);
+    let without = dir.lez("fi=0", &["some_file"]);
     assert_eq!(
         with_ca, without,
         "a file with no capabilities should look the same either way"
@@ -130,7 +130,7 @@ fn a_directory_never_takes_the_ca_colour() {
     let dir = Fixture::new("dir");
     fs::create_dir(dir.path.join("subdir")).unwrap();
 
-    let listing = dir.lsr("ca=38;5;17:di=34", &["-d", "subdir"]);
+    let listing = dir.lez("ca=38;5;17:di=34", &["-d", "subdir"]);
     assert!(
         !listing.contains("38;5;17"),
         "a directory should keep its own colour: {listing:?}"

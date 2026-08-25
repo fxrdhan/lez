@@ -8,7 +8,7 @@
 }:
 
 naersk'.buildPackage rec {
-  pname = "lsr";
+  pname = "lez";
   version = "git";
 
   src = ../.;
@@ -26,17 +26,17 @@ naersk'.buildPackage rec {
   buildFeatures = "git,inspect-archives";
 
   postInstall = ''
-    for page in lsr.1 lsr_colors.5 lsr_colors-explanation.5; do
+    for page in lez.1 lez_colors.5 lez_colors-explanation.5; do
       if [ -f "man/$page.md" ]; then
         sed "s/\$version/${version}/g" "man/$page.md" |
           pandoc --standalone -f markdown -t man >"man/$page"
       fi
     done
-    installManPage man/lsr.1 man/lsr_colors.5 man/lsr_colors-explanation.5
+    installManPage man/lez.1 man/lez_colors.5 man/lez_colors-explanation.5
     installShellCompletion \
-      --bash completions/bash/lsr \
-      --fish completions/fish/lsr.fish \
-      --zsh completions/zsh/_lsr \
+      --bash completions/bash/lez \
+      --fish completions/fish/lez.fish \
+      --zsh completions/zsh/_lez \
       --bash completions/bash/eza \
       --fish completions/fish/eza.fish \
       --zsh completions/zsh/_eza
@@ -45,16 +45,16 @@ naersk'.buildPackage rec {
   meta = with pkgs.lib; {
     description = "A modern, fast, and feature-rich replacement for ls written in Rust";
     longDescription = ''
-      lsr is a modern, fast, and feature-rich replacement for ls written in Rust.
+      lez is a modern, fast, and feature-rich replacement for ls written in Rust.
       It uses colours for information by default, helping you distinguish between
       many types of files, such as whether you are the owner, or in the owning group.
       It also has extra features not present in the original ls, such as viewing the
       Git status for a directory, lines of code counting with --code, structured JSON
       with --json, and recursing into directories with a tree view.
     '';
-    homepage = "https://github.com/fxrdhan/lsr";
+    homepage = "https://github.com/fxrdhan/lez";
     license = licenses.eupl12;
-    mainProgram = "lsr";
+    mainProgram = "lez";
     maintainers = with maintainers; [ ];
   };
 }

@@ -90,7 +90,7 @@ impl Options {
             // No need to alert the user unless they explicitly set color=always
             if nu_ansi_term::enable_ansi_support().is_err() {
                 if self.use_colours == UseColours::Always {
-                    eprintln!("lsr: Ignoring option color=always in legacy console.");
+                    eprintln!("lez: Ignoring option color=always in legacy console.");
                 }
                 false
             } else {
@@ -1290,7 +1290,7 @@ mod customs_test {
 
     #[test]
     fn to_theme_keeps_themed_icons_without_colours() {
-        let dir = std::env::temp_dir().join(format!("lsr_theme_never_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lez_theme_never_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("theme.yml");
         std::fs::write(

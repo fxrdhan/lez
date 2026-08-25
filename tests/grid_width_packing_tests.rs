@@ -24,14 +24,14 @@ const NAMES: [&str; 9] = [
 ];
 
 fn listing(dir: &Path, width: &str) -> Vec<String> {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(["--color=never", "-w", width])
         .arg(dir)
         .output()
-        .expect("lsr should run");
+        .expect("lez should run");
     assert!(
         output.status.success(),
-        "lsr exited with {}: {}",
+        "lez exited with {}: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
@@ -53,7 +53,7 @@ impl Fixture {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lsr_grid_{tag}_{}_{}", std::process::id(), nanos));
+            std::env::temp_dir().join(format!("lez_grid_{tag}_{}_{}", std::process::id(), nanos));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("the fixture directory should be creatable");
         for name in NAMES {

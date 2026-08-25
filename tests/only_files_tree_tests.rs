@@ -23,7 +23,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_only_files_{prefix}_{}_{}",
+            "lez_only_files_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -54,11 +54,11 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 fn fixture(prefix: &str) -> TempTestDir {
@@ -78,8 +78,8 @@ fn tree_of(fixture: &TempTestDir, args: &[&str]) -> String {
     argv.push("--color=never");
     argv.push(root);
 
-    let output = run_lsr(&argv);
-    assert!(output.status.success(), "lsr {argv:?} should succeed");
+    let output = run_lez(&argv);
+    assert!(output.status.success(), "lez {argv:?} should succeed");
 
     String::from_utf8_lossy(&output.stdout)
         .replace(root, "<ROOT>")
@@ -153,7 +153,7 @@ fn tree_without_only_files_still_shows_directories() {
 fn recursive_lines_mode_hides_directory_entries() {
     let fixture = fixture("lines");
 
-    let output = run_lsr(&["-R", "-f", "--color=never", fixture.path.to_str().unwrap()]);
+    let output = run_lez(&["-R", "-f", "--color=never", fixture.path.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 

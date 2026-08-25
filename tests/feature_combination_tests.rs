@@ -23,7 +23,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_combo_{prefix}_{}_{}",
+            "lez_combo_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -79,7 +79,7 @@ impl TempGitRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_combo_git_{prefix}_{}_{}",
+            "lez_combo_git_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -146,7 +146,7 @@ impl TempRepoFixture {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_combo_master_{prefix}_{}_{}",
+            "lez_combo_master_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -219,12 +219,12 @@ fn git_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 // ====================================================================================
@@ -235,7 +235,7 @@ fn run_lsr(args: &[&str]) -> Output {
 fn dotgit_directory_in_non_git_parent_is_plain() {
     let temp = TempTestDir::new("f2_orphan_dotgit");
     temp.create_dir(".git");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--git-repos",
         "--color=never",
@@ -279,7 +279,7 @@ fn worktree_with_detached_head() {
         .current_dir(&main_path)
         .output();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git-repos",
         "--color=never",
@@ -323,7 +323,7 @@ fn nested_worktrees_resolve_branches() {
         .current_dir(&main_path)
         .output();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git-repos",
         "--color=never",
@@ -339,7 +339,7 @@ fn sort_none_preserves_argument_order() {
     let fa = temp.create_file("a.txt", b"a");
     let fm = temp.create_file("m.txt", b"m");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1d",
         "--sort=none",
         "--color=never",
@@ -363,7 +363,7 @@ fn nonexistent_positional_arguments_report_error() {
     let f2 = temp.create_file("valid2.txt", b"2");
     let missing = temp.path.join("nonexistent.txt");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1d",
         "--color=never",
         f2.to_str().unwrap(),
@@ -384,7 +384,7 @@ fn positional_argument_case_sensitivity() {
     let fa = temp.create_file("file_a.txt", b"a");
     let fa_cap = temp.create_file("file_A.txt", b"A");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1d",
         "--color=never",
         fb.to_str().unwrap(),
@@ -401,7 +401,7 @@ fn sort_path_with_special_characters() {
     let f2 = temp.create_file("dir_2/file-b.txt", b"2");
     let f3 = temp.create_file("dir 3/file c.txt", b"3");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1d",
         "--sort=path",
         "--color=never",
@@ -418,7 +418,7 @@ fn sort_path_in_json_mode() {
     temp.create_file("b/1.txt", b"1");
     temp.create_file("a/2.txt", b"2");
 
-    let output = run_lsr(&["--json", "--sort=path", temp.path.to_str().unwrap()]);
+    let output = run_lez(&["--json", "--sort=path", temp.path.to_str().unwrap()]);
     assert!(output.status.success());
 }
 
@@ -428,7 +428,7 @@ fn path_glob_matches_spaces_and_unicode() {
     temp.create_file("my docs/file.pdf", b"pdf");
     temp.create_file("my docs/file.txt", b"txt");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--tree",
         "-I",
@@ -453,7 +453,7 @@ fn nested_gitignore_applies_within_explicit_dir() {
     repo.write_file("build/cache.dat", b"cache\n");
 
     let build_dir = repo.path.join("build");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--git-ignore",
         "--color=never",
@@ -473,7 +473,7 @@ fn explicit_gitignored_dir_in_json_mode() {
     repo.write_file("target/build.log", b"log\n");
 
     let target_dir = repo.path.join("target");
-    let output = run_lsr(&["--json", "--git-ignore", target_dir.to_str().unwrap()]);
+    let output = run_lez(&["--json", "--git-ignore", target_dir.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("build.log"));
@@ -485,7 +485,7 @@ fn git_glyphs_in_json_mode() {
         return;
     };
     repo.write_file("f.txt", b"1\n");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "--json",
         "-l",
         "--git",
@@ -506,7 +506,7 @@ fn combined_path_sort_and_ignore_glob() {
     let _f2 = temp.create_file("src/skip.tmp", b"skip");
     let f3 = temp.create_file("src/z.rs", b"z");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1d",
         "--sort=path",
         "-I",
@@ -530,7 +530,7 @@ fn glyphs_column_besides_repos_branch() {
         return;
     };
     repo.write_file("file.txt", b"file\n");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--git-repos",
         "--git-glyphs",
@@ -551,7 +551,7 @@ fn no_git_overrides_gitignore_for_positionals() {
     let fz = repo.write_file("ignored_z.txt", b"z\n");
     let fa = repo.write_file("ignored_a.txt", b"a\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1d",
         "--git-ignore",
         "--no-git",
@@ -612,7 +612,7 @@ fn symlink_status_inside_worktree() {
     fs::write(wt_path.join("target.txt"), b"target\n").unwrap();
     let _ = std::os::unix::fs::symlink("target.txt", wt_path.join("link.txt"));
 
-    let output = run_lsr(&["-l", "--git", "--color=never", wt_path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--git", "--color=never", wt_path.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("link.txt"));
@@ -659,7 +659,7 @@ fn worktree_root_hides_dotgit_subrepo() {
         .current_dir(&main_path)
         .output();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--git-repos",
         "--color=never",
@@ -678,7 +678,7 @@ fn ignore_glob_with_explicit_gitignored_dir() {
     repo.write_file("target/keep.bin", b"bin\n");
 
     let target_dir = repo.path.join("target");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--git-ignore",
         "-I",
@@ -698,7 +698,7 @@ fn relative_path_sort_reversed() {
     let f1 = temp.create_file("dir_z/file.txt", b"z");
     let f2 = temp.create_file("dir_a/file.txt", b"a");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1d",
         "--sort=relative-path",
         "-r",
@@ -727,7 +727,7 @@ fn repos_column_suppressed_by_no_git() {
         return;
     };
     repo.write_file("file.txt", b"file\n");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git-repos",
         "--no-git",
@@ -778,7 +778,7 @@ fn worktree_branch_glyphs_render() {
         .current_dir(&main_path)
         .output();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git-repos",
         "--git-glyphs",
@@ -798,7 +798,7 @@ fn explicit_dir_filtered_by_path_glob() {
     repo.write_file("dist/bundle.js", b"js\n");
 
     let dist_dir = repo.path.join("dist");
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--tree",
         "--git-ignore",
@@ -853,7 +853,7 @@ fn worktree_sorted_by_path() {
         .current_dir(&main_path)
         .output();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--tree",
         "--sort=path",
@@ -912,7 +912,7 @@ fn monorepo_multitool_workspace_listing() {
         .output();
 
     // 1. Root listing with --git-ignore
-    let output_root = run_lsr(&[
+    let output_root = run_lez(&[
         "-1",
         "--tree",
         "--git-ignore",
@@ -926,7 +926,7 @@ fn monorepo_multitool_workspace_listing() {
 
     // 2. Explicit inspection of ignored dist directory
     let dist_dir = repo_root.join("packages/core/dist");
-    let output_dist = run_lsr(&[
+    let output_dist = run_lez(&[
         "-1",
         "--git-ignore",
         "--color=never",
@@ -999,7 +999,7 @@ fn nested_submodules_and_worktrees() {
         .current_dir(&main_repo)
         .output();
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-la",
         "--git-repos",
         "--git-glyphs",
@@ -1043,7 +1043,7 @@ fn multi_repo_developer_hub() {
             .output();
     }
 
-    let output = run_lsr(&["-l", "--git-repos", "--color=never", hub.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--git-repos", "--color=never", hub.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("repo_alpha"));
@@ -1058,7 +1058,7 @@ fn mixed_args_globs_and_no_git() {
     let f2 = temp.create_file("src/main.rs", b"main");
     let f3 = temp.create_file("dist/temp.dat", b"temp");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1d",
         "--sort=name",
         "--no-git",
@@ -1113,7 +1113,7 @@ fn full_feature_roundtrip() {
     write_file_at(&root, "src/lib.rs", b"pub fn run() { println!(); }\n");
     write_file_at(&root, "src/new.rs", b"pub fn new() {}\n");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--git",
         "--git-repos",
@@ -1145,19 +1145,19 @@ fn symlink_git_full_lifecycle() {
         .unwrap();
 
     // 1. Untracked status
-    let out_untracked = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let out_untracked = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(out_untracked.status.success());
     let s_untracked = String::from_utf8_lossy(&out_untracked.stdout);
     assert!(s_untracked.contains("sym_link.txt"));
 
     // 2. Staged
     assert!(repo.git(&["add", "."]));
-    let out_staged = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let out_staged = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(out_staged.status.success());
 
     // 3. Committed
     assert!(repo.git(&["commit", "-q", "-m", "init"]));
-    let out_clean = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let out_clean = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(out_clean.status.success());
     let s_clean = String::from_utf8_lossy(&out_clean.stdout);
     let link_line = s_clean
@@ -1168,7 +1168,7 @@ fn symlink_git_full_lifecycle() {
 
     // 4. Modify target only -> link remains clean (--)
     fs::write(&target, b"v2\n").unwrap();
-    let out_tgt_mod = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let out_tgt_mod = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(out_tgt_mod.status.success());
     let s_tgt_mod = String::from_utf8_lossy(&out_tgt_mod.stdout);
     let link_line2 = s_tgt_mod
@@ -1183,7 +1183,7 @@ fn symlink_git_full_lifecycle() {
     repo.create_symlink("target_v2.txt", "sym_link.txt")
         .unwrap();
 
-    let out_link_mod = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let out_link_mod = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(out_link_mod.status.success());
     let s_link_mod = String::from_utf8_lossy(&out_link_mod.stdout);
     let link_line3 = s_link_mod
@@ -1205,7 +1205,7 @@ fn glob_and_gitignore_end_to_end() {
     repo.write_file("root.bak", b"bak\n");
 
     // 1. Root listing hides target, build, root.bak
-    let out_root = run_lsr(&[
+    let out_root = run_lez(&[
         "-1",
         "--git-ignore",
         "--color=never",
@@ -1219,7 +1219,7 @@ fn glob_and_gitignore_end_to_end() {
 
     // 2. Explicit target listing reveals target/app.bin
     let target_dir = repo.path.join("target");
-    let out_target = run_lsr(&[
+    let out_target = run_lez(&[
         "-1",
         "--git-ignore",
         "--color=never",
@@ -1230,7 +1230,7 @@ fn glob_and_gitignore_end_to_end() {
     assert!(s_target.contains("app.bin"));
 
     // 3. --no-git overrides --git-ignore
-    let out_nogit = run_lsr(&[
+    let out_nogit = run_lez(&[
         "-1",
         "--git-ignore",
         "--no-git",

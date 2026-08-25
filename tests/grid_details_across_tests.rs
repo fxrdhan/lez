@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_grid_across_{prefix}_{}_{}",
+            "lez_grid_across_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,7 +52,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn test_long_grid_across_sorting_and_rendering() {
         .arg(&temp.path)
         .env("COLUMNS", "160")
         .output()
-        .expect("Failed to execute lsr --long --grid --across");
+        .expect("Failed to execute lez --long --grid --across");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -96,7 +96,7 @@ fn test_long_grid_without_across() {
         .arg(&temp.path)
         .env("COLUMNS", "160")
         .output()
-        .expect("Failed to execute lsr -l -G");
+        .expect("Failed to execute lez -l -G");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

@@ -38,7 +38,7 @@ impl TempDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_quoting_{prefix}_{}_{}",
+            "lez_quoting_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -58,14 +58,14 @@ impl Drop for TempDir {
 }
 
 fn listing(dir: &PathBuf, args: &[&str]) -> Vec<String> {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .current_dir(dir)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(
         output.status.success(),
-        "lsr {args:?} failed: {}",
+        "lez {args:?} failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8_lossy(&output.stdout)
@@ -99,7 +99,7 @@ fn assert_every_name_round_trips(args: &[&str]) {
     for line in &lines {
         assert!(
             shell_resolves(&dir.path, line),
-            "sh cannot resolve {line} back to a file (lsr {args:?})"
+            "sh cannot resolve {line} back to a file (lez {args:?})"
         );
     }
 }

@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_only_files_wildcard_{prefix}_{}_{}",
+            "lez_only_files_wildcard_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,7 +52,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn test_only_files_with_mixed_positional_files_and_dirs() {
     let dir2 = temp.create_dir("folder2");
     let _inner2 = temp.create_file("folder2/inner2.txt");
 
-    // Simulating shell wildcard: lsr -f alpha.txt beta.txt folder1 folder2
+    // Simulating shell wildcard: lez -f alpha.txt beta.txt folder1 folder2
     let output = Command::new(bin_path())
         .arg("-f")
         .arg("--color=never")
@@ -74,7 +74,7 @@ fn test_only_files_with_mixed_positional_files_and_dirs() {
         .arg(&dir1)
         .arg(&dir2)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -116,13 +116,13 @@ fn test_only_files_with_explicit_single_directory_argument() {
     temp.create_file("sub/file2.txt");
     temp.create_dir("sub/nested_dir");
 
-    // Explicit directory argument: lsr -f sub
+    // Explicit directory argument: lez -f sub
     let output = Command::new(bin_path())
         .arg("-f")
         .arg("--color=never")
         .arg(&dir)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -147,7 +147,7 @@ fn test_only_files_with_treat_dirs_as_files_flag() {
     let file = temp.create_file("regular.txt");
     let dir = temp.create_dir("somedir");
 
-    // Simulating: lsr -d -f regular.txt somedir
+    // Simulating: lez -d -f regular.txt somedir
     let output = Command::new(bin_path())
         .arg("-d")
         .arg("-f")
@@ -155,7 +155,7 @@ fn test_only_files_with_treat_dirs_as_files_flag() {
         .arg(&file)
         .arg(&dir)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -183,7 +183,7 @@ fn test_only_files_json_mode_with_mixed_positional() {
         .arg(&file)
         .arg(&dir)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -215,7 +215,7 @@ fn test_only_files_with_nonexistent_file_and_directory() {
         .arg(&nonexistent)
         .arg(&dir)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     // Exit code 2 because of nonexistent path
     assert_eq!(output.status.code(), Some(2));
@@ -246,7 +246,7 @@ fn test_only_files_with_multiple_explicit_directory_arguments() {
         .arg(&dir1)
         .arg(&dir2)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -269,7 +269,7 @@ fn test_only_files_with_ignore_glob_on_mixed_positional() {
     let dir = temp.create_dir("subdir");
     temp.create_file("subdir/nested.txt");
 
-    // Simulating wildcard: lsr -f -I "*.tmp" keep.txt skip.tmp subdir
+    // Simulating wildcard: lez -f -I "*.tmp" keep.txt skip.tmp subdir
     let output = Command::new(bin_path())
         .arg("-f")
         .arg("-I")
@@ -279,7 +279,7 @@ fn test_only_files_with_ignore_glob_on_mixed_positional() {
         .arg(&f_ignore)
         .arg(&dir)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

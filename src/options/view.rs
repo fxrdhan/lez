@@ -43,7 +43,7 @@ impl View {
         let summary = matches.get_flag("summary");
         let mime_read_contents = matches.get_flag("mime-types")
             || vars
-                .get_with_fallback(vars::LSR_MIME_TYPES, vars::EZA_MIME_TYPES)
+                .get_with_fallback(vars::LEZ_MIME_TYPES, vars::EZA_MIME_TYPES)
                 .is_some();
         let file_style = FileStyle::deduce(matches, vars, is_tty)?;
         Ok(Self {
@@ -301,7 +301,7 @@ impl TerminalWidth {
 impl RowThreshold {
     fn deduce<V: Vars>(vars: &V) -> Result<Self, OptionsError> {
         if let Some(columns) = vars
-            .get(vars::LSR_GRID_ROWS)
+            .get(vars::LEZ_GRID_ROWS)
             .or_else(|| vars.get(vars::EZA_GRID_ROWS))
             .or_else(|| vars.get(vars::EXA_GRID_ROWS))
             .and_then(|s| s.into_string().ok())
@@ -309,8 +309,8 @@ impl RowThreshold {
             match columns.parse() {
                 Ok(rows) => Ok(Self::MinimumRows(rows)),
                 Err(e) => {
-                    let source = NumberSource::Env(if vars.get(vars::LSR_GRID_ROWS).is_some() {
-                        vars::LSR_GRID_ROWS
+                    let source = NumberSource::Env(if vars.get(vars::LEZ_GRID_ROWS).is_some() {
+                        vars::LEZ_GRID_ROWS
                     } else {
                         vars.source(vars::EZA_GRID_ROWS, vars::EXA_GRID_ROWS)
                             .unwrap()
@@ -355,7 +355,7 @@ impl Columns {
         let time_types = TimeTypes::deduce(matches)?;
 
         let no_git_env = vars
-            .get(vars::LSR_OVERRIDE_GIT)
+            .get(vars::LEZ_OVERRIDE_GIT)
             .or_else(|| vars.get_with_fallback(vars::EZA_OVERRIDE_GIT, vars::EXA_OVERRIDE_GIT))
             .is_some();
 
@@ -653,7 +653,7 @@ impl TimeTypes {
 impl ColorScaleOptions {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
         let min_luminance = match vars
-            .get(vars::LSR_MIN_LUMINANCE)
+            .get(vars::LEZ_MIN_LUMINANCE)
             .or_else(|| vars.get_with_fallback(vars::EZA_MIN_LUMINANCE, vars::EXA_MIN_LUMINANCE))
         {
             Some(var) => match var.to_string_lossy().parse() {
@@ -664,7 +664,7 @@ impl ColorScaleOptions {
         };
 
         let max_luminance = match vars
-            .get(vars::LSR_MAX_LUMINANCE)
+            .get(vars::LEZ_MAX_LUMINANCE)
             .or_else(|| vars.get_with_fallback(vars::EZA_MAX_LUMINANCE, vars::EXA_MAX_LUMINANCE))
         {
             Some(var) => match var.to_string_lossy().parse() {
@@ -734,10 +734,10 @@ mod tests {
     }
 
     #[test]
-    fn deduce_view_mime_types_lsr_env() {
+    fn deduce_view_mime_types_lez_env() {
         let cli = mock_cli(vec![""]);
         let vars = MockVars {
-            lsr_mime_types: OsString::from("1"),
+            lez_mime_types: OsString::from("1"),
             ..MockVars::default()
         };
         let view = View::deduce(&cli, &vars, false).unwrap();
@@ -1395,10 +1395,10 @@ mod tests {
     }
 
     #[test]
-    fn deduce_color_scale_lsr_max_luminance_precedence() {
+    fn deduce_color_scale_lez_max_luminance_precedence() {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_MAX_LUMINANCE, &OsString::from("50"));
-        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("75"));
+        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("75"));
         assert_eq!(
             ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
             ColorScaleOptions {
@@ -1412,10 +1412,10 @@ mod tests {
     }
 
     #[test]
-    fn deduce_color_scale_lsr_min_luminance_precedence() {
+    fn deduce_color_scale_lez_min_luminance_precedence() {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_MIN_LUMINANCE, &OsString::from("20"));
-        vars.set(vars::LSR_MIN_LUMINANCE, &OsString::from("35"));
+        vars.set(vars::LEZ_MIN_LUMINANCE, &OsString::from("35"));
         assert_eq!(
             ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
             ColorScaleOptions {
@@ -1431,8 +1431,8 @@ mod tests {
     #[test]
     fn deduce_color_scale_min_and_max_luminance() {
         let mut vars = MockVars::default();
-        vars.set(vars::LSR_MIN_LUMINANCE, &OsString::from("30"));
-        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("70"));
+        vars.set(vars::LEZ_MIN_LUMINANCE, &OsString::from("30"));
+        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("70"));
         assert_eq!(
             ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=all"]), &vars),
             ColorScaleOptions {
@@ -1448,7 +1448,7 @@ mod tests {
     #[test]
     fn deduce_color_scale_max_luminance_invalid_fallback() {
         let mut vars = MockVars::default();
-        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("invalid_number"));
+        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("invalid_number"));
         assert_eq!(
             ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
             ColorScaleOptions {
@@ -1460,7 +1460,7 @@ mod tests {
             }
         );
 
-        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("150")); // out of range
+        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("150")); // out of range
         assert_eq!(
             ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
             ColorScaleOptions {
@@ -1472,7 +1472,7 @@ mod tests {
             }
         );
 
-        vars.set(vars::LSR_MAX_LUMINANCE, &OsString::from("-150")); // out of range
+        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("-150")); // out of range
         assert_eq!(
             ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
             ColorScaleOptions {

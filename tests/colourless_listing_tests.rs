@@ -7,7 +7,7 @@
 //! and `ls -1 --color=never` makes no such call — this is where we stopped
 //! making it either.
 //!
-//! `LSR_DEBUG` is the portable window onto that: `File::metadata` logs each
+//! `LEZ_DEBUG` is the portable window onto that: `File::metadata` logs each
 //! time it goes to the filesystem.
 
 use std::fs;
@@ -21,7 +21,7 @@ const ENTRIES: usize = 40;
 
 #[cfg(unix)]
 fn plain_files(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lsr-colourless-{name}"));
+    let root = std::env::temp_dir().join(format!("lez-colourless-{name}"));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("fixture directory");
     for i in 0..ENTRIES {
@@ -31,21 +31,21 @@ fn plain_files(name: &str) -> PathBuf {
 }
 
 fn run(args: &[&str], root: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lsr"))
+    Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(args)
         .arg(root.to_str().unwrap())
         .output()
-        .expect("failed to execute lsr")
+        .expect("failed to execute lez")
 }
 
 #[cfg(unix)]
 fn stat_count(args: &[&str], root: &Path) -> usize {
-    let out = Command::new(env!("CARGO_BIN_EXE_lsr"))
-        .env("LSR_DEBUG", "1")
+    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
+        .env("LEZ_DEBUG", "1")
         .args(args)
         .arg(root.to_str().unwrap())
         .output()
-        .expect("failed to execute lsr");
+        .expect("failed to execute lez");
 
     String::from_utf8_lossy(&out.stderr)
         .lines()
@@ -96,12 +96,12 @@ fn a_coloured_listing_still_looks_for_executables() {
 #[test]
 fn a_coloured_listing_still_paints_executables() {
     let root = one_of_everything("painted");
-    let out = Command::new(env!("CARGO_BIN_EXE_lsr"))
-        .env("LSR_COLORS", "ex=31")
+    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
+        .env("LEZ_COLORS", "ex=31")
         .args(["-1", "--color=always"])
         .arg(root.to_str().unwrap())
         .output()
-        .expect("failed to execute lsr");
+        .expect("failed to execute lez");
 
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
@@ -114,7 +114,7 @@ fn a_coloured_listing_still_paints_executables() {
 
 /// A directory holding one of everything the style code branches on.
 fn one_of_everything(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lsr-colourless-{name}"));
+    let root = std::env::temp_dir().join(format!("lez-colourless-{name}"));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(root.join("adir")).expect("fixture directory");
     fs::write(root.join("plain.txt"), b"").expect("plain file");

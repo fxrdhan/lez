@@ -7,7 +7,7 @@
 //! disk that is invisible; on a FUSE mount or a network share each one is a
 //! round trip, which is what the reports behind this are about.
 //!
-//! `LSR_NO_EMPTY_DIR_ICON` gives every directory the same glyph and asks the
+//! `LEZ_NO_EMPTY_DIR_ICON` gives every directory the same glyph and asks the
 //! filesystem nothing.
 
 use std::fs;
@@ -18,7 +18,7 @@ const DIRS: usize = 30;
 
 /// One directory with something in it, the rest empty.
 fn fixture(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lsr-empty-dir-icon-{name}"));
+    let root = std::env::temp_dir().join(format!("lez-empty-dir-icon-{name}"));
     let _ = fs::remove_dir_all(&root);
     for i in 0..DIRS {
         fs::create_dir_all(root.join(format!("d{i:02}"))).expect("fixture directory");
@@ -28,14 +28,14 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn run(env: Option<&str>, root: &Path) -> Output {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_lsr"));
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_lez"));
     if let Some(value) = env {
-        cmd.env("LSR_NO_EMPTY_DIR_ICON", value);
+        cmd.env("LEZ_NO_EMPTY_DIR_ICON", value);
     }
     cmd.args(["-1", "--icons=always", "--color=never"])
         .arg(root.to_str().unwrap())
         .output()
-        .expect("failed to execute lsr")
+        .expect("failed to execute lez")
 }
 
 fn glyphs(out: &Output) -> Vec<char> {
@@ -103,23 +103,23 @@ fn an_empty_value_still_counts_as_set() {
 }
 
 /// And the point of all this: with it set, the listing stops asking the
-/// filesystem about each directory. `LSR_DEBUG` logs every trip.
+/// filesystem about each directory. `LEZ_DEBUG` logs every trip.
 #[cfg(unix)]
 #[test]
 fn the_variable_stops_the_filesystem_being_asked() {
     let root = fixture("syscalls");
 
     let count = |value: Option<&str>| {
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_lsr"));
-        cmd.env("LSR_DEBUG", "trace");
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_lez"));
+        cmd.env("LEZ_DEBUG", "trace");
         if let Some(v) = value {
-            cmd.env("LSR_NO_EMPTY_DIR_ICON", v);
+            cmd.env("LEZ_NO_EMPTY_DIR_ICON", v);
         }
         let out = cmd
             .args(["-1", "--icons=always", "--color=never"])
             .arg(root.to_str().unwrap())
             .output()
-            .expect("failed to execute lsr");
+            .expect("failed to execute lez");
         let stderr = String::from_utf8_lossy(&out.stderr);
         (
             stderr.matches("Statting file").count(),

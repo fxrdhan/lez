@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_since_test_{prefix}_{}_{}",
+            "lez_since_test_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -56,17 +56,17 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 #[test]
 fn test_since_flag_help_output() {
-    let output = run_lsr(&["--help"]);
+    let output = run_lez(&["--help"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -81,19 +81,19 @@ fn test_since_flag_help_output() {
 
 #[test]
 fn test_since_flag_invalid_durations_fail() {
-    let output_invalid = run_lsr(&["--since", "notaduration"]);
+    let output_invalid = run_lez(&["--since", "notaduration"]);
     assert!(
         !output_invalid.status.success(),
         "--since with invalid string should fail"
     );
 
-    let output_negative = run_lsr(&["--since", "-10m"]);
+    let output_negative = run_lez(&["--since", "-10m"]);
     assert!(
         !output_negative.status.success(),
         "--since with negative duration should fail"
     );
 
-    let output_empty = run_lsr(&["--since", ""]);
+    let output_empty = run_lez(&["--since", ""]);
     assert!(
         !output_empty.status.success(),
         "--since with empty string should fail"
@@ -118,7 +118,7 @@ fn test_since_flag_filtering_by_duration() {
     fixture.set_mtime("very_old_file.txt", thirty_days_ago);
 
     // Test with --since 1h: only recent_file.txt should appear
-    let output_1h = run_lsr(&["-1", "--since", "1h", fixture.path.to_str().unwrap()]);
+    let output_1h = run_lez(&["-1", "--since", "1h", fixture.path.to_str().unwrap()]);
     assert!(output_1h.status.success());
     let stdout_1h = String::from_utf8_lossy(&output_1h.stdout);
     assert!(
@@ -135,7 +135,7 @@ fn test_since_flag_filtering_by_duration() {
     );
 
     // Test with --since 10d: recent_file.txt and old_file.txt should appear, very_old_file.txt excluded
-    let output_10d = run_lsr(&["-1", "--since", "10d", fixture.path.to_str().unwrap()]);
+    let output_10d = run_lez(&["-1", "--since", "10d", fixture.path.to_str().unwrap()]);
     assert!(output_10d.status.success());
     let stdout_10d = String::from_utf8_lossy(&output_10d.stdout);
     assert!(stdout_10d.contains("recent_file.txt"));
@@ -143,7 +143,7 @@ fn test_since_flag_filtering_by_duration() {
     assert!(!stdout_10d.contains("very_old_file.txt"));
 
     // Test with --since 60d: all 3 files should appear
-    let output_60d = run_lsr(&["-1", "--since", "60d", fixture.path.to_str().unwrap()]);
+    let output_60d = run_lez(&["-1", "--since", "60d", fixture.path.to_str().unwrap()]);
     assert!(output_60d.status.success());
     let stdout_60d = String::from_utf8_lossy(&output_60d.stdout);
     assert!(stdout_60d.contains("recent_file.txt"));
@@ -161,7 +161,7 @@ fn test_since_flag_with_long_details_view() {
     let ten_days_ago = SystemTime::now() - Duration::from_secs(10 * 86400);
     fixture.set_mtime("archive.log", ten_days_ago);
 
-    let output = run_lsr(&["-l", "--since", "1d", fixture.path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--since", "1d", fixture.path.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -179,7 +179,7 @@ fn test_since_flag_with_explicit_argument_files() {
     let two_days_ago = SystemTime::now() - Duration::from_secs(2 * 86400);
     fixture.set_mtime("arg_old.txt", two_days_ago);
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-1",
         "--since",
         "1d",
@@ -203,7 +203,7 @@ fn test_since_flag_various_duration_formats() {
     ];
 
     for fmt in valid_formats {
-        let output = run_lsr(&["-1", "--since", fmt, fixture.path.to_str().unwrap()]);
+        let output = run_lez(&["-1", "--since", fmt, fixture.path.to_str().unwrap()]);
         assert!(
             output.status.success(),
             "Duration format '{fmt}' should succeed"
@@ -225,14 +225,14 @@ fn test_since_flag_combined_with_only_files_and_only_dirs() {
     fs::create_dir(&_d).unwrap();
 
     // With --only-files and --since 1h
-    let out_files = run_lsr(&["-1", "-f", "--since", "1h", fixture.path.to_str().unwrap()]);
+    let out_files = run_lez(&["-1", "-f", "--since", "1h", fixture.path.to_str().unwrap()]);
     assert!(out_files.status.success());
     let stdout_files = String::from_utf8_lossy(&out_files.stdout);
     assert!(stdout_files.contains("file.txt"));
     assert!(!stdout_files.contains("subdir"));
 
     // With --only-dirs and --since 1h
-    let out_dirs = run_lsr(&["-1", "-D", "--since", "1h", fixture.path.to_str().unwrap()]);
+    let out_dirs = run_lez(&["-1", "-D", "--since", "1h", fixture.path.to_str().unwrap()]);
     assert!(out_dirs.status.success());
     let stdout_dirs = String::from_utf8_lossy(&out_dirs.stdout);
     assert!(!stdout_dirs.contains("file.txt"));
@@ -251,7 +251,7 @@ fn test_since_flag_combined_with_recurse() {
     let twenty_days_ago = SystemTime::now() - Duration::from_secs(20 * 86400);
     fixture.set_mtime("sub/nested_old.txt", twenty_days_ago);
 
-    let output = run_lsr(&["-1", "-R", "--since", "1d", fixture.path.to_str().unwrap()]);
+    let output = run_lez(&["-1", "-R", "--since", "1d", fixture.path.to_str().unwrap()]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("nested_recent.txt"));

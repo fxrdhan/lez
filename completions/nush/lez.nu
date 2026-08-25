@@ -1,14 +1,14 @@
 # Nushell rewrites `--flag=value` into two arguments for any flag this file
 # declares, and rejects it outright for a flag declared without a type. Nine
-# of lsr's flags only accept a value with an equals sign, so declaring them
-# here is what breaks them: `lsr --color=always` becomes a parse error, and
-# `lsr --loc=lines` reaches the binary as `--loc lines`, where `lines` is read
+# of lez's flags only accept a value with an equals sign, so declaring them
+# here is what breaks them: `lez --color=always` becomes a parse error, and
+# `lez --loc=lines` reaches the binary as `--loc lines`, where `lines` is read
 # as a path. Left undeclared they pass through untouched and work, at the cost
 # of not being listed here. They are: --classify/-F, --color, --colour,
 # --color-scale, --colour-scale, --icons, --quotes, --hyperlink, --absolute,
 # --code and --loc.
-export extern "lsr" [
-    --version(-v)              # Show version of lsr
+export extern "lez" [
+    --version(-v)              # Show version of lez
     --help                     # Show list of command-line options
     --oneline(-1)              # Display one entry per line
     --long(-l)                 # Display extended file metadata as a table
@@ -82,7 +82,7 @@ export extern "lsr" [
     --flags(-O)                # List file flags (Mac, BSD, and Windows only)
     --tags(-e)                 # List each file's color tags stored in extended attributes
     --smart-group              # Only show group if it has a different name from owner
-    --stdin                    # When piping to lsr. Read file paths from stdin
+    --stdin                    # When piping to lez. Read file paths from stdin
     --print-total              # Display total number of entries
     --mime-types               # Determine file MIME types to better inform styling decisions (unix only)
 ]

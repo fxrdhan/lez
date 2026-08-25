@@ -46,7 +46,7 @@ fn main() {
     }
 
     logger::configure(
-        env::var_os(vars::LSR_DEBUG)
+        env::var_os(vars::LEZ_DEBUG)
             .or_else(|| env::var_os(vars::EZA_DEBUG))
             .or_else(|| env::var_os(vars::EXA_DEBUG)),
     );
@@ -93,7 +93,7 @@ fn main() {
 
             let console_width = options.view.width.actual_terminal_width();
             let theme = options.theme.to_theme(stdout_istty);
-            let lsr = Lsr {
+            let lez = Lez {
                 options,
                 writer,
                 input_paths,
@@ -103,10 +103,10 @@ fn main() {
                 git_repos,
             };
 
-            info!("matching on lsr.run");
-            match lsr.run() {
+            info!("matching on lez.run");
+            match lez.run() {
                 Ok(exit_status) => {
-                    trace!("lsr.run: exit Ok({exit_status})");
+                    trace!("lez.run: exit Ok({exit_status})");
                     exit(exit_status);
                 }
 
@@ -117,20 +117,20 @@ fn main() {
 
                 Err(e) => {
                     let _ = writeln!(io::stderr(), "{e}");
-                    trace!("lsr.run: exit RUNTIME_ERROR");
+                    trace!("lez.run: exit RUNTIME_ERROR");
                     exit(exits::RUNTIME_ERROR);
                 }
             }
         }
         Err(error) => {
-            let _ = writeln!(io::stderr(), "lsr: {error}");
+            let _ = writeln!(io::stderr(), "lez: {error}");
             exit(exits::OPTIONS_ERROR);
         }
     }
 }
 
 /// The main program wrapper.
-pub struct Lsr<'args> {
+pub struct Lez<'args> {
     /// List of command-line options, having been successfully parsed.
     pub options: Options,
 
@@ -182,7 +182,7 @@ fn git_options(options: &Options, args: &[&OsStr]) -> Option<GitCache> {
 
     // When --git-ignore is on AND we’re recursing, also pre-discover child
     // Git repositories so their `.gitignore` files are honored during the
-    // traversal. Without this, `lsr --tree --git-ignore` run from a parent
+    // traversal. Without this, `lez --tree --git-ignore` run from a parent
     // of a repository misses that repository’s `.gitignore` because
     // `GitRepo::discover` only walks UP from the input paths. See #1086.
     if options.filter.git_ignore == GitIgnore::CheckAndIgnore
@@ -316,7 +316,7 @@ fn git_repos(options: &Options, args: &[&OsStr]) -> bool {
     }
 }
 
-impl Lsr<'_> {
+impl Lez<'_> {
     /// # Errors
     ///
     /// Will return `Err` if printing to stderr fails.
@@ -772,9 +772,9 @@ impl Lsr<'_> {
 
             // The code summary never lists files; it’s handled up front in
             // `run` before we ever get here.
-            (Mode::Code(_), _) => unreachable!("--code is handled in Lsr::run"),
+            (Mode::Code(_), _) => unreachable!("--code is handled in Lez::run"),
 
-            (Mode::Json(_), _) => unreachable!("--json is handled in Lsr::run"),
+            (Mode::Json(_), _) => unreachable!("--json is handled in Lez::run"),
         };
         result?;
 
@@ -822,7 +822,7 @@ mod tests {
     /// Create a temp directory unique to this test, returning its path.
     fn temp_workdir(label: &str) -> PathBuf {
         let mut path = std::env::temp_dir();
-        path.push(format!("lsr-test-{}-{}", label, std::process::id()));
+        path.push(format!("lez-test-{}-{}", label, std::process::id()));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
         path

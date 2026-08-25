@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 fxrdhan
 # SPDX-License-Identifier: EUPL-1.2
 [package]
-name = "lsr"
+name = "lez"
 description = "A modern, fast, and feature-rich replacement for ls written in Rust"
 authors = [
   "fxrdhan <https://github.com/fxrdhan>",
@@ -30,9 +30,9 @@ exclude = [
   "/.pre-commit-config-non-nix.yaml",
 ]
 readme = "README.md"
-homepage = "https://github.com/fxrdhan/lsr"
+homepage = "https://github.com/fxrdhan/lez"
 license = "EUPL-1.2"
-repository = "https://github.com/fxrdhan/lsr"
+repository = "https://github.com/fxrdhan/lez"
 version = "0.24.1"
 
 
@@ -40,51 +40,51 @@ version = "0.24.1"
 license-file = ["LICENSE.txt", "4"]
 depends = "$auto"
 extended-description = """
-lsr is a modern, maintained replacement for ls
+lez is a modern, maintained replacement for ls
 """
 section = "utils"
 priority = "optional"
 assets = [
   [
-    "target/release/lsr",
-    "/usr/bin/lsr",
+    "target/release/lez",
+    "/usr/bin/lez",
     "0755",
   ],
   [
-    "target/release/../man/lsr.1",
-    "/usr/share/man/man1/lsr.1",
+    "target/release/../man/lez.1",
+    "/usr/share/man/man1/lez.1",
     "0644",
   ],
   [
-    "target/release/../man/lsr_colors.5",
-    "/usr/share/man/man5/lsr_colors.5",
+    "target/release/../man/lez_colors.5",
+    "/usr/share/man/man5/lez_colors.5",
     "0644",
   ],
   [
-    "target/release/../man/lsr_colors-explanation.5",
-    "/usr/share/man/man5/lsr_colors-explanation.5",
+    "target/release/../man/lez_colors-explanation.5",
+    "/usr/share/man/man5/lez_colors-explanation.5",
     "0644",
   ],
   [
-    "completions/bash/lsr",
-    "/usr/share/bash-completion/completions/lsr",
+    "completions/bash/lez",
+    "/usr/share/bash-completion/completions/lez",
     "0644",
   ],
   [
-    "completions/zsh/_lsr",
-    "/usr/share/zsh/site-functions/_lsr",
+    "completions/zsh/_lez",
+    "/usr/share/zsh/site-functions/_lez",
     "0644",
   ],
   [
-    "completions/fish/lsr.fish",
-    "/usr/share/fish/vendor_completions.d/lsr.fish",
+    "completions/fish/lez.fish",
+    "/usr/share/fish/vendor_completions.d/lez.fish",
     "0644",
   ],
 ]
 
 
 [[bin]]
-name = "lsr"
+name = "lez"
 
 
 [dependencies]

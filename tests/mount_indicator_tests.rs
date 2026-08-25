@@ -15,7 +15,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 struct TempTestDir {
@@ -29,7 +29,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_mount_test_{prefix}_{}_{}",
+            "lez_mount_test_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -69,7 +69,7 @@ fn test_root_mount_point_permissions_indicator_d_capital() {
         .arg("--color=never")
         .arg("/")
         .output()
-        .expect("Failed to execute lsr -ld /");
+        .expect("Failed to execute lez -ld /");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -95,7 +95,7 @@ fn test_regular_directory_permissions_indicator_d_lowercase() {
         .arg("--color=never")
         .arg(&subdir)
         .output()
-        .expect("Failed to execute lsr -ld on normal directory");
+        .expect("Failed to execute lez -ld on normal directory");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -125,7 +125,7 @@ fn test_regular_file_permissions_indicator_not_directory() {
         .arg("--color=never")
         .arg(&file_path)
         .output()
-        .expect("Failed to execute lsr -l on regular file");
+        .expect("Failed to execute lez -l on regular file");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -148,7 +148,7 @@ fn test_mount_indicator_json_compatibility() {
         .arg("--json")
         .arg("/")
         .output()
-        .expect("Failed to execute lsr -ld --json /");
+        .expect("Failed to execute lez -ld --json /");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -175,7 +175,7 @@ fn test_mount_indicator_with_octal_permissions() {
         .arg("--color=never")
         .arg("/")
         .output()
-        .expect("Failed to execute lsr -ld --octal-permissions /");
+        .expect("Failed to execute lez -ld --octal-permissions /");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -199,7 +199,7 @@ fn test_mount_indicator_with_header() {
         .arg("--color=never")
         .arg("/")
         .output()
-        .expect("Failed to execute lsr -ld --header /");
+        .expect("Failed to execute lez -ld --header /");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -226,7 +226,7 @@ fn test_nested_subdirectories_in_temp_dir() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to execute lsr -l --recurse");
+        .expect("Failed to execute lez -l --recurse");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

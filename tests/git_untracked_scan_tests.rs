@@ -30,7 +30,7 @@ impl TempGitRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_untracked_{tag}_{}_{}",
+            "lez_untracked_{tag}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -75,13 +75,13 @@ impl TempGitRepo {
         Some(repo)
     }
 
-    fn lsr(&self, args: &[&str]) -> String {
-        let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    fn lez(&self, args: &[&str]) -> String {
+        let output = Command::new(env!("CARGO_BIN_EXE_lez"))
             .args(["--color=never", "-l", "--git"])
             .args(args)
             .current_dir(&self.path)
             .output()
-            .expect("lsr should run");
+            .expect("lez should run");
         String::from_utf8_lossy(&output.stdout).into_owned()
     }
 }
@@ -120,7 +120,7 @@ fn a_flat_listing_still_marks_the_untracked_directory() {
         eprintln!("skipped: no git");
         return;
     };
-    let listing = repo.lsr(&["."]);
+    let listing = repo.lez(&["."]);
     assert_eq!(status_of(&listing, "untracked_dir"), "-N");
 }
 
@@ -132,7 +132,7 @@ fn naming_an_untracked_directory_still_marks_what_is_in_it() {
         eprintln!("skipped: no git");
         return;
     };
-    let listing = repo.lsr(&["untracked_dir"]);
+    let listing = repo.lez(&["untracked_dir"]);
     assert_eq!(status_of(&listing, "inside.txt"), "-N");
 }
 
@@ -142,7 +142,7 @@ fn recursing_still_marks_files_inside_an_untracked_directory() {
         eprintln!("skipped: no git");
         return;
     };
-    let listing = repo.lsr(&["-R", "."]);
+    let listing = repo.lez(&["-R", "."]);
     assert_eq!(status_of(&listing, "inside.txt"), "-N");
 }
 
@@ -152,7 +152,7 @@ fn a_tree_still_marks_files_inside_an_untracked_directory() {
         eprintln!("skipped: no git");
         return;
     };
-    let listing = repo.lsr(&["-T", "."]);
+    let listing = repo.lez(&["-T", "."]);
     assert_eq!(status_of(&listing, "inside.txt"), "-N");
 }
 
@@ -165,7 +165,7 @@ fn git_ignore_still_sees_inside_an_untracked_directory() {
         return;
     };
     repo.write(".gitignore", "untracked_dir/\n");
-    let listing = repo.lsr(&["--git-ignore", "."]);
+    let listing = repo.lez(&["--git-ignore", "."]);
     assert!(
         !listing.contains("untracked_dir"),
         "the ignored directory should be filtered out:\n{listing}"

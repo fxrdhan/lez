@@ -13,7 +13,7 @@ use std::process::{Command, Output};
 
 /// A directory holding one ordinary file and two names for a second one.
 fn fixture(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lsr-mh-{name}"));
+    let root = std::env::temp_dir().join(format!("lez-mh-{name}"));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("fixture directory");
     fs::write(root.join("alone"), b"").expect("unlinked file");
@@ -23,12 +23,12 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn run_with_colors(colors: &str, root: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lsr"))
-        .env("LSR_COLORS", colors)
+    Command::new(env!("CARGO_BIN_EXE_lez"))
+        .env("LEZ_COLORS", colors)
         .args(["-1", "--color=always"])
         .arg(root.to_str().unwrap())
         .output()
-        .expect("failed to execute lsr")
+        .expect("failed to execute lez")
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn nothing_is_painted_when_mh_is_unset() {
 /// matched earlier, before this ever runs.)
 #[test]
 fn a_multiply_linked_pipe_keeps_the_pipe_colour() {
-    let root = std::env::temp_dir().join("lsr-mh-pipe");
+    let root = std::env::temp_dir().join("lez-mh-pipe");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("fixture directory");
 

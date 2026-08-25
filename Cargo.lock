@@ -833,6 +833,53 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
+name = "lez"
+version = "0.24.1"
+dependencies = [
+ "ansi-width",
+ "backtrace",
+ "capctl",
+ "chrono",
+ "clap",
+ "criterion",
+ "dirs",
+ "git2",
+ "glob",
+ "humantime",
+ "icu_collator",
+ "icu_locid",
+ "icu_provider",
+ "libc",
+ "locale",
+ "log",
+ "natord-plus-plus",
+ "nu-ansi-term",
+ "palette",
+ "palette_derive",
+ "path-clean",
+ "percent-encoding",
+ "phf",
+ "plist",
+ "proc-mounts",
+ "rayon",
+ "same-file",
+ "serde",
+ "serde_json",
+ "serde_norway",
+ "sys-locale",
+ "tar",
+ "terminal_size",
+ "timeago",
+ "tree_magic_mini",
+ "trycmd",
+ "unicode-width 0.2.2",
+ "unit-prefix",
+ "uutils_term_grid",
+ "uzers",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.182"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -900,53 +947,6 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
-
-[[package]]
-name = "lsr"
-version = "0.24.1"
-dependencies = [
- "ansi-width",
- "backtrace",
- "capctl",
- "chrono",
- "clap",
- "criterion",
- "dirs",
- "git2",
- "glob",
- "humantime",
- "icu_collator",
- "icu_locid",
- "icu_provider",
- "libc",
- "locale",
- "log",
- "natord-plus-plus",
- "nu-ansi-term",
- "palette",
- "palette_derive",
- "path-clean",
- "percent-encoding",
- "phf",
- "plist",
- "proc-mounts",
- "rayon",
- "same-file",
- "serde",
- "serde_json",
- "serde_norway",
- "sys-locale",
- "tar",
- "terminal_size",
- "timeago",
- "tree_magic_mini",
- "trycmd",
- "unicode-width 0.2.2",
- "unit-prefix",
- "uutils_term_grid",
- "uzers",
- "windows-sys 0.61.2",
-]
 
 [[package]]
 name = "memchr"

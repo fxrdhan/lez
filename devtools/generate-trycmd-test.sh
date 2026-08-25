@@ -28,12 +28,12 @@ fi
 
 touch tests/cmd/"$test_name".toml
 
-echo 'bin.name = "lsr"' >> tests/cmd/"$test_name".toml
+echo 'bin.name = "lez"' >> tests/cmd/"$test_name".toml
 echo 'args = "'"$*"'"' >> tests/cmd/"$test_name".toml
 
 # Generate expected output
 
-binary="${CARGO_TARGET_DIR:-target}/debug/lsr"
+binary="${CARGO_TARGET_DIR:-target}/debug/lez"
 
 if [ -f "$binary" ]; then
     "$binary" "$@" > tests/cmd/"$test_name".stdout 2> tests/cmd/"$test_name".stderr

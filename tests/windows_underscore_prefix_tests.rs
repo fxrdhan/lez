@@ -21,7 +21,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_underscore_prefix_{prefix}_{}_{}",
+            "lez_underscore_prefix_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -44,7 +44,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn test_underscore_prefixed_files_visible_by_default() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

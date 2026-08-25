@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
-REPO_URL="https://github.com/fxrdhan/lsr"
-NAME="lsr"
+REPO_URL="https://github.com/fxrdhan/lez"
+NAME="lez"
 DESTDIR=/usr/bin
 DOCDIR=/usr/share/man/
 
@@ -64,15 +64,15 @@ for ARCH in "${!TARGETS[@]}"; do
     chmod 755 "${DEB_TMP_DIR}${DESTDIR}/${NAME}"
 
     echo " -> compress man pages"
-    gzip -cn9 target/man/lsr.1 > "${DEB_TMP_DIR}${DOCDIR}man1/lsr.1.gz"
-    gzip -cn9 target/man/lsr_colors.5 > "${DEB_TMP_DIR}${DOCDIR}man5/lsr_colors.5.gz"
-    gzip -cn9 target/man/lsr_colors-explanation.5 > "${DEB_TMP_DIR}${DOCDIR}man5/lsr_colors-explanation.5.gz"
+    gzip -cn9 target/man/lez.1 > "${DEB_TMP_DIR}${DOCDIR}man1/lez.1.gz"
+    gzip -cn9 target/man/lez_colors.5 > "${DEB_TMP_DIR}${DOCDIR}man5/lez_colors.5.gz"
+    gzip -cn9 target/man/lez_colors-explanation.5 > "${DEB_TMP_DIR}${DOCDIR}man5/lez_colors-explanation.5.gz"
     chmod 644 "${DEB_TMP_DIR}${DOCDIR}"/**/*.gz
 
     echo " -> copy completions"
-    cp completions/bash/lsr "${DEB_TMP_DIR}/usr/share/bash-completion/completions/"
-    cp completions/fish/lsr.fish "${DEB_TMP_DIR}/usr/share/fish/vendor_completions.d/"
-    cp completions/zsh/_lsr "${DEB_TMP_DIR}/usr/share/zsh/vendor-completions/"
+    cp completions/bash/lez "${DEB_TMP_DIR}/usr/share/bash-completion/completions/"
+    cp completions/fish/lez.fish "${DEB_TMP_DIR}/usr/share/fish/vendor_completions.d/"
+    cp completions/zsh/_lez "${DEB_TMP_DIR}/usr/share/zsh/vendor-completions/"
 
     echo " -> create control file"
     touch "${DEB_TMP_DIR}/DEBIAN/control"
@@ -85,7 +85,7 @@ Architecture: ${ARCH}
 Depends: libc6
 Maintainer: Firdaus Arif R <firdausarief65@gmail.com>
 Description: Modern replacement for ls
- lsr is a modern, fast, and feature-rich replacement for ls.  It uses colours
+ lez is a modern, fast, and feature-rich replacement for ls.  It uses colours
  for information by default, helping you distinguish between many types of
  files, such as whether you are the owner, or in the owning group.
  .
@@ -106,8 +106,8 @@ EOM
     cat > "${DEB_TMP_DIR}/usr/share/doc/${NAME}/copyright" << EOM
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: ${NAME}
-Upstream-Contact: https://github.com/fxrdhan/lsr/issues
-Source: https://github.com/fxrdhan/lsr/releases
+Upstream-Contact: https://github.com/fxrdhan/lez/issues
+Source: https://github.com/fxrdhan/lez/releases
 
 Files: *
 License: EUPL-1.2
@@ -119,7 +119,7 @@ License: EUPL-1.2
 Copyright: 2026 fxrdhan
 
 License: EUPL-1.2
- lsr is a fork of eza, which is a fork of exa.  It is licensed under the
+ lez is a fork of eza, which is a fork of exa.  It is licensed under the
  European Union Public Licence v1.2; the full text is shipped in the source
  tree as LICENSE.txt and is also available at
  <https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12>.

@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_test_symlink_{prefix}_{}_{}",
+            "lez_test_symlink_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -63,7 +63,7 @@ impl Drop for TempTestDir {
 }
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lsr")
+    env!("CARGO_BIN_EXE_lez")
 }
 
 // ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ fn test_long_details_shows_symlink_target_by_default() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -114,7 +114,7 @@ fn test_long_details_suppresses_symlink_target_with_flag() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -159,7 +159,7 @@ fn test_oneline_does_not_show_symlink_target_by_default() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -194,7 +194,7 @@ fn test_piped_output_does_not_show_symlink_target() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -227,7 +227,7 @@ fn test_oneline_suppresses_symlink_target_with_flag() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -268,7 +268,7 @@ fn test_broken_symlink_with_no_symlink_targets() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -284,7 +284,7 @@ fn test_broken_symlink_with_no_symlink_targets() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output_1.status.success());
     let stdout_1 = String::from_utf8_lossy(&output_1.stdout);
@@ -311,7 +311,7 @@ fn test_classify_flag_with_no_symlink_targets() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -352,7 +352,7 @@ fn test_directory_symlink_with_no_symlink_targets() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -391,7 +391,7 @@ fn test_tree_mode_with_no_symlink_targets() {
         .arg("--color=never")
         .arg(&sub)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -427,7 +427,7 @@ fn test_multiple_special_symlinks() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -460,7 +460,7 @@ fn test_no_symlinks_vs_no_symlink_targets() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(out_a.status.success());
     let stdout_a = String::from_utf8_lossy(&out_a.stdout);
@@ -474,7 +474,7 @@ fn test_no_symlinks_vs_no_symlink_targets() {
         .arg("--color=never")
         .arg(&temp.path)
         .output()
-        .expect("Failed to run lsr");
+        .expect("Failed to run lez");
 
     assert!(out_b.status.success());
     let stdout_b = String::from_utf8_lossy(&out_b.stdout);

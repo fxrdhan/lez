@@ -799,7 +799,7 @@ mod tests {
     impl TestGitRepo {
         fn new(name: &str) -> Self {
             let path =
-                std::env::temp_dir().join(format!("lsr_test_git_{}_{}", name, std::process::id()));
+                std::env::temp_dir().join(format!("lez_test_git_{}_{}", name, std::process::id()));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
 
@@ -1366,7 +1366,7 @@ mod tests {
         test_repo.commit_all("initial commit");
 
         let wt_path = std::env::temp_dir().join(format!(
-            "lsr_test_git_worktree_{}_{}",
+            "lez_test_git_worktree_{}_{}",
             "unit",
             std::process::id()
         ));

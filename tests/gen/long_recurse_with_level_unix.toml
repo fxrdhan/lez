@@ -1,2 +1,2 @@
-bin.name = "lsr"
+bin.name = "lez"
 args = "tests/test_dir --long --no-user --no-permissions --no-time --no-filesize --recurse --level 1"

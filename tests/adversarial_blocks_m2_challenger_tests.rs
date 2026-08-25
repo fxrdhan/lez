@@ -25,7 +25,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_chal_blocks_{prefix}_{}_{}",
+            "lez_chal_blocks_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -51,35 +51,35 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
-fn run_lsr_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let mut cmd = Command::new(bin_path);
     cmd.args(args);
     for (k, v) in envs {
         cmd.env(k, v);
     }
-    cmd.output().expect("Failed to execute lsr binary with env")
+    cmd.output().expect("Failed to execute lez binary with env")
 }
 
-fn run_lsr_clean(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez_clean(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .env_remove("EZA_STRICT")
         .env_remove("EXA_STRICT")
-        .env_remove("LSR_STRICT")
+        .env_remove("LEZ_STRICT")
         .env_remove("EZA_COLORS")
         .env_remove("LS_COLORS")
         .output()
-        .expect("Failed to execute lsr binary clean")
+        .expect("Failed to execute lez binary clean")
 }
 
 // ---------------------------------------------------------------------------
@@ -121,9 +121,9 @@ fn test_adversarial_strict_output_equivalence_plain_and_colored() {
         args_blocksize.push("--blocksize");
         args_blocksize.push(temp.path.to_str().unwrap());
 
-        let out_s = run_lsr(&args_s);
-        let out_blocks = run_lsr(&args_blocks);
-        let out_blocksize = run_lsr(&args_blocksize);
+        let out_s = run_lez(&args_s);
+        let out_blocks = run_lez(&args_blocks);
+        let out_blocksize = run_lez(&args_blocksize);
 
         assert!(out_s.status.success(), "Failed running {:?}", args_s);
         assert!(
@@ -160,26 +160,26 @@ fn test_adversarial_short_flag_combinations_equivalence() {
     temp.create_file("alpha.txt", b"Alpha content");
     temp.create_file("beta.txt", b"Beta content payload");
 
-    let out_ls = run_lsr(&[
+    let out_ls = run_lez(&[
         "-lS",
         "--color=never",
         "--time-style=iso",
         temp.path.to_str().unwrap(),
     ]);
-    let out_sl = run_lsr(&[
+    let out_sl = run_lez(&[
         "-Sl",
         "--color=never",
         "--time-style=iso",
         temp.path.to_str().unwrap(),
     ]);
-    let out_sep = run_lsr(&[
+    let out_sep = run_lez(&[
         "-l",
         "-S",
         "--color=never",
         "--time-style=iso",
         temp.path.to_str().unwrap(),
     ]);
-    let out_blocks = run_lsr(&[
+    let out_blocks = run_lez(&[
         "-l",
         "--blocks",
         "--color=never",
@@ -200,19 +200,19 @@ fn test_adversarial_short_flag_combinations_equivalence() {
     );
 
     // Header combinations
-    let out_lsh = run_lsr(&[
+    let out_lsh = run_lez(&[
         "-lSh",
         "--color=never",
         "--time-style=iso",
         temp.path.to_str().unwrap(),
     ]);
-    let out_hls = run_lsr(&[
+    let out_hls = run_lez(&[
         "-hlS",
         "--color=never",
         "--time-style=iso",
         temp.path.to_str().unwrap(),
     ]);
-    let out_blocks_h = run_lsr(&[
+    let out_blocks_h = run_lez(&[
         "-l",
         "--blocks",
         "-h",
@@ -245,7 +245,7 @@ fn test_adversarial_header_name_and_column_content() {
     temp.create_file("entry1.txt", b"Data payload 1");
     temp.create_file("entry2.txt", b"Data payload 2");
 
-    let output = run_lsr(&[
+    let output = run_lez(&[
         "-l",
         "--blocks",
         "-h",
@@ -299,7 +299,7 @@ fn test_adversarial_strict_mode_rejections() {
         let mut full_args = args.clone();
         full_args.push(temp.path.to_str().unwrap());
 
-        let output = run_lsr_with_env(&full_args, &[("EZA_STRICT", "1")]);
+        let output = run_lez_with_env(&full_args, &[("EZA_STRICT", "1")]);
         assert!(
             !output.status.success(),
             "Expected failing in strict mode for args: {:?}",
@@ -345,7 +345,7 @@ fn test_adversarial_strict_mode_acceptances() {
         let mut full_args = args.clone();
         full_args.push(temp.path.to_str().unwrap());
 
-        let output = run_lsr_with_env(&full_args, &[("EZA_STRICT", "1")]);
+        let output = run_lez_with_env(&full_args, &[("EZA_STRICT", "1")]);
         assert!(
             output.status.success(),
             "Expected success in strict mode for args: {:?}, stderr:\n{}",
@@ -380,7 +380,7 @@ fn test_adversarial_non_strict_fallback_modes() {
         let mut full_args = args.clone();
         full_args.push(temp.path.to_str().unwrap());
 
-        let output = run_lsr_clean(&full_args);
+        let output = run_lez_clean(&full_args);
         assert!(
             output.status.success(),
             "Non-strict mode should succeed and ignore flag for {:?}, stderr:\n{}",
@@ -409,7 +409,7 @@ fn test_adversarial_sort_by_blocks_order() {
     temp.create_file("large.dat", &[0u8; 1048576]);
 
     // Ascending sort by blocks
-    let out_asc = run_lsr(&[
+    let out_asc = run_lez(&[
         "-l",
         "--blocks",
         "--sort=blocks",
@@ -429,7 +429,7 @@ fn test_adversarial_sort_by_blocks_order() {
     );
 
     // Descending / reversed sort by blocks
-    let out_desc = run_lsr(&[
+    let out_desc = run_lez(&[
         "-l",
         "--blocks",
         "--sort=blocks",
@@ -462,21 +462,21 @@ fn test_adversarial_binary_and_bytes_sizing_output() {
     temp.create_file("payload.bin", &[0x99; 32768]);
 
     // Binary prefixes (-b)
-    let out_bin_s = run_lsr(&[
+    let out_bin_s = run_lez(&[
         "-l",
         "-S",
         "-b",
         "--color=never",
         temp.path.to_str().unwrap(),
     ]);
-    let out_bin_blocks = run_lsr(&[
+    let out_bin_blocks = run_lez(&[
         "-l",
         "--blocks",
         "-b",
         "--color=never",
         temp.path.to_str().unwrap(),
     ]);
-    let out_bin_blocksize = run_lsr(&[
+    let out_bin_blocksize = run_lez(&[
         "-l",
         "--blocksize",
         "-b",
@@ -491,21 +491,21 @@ fn test_adversarial_binary_and_bytes_sizing_output() {
     assert_eq!(out_bin_blocks.stdout, out_bin_blocksize.stdout);
 
     // Raw bytes (-B)
-    let out_bytes_s = run_lsr(&[
+    let out_bytes_s = run_lez(&[
         "-l",
         "-S",
         "-B",
         "--color=never",
         temp.path.to_str().unwrap(),
     ]);
-    let out_bytes_blocks = run_lsr(&[
+    let out_bytes_blocks = run_lez(&[
         "-l",
         "--blocks",
         "-B",
         "--color=never",
         temp.path.to_str().unwrap(),
     ]);
-    let out_bytes_blocksize = run_lsr(&[
+    let out_bytes_blocksize = run_lez(&[
         "-l",
         "--blocksize",
         "-B",
@@ -531,21 +531,21 @@ fn test_adversarial_direct_file_and_multi_target_invocations() {
     let f2 = temp.create_file("second.txt", b"Second payload");
 
     // Pass multiple files as direct arguments
-    let out_s = run_lsr(&[
+    let out_s = run_lez(&[
         "-l",
         "-S",
         "--color=never",
         f1.to_str().unwrap(),
         f2.to_str().unwrap(),
     ]);
-    let out_blocks = run_lsr(&[
+    let out_blocks = run_lez(&[
         "-l",
         "--blocks",
         "--color=never",
         f1.to_str().unwrap(),
         f2.to_str().unwrap(),
     ]);
-    let out_blocksize = run_lsr(&[
+    let out_blocksize = run_lez(&[
         "-l",
         "--blocksize",
         "--color=never",

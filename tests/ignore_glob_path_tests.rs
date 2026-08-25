@@ -25,7 +25,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_ignore_glob_{prefix}_{}_{}",
+            "lez_ignore_glob_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -49,12 +49,12 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr_in(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez_in(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_lez"))
         .current_dir(dir)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn test_path_aware_ignore_glob_subdir() {
 
     // -I "src/*.rs" should ignore src/main.rs and src/lib.rs
     // but keep root.rs, src/fs/filter.rs, tests/integration.rs, Cargo.toml
-    let output = run_lsr_in(&temp.path, &["-T", "-I", "src/*.rs", "--color=never"]);
+    let output = run_lez_in(&temp.path, &["-T", "-I", "src/*.rs", "--color=never"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -109,7 +109,7 @@ fn test_path_aware_ignore_glob_recursive_wildcard() {
 
     // -I "**/node_modules/*" keeps node_modules folder nodes in tree view
     // but omits their child contents
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &["-T", "-I", "**/node_modules/*", "--color=never"],
     );
@@ -143,7 +143,7 @@ fn test_path_aware_ignore_glob_target_wildcard() {
     temp.create_file("target/release/app", "binary");
     temp.create_file("target/build.log", "log");
 
-    let output = run_lsr_in(&temp.path, &["-T", "-I", "target/*", "--color=never"]);
+    let output = run_lez_in(&temp.path, &["-T", "-I", "target/*", "--color=never"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -176,7 +176,7 @@ fn test_flat_filename_glob_matches_everywhere() {
     temp.create_file("dir_b/deep/nested.tmp", "temp");
     temp.create_file("dir_b/deep/keep.txt", "keep");
 
-    let output = run_lsr_in(&temp.path, &["-T", "-I", "*.tmp", "--color=never"]);
+    let output = run_lez_in(&temp.path, &["-T", "-I", "*.tmp", "--color=never"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -207,7 +207,7 @@ fn test_flat_hidden_file_glob() {
     temp.create_file("dir/.config", "secret");
     temp.create_file("dir/file.txt", "content");
 
-    let output = run_lsr_in(&temp.path, &["-a", "-T", "-I", ".*", "--color=never"]);
+    let output = run_lez_in(&temp.path, &["-a", "-T", "-I", ".*", "--color=never"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -236,7 +236,7 @@ fn test_case_insensitive_path_aware_ignore_glob() {
     temp.create_file("src/sub/mod.rs", "pub mod sub;");
     temp.create_file("tests/test.rs", "// test");
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &["-T", "--ignore-glob-ci=SRC/*.RS", "--color=never"],
     );
@@ -266,7 +266,7 @@ fn test_multiple_ignore_patterns_combined() {
     temp.create_file("junk.tmp", "junk");
     temp.create_file("keep.txt", "keep");
 
-    let output = run_lsr_in(
+    let output = run_lez_in(
         &temp.path,
         &["-T", "-I", "src/*.rs|target/*|*.tmp", "--color=never"],
     );
@@ -302,7 +302,7 @@ fn test_leading_slash_normalization() {
     temp.create_file("src/lib.rs", "pub fn lib() {}");
     temp.create_file("root.rs", "// root");
 
-    let output = run_lsr_in(&temp.path, &["-T", "-I", "/src/*.rs", "--color=never"]);
+    let output = run_lez_in(&temp.path, &["-T", "-I", "/src/*.rs", "--color=never"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -324,7 +324,7 @@ fn test_trailing_slash_directory_ignore() {
     temp.create_file("node_modules/index.js", "module.exports = {};");
     temp.create_file("src/index.js", "export default {};");
 
-    let output = run_lsr_in(&temp.path, &["-T", "-I", "node_modules/", "--color=never"]);
+    let output = run_lez_in(&temp.path, &["-T", "-I", "node_modules/", "--color=never"]);
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 

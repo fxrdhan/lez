@@ -1,7 +1,7 @@
 using namespace System.Management.Automation
 using namespace System.Management.Automation.Language
 
-Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
+Register-ArgumentCompleter -Native -CommandName 'lez' -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
     $ArrayWhen           = @('always', 'auto', 'never')
@@ -14,7 +14,7 @@ Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
     $ArrayCodeMode       = @('lines', 'percent', 'both')
 
     # Nine flags take an optional value and only accept it with an equals sign,
-    # as `lsr --absolute=on`. Offering these after a space would build a command
+    # as `lez --absolute=on`. Offering these after a space would build a command
     # line the parser reads differently from what the user meant: the value
     # lands as a path and the flag falls back to its default. PowerShell keeps
     # `--absolute=on` as one token, so they are completed as whole words.
@@ -34,7 +34,7 @@ Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
 
     $commandElements = $commandAst.CommandElements
     $command = @(
-        'lsr'
+        'lez'
         for ($i = 1; $i -lt $commandElements.Count; $i++) {
             $element = $commandElements[$i]
             if ($element -isnot [StringConstantExpressionAst] -or
@@ -140,8 +140,8 @@ Register-ArgumentCompleter -Native -CommandName 'lsr' -ScriptBlock {
         default {
         #   [CompletionResult]::new('-?'                         ,'help'                , [CompletionResultType]::ParameterName, 'show list of command-line options')
             [CompletionResult]::new('--help'                     ,'help'                , [CompletionResultType]::ParameterName, 'show list of command-line options')
-        #   [CompletionResult]::new('-v'                         ,'version'             , [CompletionResultType]::ParameterName, 'show version of lsr')
-            [CompletionResult]::new('--version'                  ,'version'             , [CompletionResultType]::ParameterName, 'show version of lsr')
+        #   [CompletionResult]::new('-v'                         ,'version'             , [CompletionResultType]::ParameterName, 'show version of lez')
+            [CompletionResult]::new('--version'                  ,'version'             , [CompletionResultType]::ParameterName, 'show version of lez')
         #   [CompletionResult]::new('-1'                         ,'oneline'             , [CompletionResultType]::ParameterName, 'display one entry per line')
             [CompletionResult]::new('--oneline'                  ,'oneline'             , [CompletionResultType]::ParameterName, 'display one entry per line')
         #   [CompletionResult]::new('-l'                         ,'long'                , [CompletionResultType]::ParameterName, 'display extended file metadata as a table')

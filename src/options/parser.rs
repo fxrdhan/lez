@@ -1082,7 +1082,7 @@ pub mod test {
     /// equals sign, so that a bare flag can never swallow the path that
     /// follows it. `--icons`, `--hyperlink` and `--classify` were already
     /// covered; `--absolute`, `--color` and `--color-scale` were not, and
-    /// rejected `lsr --color *.md` outright.
+    /// rejected `lez --color *.md` outright.
     #[test]
     fn optional_value_flags_leave_the_following_path_alone() {
         for flag in [

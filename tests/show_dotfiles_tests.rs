@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_show_dotfiles_test_{prefix}_{}_{}",
+            "lez_show_dotfiles_test_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -44,16 +44,16 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 fn listed_names(args: &[&str]) -> Vec<String> {
-    let output = run_lsr(args);
+    let output = run_lez(args);
     assert!(output.status.success());
     String::from_utf8_lossy(&output.stdout)
         .lines()

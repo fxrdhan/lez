@@ -44,7 +44,7 @@ fn binary_name() -> String {
 /// plus the short forms of the same arguments.
 fn flags_requiring_equals() -> Vec<String> {
     let mut names = Vec::new();
-    for arg in lsr::options::parser::get_command().get_arguments() {
+    for arg in lez::options::parser::get_command().get_arguments() {
         if !arg.is_require_equals_set() {
             continue;
         }
@@ -153,7 +153,7 @@ fn a_key_carrying_its_value_has_no_values_list() {
 /// The other generator. It writes `bin.name` into a `tests/cmd` case and runs
 /// the built binary to record the output, so both spellings have to be the
 /// name this project actually builds. This one went unnoticed longer than the
-/// `powertest.yaml` mistake: every case already in `tests/cmd` says `lsr`,
+/// `powertest.yaml` mistake: every case already in `tests/cmd` says `lez`,
 /// while the script that claims to produce them said `eza`.
 #[test]
 fn the_trycmd_generator_names_the_binary_this_project_builds() {

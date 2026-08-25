@@ -23,7 +23,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_cachedir_{prefix}_{}_{}",
+            "lez_cachedir_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -47,11 +47,11 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> String {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(args: &[&str]) -> String {
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(output.status.success());
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
@@ -70,7 +70,7 @@ fn fixture(prefix: &str) -> TempTestDir {
 fn valid_cachedir_tag_hides_the_directory() {
     let fixture = fixture("valid");
 
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "--cachedir-ignore",
         "--color=never",
         fixture.path.to_str().unwrap(),
@@ -90,7 +90,7 @@ fn valid_cachedir_tag_hides_the_directory() {
 fn without_the_flag_everything_shows() {
     let fixture = fixture("off");
 
-    let stdout = run_lsr(&["--color=never", fixture.path.to_str().unwrap()]);
+    let stdout = run_lez(&["--color=never", fixture.path.to_str().unwrap()]);
     for name in ["keep.txt", "cache", "fake"] {
         assert!(stdout.contains(name), "{name} must be listed: {stdout}");
     }
@@ -101,7 +101,7 @@ fn recursive_traversal_never_descends_into_tagged_dirs() {
     let fixture = fixture("recurse");
     fixture.create_file("cache/nested.txt", "nested");
 
-    let stdout = run_lsr(&[
+    let stdout = run_lez(&[
         "-T",
         "--cachedir-ignore",
         "--color=never",

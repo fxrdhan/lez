@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 //! Timestamps must render with the zone offset that was in effect at each
-//! file's own time, not the offset in effect when lsr runs — a file written
+//! file's own time, not the offset in effect when lez runs — a file written
 //! during daylight saving time keeps its summer wall clock in winter.
 
 #![cfg(unix)]
@@ -25,7 +25,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lsr_tz_{prefix}_{}_{}", std::process::id(), nanos));
+            std::env::temp_dir().join(format!("lez_tz_{prefix}_{}_{}", std::process::id(), nanos));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("Failed to create temp test directory");
         Self { path }
@@ -63,7 +63,7 @@ fn timestamps_use_the_offset_in_effect_at_their_own_time() {
     fixture.create_file_at("jan.txt", jan_utc());
     fixture.create_file_at("jul.txt", jul_utc());
 
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .env("TZ", "CET-1CEST,M3.5.0,M10.5.0")
         .args([
             "-1",
@@ -73,7 +73,7 @@ fn timestamps_use_the_offset_in_effect_at_their_own_time() {
             fixture.path.to_str().unwrap(),
         ])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -96,7 +96,7 @@ fn utc_flag_still_renders_utc_wall_clock() {
 
     fixture.create_file_at("jan.txt", jan_utc());
 
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .env("TZ", "CET-1CEST,M3.5.0,M10.5.0")
         .args([
             "-1",
@@ -107,7 +107,7 @@ fn utc_flag_still_renders_utc_wall_clock() {
             fixture.path.to_str().unwrap(),
         ])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 

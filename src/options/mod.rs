@@ -163,11 +163,11 @@ impl Options {
         if cfg!(not(feature = "git")) && (matches.get_flag("git") || matches.get_flag("git-ignore"))
         {
             return Err(OptionsError::Unsupported(String::from(
-                "Options --git and --git-ignore can't be used because `git` feature was disabled in this build of lsr",
+                "Options --git and --git-ignore can't be used because `git` feature was disabled in this build of lez",
             )));
         }
         let strict = vars
-            .get(vars::LSR_STRICT)
+            .get(vars::LEZ_STRICT)
             .or_else(|| vars.get_with_fallback(vars::EZA_STRICT, vars::EXA_STRICT))
             .is_some();
 

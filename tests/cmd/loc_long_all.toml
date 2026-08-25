@@ -1,4 +1,4 @@
-bin.name = "lsr"
+bin.name = "lez"
 args = "-lh --loc --no-permissions --no-filesize --no-user --no-time tests/itest-loc"
 [env.add]
 LC_ALL = "C"

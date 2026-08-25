@@ -19,7 +19,7 @@ use std::process::{Command, Output};
 const ENTRIES: usize = 2000;
 
 fn fixture(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lsr-buffered-{name}"));
+    let root = std::env::temp_dir().join(format!("lez-buffered-{name}"));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("fixture directory");
     for i in 0..ENTRIES {
@@ -28,20 +28,20 @@ fn fixture(name: &str) -> PathBuf {
     root
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_lez"))
         .arg("--color=never")
         .args(args)
         .output()
-        .expect("failed to execute lsr")
+        .expect("failed to execute lez")
 }
 
 #[test]
 fn a_listing_longer_than_the_buffer_arrives_whole() {
     let root = fixture("oneline");
-    let out = run_lsr(&["-1", root.to_str().unwrap()]);
+    let out = run_lez(&["-1", root.to_str().unwrap()]);
 
-    assert!(out.status.success(), "lsr should succeed");
+    assert!(out.status.success(), "lez should succeed");
     let stdout = String::from_utf8_lossy(&out.stdout);
     let lines = stdout.lines().count();
 
@@ -62,9 +62,9 @@ fn a_listing_longer_than_the_buffer_arrives_whole() {
 #[test]
 fn a_json_document_longer_than_the_buffer_arrives_whole() {
     let root = fixture("json");
-    let out = run_lsr(&["--json", "-1", root.to_str().unwrap()]);
+    let out = run_lez(&["--json", "-1", root.to_str().unwrap()]);
 
-    assert!(out.status.success(), "lsr should succeed");
+    assert!(out.status.success(), "lez should succeed");
     let stdout = String::from_utf8_lossy(&out.stdout);
 
     assert!(
@@ -92,7 +92,7 @@ fn a_json_document_longer_than_the_buffer_arrives_whole() {
 fn a_failing_write_is_reported_rather_than_swallowed() {
     use std::process::Stdio;
 
-    let root = std::env::temp_dir().join("lsr-buffered-devfull");
+    let root = std::env::temp_dir().join("lez-buffered-devfull");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("fixture directory");
     fs::write(root.join("one"), b"").expect("fixture file");
@@ -102,14 +102,14 @@ fn a_failing_write_is_reported_rather_than_swallowed() {
         .open("/dev/full")
         .expect("/dev/full should be openable on Linux");
 
-    let status = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    let status = Command::new(env!("CARGO_BIN_EXE_lez"))
         .arg("--color=never")
         .arg("-1")
         .arg(root.to_str().unwrap())
         .stdout(Stdio::from(full))
         .stderr(Stdio::piped())
         .output()
-        .expect("failed to execute lsr");
+        .expect("failed to execute lez");
 
     assert!(
         !status.status.success(),

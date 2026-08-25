@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_stdin_null_{prefix}_{}_{}",
+            "lez_stdin_null_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -52,7 +52,7 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn test_stdin_redirected_to_dev_null_without_stdin_flag() {
         .arg(&temp.path)
         .stdin(Stdio::from(null_file))
         .output()
-        .expect("Failed to execute lsr with /dev/null stdin");
+        .expect("Failed to execute lez with /dev/null stdin");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -88,7 +88,7 @@ fn test_stdin_redirected_to_dev_null_with_explicit_stdin_flag() {
         .arg("--stdin")
         .stdin(Stdio::from(null_file))
         .output()
-        .expect("Failed to execute lsr --stdin with /dev/null stdin");
+        .expect("Failed to execute lez --stdin with /dev/null stdin");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

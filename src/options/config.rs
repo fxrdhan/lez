@@ -780,10 +780,10 @@ pub(crate) fn expand_home_path(path: &OsStr, home: Option<&Path>) -> PathBuf {
 }
 
 /// Resolves the configuration directory, prioritizing:
-/// 1. `custom_config_dir` (`LSR_CONFIG_DIR` or `EZA_CONFIG_DIR`)
+/// 1. `custom_config_dir` (`LEZ_CONFIG_DIR` or `EZA_CONFIG_DIR`)
 /// 2. `xdg_config_home` (`XDG_CONFIG_HOME`), if set, non-empty, and resolves to an absolute path
 /// 3. Platform configuration directory (`dirs::config_dir()`)
-/// 4. Fallback to `$HOME/.config/lsr`
+/// 4. Fallback to `$HOME/.config/lez`
 pub(crate) fn config_dir_from_env(
     custom_config_dir: Option<PathBuf>,
     xdg_config_home: Option<PathBuf>,
@@ -800,40 +800,40 @@ pub(crate) fn config_dir_from_env(
     {
         let expanded = expand_home_path(xdg.as_os_str(), home_env.as_deref());
         if expanded.is_absolute() {
-            let lsr_dir = expanded.join("lsr");
+            let lez_dir = expanded.join("lez");
             let eza_dir = expanded.join("eza");
-            if lsr_dir.exists() {
-                return lsr_dir;
+            if lez_dir.exists() {
+                return lez_dir;
             } else if eza_dir.exists() {
                 return eza_dir;
             } else {
-                return lsr_dir;
+                return lez_dir;
             }
         }
     }
 
     if let Some(config_dir) = dirs::config_dir() {
-        let lsr_dir = config_dir.join("lsr");
+        let lez_dir = config_dir.join("lez");
         let eza_dir = config_dir.join("eza");
-        if lsr_dir.exists() {
-            return lsr_dir;
+        if lez_dir.exists() {
+            return lez_dir;
         } else if eza_dir.exists() {
             return eza_dir;
         } else {
-            return lsr_dir;
+            return lez_dir;
         }
     }
 
     if let Some(home) = home_env.or_else(dirs::home_dir) {
         let base = home.join(".config");
-        let lsr_dir = base.join("lsr");
+        let lez_dir = base.join("lez");
         let eza_dir = base.join("eza");
-        if lsr_dir.exists() {
-            return lsr_dir;
+        if lez_dir.exists() {
+            return lez_dir;
         } else if eza_dir.exists() {
             return eza_dir;
         } else {
-            return lsr_dir;
+            return lez_dir;
         }
     }
 
@@ -983,8 +983,8 @@ git_repo:
     fn test_expand_home_path_dollar_brace_home_slash() {
         let home = Path::new("/custom/home");
         assert_eq!(
-            expand_home_path(OsStr::new("${HOME}/.config/lsr"), Some(home)),
-            PathBuf::from("/custom/home/.config/lsr")
+            expand_home_path(OsStr::new("${HOME}/.config/lez"), Some(home)),
+            PathBuf::from("/custom/home/.config/lez")
         );
     }
 
@@ -1045,12 +1045,12 @@ git_repo:
     #[test]
     #[cfg(unix)]
     fn test_config_dir_from_env_custom_priority() {
-        let custom = Some(PathBuf::from("~/my_custom_lsr"));
+        let custom = Some(PathBuf::from("~/my_custom_lez"));
         let xdg = Some(PathBuf::from("/etc/xdg"));
         let home = Some(PathBuf::from("/home/testuser"));
 
         let resolved = config_dir_from_env(custom, xdg, home);
-        assert_eq!(resolved, PathBuf::from("/home/testuser/my_custom_lsr"));
+        assert_eq!(resolved, PathBuf::from("/home/testuser/my_custom_lez"));
     }
 
     #[test]
@@ -1061,8 +1061,8 @@ git_repo:
         let home = Some(PathBuf::from("/home/testuser"));
 
         let resolved = config_dir_from_env(custom, xdg, home);
-        // /custom/xdg is absolute, so it checks /custom/xdg/lsr or /custom/xdg/eza
-        assert_eq!(resolved, PathBuf::from("/custom/xdg/lsr"));
+        // /custom/xdg is absolute, so it checks /custom/xdg/lez or /custom/xdg/eza
+        assert_eq!(resolved, PathBuf::from("/custom/xdg/lez"));
     }
 
     #[test]
@@ -1073,7 +1073,7 @@ git_repo:
         let home = Some(PathBuf::from("/home/testuser"));
 
         let resolved = config_dir_from_env(custom, xdg, home);
-        assert_eq!(resolved, PathBuf::from("/home/testuser/.config/lsr"));
+        assert_eq!(resolved, PathBuf::from("/home/testuser/.config/lez"));
     }
 
     #[test]
@@ -1084,14 +1084,14 @@ git_repo:
         let home = Some(PathBuf::from("/home/testuser"));
 
         let resolved = config_dir_from_env(custom, xdg, home);
-        // Relative XDG is ignored, falling back to dirs::config_dir() or home/.config/lsr
-        assert_ne!(resolved, PathBuf::from("relative/xdg/lsr"));
+        // Relative XDG is ignored, falling back to dirs::config_dir() or home/.config/lez
+        assert_ne!(resolved, PathBuf::from("relative/xdg/lez"));
     }
 
     #[test]
     #[cfg(unix)]
     fn test_theme_config_location_and_from_path() {
-        let p = PathBuf::from("/etc/lsr/theme.yml");
+        let p = PathBuf::from("/etc/lez/theme.yml");
         let cfg = ThemeConfig::from_path(p.clone());
         assert_eq!(cfg.location(), p.as_path());
     }

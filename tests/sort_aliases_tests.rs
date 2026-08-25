@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_sort_test_{prefix}_{}_{}",
+            "lez_sort_test_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -54,12 +54,12 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn test_sort_newest_and_new_sorts_newest_first() {
     let temp_str = temp.path.to_str().unwrap();
 
     // Test --sort=newest
-    let output_newest = run_lsr(&["-1", "--sort=newest", "--color=never", temp_str]);
+    let output_newest = run_lez(&["-1", "--sort=newest", "--color=never", temp_str]);
     assert!(output_newest.status.success());
     let stdout_newest = String::from_utf8_lossy(&output_newest.stdout);
     let lines_newest: Vec<&str> = stdout_newest.lines().collect();
@@ -84,14 +84,14 @@ fn test_sort_newest_and_new_sorts_newest_first() {
     assert_eq!(lines_newest[1], "file1_older.txt");
 
     // Test --sort=new
-    let output_new = run_lsr(&["-1", "--sort=new", "--color=never", temp_str]);
+    let output_new = run_lez(&["-1", "--sort=new", "--color=never", temp_str]);
     assert!(output_new.status.success());
     let stdout_new = String::from_utf8_lossy(&output_new.stdout);
     let lines_new: Vec<&str> = stdout_new.lines().collect();
     assert_eq!(lines_new, lines_newest);
 
     // Test --sort=age (should match newest and new)
-    let output_age = run_lsr(&["-1", "--sort=age", "--color=never", temp_str]);
+    let output_age = run_lez(&["-1", "--sort=age", "--color=never", temp_str]);
     assert!(output_age.status.success());
     let stdout_age = String::from_utf8_lossy(&output_age.stdout);
     let lines_age: Vec<&str> = stdout_age.lines().collect();
@@ -111,7 +111,7 @@ fn test_sort_oldest_and_old_sorts_oldest_first() {
     let temp_str = temp.path.to_str().unwrap();
 
     // Test --sort=oldest
-    let output_oldest = run_lsr(&["-1", "--sort=oldest", "--color=never", temp_str]);
+    let output_oldest = run_lez(&["-1", "--sort=oldest", "--color=never", temp_str]);
     assert!(output_oldest.status.success());
     let stdout_oldest = String::from_utf8_lossy(&output_oldest.stdout);
     let lines_oldest: Vec<&str> = stdout_oldest.lines().collect();
@@ -120,35 +120,35 @@ fn test_sort_oldest_and_old_sorts_oldest_first() {
     assert_eq!(lines_oldest[1], "file2_newer.txt");
 
     // Test --sort=old
-    let output_old = run_lsr(&["-1", "--sort=old", "--color=never", temp_str]);
+    let output_old = run_lez(&["-1", "--sort=old", "--color=never", temp_str]);
     assert!(output_old.status.success());
     let stdout_old = String::from_utf8_lossy(&output_old.stdout);
     let lines_old: Vec<&str> = stdout_old.lines().collect();
     assert_eq!(lines_old, lines_oldest);
 
     // Test --sort=date (should match oldest and old)
-    let output_date = run_lsr(&["-1", "--sort=date", "--color=never", temp_str]);
+    let output_date = run_lez(&["-1", "--sort=date", "--color=never", temp_str]);
     assert!(output_date.status.success());
     let stdout_date = String::from_utf8_lossy(&output_date.stdout);
     let lines_date: Vec<&str> = stdout_date.lines().collect();
     assert_eq!(lines_date, lines_oldest);
 
     // Test --sort=time
-    let output_time = run_lsr(&["-1", "--sort=time", "--color=never", temp_str]);
+    let output_time = run_lez(&["-1", "--sort=time", "--color=never", temp_str]);
     assert!(output_time.status.success());
     let stdout_time = String::from_utf8_lossy(&output_time.stdout);
     let lines_time: Vec<&str> = stdout_time.lines().collect();
     assert_eq!(lines_time, lines_oldest);
 
     // Test --sort=mod
-    let output_mod = run_lsr(&["-1", "--sort=mod", "--color=never", temp_str]);
+    let output_mod = run_lez(&["-1", "--sort=mod", "--color=never", temp_str]);
     assert!(output_mod.status.success());
     let stdout_mod = String::from_utf8_lossy(&output_mod.stdout);
     let lines_mod: Vec<&str> = stdout_mod.lines().collect();
     assert_eq!(lines_mod, lines_oldest);
 
     // Test --sort=modified
-    let output_modified = run_lsr(&["-1", "--sort=modified", "--color=never", temp_str]);
+    let output_modified = run_lez(&["-1", "--sort=modified", "--color=never", temp_str]);
     assert!(output_modified.status.success());
     let stdout_modified = String::from_utf8_lossy(&output_modified.stdout);
     let lines_modified: Vec<&str> = stdout_modified.lines().collect();
@@ -167,12 +167,12 @@ fn test_sort_newest_reverse_matches_oldest() {
 
     let temp_str = temp.path.to_str().unwrap();
 
-    let output_newest_rev = run_lsr(&["-1", "--sort=newest", "-r", "--color=never", temp_str]);
+    let output_newest_rev = run_lez(&["-1", "--sort=newest", "-r", "--color=never", temp_str]);
     assert!(output_newest_rev.status.success());
     let stdout_newest_rev = String::from_utf8_lossy(&output_newest_rev.stdout);
     let lines_newest_rev: Vec<&str> = stdout_newest_rev.lines().collect();
 
-    let output_oldest = run_lsr(&["-1", "--sort=oldest", "--color=never", temp_str]);
+    let output_oldest = run_lez(&["-1", "--sort=oldest", "--color=never", temp_str]);
     assert!(output_oldest.status.success());
     let stdout_oldest = String::from_utf8_lossy(&output_oldest.stdout);
     let lines_oldest: Vec<&str> = stdout_oldest.lines().collect();
@@ -192,33 +192,33 @@ fn test_gnu_ls_style_t_sorts_newest_first() {
 
     let temp_str = temp.path.to_str().unwrap();
 
-    // lsr -1 -t temp_dir should sort newest first
-    let output_t = run_lsr(&["-1", "-t", "--color=never", temp_str]);
+    // lez -1 -t temp_dir should sort newest first
+    let output_t = run_lez(&["-1", "-t", "--color=never", temp_str]);
     assert!(output_t.status.success());
     let stdout_t = String::from_utf8_lossy(&output_t.stdout);
     let lines_t: Vec<&str> = stdout_t.lines().collect();
     assert_eq!(lines_t, vec!["newer.txt", "older.txt"]);
 
-    // lsr -1tr temp_dir should sort oldest first
-    let output_1tr = run_lsr(&["-1tr", "--color=never", temp_str]);
+    // lez -1tr temp_dir should sort oldest first
+    let output_1tr = run_lez(&["-1tr", "--color=never", temp_str]);
     assert!(output_1tr.status.success());
     let stdout_1tr = String::from_utf8_lossy(&output_1tr.stdout);
     let lines_1tr: Vec<&str> = stdout_1tr.lines().collect();
     assert_eq!(lines_1tr, vec!["older.txt", "newer.txt"]);
 
-    // lsr -ltra temp_dir should succeed and contain reversed mtime order
-    let output_ltra = run_lsr(&["-ltra", "--color=never", temp_str]);
+    // lez -ltra temp_dir should succeed and contain reversed mtime order
+    let output_ltra = run_lez(&["-ltra", "--color=never", temp_str]);
     assert!(output_ltra.status.success());
 
-    // Precedence: lsr -1 -t --sort=name -> sorts by name
-    let output_prec_name = run_lsr(&["-1", "-t", "--sort=name", "--color=never", temp_str]);
+    // Precedence: lez -1 -t --sort=name -> sorts by name
+    let output_prec_name = run_lez(&["-1", "-t", "--sort=name", "--color=never", temp_str]);
     assert!(output_prec_name.status.success());
     let stdout_prec_name = String::from_utf8_lossy(&output_prec_name.stdout);
     let lines_prec_name: Vec<&str> = stdout_prec_name.lines().collect();
     assert_eq!(lines_prec_name, vec!["newer.txt", "older.txt"]); // 'newer' < 'older' alphabetically
 
-    // Precedence: lsr -1 --sort=name -t -> sorts by mtime
-    let output_prec_t = run_lsr(&["-1", "--sort=name", "-t", "--color=never", temp_str]);
+    // Precedence: lez -1 --sort=name -t -> sorts by mtime
+    let output_prec_t = run_lez(&["-1", "--sort=name", "-t", "--color=never", temp_str]);
     assert!(output_prec_t.status.success());
     let stdout_prec_t = String::from_utf8_lossy(&output_prec_t.stdout);
     let lines_prec_t: Vec<&str> = stdout_prec_t.lines().collect();
@@ -238,8 +238,8 @@ fn test_gnu_ls_style_t_with_explicit_positional_files() {
     let path_older = file_older.to_str().unwrap();
     let path_newer = file_newer.to_str().unwrap();
 
-    // lsr -1 -t file_older file_newer -> both files listed, newest first
-    let output = run_lsr(&["-1", "-t", "--color=never", path_older, path_newer]);
+    // lez -1 -t file_older file_newer -> both files listed, newest first
+    let output = run_lez(&["-1", "-t", "--color=never", path_older, path_newer]);
     assert!(
         output.status.success(),
         "stderr: {}",

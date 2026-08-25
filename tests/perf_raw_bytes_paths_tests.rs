@@ -21,7 +21,7 @@ impl RawBytesTestDir {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lsr_raw_{prefix}_{}_{}", std::process::id(), nanos));
+            std::env::temp_dir().join(format!("lez_raw_{prefix}_{}_{}", std::process::id(), nanos));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("Failed to create temp test directory");
         Self { path }
@@ -34,14 +34,14 @@ impl Drop for RawBytesTestDir {
     }
 }
 
-fn run_lsr(dir: &Path, args: &[&str]) -> (bool, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(dir: &Path, args: &[&str]) -> (bool, String, String) {
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .current_dir(dir)
         .args(args)
         .env("NO_COLOR", "1")
-        .env("LSR_COLORS", "reset")
+        .env("LEZ_COLORS", "reset")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     (
         output.status.success(),
@@ -91,21 +91,21 @@ fn non_utf8_raw_byte_filenames_do_not_panic() {
         vec!["-T", "--color=never"],
         vec!["--json", "--color=never"],
     ] {
-        let (success, stdout, stderr) = run_lsr(&fixture.path, &mode_args);
+        let (success, stdout, stderr) = run_lez(&fixture.path, &mode_args);
         assert!(
             success,
-            "lsr {mode_args:?} failed on raw byte paths: stderr: {stderr}"
+            "lez {mode_args:?} failed on raw byte paths: stderr: {stderr}"
         );
         assert!(
             !stderr.contains("panicked at"),
-            "lsr panicked on raw byte paths with args {mode_args:?}: {stderr}"
+            "lez panicked on raw byte paths with args {mode_args:?}: {stderr}"
         );
         assert!(stdout.contains("baseline.txt"));
     }
 
     if created_raw_count > 0 {
         println!(
-            "Filesystem accepted {created_raw_count} raw non-UTF8 filenames and lsr handled them without panic."
+            "Filesystem accepted {created_raw_count} raw non-UTF8 filenames and lez handled them without panic."
         );
     }
 }
@@ -135,18 +135,18 @@ fn extreme_control_characters_and_whitespace_boundaries() {
     }
 
     let (success, stdout, stderr) =
-        run_lsr(&fixture.path, &["-1", "--color=never", "--quotes=always"]);
-    assert!(success, "lsr -1 failed: {stderr}");
+        run_lez(&fixture.path, &["-1", "--color=never", "--quotes=always"]);
+    assert!(success, "lez -1 failed: {stderr}");
     assert!(!stderr.contains("panicked at"));
     assert!(!stdout.is_empty());
 
     // JSON mode must produce valid JSON even with special characters
-    let (json_success, json_out, json_err) = run_lsr(&fixture.path, &["--json", "--color=never"]);
-    assert!(json_success, "lsr --json failed: {json_err}");
+    let (json_success, json_out, json_err) = run_lez(&fixture.path, &["--json", "--color=never"]);
+    assert!(json_success, "lez --json failed: {json_err}");
     let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json_out);
     assert!(
         parsed.is_ok(),
-        "lsr --json output was not valid JSON for special chars:\n{json_out}"
+        "lez --json output was not valid JSON for special chars:\n{json_out}"
     );
 }
 
@@ -167,8 +167,8 @@ fn long_filename_boundaries() {
         .write_all(b"long name b")
         .unwrap();
 
-    let (success, stdout, stderr) = run_lsr(&fixture.path, &["-1", "--color=never"]);
-    assert!(success, "lsr failed on long filenames: {stderr}");
+    let (success, stdout, stderr) = run_lez(&fixture.path, &["-1", "--color=never"]);
+    assert!(success, "lez failed on long filenames: {stderr}");
     assert!(stdout.contains(&long_200_a));
     assert!(stdout.contains(&long_240_b));
 }
@@ -197,11 +197,11 @@ fn unicode_normalization_and_combining_characters() {
         }
     }
 
-    let (success, stdout, stderr) = run_lsr(&fixture.path, &["-G", "--color=never"]);
-    assert!(success, "lsr -G failed: {stderr}");
+    let (success, stdout, stderr) = run_lez(&fixture.path, &["-G", "--color=never"]);
+    assert!(success, "lez -G failed: {stderr}");
     assert!(!stdout.is_empty());
 
-    let (l_success, l_stdout, l_stderr) = run_lsr(&fixture.path, &["-l", "--color=never"]);
-    assert!(l_success, "lsr -l failed: {l_stderr}");
+    let (l_success, l_stdout, l_stderr) = run_lez(&fixture.path, &["-l", "--color=never"]);
+    assert!(l_success, "lez -l failed: {l_stderr}");
     assert!(!l_stdout.is_empty());
 }

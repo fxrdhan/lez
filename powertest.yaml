@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 dump_dir: tests/ptests
 depth: 1
-binary: lsr
-gen_binary: target/debug/lsr
+binary: lez
+gen_binary: target/debug/lez
 args: tests/test_dir
 commands:
   ? - null # Meta options

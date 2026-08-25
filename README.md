@@ -9,29 +9,29 @@ SPDX-License-Identifier: EUPL-1.2
 
 <div align="center">
     
-# lsr
+# lez
 
 **A modern, fast, and feature-rich replacement for `ls` written in Rust.**
 
 [![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.txt)
 [![Rust](https://img.shields.io/badge/Rust-1.90%2B-orange.svg)](https://www.rust-lang.org/)
-[![binary cache](https://img.shields.io/endpoint?url=https%3A%2F%2Ffxrdhan-lsr.cachix.org%2Fapi%2Fv1%2Fcache%2Fbadges%2Fshield.svg)](https://app.cachix.org/cache/fxrdhan-lsr)
+[![binary cache](https://img.shields.io/endpoint?url=https%3A%2F%2Flez.cachix.org%2Fapi%2Fv1%2Fcache%2Fbadges%2Fshield.svg)](https://app.cachix.org/cache/lez)
 
 </div>
 
-![lsr demo](docs/images/screenshots.png)
+![lez demo](docs/images/screenshots.png)
 
 ---
 
-**`lsr`** is a fast, modern file-listing command-line tool with smart defaults, enhanced file icons, Git integration, and continuous performance improvements.
+**`lez`** is a fast, modern file-listing command-line tool with smart defaults, enhanced file icons, Git integration, and continuous performance improvements.
 
 - **Fast & Lightweight:** Written in modern Rust (2024 Edition) with multithreaded directory scanning via Rayon.
 - **Rich Visuals:** Syntax highlighting, colored CLI help output, Nerd Font icons, and automatic luminance color scaling.
 - **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
-- **Built-in Tree View:** Hierarchical directory tree out of the box (`lsr --tree`).
+- **Built-in Tree View:** Hierarchical directory tree out of the box (`lez --tree`).
 - **Structured Data Export:** Full metadata serialization via `--json` in complete parity with the long view.
-- **Archive Inspection:** Inspect files inside `.tar` archives directly in the long view (`lsr -l --inspect-archives`).
-- **Lines-of-Code Counter:** Comment-aware LOC breakdowns for 100+ programming languages (`lsr --code`).
+- **Archive Inspection:** Inspect files inside `.tar` archives directly in the long view (`lez -l --inspect-archives`).
+- **Lines-of-Code Counter:** Comment-aware LOC breakdowns for 100+ programming languages (`lez --code`).
 - **Deep OS Integration:** Native macOS Finder color tags, Linux capability decoding (`security.capability`), and Windows `PATHEXT` executables.
 
 ---
@@ -42,40 +42,40 @@ SPDX-License-Identifier: EUPL-1.2
 
 ### Cargo / Build from Source
 
-Install `lsr` directly with Cargo:
+Install `lez` directly with Cargo:
 
 ```bash
-cargo install --git https://github.com/fxrdhan/lsr.git
+cargo install --git https://github.com/fxrdhan/lez.git
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/fxrdhan/lsr.git
-cd lsr
+git clone https://github.com/fxrdhan/lez.git
+cd lez
 cargo build --release
-# Binary available at target/release/lsr
+# Binary available at target/release/lez
 ```
 
 ### Nix
 
-If you already have Nix setup with flake support, you can try out `lsr` with the `nix run` command:
+If you already have Nix setup with flake support, you can try out `lez` with the `nix run` command:
 
 ```bash
-nix run github:fxrdhan/lsr
+nix run github:fxrdhan/lez
 ```
 
-Nix will build `lsr` and run it.
+Nix will build `lez` and run it.
 
-If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lsr -- -la --icons`.
+If you want to pass arguments this way, use e.g. `nix run github:fxrdhan/lez -- -la --icons`.
 
 #### Binary Cache
 
 Every commit on `main` is validated with `nix flake check` in CI, and the resulting store paths are pushed to a public binary cache on [Cachix](https://www.cachix.org). Contributors and Nix users can pull prebuilt outputs instead of compiling from scratch:
 
 ```bash
-cachix use fxrdhan-lsr
-nix run github:fxrdhan/lsr
+cachix use lez
+nix run github:fxrdhan/lez
 ```
 
 **Performance & Validation:**
@@ -91,7 +91,7 @@ nix run github:fxrdhan/lsr
 
 # Installation
 
-`lsr` is available for macOS, Linux, and Windows. Detailed platform-specific installation instructions can be found in [INSTALL.md](INSTALL.md).
+`lez` is available for macOS, Linux, and Windows. Detailed platform-specific installation instructions can be found in [INSTALL.md](INSTALL.md).
 
 ---
 
@@ -99,7 +99,7 @@ nix run github:fxrdhan/lsr
 <h1>Command-line options</h1>
 </a>
 
-`lsr`’s options are intuitive and familiar. Quick overview:
+`lez`’s options are intuitive and familiar. Quick overview:
 
 ## Display options
 
@@ -198,7 +198,7 @@ These options are available when running with `--long` (`-l`):
 - **--git-repos**: list each directory’s Git status, if tracked
 - **--git-repos-no-status**: list whether a directory is a Git repository, but not its status (faster)
 - **--no-git**: suppress all Git fields and `.gitignore` handling (overrides `--git`, `--git-repos`, `--git-repos-no-status`, `--git-ignore`)
-- **--time-style**: how to format timestamps. Valid styles: `default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or custom `+<FORMAT>` (e.g., `+%Y-%m-%d %H:%M`; see [_`lsr(1)` manual page_](man/lsr.1.md) and [chrono format](https://docs.rs/chrono/latest/chrono/format/strftime/index.html)).
+- **--time-style**: how to format timestamps. Valid styles: `default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or custom `+<FORMAT>` (e.g., `+%Y-%m-%d %H:%M`; see [_`lez(1)` manual page_](man/lez.1.md) and [chrono format](https://docs.rs/chrono/latest/chrono/format/strftime/index.html)).
 - **--total-size**: show recursive directory size
 - **-o**, **--octal-permissions**: list each file's permission in octal format
 - **--no-permissions**: suppress the permissions field
@@ -215,8 +215,8 @@ Some of the options accept parameters:
 - Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, **relative**, and **relative-recent** (or **recent**).
 
 See the `man` pages for further documentation of usage. They are available:
-- online [in the repo](https://github.com/fxrdhan/lsr/tree/main/man)
-- in your terminal via `man lsr`
+- online [in the repo](https://github.com/fxrdhan/lez/tree/main/man)
+- in your terminal via `man lez`
 </details>
 
 ## Environment Variables
@@ -224,18 +224,18 @@ See the `man` pages for further documentation of usage. They are available:
 <details>
 <summary>Click to expand</summary>
 
-`lsr` supports several environment variables to configure default behavior, styles, and integrations:
+`lez` supports several environment variables to configure default behavior, styles, and integrations:
 
 | Variable | Description |
 |---|---|
-| `LSR_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. |
-| `LSR_CONFIG_DIR` / `EZA_CONFIG_DIR` | Custom directory containing `theme.yml` (default: `$XDG_CONFIG_HOME/lsr` or `$XDG_CONFIG_HOME/eza`). |
-| `LSR_MIN_LUMINANCE` / `LSR_MAX_LUMINANCE` | Minimum and maximum luminance values (0..=100) for color scaling on dates and sizes. |
-| `LSR_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
-| `LSR_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
-| `LSR_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |
-| `LSR_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin` (default: newline `\n`). |
-| `LSR_OVERRIDE_AUTO_COLOR` | Force automatic color detection behavior. |
+| `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. |
+| `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Custom directory containing `theme.yml` (default: `$XDG_CONFIG_HOME/lez` or `$XDG_CONFIG_HOME/eza`). |
+| `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (0..=100) for color scaling on dates and sizes. |
+| `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
+| `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
+| `LEZ_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |
+| `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin` (default: newline `\n`). |
+| `LEZ_OVERRIDE_AUTO_COLOR` | Force automatic color detection behavior. |
 | `TIME_STYLE` | Default timestamp format style (`default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or `+<FORMAT>`). |
 | `NO_COLOR` / `CLICOLOR` / `CLICOLOR_FORCE` | Standard terminal color control flags. |
 
@@ -246,30 +246,30 @@ See the `man` pages for further documentation of usage. They are available:
 <details>
 <summary>Click to expand</summary>
 
-**`lsr`** supports a `theme.yml` file, where you can customize theme options available for the `LS_COLORS`, `EZA_COLORS`, and `LSR_COLORS` environment variables, as well as specify custom icons for different file types and extensions.
+**`lez`** supports a `theme.yml` file, where you can customize theme options available for the `LS_COLORS`, `EZA_COLORS`, and `LEZ_COLORS` environment variables, as well as specify custom icons for different file types and extensions.
 
 An example theme file is available in [`docs/theme.yml`](docs/theme.yml), and can be placed in a directory specified by 
-`$LSR_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in `$XDG_CONFIG_HOME/lsr` or `$XDG_CONFIG_HOME/eza`.
+`$LEZ_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in `$XDG_CONFIG_HOME/lez` or `$XDG_CONFIG_HOME/eza`.
 
 ### Schema Validation in IDEs
 
 You can enable autocomplete and schema validation in VSCode, Neovim, or Zed by referencing the bundled JSON Schema at the top of your `theme.yml`:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/fxrdhan/lsr/main/docs/theme-schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fxrdhan/lez/main/docs/theme-schema.json
 
 filekinds:
   directory: { foreground: Blue, bold: true }
   symlink: { foreground: Cyan }
 ```
 
-Full styling details are available in the [lsr_colors-explanation(5) man page](man/lsr_colors-explanation.5.md) and [lsr_colors(5) man page](man/lsr_colors.5.md).
+Full styling details are available in the [lez_colors-explanation(5) man page](man/lez_colors-explanation.5.md) and [lez_colors(5) man page](man/lez_colors.5.md).
 
 </details>
 
-# Contributing to lsr
+# Contributing to lez
 
-If you want to contribute to `lsr`, please check out our:
+If you want to contribute to `lez`, please check out our:
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
@@ -277,16 +277,23 @@ If you want to contribute to `lsr`, please check out our:
 
 # Lineage & Credits
 
-**`lsr`** is a fork of [**eza**](https://github.com/eza-community/eza), which is
+**`lez`** is a fork of [**eza**](https://github.com/eza-community/eza), which is
 itself a maintained fork of [**exa**](https://github.com/ogham/exa) by Benjamin
 Sago. The overwhelming majority of this codebase was written by Benjamin Sago,
-Christina Sørensen, and the eza contributors, and `lsr` continues to port work
+Christina Sørensen, and the eza contributors, and `lez` continues to port work
 from eza's open pull requests and issues.
 
 - **exa** — original implementation, by Benjamin Sago ([ogham/exa](https://github.com/ogham/exa)), MIT
 - **eza** — community fork, maintained by Christina Sørensen ([eza-community/eza](https://github.com/eza-community/eza)), EUPL-1.2
-- **lsr** — this fork, by [fxrdhan](https://github.com/fxrdhan), EUPL-1.2
+- **lez** — this fork, by [fxrdhan](https://github.com/fxrdhan), EUPL-1.2
 
-`lsr` is licensed under the [EUPL-1.2](LICENSE.txt), inherited from eza; files
+`lez` is licensed under the [EUPL-1.2](LICENSE.txt), inherited from eza; files
 originating in exa remain under the MIT license, as recorded in their SPDX
 headers.
+
+## The name
+
+This project was called `lsr` through v0.24.1, until it turned out
+[rockorager/lsr](https://github.com/rockorager/lsr) and the
+[`lsr` crate](https://crates.io/crates/lsr) already held that name.
+`lez` keeps the shape of exa and eza, and is unclaimed everywhere.

@@ -13,12 +13,12 @@ fn bin_path() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join(if cfg!(windows) { "lsr.exe" } else { "lsr" })
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
 #[test]
 fn test_special_dirs_icons_cli() {
-    // If download_dir or document_dir exists on the system, running lsr -d --icons=always on it should succeed
+    // If download_dir or document_dir exists on the system, running lez -d --icons=always on it should succeed
     if let Some(doc_dir) = dirs::document_dir()
         && doc_dir.exists()
     {
@@ -27,7 +27,7 @@ fn test_special_dirs_icons_cli() {
             .arg("--icons=always")
             .arg(&doc_dir)
             .output()
-            .expect("Failed to run lsr on documents dir");
+            .expect("Failed to run lez on documents dir");
         assert!(output.status.success());
         let stdout = String::from_utf8_lossy(&output.stdout);
         let doc_glyph = '\u{f0c82}'.to_string(); // 󰲂
@@ -45,7 +45,7 @@ fn test_special_dirs_icons_cli() {
             .arg("--icons=always")
             .arg(&dl_dir)
             .output()
-            .expect("Failed to run lsr on downloads dir");
+            .expect("Failed to run lez on downloads dir");
         assert!(output.status.success());
         let stdout = String::from_utf8_lossy(&output.stdout);
         let dl_glyph = '\u{f024d}'.to_string(); // 󰉍

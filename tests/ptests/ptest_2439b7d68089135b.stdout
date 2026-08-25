@@ -1,6 +1,6 @@
 A modern, fast, and feature-rich replacement for ls written in Rust
 
-Usage: lsr [OPTIONS] [FILE]...
+Usage: lez [OPTIONS] [FILE]...
 
 META OPTIONS:
       --stdin    read file names from stdin

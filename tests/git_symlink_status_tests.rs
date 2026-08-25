@@ -24,7 +24,7 @@ impl TempGitRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_git_symlink_{prefix}_{}_{}",
+            "lez_git_symlink_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -104,12 +104,12 @@ fn git_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-fn run_lsr(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+fn run_lez(args: &[&str]) -> Output {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     Command::new(bin_path)
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
 // ----------------------------------------------------------------------------
@@ -133,7 +133,7 @@ fn test_modified_symlink_pointing_to_unchanged_file() {
     fs::remove_file(&link_path).unwrap();
     repo.create_symlink("target2.txt", "link.txt").unwrap();
 
-    let output = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -180,7 +180,7 @@ fn test_unmodified_symlink_pointing_to_modified_file() {
     // Modify the target file, keep symlink untouched
     fs::write(&target_path, b"modified content\n").unwrap();
 
-    let output = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -222,7 +222,7 @@ fn test_broken_symlink_git_status_without_panicking() {
         .unwrap();
 
     // Untracked broken symlink
-    let output = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -239,7 +239,7 @@ fn test_broken_symlink_git_status_without_panicking() {
     assert!(repo.git(&["add", "broken.txt"]));
     assert!(repo.git(&["commit", "-q", "-m", "add broken symlink"]));
 
-    let output_committed = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output_committed = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(output_committed.status.success());
     let stdout_committed = String::from_utf8_lossy(&output_committed.stdout);
     let link_line_committed = stdout_committed
@@ -256,7 +256,7 @@ fn test_broken_symlink_git_status_without_panicking() {
     repo.create_symlink("another_missing.txt", "broken.txt")
         .unwrap();
 
-    let output_modified = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output_modified = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(output_modified.status.success());
     let stdout_modified = String::from_utf8_lossy(&output_modified.stdout);
     let link_line_modified = stdout_modified
@@ -286,7 +286,7 @@ fn test_staged_symlink_additions_modifications_and_deletions() {
     // 4.1 Staged addition
     assert!(repo.git(&["add", "target1.txt", "target2.txt", "link.txt"]));
 
-    let output_staged_add = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output_staged_add = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(output_staged_add.status.success());
     let stdout_add = String::from_utf8_lossy(&output_staged_add.stdout);
     let link_line_add = stdout_add
@@ -305,7 +305,7 @@ fn test_staged_symlink_additions_modifications_and_deletions() {
     repo.create_symlink("target2.txt", "link.txt").unwrap();
     assert!(repo.git(&["add", "link.txt"]));
 
-    let output_staged_mod = run_lsr(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
+    let output_staged_mod = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
     assert!(output_staged_mod.status.success());
     let stdout_mod = String::from_utf8_lossy(&output_staged_mod.stdout);
     let link_line_mod = stdout_mod
@@ -324,7 +324,7 @@ fn test_staged_symlink_additions_modifications_and_deletions() {
     assert!(repo.git(&["add", "link.txt"]));
 
     // In JSON mode or git queries, verify deletion status
-    let json_output = run_lsr(&["--json", "-l", "--git", repo.path.to_str().unwrap()]);
+    let json_output = run_lez(&["--json", "-l", "--git", repo.path.to_str().unwrap()]);
     assert!(json_output.status.success());
 }
 
@@ -353,7 +353,7 @@ fn test_nested_symlink_in_subdirectory() {
 
     // Query inside nested directory directly
     let nested_dir = repo.path.join("nested");
-    let output = run_lsr(&["-l", "--git", "--color=never", nested_dir.to_str().unwrap()]);
+    let output = run_lez(&["-l", "--git", "--color=never", nested_dir.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -368,7 +368,7 @@ fn test_nested_symlink_in_subdirectory() {
 
     // Target remains clean
     let data_dir = repo.path.join("data");
-    let output_data = run_lsr(&["-l", "--git", "--color=never", data_dir.to_str().unwrap()]);
+    let output_data = run_lez(&["-l", "--git", "--color=never", data_dir.to_str().unwrap()]);
     assert!(output_data.status.success());
     let stdout_data = String::from_utf8_lossy(&output_data.stdout);
     let target_line = stdout_data
@@ -403,7 +403,7 @@ fn test_json_mode_symlink_git_status() {
     fs::remove_file(&link_path).unwrap();
     repo.create_symlink("other_file.txt", "sym.txt").unwrap();
 
-    let output = run_lsr(&["--json", "-l", "--git", repo.path.to_str().unwrap()]);
+    let output = run_lez(&["--json", "-l", "--git", repo.path.to_str().unwrap()]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

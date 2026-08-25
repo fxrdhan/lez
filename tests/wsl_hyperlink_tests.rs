@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use lsr::output::escape::{
+use lez::output::escape::{
     HYPERLINK_CLOSING, format_hyperlink_url, get_hyperlink_start_tag_with_distro,
 };
 
@@ -37,8 +37,8 @@ fn test_wsl_distro_linux_paths() {
         "file://wsl$/Debian/var/log/syslog"
     );
     assert_eq!(
-        format_hyperlink_url("/root/.config/lsr/theme.yml", Some("ArchLinux")),
-        "file://wsl$/ArchLinux/root/.config/lsr/theme.yml"
+        format_hyperlink_url("/root/.config/lez/theme.yml", Some("ArchLinux")),
+        "file://wsl$/ArchLinux/root/.config/lez/theme.yml"
     );
 }
 
@@ -69,8 +69,8 @@ fn test_wsl_windows_drive_mount_uppercase() {
         "file://C:\\Windows\\System32\\cmd.exe"
     );
     assert_eq!(
-        format_hyperlink_url("/mnt/D/Projects/lsr", Some("Ubuntu")),
-        "file://D:\\Projects\\lsr"
+        format_hyperlink_url("/mnt/D/Projects/lez", Some("Ubuntu")),
+        "file://D:\\Projects\\lez"
     );
 }
 

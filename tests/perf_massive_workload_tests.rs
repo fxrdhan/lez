@@ -21,7 +21,7 @@ impl MassiveTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_mass_{prefix}_{}_{}",
+            "lez_mass_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -92,14 +92,14 @@ impl Drop for MassiveTestDir {
     }
 }
 
-fn run_lsr(dir: &Path, args: &[&str]) -> (bool, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(dir: &Path, args: &[&str]) -> (bool, String, String) {
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .current_dir(dir)
         .args(args)
         .env("NO_COLOR", "1")
-        .env("LSR_COLORS", "reset")
+        .env("LEZ_COLORS", "reset")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     (
         output.status.success(),
@@ -113,14 +113,14 @@ fn massive_corpus_grid_and_oneline_listing() {
     let fixture = MassiveTestDir::new("massive_grid");
     fixture.populate_massive_corpus(1200);
 
-    let (g_success, g_out, g_err) = run_lsr(&fixture.path, &["-G", "--color=never"]);
-    assert!(g_success, "lsr -G failed: {g_err}");
+    let (g_success, g_out, g_err) = run_lez(&fixture.path, &["-G", "--color=never"]);
+    assert!(g_success, "lez -G failed: {g_err}");
     assert!(!g_out.is_empty());
     assert!(g_out.contains("data_0000.dat"));
     assert!(g_out.contains("data_1199.dat"));
 
-    let (o_success, o_out, o_err) = run_lsr(&fixture.path, &["-1", "--color=never"]);
-    assert!(o_success, "lsr -1 failed: {o_err}");
+    let (o_success, o_out, o_err) = run_lez(&fixture.path, &["-1", "--color=never"]);
+    assert!(o_success, "lez -1 failed: {o_err}");
     let line_count = o_out.lines().count();
     // At least 1200 + 10 empty + 1 sparse + 5 subfolders + special files
     assert!(
@@ -134,8 +134,8 @@ fn massive_corpus_summary_flag_accuracy() {
     let fixture = MassiveTestDir::new("massive_summary");
     fixture.populate_massive_corpus(800);
 
-    let (success, stdout, stderr) = run_lsr(&fixture.path, &["-l", "--summary", "--color=never"]);
-    assert!(success, "lsr -l --summary failed: {stderr}");
+    let (success, stdout, stderr) = run_lez(&fixture.path, &["-l", "--summary", "--color=never"]);
+    assert!(success, "lez -l --summary failed: {stderr}");
     assert!(stdout.contains("directories") && stdout.contains("files"));
     assert!(stdout.contains("data_0799.dat"));
 }
@@ -146,8 +146,8 @@ fn massive_corpus_print_total_flag() {
     fixture.populate_massive_corpus(500);
 
     let (success, stdout, stderr) =
-        run_lsr(&fixture.path, &["-l", "--print-total", "--color=never"]);
-    assert!(success, "lsr -l --print-total failed: {stderr}");
+        run_lez(&fixture.path, &["-l", "--print-total", "--color=never"]);
+    assert!(success, "lez -l --print-total failed: {stderr}");
     assert!(stdout.contains("total"));
 }
 
@@ -157,8 +157,8 @@ fn massive_corpus_size_and_blocks_sorting() {
     fixture.populate_massive_corpus(600);
 
     let (sz_success, sz_out, sz_err) =
-        run_lsr(&fixture.path, &["-1", "--sort=size", "-r", "--color=never"]);
-    assert!(sz_success, "lsr --sort=size failed: {sz_err}");
+        run_lez(&fixture.path, &["-1", "--sort=size", "-r", "--color=never"]);
+    assert!(sz_success, "lez --sort=size failed: {sz_err}");
     // Sparse file (10MB) should appear near the top of reverse size sort
     let lines: Vec<&str> = sz_out.lines().collect();
     assert!(lines.iter().any(|l| l.contains("sparse_large.bin")));
@@ -166,8 +166,8 @@ fn massive_corpus_size_and_blocks_sorting() {
     #[cfg(unix)]
     {
         let (bl_success, bl_out, bl_err) =
-            run_lsr(&fixture.path, &["-1", "--sort=blocks", "--color=never"]);
-        assert!(bl_success, "lsr --sort=blocks failed: {bl_err}");
+            run_lez(&fixture.path, &["-1", "--sort=blocks", "--color=never"]);
+        assert!(bl_success, "lez --sort=blocks failed: {bl_err}");
         assert!(!bl_out.is_empty());
     }
 }
@@ -177,8 +177,8 @@ fn massive_corpus_json_mode_completeness() {
     let fixture = MassiveTestDir::new("massive_json");
     fixture.populate_massive_corpus(400);
 
-    let (success, stdout, stderr) = run_lsr(&fixture.path, &["--json", "--color=never"]);
-    assert!(success, "lsr --json failed: {stderr}");
+    let (success, stdout, stderr) = run_lez(&fixture.path, &["--json", "--color=never"]);
+    assert!(success, "lez --json failed: {stderr}");
     let parsed: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
     assert!(parsed.is_ok(), "JSON was invalid: {stderr}");
     let arr = parsed.unwrap().as_array().unwrap().len();

@@ -3,8 +3,8 @@
 
 //! Flags whose value is optional must be given that value with an equals
 //! sign. Without that, clap treats the next word as the value, so a shell
-//! glob such as `lsr --color *.md` is rejected outright and
-//! `lsr -T --absolute /some/path` never gets its tree root.
+//! glob such as `lez --color *.md` is rejected outright and
+//! `lez -T --absolute /some/path` never gets its tree root.
 
 use std::fs;
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_optional_value_flags_{prefix}_{}_{}",
+            "lez_optional_value_flags_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -47,14 +47,14 @@ impl Drop for TempTestDir {
     }
 }
 
-fn run_lsr(args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(args)
         .output()
-        .expect("Failed to execute lsr binary")
+        .expect("Failed to execute lez binary")
 }
 
-/// The shape a shell hands us after expanding `lsr --color *.md`.
+/// The shape a shell hands us after expanding `lez --color *.md`.
 #[test]
 fn optional_value_flags_list_the_paths_a_glob_expands_to() {
     let fixture = TempTestDir::new("glob");
@@ -62,7 +62,7 @@ fn optional_value_flags_list_the_paths_a_glob_expands_to() {
     let second = fixture.create_file("beta.md");
 
     for flag in ["--color", "--colour", "--absolute", "--color-scale"] {
-        let output = run_lsr(&[flag, first.to_str().unwrap(), second.to_str().unwrap()]);
+        let output = run_lez(&[flag, first.to_str().unwrap(), second.to_str().unwrap()]);
 
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
@@ -86,7 +86,7 @@ fn absolute_tree_accepts_an_explicit_root() {
     // The root has to sit directly behind the flag: that adjacency is what
     // used to make clap read it as the flag's value.
     let root = fixture.path.to_str().unwrap();
-    let output = run_lsr(&["-T", "--absolute", root]);
+    let output = run_lez(&["-T", "--absolute", root]);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "--absolute -T failed: {stderr}");
@@ -118,14 +118,14 @@ fn attached_values_are_still_honoured() {
     let file = fixture.create_file("gamma.txt");
     let path = file.to_str().unwrap();
 
-    let absolute = run_lsr(&["--absolute=on", "--color=never", path]);
+    let absolute = run_lez(&["--absolute=on", "--color=never", path]);
     assert!(absolute.status.success());
     assert!(
         String::from_utf8_lossy(&absolute.stdout).contains(path),
         "--absolute=on should print the absolute path"
     );
 
-    let plain = run_lsr(&["--absolute=off", "--color=never", path]);
+    let plain = run_lez(&["--absolute=off", "--color=never", path]);
     assert!(plain.status.success());
     assert_eq!(
         String::from_utf8_lossy(&plain.stdout).trim(),
@@ -133,7 +133,7 @@ fn attached_values_are_still_honoured() {
         "an explicit path argument is echoed as given"
     );
 
-    let always = run_lsr(&["--color=always", path]);
+    let always = run_lez(&["--color=always", path]);
     assert!(always.status.success());
     assert!(
         String::from_utf8_lossy(&always.stdout).contains('\u{1b}'),
@@ -152,11 +152,11 @@ fn a_spaced_value_is_listed_as_a_path() {
     // value of --color and the whole directory was listed instead.
     fixture.create_file("bystander.txt");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .current_dir(&fixture.path)
         .args(["--color", "always"])
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

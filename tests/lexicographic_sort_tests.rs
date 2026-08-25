@@ -8,11 +8,11 @@
 
 use std::path::PathBuf;
 
-use lsr::fs::filter::{
+use lez::fs::filter::{
     FileFilter, GitIgnore, IgnoreCacheDir, IgnorePatterns, LocaleCollator, SortCase, SortField,
 };
-use lsr::fs::{DotFilter, File};
-use lsr::output::hidden_count::WarnHiddenMode;
+use lez::fs::{DotFilter, File};
+use lez::output::hidden_count::WarnHiddenMode;
 
 fn make_file(name: &str) -> File<'static> {
     File::from_args(PathBuf::from(name), None, None, false, false, false, None)

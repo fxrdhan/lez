@@ -3,7 +3,7 @@
 
 //! Adversarial test suite verifying multi-threaded output determinism,
 //! sorting stability, and byte-for-byte consistency across rapid successive
-//! invocations of `lsr`.
+//! invocations of `lez`.
 
 use std::collections::hash_map::DefaultHasher;
 use std::fs::{self, File as StdFile};
@@ -24,7 +24,7 @@ impl DeterminismTestDir {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lsr_det_{prefix}_{}_{}", std::process::id(), nanos));
+            std::env::temp_dir().join(format!("lez_det_{prefix}_{}_{}", std::process::id(), nanos));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("Failed to create temp test directory");
         Self { path }
@@ -123,18 +123,18 @@ impl Drop for DeterminismTestDir {
     }
 }
 
-fn run_lsr(dir: &Path, args: &[&str]) -> (String, u64) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lsr"))
+fn run_lez(dir: &Path, args: &[&str]) -> (String, u64) {
+    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .current_dir(dir)
         .args(args)
         .env("NO_COLOR", "1")
-        .env("LSR_COLORS", "reset")
+        .env("LEZ_COLORS", "reset")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
 
     assert!(
         output.status.success(),
-        "lsr command failed with status {}: stderr: {}",
+        "lez command failed with status {}: stderr: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
@@ -153,14 +153,14 @@ fn assert_deterministic_across_iterations(
     iterations: usize,
     context: &str,
 ) {
-    let (first_output, first_hash) = run_lsr(dir, args);
+    let (first_output, first_hash) = run_lez(dir, args);
     assert!(
         !first_output.is_empty(),
         "First output for {context} was empty"
     );
 
     for i in 1..iterations {
-        let (output, hash) = run_lsr(dir, args);
+        let (output, hash) = run_lez(dir, args);
         assert_eq!(
             first_hash, hash,
             "Determinism mismatch on iteration {i} for {context} (args: {args:?})\nExpected:\n{first_output}\nGot:\n{output}"
@@ -242,7 +242,7 @@ fn determinism_json_output() {
     let fixture = DeterminismTestDir::new("json");
     fixture.populate_diverse_corpus();
 
-    let (json_str, _) = run_lsr(&fixture.path, &["--json", "--color=never"]);
+    let (json_str, _) = run_lez(&fixture.path, &["--json", "--color=never"]);
     // Verify valid JSON
     let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("Valid JSON");
     assert!(parsed.is_array());

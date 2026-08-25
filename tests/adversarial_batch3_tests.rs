@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use lsr::fs::Dir;
-use lsr::fs::fields as f;
-use lsr::options::parser::get_command;
-use lsr::options::vars::Vars;
-use lsr::options::{Options, OptionsError};
+use lez::fs::Dir;
+use lez::fs::fields as f;
+use lez::options::parser::get_command;
+use lez::options::vars::Vars;
+use lez::options::{Options, OptionsError};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs::{self, File as StdFile};
@@ -39,7 +39,7 @@ impl Vars for MockVars {
 }
 
 fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
-    let mut full_args = vec!["lsr"];
+    let mut full_args = vec!["lez"];
     full_args.extend(args);
     get_command()
         .try_get_matches_from(full_args)
@@ -58,7 +58,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lsr_adv_{prefix}_{}_{}", std::process::id(), nanos));
+            std::env::temp_dir().join(format!("lez_adv_{prefix}_{}_{}", std::process::id(), nanos));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("Failed to create temp test directory");
         Self { path }
@@ -93,7 +93,7 @@ impl TempGitRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lsr_adv_git_{prefix}_{}_{}",
+            "lez_adv_git_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -101,7 +101,7 @@ impl TempGitRepo {
         fs::create_dir_all(&path).expect("Failed to create temp git repo dir");
 
         let repo = git2::Repository::init(&path).expect("Failed to init git repo");
-        let sig = git2::Signature::now("Lsr Challenger", "challenger@example.com").unwrap();
+        let sig = git2::Signature::now("Lez Challenger", "challenger@example.com").unwrap();
         let tree_id = {
             let mut index = repo.index().unwrap();
             index.write_tree().unwrap()
@@ -135,7 +135,7 @@ impl TempGitRepo {
         index.write().unwrap();
         let tree_id = index.write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
-        let sig = git2::Signature::now("Lsr Challenger", "challenger@example.com").unwrap();
+        let sig = git2::Signature::now("Lez Challenger", "challenger@example.com").unwrap();
         let head = repo.head().unwrap().peel_to_commit().unwrap();
         repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&head])
             .unwrap();
@@ -313,11 +313,11 @@ fn test_m1_strict_mode_conflicting_options() {
 
     // 3. Clap parser level conflict for --recurse with --treat-dirs-as-files
     let clap_res =
-        get_command().try_get_matches_from(["lsr", "--recurse", "--treat-dirs-as-files"]);
+        get_command().try_get_matches_from(["lez", "--recurse", "--treat-dirs-as-files"]);
     assert!(clap_res.is_err());
 
     // 4. Clap parser level conflict for --tree with --treat-dirs-as-files
-    let clap_res = get_command().try_get_matches_from(["lsr", "--tree", "--treat-dirs-as-files"]);
+    let clap_res = get_command().try_get_matches_from(["lez", "--tree", "--treat-dirs-as-files"]);
     assert!(clap_res.is_err());
 
     // 5. -a -a -a (3+ all flags)
@@ -344,7 +344,7 @@ fn test_m1_strict_mode_conflicting_options() {
 
 #[test]
 fn test_m1_strict_mode_cli_process_exit_codes() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("exit_codes");
     let temp_str = temp.path.to_str().unwrap();
 
@@ -353,7 +353,7 @@ fn test_m1_strict_mode_cli_process_exit_codes() {
         .args(["-l", temp_str])
         .env("EZA_STRICT", "1")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert_eq!(output.status.code(), Some(0));
 
     // Error case in strict mode: --binary without -l -> Exit 3 (OPTIONS_ERROR)
@@ -361,7 +361,7 @@ fn test_m1_strict_mode_cli_process_exit_codes() {
         .args(["--binary", temp_str])
         .env("EZA_STRICT", "1")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert_eq!(output.status.code(), Some(3));
 
     // Same case without strict mode -> Exit 0
@@ -370,7 +370,7 @@ fn test_m1_strict_mode_cli_process_exit_codes() {
         .env_remove("EZA_STRICT")
         .env_remove("EXA_STRICT")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert_eq!(output.status.code(), Some(0));
 
     // EXA_STRICT fallback in strict mode -> Exit 3
@@ -379,7 +379,7 @@ fn test_m1_strict_mode_cli_process_exit_codes() {
         .env_remove("EZA_STRICT")
         .env("EXA_STRICT", "1")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert_eq!(output.status.code(), Some(3));
 
     // Conflicting args in strict mode -> Exit 3
@@ -387,7 +387,7 @@ fn test_m1_strict_mode_cli_process_exit_codes() {
         .args(["-l", "-x", temp_str])
         .env("EZA_STRICT", "1")
         .output()
-        .expect("Failed to execute lsr binary");
+        .expect("Failed to execute lez binary");
     assert_eq!(output.status.code(), Some(3));
 }
 
@@ -569,7 +569,7 @@ fn test_m3_git_scoped_queries_nested_structure() {
     let pkg_c_deep_path = repo.path.join("pkg_c/deep/nested");
 
     // Scenario 1: Query scoped strictly to pkg_a
-    let git_cache_a = lsr::fs::feature::git::GitCache::from_iter(vec![pkg_a_path.clone()]);
+    let git_cache_a = lez::fs::feature::git::GitCache::from_iter(vec![pkg_a_path.clone()]);
     assert!(git_cache_a.has_anything_for(&pkg_a_path));
 
     let status_a1 = git_cache_a.get(&sub_a_file1, false);
@@ -590,7 +590,7 @@ fn test_m3_git_scoped_queries_nested_structure() {
     assert!(status_root.unstaged == f::GitStatus::NotModified);
 
     // Scenario 2: Multi-path scoped query: pkg_b and pkg_c/deep/nested
-    let git_cache_bc = lsr::fs::feature::git::GitCache::from_iter(vec![
+    let git_cache_bc = lez::fs::feature::git::GitCache::from_iter(vec![
         pkg_b_path.clone(),
         pkg_c_deep_path.clone(),
     ]);
@@ -606,7 +606,7 @@ fn test_m3_git_scoped_queries_nested_structure() {
     assert!(status_a_in_bc.unstaged == f::GitStatus::NotModified);
 
     // Scenario 3: Repo root fallback
-    let git_cache_all = lsr::fs::feature::git::GitCache::from_iter(vec![repo.path.clone()]);
+    let git_cache_all = lez::fs::feature::git::GitCache::from_iter(vec![repo.path.clone()]);
     assert!(git_cache_all.get(&root_file, false).unstaged == f::GitStatus::Modified);
     assert!(git_cache_all.get(&sub_a_file1, false).unstaged == f::GitStatus::Modified);
     assert!(git_cache_all.get(&sub_b_file1, false).unstaged == f::GitStatus::Modified);
@@ -633,7 +633,7 @@ fn test_m3_git_scoped_queries_staged_and_ignored() {
     let file_ignored = repo.create_file("sub_dir/temp.ignored", b"junk");
 
     let sub_dir_path = repo.path.join("sub_dir");
-    let git_cache = lsr::fs::feature::git::GitCache::from_iter(vec![sub_dir_path.clone()]);
+    let git_cache = lez::fs::feature::git::GitCache::from_iter(vec![sub_dir_path.clone()]);
 
     let staged_status = git_cache.get(&file_staged, false);
     assert!(staged_status.staged == f::GitStatus::Modified);
@@ -644,7 +644,7 @@ fn test_m3_git_scoped_queries_staged_and_ignored() {
 
 #[test]
 fn test_m3_git_cli_end_to_end_execution() {
-    let bin_path = env!("CARGO_BIN_EXE_lsr");
+    let bin_path = env!("CARGO_BIN_EXE_lez");
     let repo = TempGitRepo::new("cli_e2e");
 
     let sub_a_file = repo.create_file("folder_a/tracked.txt", b"initial\n");
@@ -655,11 +655,11 @@ fn test_m3_git_cli_end_to_end_execution() {
 
     let folder_a = repo.path.join("folder_a");
 
-    // Run lsr --git -l on folder_a
+    // Run lez --git -l on folder_a
     let output = Command::new(bin_path)
         .args(["--git", "-l", folder_a.to_str().unwrap()])
         .output()
-        .expect("Failed to run lsr CLI");
+        .expect("Failed to run lez CLI");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -856,7 +856,7 @@ fn test_m3_git_scoped_queries_rename_and_deletion() {
     }
 
     let sub_a_path = repo.path.join("sub_a");
-    let git_cache = lsr::fs::feature::git::GitCache::from_iter(vec![sub_a_path.clone()]);
+    let git_cache = lez::fs::feature::git::GitCache::from_iter(vec![sub_a_path.clone()]);
 
     // file1 is deleted (unstaged)
     let s1 = git_cache.get(&file1, false);
@@ -880,7 +880,7 @@ fn test_m3_git_scoped_queries_deep_pathspec() {
     fs::write(&root_file, b"root modified\n").unwrap();
 
     let deep_dir = repo.path.join("d1/d2/d3/d4/d5/d6/d7");
-    let git_cache = lsr::fs::feature::git::GitCache::from_iter(vec![deep_dir.clone()]);
+    let git_cache = lez::fs::feature::git::GitCache::from_iter(vec![deep_dir.clone()]);
 
     // Both files in deep_dir should be detected as modified
     assert!(git_cache.get(&deep_file, false).unstaged == f::GitStatus::Modified);
@@ -899,7 +899,7 @@ fn test_m3_git_scoped_queries_relative_and_dot_dot_paths() {
 
     // Query with redundant "." and ".." in path
     let weird_path = repo.path.join("sub_a/../sub_a/./");
-    let git_cache = lsr::fs::feature::git::GitCache::from_iter(vec![weird_path.clone()]);
+    let git_cache = lez::fs::feature::git::GitCache::from_iter(vec![weird_path.clone()]);
 
     // When querying with the path constructed under weird_path (as DirEntry does when listing weird_path)
     let queried_file = weird_path.join("file.txt");

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn fixture(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lsr-bl-{name}"));
+    let root = std::env::temp_dir().join(format!("lez-bl-{name}"));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("fixture directory");
     fs::write(root.join("file.txt"), b"some bytes to allocate a block for").expect("fixture file");
@@ -20,13 +20,13 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn run_with_colors(colors: &str, root: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lsr"))
-        .env("LSR_COLORS", colors)
+    Command::new(env!("CARGO_BIN_EXE_lez"))
+        .env("LEZ_COLORS", colors)
         .args(["-l", "-S", "--no-permissions", "--no-user", "--no-time"])
         .arg("--color=always")
         .arg(root.to_str().unwrap())
         .output()
-        .expect("failed to execute lsr")
+        .expect("failed to execute lez")
 }
 
 /// The style set for `bl` has to reach the rendered column.
@@ -71,21 +71,21 @@ fn different_bl_entries_render_differently() {
 fn the_bl_entry_leaves_the_file_size_column_alone() {
     let root = fixture("scoped");
 
-    let with_bl = Command::new(env!("CARGO_BIN_EXE_lsr"))
-        .env("LSR_COLORS", "bl=31")
+    let with_bl = Command::new(env!("CARGO_BIN_EXE_lez"))
+        .env("LEZ_COLORS", "bl=31")
         .args(["-l", "--no-permissions", "--no-user", "--no-time"])
         .arg("--color=always")
         .arg(root.to_str().unwrap())
         .output()
-        .expect("failed to execute lsr");
+        .expect("failed to execute lez");
 
-    let without_bl = Command::new(env!("CARGO_BIN_EXE_lsr"))
-        .env("LSR_COLORS", "")
+    let without_bl = Command::new(env!("CARGO_BIN_EXE_lez"))
+        .env("LEZ_COLORS", "")
         .args(["-l", "--no-permissions", "--no-user", "--no-time"])
         .arg("--color=always")
         .arg(root.to_str().unwrap())
         .output()
-        .expect("failed to execute lsr");
+        .expect("failed to execute lez");
 
     assert_eq!(
         String::from_utf8_lossy(&with_bl.stdout),

@@ -5,15 +5,15 @@ SPDX-License-Identifier: EUPL-1.2
 
 # Upstream Triage & Compatibility Reference
 
-> **Lineage**: `exa` (original by Benjamin Sago) ➔ `eza` (community fork) ➔ `lsr` (by fxrdhan).
-> `lsr` ports unmerged `eza-community/eza` work by hand; it does not synchronize directly with upstream.
+> **Lineage**: `exa` (original by Benjamin Sago) ➔ `eza` (community fork) ➔ `lez` (by fxrdhan).
+> `lez` ports unmerged `eza-community/eza` work by hand; it does not synchronize directly with upstream.
 
 ---
 
 ## 1. Upstream Triage Overview
 
 **Snapshot taken 2026-08-24 / 2026-08-25**, against 149 open upstream PRs and 286 open upstream issues.
-- **PRs (149 total)**: 106 PRs were already ported to `lsr`. 1 PR was ported directly ([#1924](https://github.com/eza-community/eza/pull/1924)), and the other 42 were audited and deliberately declined.
+- **PRs (149 total)**: 106 PRs were already ported to `lez`. 1 PR was ported directly ([#1924](https://github.com/eza-community/eza/pull/1924)), and the other 42 were audited and deliberately declined.
 - **Issues (286 total)**: All 98 open `type: bug` and 180 `type: feature` / `chore` / `docs` issues were audited against our binary.
 
 ### Issue Audit Order
@@ -32,7 +32,7 @@ Work an unread upstream report in this order:
 |---|---|
 | **Dependency bumps.** We maintain our own `Cargo.lock` and pins, several already ahead of upstream. | [#1543](https://github.com/eza-community/eza/pull/1543), [#1554](https://github.com/eza-community/eza/pull/1554), [#1575](https://github.com/eza-community/eza/pull/1575), [#1607](https://github.com/eza-community/eza/pull/1607), [#1659](https://github.com/eza-community/eza/pull/1659), [#1660](https://github.com/eza-community/eza/pull/1660), [#1666](https://github.com/eza-community/eza/pull/1666), [#1703](https://github.com/eza-community/eza/pull/1703), [#1745](https://github.com/eza-community/eza/pull/1745), [#1749](https://github.com/eza-community/eza/pull/1749) |
 | **Infrastructure specific to eza.** Crane migration, the `deb.gierens.de` APT matrix, Miri, `cargo shear`, their RISC-V and musl release targets, their cross-build containers. | [#462](https://github.com/eza-community/eza/pull/462), [#971](https://github.com/eza-community/eza/pull/971), [#972](https://github.com/eza-community/eza/pull/972), [#1537](https://github.com/eza-community/eza/pull/1537), [#1538](https://github.com/eza-community/eza/pull/1538), [#1629](https://github.com/eza-community/eza/pull/1629), [#1753](https://github.com/eza-community/eza/pull/1753), [#1777](https://github.com/eza-community/eza/pull/1777), [#1861](https://github.com/eza-community/eza/pull/1861), [#1869](https://github.com/eza-community/eza/pull/1869), [#1890](https://github.com/eza-community/eza/pull/1890), [#1901](https://github.com/eza-community/eza/pull/1901) |
-| **eza's own branding and README.** [#1713](https://github.com/eza-community/eza/pull/1713) renames leftover `exa` strings, which was done for `lsr` in PR #37. | [#1625](https://github.com/eza-community/eza/pull/1625), [#1713](https://github.com/eza-community/eza/pull/1713), [#1755](https://github.com/eza-community/eza/pull/1755), [#1756](https://github.com/eza-community/eza/pull/1756), [#1914](https://github.com/eza-community/eza/pull/1914) |
+| **eza's own branding and README.** [#1713](https://github.com/eza-community/eza/pull/1713) renames leftover `exa` strings, which was done for `lez` in PR #37. | [#1625](https://github.com/eza-community/eza/pull/1625), [#1713](https://github.com/eza-community/eza/pull/1713), [#1755](https://github.com/eza-community/eza/pull/1755), [#1756](https://github.com/eza-community/eza/pull/1756), [#1914](https://github.com/eza-community/eza/pull/1914) |
 | **Already covered by a port we took.** [#913](https://github.com/eza-community/eza/pull/913) ← [#925](https://github.com/eza-community/eza/pull/925) (WSL hyperlinks), [#1596](https://github.com/eza-community/eza/pull/1596) ← [#1923](https://github.com/eza-community/eza/pull/1923) (stdin), [#1838](https://github.com/eza-community/eza/pull/1838)/[#1840](https://github.com/eza-community/eza/pull/1840)/[#1844](https://github.com/eza-community/eza/pull/1844) ← [#1848](https://github.com/eza-community/eza/pull/1848) (all three are the same non-UTF-8 `--time-style` fix), [#1233](https://github.com/eza-community/eza/pull/1233)/[#1504](https://github.com/eza-community/eza/pull/1504) ← commit `cfe0abb7`, which removed the Windows `_`-prefix filter outright. | [#913](https://github.com/eza-community/eza/pull/913), [#1233](https://github.com/eza-community/eza/pull/1233), [#1504](https://github.com/eza-community/eza/pull/1504), [#1596](https://github.com/eza-community/eza/pull/1596), [#1838](https://github.com/eza-community/eza/pull/1838), [#1840](https://github.com/eza-community/eza/pull/1840), [#1844](https://github.com/eza-community/eza/pull/1844) |
 | **Dead or disproportionate.** [#974](https://github.com/eza-community/eza/pull/974) is ±25k lines of churn under `CHANGES_REQUESTED`; [#1765](https://github.com/eza-community/eza/pull/1765) touches 744 files; [#936](https://github.com/eza-community/eza/pull/936) fixes clippy warnings we do not have; [#575](https://github.com/eza-community/eza/pull/575) waits on an upstream design decision that never came; [#1658](https://github.com/eza-community/eza/pull/1658) conflicts. | [#575](https://github.com/eza-community/eza/pull/575), [#936](https://github.com/eza-community/eza/pull/936), [#974](https://github.com/eza-community/eza/pull/974), [#1658](https://github.com/eza-community/eza/pull/1658), [#1765](https://github.com/eza-community/eza/pull/1765) |
 | **Product decisions, not oversights.** [#770](https://github.com/eza-community/eza/pull/770) (`--no-header`) needs a config file for option defaults, which we do not have; [#1903](https://github.com/eza-community/eza/pull/1903) was solved our own way in PR #26. | [#770](https://github.com/eza-community/eza/pull/770), [#1804](https://github.com/eza-community/eza/pull/1804), [#1903](https://github.com/eza-community/eza/pull/1903) |
@@ -63,9 +63,9 @@ Work an unread upstream report in this order:
 | [#844](https://github.com/eza-community/eza/issues/844), [#1214](https://github.com/eza-community/eza/issues/1214), [#1378](https://github.com/eza-community/eza/issues/1378), [#1710](https://github.com/eza-community/eza/issues/1710) | Performance at 200k+ files. Does not reproduce at 12k; see issue #59. |
 | [#337](https://github.com/eza-community/eza/issues/337), [#404](https://github.com/eza-community/eza/issues/404), [#853](https://github.com/eza-community/eza/issues/853), [#1025](https://github.com/eza-community/eza/issues/1025), [#1104](https://github.com/eza-community/eza/issues/1104), [#1220](https://github.com/eza-community/eza/issues/1220), [#1665](https://github.com/eza-community/eza/issues/1665), [#1769](https://github.com/eza-community/eza/issues/1769) | Windows. Settled — see issue #57. |
 
-### Feature Requests Already Delivered in `lsr`
+### Feature Requests Already Delivered in `lez`
 
-| Upstream ID | What answers it in `lsr` |
+| Upstream ID | What answers it in `lez` |
 |---|---|
 | [#341](https://github.com/eza-community/eza/issues/341), [#1847](https://github.com/eza-community/eza/issues/1847) | `--summary`, `--print-total` |
 | [#420](https://github.com/eza-community/eza/issues/420) | `--ignore-submodule-contents` |
@@ -103,22 +103,22 @@ Work an unread upstream report in this order:
 
 *Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` yes, `-N` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no), [#1466](https://github.com/eza-community/eza/issues/1466) (`--context` yes, MCS translation no), [#1571](https://github.com/eza-community/eza/issues/1571) (`--flags` on Mac/BSD/Windows, no Linux `lsattr`), [#1642](https://github.com/eza-community/eza/issues/1642) (`--blocksize` in bytes, no block count), [#1735](https://github.com/eza-community/eza/issues/1735) (csv/sqlite yes, parquet/hdf5/npy no), [#1768](https://github.com/eza-community/eza/issues/1768) (`--show-dotfiles` yes, the other two axes no), [#1823](https://github.com/eza-community/eza/issues/1823) (`--git-glyphs` yes, choosing the glyph no).
 
-### Reproduced and Fixed in `lsr`
+### Reproduced and Fixed in `lez`
 
 | Upstream ID | What was fixed |
 |---|---|
 | [#509](https://github.com/eza-community/eza/issues/509), [#1743](https://github.com/eza-community/eza/issues/1743), [#1448](https://github.com/eza-community/eza/issues/1448), [#1892](https://github.com/eza-community/eza/issues/1892) | `natord` was the only comparator, breaking `LC_ALL=C` hex sort. `--sort=lexicographic` added for plain comparison. |
 | [#1868](https://github.com/eza-community/eza/issues/1868) | `--code` skipped dotfiles and `-a` did nothing. Fixed to count correctly with `--loc`. |
-| [#922](https://github.com/eza-community/eza/issues/922), [#558](https://github.com/eza-community/eza/issues/558) | Syscall overhead (buffered stdout write and unnecessary stat when colors were off). Reduced 5000 stats to 1 on `lsr -1 dir \| wc -l`. |
+| [#922](https://github.com/eza-community/eza/issues/922), [#558](https://github.com/eza-community/eza/issues/558) | Syscall overhead (buffered stdout write and unnecessary stat when colors were off). Reduced 5000 stats to 1 on `lez -1 dir \| wc -l`. |
 | [#1642](https://github.com/eza-community/eza/issues/1642) (part) | `bl` in `LS_COLORS` parsed but never read; fixed to use block palette. |
 | [#765](https://github.com/eza-community/eza/issues/765) | `mh` accepted and properly parsed. |
-| [#1002](https://github.com/eza-community/eza/issues/1002), [#745](https://github.com/eza-community/eza/issues/745) | High stat overhead on empty directory glyph probing over FUSE/NFS. `LSR_NO_EMPTY_DIR_ICON` avoids probing. |
+| [#1002](https://github.com/eza-community/eza/issues/1002), [#745](https://github.com/eza-community/eza/issues/745) | High stat overhead on empty directory glyph probing over FUSE/NFS. `LEZ_NO_EMPTY_DIR_ICON` avoids probing. |
 
 ### Reproduced but Still Open / By Design
 
 | Upstream ID | Description & Status |
 |---|---|
-| [#728](https://github.com/eza-community/eza/issues/728) | `lsr -1 '/p/a b/c d.txt'` prints `'/p/a b'/'c d.txt'` (each component quoted separately). Pastes back correctly; cosmetic. |
+| [#728](https://github.com/eza-community/eza/issues/728) | `lez -1 '/p/a b/c d.txt'` prints `'/p/a b'/'c d.txt'` (each component quoted separately). Pastes back correctly; cosmetic. |
 | [#1498](https://github.com/eza-community/eza/issues/1498) | `--total-size` walks hidden directories regardless of `--all`. Arguably expected since directory total size includes hidden files. |
 | [#1919](https://github.com/eza-community/eza/issues/1919) | `.m` renders as C icon (shared with Objective-C / MATLAB; no MATLAB glyph in Nerd Fonts). |
 
@@ -126,9 +126,9 @@ Work an unread upstream report in this order:
 
 | Upstream ID | Description & Proof for Declining |
 |---|---|
-| [#693](https://github.com/eza-community/eza/issues/693) | **`--hyperlink` "eating characters" when saved to shell variable.** Not a bug in `lsr`. Uses standard GNU ls (coreutils 9.11) OSC 8 terminator (`ESC \`: `^[]8;;file://…/1^[\1^[]8;;^[\`). The character eating occurs when `echo` interprets `\a`, `\b`, `\t` from combining the terminator with the leading letter of the filename. Changing to BEL would deviate from GNU ls standard. |
-| [#1360](https://github.com/eza-community/eza/issues/1360) | **Subdirectory `.gitignore` behavior.** In `lsr`, explicit target arguments always display their contents (`tests/gitignore_explicit_target_tests.rs` locks in "explicit arguments override filters"). Proposed `--no-git-ignore` was also declined upstream. |
-| [#519](https://github.com/eza-community/eza/issues/519) | **96G vs 103G.** By design, not an oversight. `lsr` defaults to SI units ($1000^3$), while `--binary` gives 96Gi ($1024^3$). Matches upstream standard and documentation. |
+| [#693](https://github.com/eza-community/eza/issues/693) | **`--hyperlink` "eating characters" when saved to shell variable.** Not a bug in `lez`. Uses standard GNU ls (coreutils 9.11) OSC 8 terminator (`ESC \`: `^[]8;;file://…/1^[\1^[]8;;^[\`). The character eating occurs when `echo` interprets `\a`, `\b`, `\t` from combining the terminator with the leading letter of the filename. Changing to BEL would deviate from GNU ls standard. |
+| [#1360](https://github.com/eza-community/eza/issues/1360) | **Subdirectory `.gitignore` behavior.** In `lez`, explicit target arguments always display their contents (`tests/gitignore_explicit_target_tests.rs` locks in "explicit arguments override filters"). Proposed `--no-git-ignore` was also declined upstream. |
+| [#519](https://github.com/eza-community/eza/issues/519) | **96G vs 103G.** By design, not an oversight. `lez` defaults to SI units ($1000^3$), while `--binary` gives 96Gi ($1024^3$). Matches upstream standard and documentation. |
 | [#1548](https://github.com/eza-community/eza/issues/1548) | **Control-character quoting not shell-compatible.** Proposing a `--quote-style eza\|posix` flag is a product/design decision, not an unhandled defect. (Distinct from [#1482](https://github.com/eza-community/eza/issues/1482) which was fixed in PR #52). |
 
 ### General Declined / Not Applicable Issues
