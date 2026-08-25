@@ -8,6 +8,314 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.24.0] - 2026-08-25
+
+### Bug Fixes
+
+- Fix --dereference --sort=size
+- Carry file sizes to next unit at threshold (upstream #1908)
+- Hyperlink full explicit paths (upstream #1907)
+- Prevent --classify from consuming positional file paths (upstream #1894)
+- Prevent default flags from triggering strict mode conflicts (upstream #1882)
+- Require equals for optional value flags --icons and --hyperlink (upstream #1880, #1865)
+- Support formatting pre-unix epoch timestamps without panic (upstream #1826)
+- Return error instead of panicking on non-UTF-8 --time-style value (upstream #1848)
+- Fix cross-platform test assertions and format workflow yaml
+- Configure USERPROFILE alongside HOME for Windows test environments
+- Prefix unused meta_obj variable in Windows targets
+- Gate POSIX group tests to unix platforms
+- Gate length_test module to unix platforms
+- Gate Unix path assertions in config and hyperlink tests
+- Account for Windows FILETIME resolution in pre-epoch tests
+- Account for Windows filesystem limitations in batch5 json tests
+- Gate POSIX special character filenames to unix platforms
+- Allow unused imports in m1 tests on non-unix targets
+- Ensure ThemeConfig::to_theme returns defaults when location is not readable
+- Use git2 Repository for sandboxed git integration tests
+- Treat empty-target symlinks as broken symlinks rather than directories (eza#1716)
+- Allow unused items on non-unix targets in symlink and recurse tests
+- Ensure /dev/null as stdin without --stdin flag defaults to positional args (eza#1726)
+- Support --across sorting in --long --grid view (eza#1647)
+- Fix -Ta max recurse handling by ignoring all_all entries (eza#1695)
+- Detect mounts even without /proc using device ID fallback (eza#1742)
+- Make LSR_COLORS/EZA_COLORS=reset clear built-in styles (eza#1718)
+- Prevent standard LS_COLORS indicators from parsing as extensions (eza#1856)
+- Separate -F and --classify in zsh completion (eza#1780, #1825)
+- Decouple icons=auto terminal detection from COLUMNS (eza#1849, eza#1843)
+- Align sort aliases so newest/new sorts newest-first (eza#1853)
+- Round before unit-threshold check in size and blocks rendering
+- Handle non-Unicode paths when reorienting on Windows
+- Percent-encode unsafe URI path characters in hyperlinks
+- Use nixfmt instead of deprecated nixfmt-rfc-style alias
+- Require explicit --stdin flag to read filenames from standard input
+- Pin palette_derive directly to keep by_address out
+- Substitute version string in mangen recipe
+- Validate custom --time-style format strings up front
+- Ignore stream errors instead of panicking
+- Keep --only-files working under tree recursion
+- Render timestamps with their historical zone offsets
+- Keep unit colours outside the size gradient
+- Exclude parent directory from recursive size calculations
+- Deduplicate hardlinks during recursive directory size calculation
+- Suppress symlink targets in one-line and piped mode
+- Suppress positional directory expansion when only-files flag is set
+- Evaluate block comment openers before line comment tokens
+- Remove legacy windows underscore prefix hidden filter
+- Add bounded retry cap to avoid infinite loop on ERANGE
+- Ensure recursive size tracking is portable on stable windows toolchains
+- Remove unused windows MetadataExt imports and simplify error mapping
+- Inspect symlink git status directly without dereferencing target
+- Sort positional CLI arguments according to active sort field
+- Prevent .git directory from being treated as sub-repository under --git-repos
+- Display gitignored target directories and support --no-git override
+- Make path-sort case fixture locale- and filesystem-independent
+- Attribute icon spacing errors to the variable that was read
+- Exit with PERMISSION_DENIED when directories are skipped
+- Add the flags missing from the static shells
+- Resync the eza compatibility copies and stop double-claiming
+- Stop drawing connectors for levels that have no row
+- Keep the size-column helper outside the unix gate
+- Close the branch on the last archive entry
+- Require an equals sign for optional flag values
+- Mark files a lone `*` in .gitignore hides
+- Quote file names so a shell reads them back
+- Complete equals-only values behind the sign in bash
+- Gate the fish value lists on an equals sign
+- Stop nushell rewriting the equals-only flags
+- Complete equals-only values as whole words in pwsh
+- Point the generator at the binary this project builds
+- Spell out the equals-only flags in the generator config
+- Match LS_COLORS file extensions case-insensitively
+- Support discrete fixed color scale for file age
+- Fix CJK month padding, December width, and date ordering
+- Follow the link when stating a path that ends in a dot
+- Confirm an exotic readdir file type with a stat
+- Measure the size gradient in orders of magnitude
+- Generate trycmd cases for the binary this project builds
+- Let --all reach the hidden files the code walk counts
+- Honour the bl entry for the allocated-size column
+
+### Documentation
+
+- Clean up branding and translate all docs to English
+- Replace all eza occurrences with lsr in README and INSTALL
+- Update --dereference description for sorting
+- Add lsr manual pages and update build recipes
+- Add granular commit rule to AGENTS.md
+- Update documentation and man pages for batch 3 features
+- Update documentation, man pages, and shell completions for batch 4 features
+- Update documentation and man pages for batch 5 features
+- Add --json option to README.md
+- Update documentation and man pages for ported features
+- Sync guide with current architecture and test layers
+- Document Nix binary cache with CI benchmarks
+- Fix misspellings in doc comments and trace log
+- Use classic cross-page notation in see-also sections
+- Drop the unimplemented archive inspection claim
+- Add a JSON schema for theme.yml
+- Record multi-OS porting lessons from PR #32
+- Remove obsolete TEST_INFRA.md
+- Refresh readme with comprehensive cli options and clean styling
+- Document symlink target suppression in oneline view
+- Document Gw worktree branch colour and schema key
+- List git-glyphs flag, path sort aliases, and glob updates
+- Replace upstream package instructions with working ones
+- Route vulnerability reports to this repository
+- Direct enforcement reports to this project's maintainer
+- Rebrand the contributor guide from eza to lsr
+- Credit the exa and eza lineage
+- Document --follow-symlinks
+- Correct --ignore-glob-ci and document --spacing and --tags
+- Correct the struct name and completion paths
+- Record the 0.24.0-alpha.1 development series
+- Record which upstream PRs are declined, and why
+- Drop a duplicated flag entry and correct the config search order
+- Record the EZA_WINDOWS_ATTRIBUTES fallback
+- Drop the eza-named man page sources
+- Write down the rules powertest.yaml has to follow
+- Move the multi-OS porting lessons out of the repo
+- Record what the upstream issue sweep found
+- Record the upstream feature-issue sweep
+- Correct the sweep entries this branch settled
+- Record the icon work and stop over-claiming on 558
+- Note that nix flake check cannot pass on macOS
+
+### Features
+
+- Initialize lsr - ls in Rust with extended features
+- Add --sort=blocks option
+- Port batch 1 upstream fixes and features (R1-R6)
+- Support ls-compatible -t sorting without field (upstream #1915)
+- Add syntax-highlighted colors to cli help (upstream #1884)
+- Honor child git repository .gitignore rules during recursive traversal (upstream #1808)
+- Add --print-total flag to display total entry counts (upstream #1851)
+- Add path sort field for full path sorting (upstream #1836)
+- Add --json structured JSON output format (upstream #1898)
+- Decode com.apple.ResourceFork extended attributes on macOS (upstream #1541)
+- Display mount root path alongside mount info (upstream #1463)
+- Support directorynames styling in theme.yml (upstream #1806)
+- Add Apple icon for macOS Icon\r files (upstream #1824)
+- Add relative-recent time style support (upstream #1731)
+- Support tilde expansion in config and theme paths (upstream #1852, upstream #1810)
+- Automatically imply group column when smart-group is active (upstream #1854)
+- Add Janet language support in LOC engine and icons (upstream #1711)
+- Support case-insensitive ignore glob matching (upstream #1803)
+- Fix --level depth limit with explicit path arguments (eza#1717)
+- Support multi-codepoint emojis in theme.yml glyph fields (eza#1655)
+- Add --spacing parameter to configure column spacing (eza#1558)
+- Add bicep and slnx extension icons (eza#1747, #1722)
+- Respect system/user/XDG settings for special directory icons (eza#1679)
+- Add support for macOS color tags on macOS and other systems (eza#1631)
+- Decode Linux security.capability extended attributes (eza#1624)
+- Add Ada language support and filetype mappings (eza#1606)
+- Add Dev directory, .eclass, and .astro Nerd Font icons (eza#1626, #1759, #1074)
+- Accept 'r', 'm', and 'mod' as aliases for --time modified (eza#1775)
+- Add LSR_MAX_LUMINANCE env var like LSR_MIN_LUMINANCE (eza#1380)
+- Make hyperlinks usable inside a WSL environment (eza#925)
+- Add --no-symlink-targets flag (eza#1805)
+- Distinguish mount point directories with 'D' indicator (eza#1741)
+- Add --summary flag to display total counts summary (eza#1709)
+- Implement --since time-based file filtering flag (eza#1687)
+- Add -S / --blocks flag for filesystem block counts (eza#1667)
+- Add --show-dotfiles flag
+- Classify cb7 comic archives as images
+- Add westwood game asset extension icons
+- Add --utc flag and timezone abbreviations for %Z
+- Support --total-size on Windows
+- Add --mime-types flag for MIME-based file type inspection
+- Support locale-aware unicode sorting with icu collator
+- Allow overriding default file and directory icons in theme
+- Normalize -t argument to sort by age
+- Restore colour-scale compatibility aliases
+- Paint classify indicators with the punctuation style
+- Render themed icons when colours are disabled
+- Support ln=target in LS_COLORS
+- Add --quotes flag and quoting-style environment variable
+- Add --cachedir-ignore to hide CACHEDIR.TAG directories
+- Add --no-extended to hide the xattr marker
+- Classify Android file types
+- Report executable files via PATHEXT
+- Highlight Btrfs subvolume directories
+- Add --warn-hidden to report filtered-out entries
+- Add --ignore-submodule-contents to prune recursion
+- Add --inspect-archives for tar archives
+- List tar entries below the archive in long view
+- Synchronize recursive directory size with active dotfile filter
+- Support path-aware ignore glob patterns containing directory separators
+- Add relative-path aliases for path sort field
+- Detect git worktrees and provide distinct branch styling
+- Add --git-glyphs flag for Nerd Font status icons
+- Colour archive entry names by file type
+- Expand the wildcards the shell leaves alone
+- Honour the LS_COLORS ca entry for file capabilities
+- Add a lexicographic name sort
+- Honour the mh entry for multiply-linked files
+- Let a listing skip the empty-directory check
+
+### Miscellaneous Tasks
+
+- Cache flake env with nix-direnv
+- Move cmake and libz-dev to build-packages
+- Bump actions to node24-compatible versions
+- Remove sponsor routing pointing at the upstream maintainer
+- Ignore lsr build artefacts instead of eza ones
+- Rename nix/eza.nix to nix/lsr.nix
+- Drop the loc and code entries that have no snapshots
+- Update uutils_term_grid to 0.8.0
+- Name this package lsr where the name is ours
+- Drop the powertest input nothing consumes
+
+### Performance
+
+- Look up sibling files in constant time (upstream #1905)
+- Scope git status queries to listed file paths (upstream #1899)
+- Streamline flake checks and add inspect-archives to buildFeatures
+- Stop reading a whole directory to ask whether it is empty
+- Filter mount points by name before canonicalising
+- Only walk inside untracked directories when the listing shows them
+- Buffer stdout instead of writing one line at a time
+- Stop stating every file to pick a colour there is none of
+
+### Refactor
+
+- Rename HTML5/CSS3 icon consts to LANG_HTML/LANG_CSS
+- Rename GitColours::new to added
+- Replace legacy eza references with lsr across codebase
+- Build the case-insensitive match options once
+- Drop the apply_time_gradient shim
+
+### Styling
+
+- Format codebase with cargo fmt
+- Format tests with cargo fmt
+- Apply cargo fmt
+- Apply cargo fmt and settle new filter-field literals
+- Apply rustfmt across modified files
+- Replace map_or with is_ok_and for idiomatic rust clippy compliance
+- Look up legacy variables in the documented order
+- Simplify directory recursion error propagation
+
+### Testing
+
+- Add adversarial stress test suite for batch 3 upstream ports
+- Add comprehensive adversarial stress test suites for upstream ports
+- Guard version substitution and page notation
+- Force colours off in the symlink challenger harness
+- Guard generated trycmd suites and update snapshots for lsr
+- Add adversarial challenger test suites for total size calculations
+- Use portable RecSizeFileId in adversarial test oracle
+- Gate unix-specific hardlink deduplication tests on unix
+- Add comprehensive e2e test suite for batch 2 features and edge cases
+- Gate unix-only index helpers behind cfg(unix)
+- Consolidate recsize stress suites into one module
+- Curate cross-feature suites into single combination module
+- Accept windows path separators in combination assertions
+- Make worktree status assertions environment-robust
+- Normalize path separators before asserting on output
+- Gate directory mtime sorting case to unix targets
+- Refresh the nix-only snapshots left stale by earlier changes
+- Add the remaining --help lines missing from the powertest snapshot
+- Guard the primary zsh completion, not the legacy copy
+- Replace assertions that cannot fail
+- Keep the powertest snapshots and the tree assertion portable
+- Let the tracked-file case compile and run on Windows
+- Stop the generated suites from passing without running
+- Guard the equals form across every backend
+- Leave the live bash check out on Windows
+- Allow the live bash check to skip inside Nix
+- Adopt the generated spelling for the equals cases
+- Guard the generator config against both drifts
+- Match the binary settings line by line
+- Cover the CJK date ordering itself
+- Pin the width the dependency bump fixed
+- Refresh the two grid snapshots the tighter packing changed
+- Cover both path defects on Windows
+- Refuse to set a variable MockVars has no field for
+- Stamp the fixture just before it is read
+
+### Build
+
+- Shellcheck the primary bash completion
+- Rebrand the deb packaging script to lsr
+- Rebrand the release and binary recipes
+
+### Ci
+
+- Configure modern GitHub Actions CI matrix for PRs and push
+- Optimize REUSE linter and parallelize CI jobs
+- Integrate Cachix binary cache for nix flake validation
+- Add weekly cold-build canary without binary substitution
+- Skip Rust and Nix jobs when their paths are untouched
+- Trigger the nix job for changes that can break it
+- Run the test job when man pages, completions, or docs change
+- Build with the shipped feature set instead of --all-features
+- Add a manual probe for the Windows-only upstream reports
+- Format the Windows probe workflow
+- Add a manual Linux probe for listing syscall counts
+- Add a manual probe for the slow-tree report
+- Time a tree the size of a built checkout in the probe
+- Add a manual probe for the --git listing cost
+
 ## [0.24.0-alpha.1] - 2026-08-23
 
 First development series of `lsr`, forked from eza v0.23.5. The bulk of
