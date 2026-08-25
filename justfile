@@ -342,7 +342,7 @@ gen_test_dir:
 # Fully re-generates the integration tests using powertest
 [group('testing')]
 @regen:
-    which powertest >&- 2>&- || (echo -e "Powertest not installed. Please Clone the repo and run:\n\tcargo install --path . --locked" && exit 1)
+    which powertest >&- 2>&- || (echo -e "Powertest not installed. Clone https://github.com/eza-community/powertest and run:\n\tcargo install --path . --locked" && exit 1)
     echo "WARNING: this will delete all tests in tests/ptest"
     sleep 5
     echo "Deleting tests/ptests"

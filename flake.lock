@@ -132,38 +132,6 @@
         "type": "github"
       }
     },
-    "powertest": {
-      "inputs": {
-        "flake-utils": [
-          "flake-utils"
-        ],
-        "naersk": [
-          "naersk"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "rust-overlay": [
-          "rust-overlay"
-        ],
-        "treefmt-nix": [
-          "treefmt-nix"
-        ]
-      },
-      "locked": {
-        "lastModified": 1700124898,
-        "narHash": "sha256-+5jKG/KmYOopvHwBAGu5iPVFqoug16Bkyk/InwB40tc=",
-        "owner": "eza-community",
-        "repo": "powertest",
-        "rev": "c7b7d3038036d24dd5c77286e69a3d4b119bae81",
-        "type": "github"
-      },
-      "original": {
-        "owner": "eza-community",
-        "repo": "powertest",
-        "type": "github"
-      }
-    },
     "pre-commit-hooks": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -192,7 +160,6 @@
         "flake-utils": "flake-utils",
         "naersk": "naersk",
         "nixpkgs": "nixpkgs",
-        "powertest": "powertest",
         "pre-commit-hooks": "pre-commit-hooks",
         "rust-overlay": "rust-overlay",
         "systems": "systems",
