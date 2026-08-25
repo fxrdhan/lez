@@ -340,12 +340,12 @@ filed as bugs are satisfied by a flag we already ship.
 | 921 | `-d` with `--stdin` |
 | 948 | `--cachedir-ignore` |
 | 981 | `--absolute` documented, `SEE ALSO` uses man notation, `$version` is substituted by `just man` |
-| 1042, 1737 | Jenkinsfile, bicep, bicepparam icons |
+| 1042, 1683, 1737 | Jenkinsfile, `Icon\r`, bicep and bicepparam icons |
 | 1073 | `--mime-types` |
 | 1090 | `--absolute` |
 | 1123 | `--quotes=always` |
 | 1141 | multiple path arguments obey `--sort` |
-| 1219 | the `ca` half — `LS_COLORS` capability styling (PR #66). Decoding the xattr into `cap_…=eip` is **not** done |
+| 1219 | `-@` decodes `security.capability` into `cap_…=eip` through `capctl`, and PR #66 added the `ca` styling |
 | 1446, 1778 | `--ignore-glob '**/dir/*'` hides contents and keeps the directory |
 | 1484 | `completions/pwsh` |
 | 1540 | `--no-symlink-targets` |
@@ -367,16 +367,24 @@ translation no), 1571 (`--flags` on Mac/BSD/Windows, no Linux `lsattr`), 1642
 parquet/hdf5/npy no), 1768 (`--show-dotfiles` yes, the other two axes no), 1823
 (`--git-glyphs` yes, choosing the glyph no).
 
-#### Reproduced here, worth fixing
+#### Reproduced here, and since fixed
+
+| upstream | what it was |
+|---|---|
+| 509, 1743, 1448, 1892 | `natord` was the only name comparator, so `LC_ALL=C lsr -1` over `00`–`FF` gave `0A 0B … 00 01` where `ls` gives `00 01 … 0A 0B`. `--sort=lexicographic` is the plain comparison; the default is unchanged. |
+| 1868 | `--code` skipped every dot-prefixed entry and `-a` did nothing: 3 of this repository's 14 YAML files were counted. The `--loc` percentage column shared the walk, so a hidden file could report 200%. |
+| 922, 558 (part) | One `write` syscall per entry, from line-buffered stdout. Now block-buffered. The `statx` per entry is **not** fixed — see below. |
+| 1642 (part) | `bl` was parsed and never read; the column borrowed the file size palette. |
+| 765 | `mh` was in the list of codes accepted and discarded. |
+
+#### Reproduced here, still open
 
 | upstream | reproduction |
 |---|---|
-| 509, 1743, 1448, 1892 | `natord` is the only name comparator. `LC_ALL=C lsr -1` over `00`–`FF` gives `0A 0B … 00 01`, where `ls` gives `00 01 … 0A 0B`. `--sort=name`, `.name`, `Name` all share it, so there is no lexicographic option at all. One fix closes four reports. |
-| 1919 | `script.m` and `foo.c` both render `U+E61E`. One table entry. |
-| 1868 | `--code` skips hidden directories and `-a` does not change that: 3 of this repo's 14 YAML files are counted, missing all 11 under `.github/`. |
-| 922, 558 | one `write` per entry and one `statx` per entry even for `-1`. Our own Linux probe: 2000 files → 2000 `write`, 2006 `statx`. `ls` does 71 and 0. |
+| 922, 558 (rest) | One `statx` per entry even for `-1`, where `ls` needs none. Fixing it means threading "does this listing need metadata" through the file model; upstream's own attempt (their PR 833) stalled on the same thing. |
 | 728 | `lsr -1 '/p/a b/c d.txt'` prints `'/p/a b'/'c d.txt'` — each component quoted separately. It still pastes back correctly, so this is cosmetic. |
 | 1498 | `--total-size` walks hidden directories whether or not `--all` is given. Upstream disagrees on whether that is wrong; a directory's size arguably includes its hidden children. |
+| 1919 | `.m` renders as the C icon. Left alone deliberately: the extension belongs to Objective-C as much as to MATLAB, and Nerd Fonts has no MATLAB glyph to move it to, so any change here trades one wrong icon for another. |
 
 #### Not worth taking
 
