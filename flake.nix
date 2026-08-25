@@ -36,17 +36,6 @@
       };
     };
 
-    powertest = {
-      url = "github:eza-community/powertest";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
-        naersk.follows = "naersk";
-        treefmt-nix.follows = "treefmt-nix";
-        rust-overlay.follows = "rust-overlay";
-      };
-    };
-
     pre-commit-hooks = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -142,8 +131,6 @@
 
               # For generating demo
               vhs
-
-              # powertest.packages.${pkgs.system}.default
 
               cargo-hack
               cargo-udeps
