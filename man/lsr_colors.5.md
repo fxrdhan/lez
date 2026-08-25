@@ -49,7 +49,7 @@ EXAMPLES
 LIST OF CODES
 =============
 
-`LS_COLORS` can use these ten codes:
+`LS_COLORS` can use these eleven codes:
 
 `di`
 : directories
@@ -77,6 +77,11 @@ LIST OF CODES
 
 `or`
 : symlinks with no target
+
+`ca`
+: files carrying Linux capabilities
+
+Note: `ca` is unset by default, and only when it is set does lsr ask the filesystem whether a file has capabilities — one extra syscall per file. GNU `ls` stopped colouring these by default in coreutils 8.31 for the same reason. The attribute is Linux's alone; the code is accepted and ignored elsewhere.
 
 
 `LSR_COLORS` (and `EZA_COLORS`) can use many more:

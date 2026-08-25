@@ -849,6 +849,45 @@ fn plist_tags_display(value: &[u8]) -> Vec<Tag> {
         .unwrap_or_default()
 }
 
+/// Whether the file carries Linux file capabilities.
+///
+/// `LS_COLORS` has a `ca` entry for these, and GNU `ls` honours it. Answering
+/// costs one `getxattr` per file, which is why coreutils turned the colouring
+/// off by default in 8.31 and why this is only called when a style has
+/// actually been set for it.
+///
+/// The attribute is Linux's alone; everywhere else the answer is no.
+#[cfg(target_os = "linux")]
+#[must_use]
+pub fn has_capabilities(path: &Path) -> bool {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    const SECURITY_CAPABILITY: &[u8] = b"security.capability\0";
+
+    let Ok(path) = CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    // SAFETY: both pointers are valid C strings, and asking for a size of zero
+    // with a null buffer is the documented way to test for an attribute
+    // without reading it.
+    let size = unsafe {
+        libc::lgetxattr(
+            path.as_ptr(),
+            SECURITY_CAPABILITY.as_ptr().cast::<libc::c_char>(),
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    size >= 0
+}
+
+#[cfg(not(target_os = "linux"))]
+#[must_use]
+pub fn has_capabilities(_path: &Path) -> bool {
+    false
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

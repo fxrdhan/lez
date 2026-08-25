@@ -549,6 +549,14 @@ impl<'dir> File<'dir> {
         result == 0 && unsafe { out.assume_init() }.f_type == libc::BTRFS_SUPER_MAGIC
     }
 
+    /// Whether this file carries Linux file capabilities, which `LS_COLORS`
+    /// colours through its `ca` entry. Only asked when a style was set for it,
+    /// because answering costs a syscall.
+    #[must_use]
+    pub fn has_capabilities(&self) -> bool {
+        xattr::has_capabilities(&self.path)
+    }
+
     /// Whether this file is a symlink on the filesystem.
     pub fn is_link(&self) -> bool {
         self.filetype().is_some_and(FileType::is_symlink)

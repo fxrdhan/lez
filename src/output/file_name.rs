@@ -670,6 +670,8 @@ impl<C: Colours> FileName<'_, '_, C> {
             f if f.is_mount_point()      => self.colours.mount_point(),
             f if f.is_btrfs_subvolume()  => self.colours.btrfs_subvol(),
             f if f.is_directory()        => self.colours.directory(),
+            f if self.colours.capability().is_some() && f.has_capabilities()
+                                         => self.colours.capability().unwrap_or_default(),
             f if f.is_executable_file()  => self.colours.executable_file(),
             f if f.is_link()             => match self.colours.symlink() {
                 LinkColouring::AnsiStyle(style) => style,
@@ -742,6 +744,11 @@ pub trait Colours: FiletypeColours {
 
     /// The style to paint a directory that has a filesystem mounted on it.
     fn mount_point(&self) -> Style;
+
+    /// The style for a file carrying Linux capabilities, if one was asked for.
+    /// `None` when it was not, which is the signal to skip looking: finding
+    /// out costs a syscall per file.
+    fn capability(&self) -> Option<Style>;
 
     /// The style to paint a directory representing a Btrfs subvolume.
     fn btrfs_subvol(&self) -> Style;
@@ -883,6 +890,10 @@ mod test {
         fn executable_file(&self) -> Style {
             Style::default()
         }
+        fn capability(&self) -> Option<Style> {
+            None
+        }
+
         fn mount_point(&self) -> Style {
             Style::default()
         }
@@ -1283,6 +1294,10 @@ mod test {
         fn executable_file(&self) -> Style {
             Style::default()
         }
+        fn capability(&self) -> Option<Style> {
+            None
+        }
+
         fn mount_point(&self) -> Style {
             Style::default()
         }

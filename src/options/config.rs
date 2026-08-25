@@ -645,6 +645,7 @@ pub struct UiStylesOverride {
     pub control_char:         Option<StyleOverride>,  // cc
     pub broken_symlink:       Option<StyleOverride>,  // or
     pub broken_path_overlay:  Option<StyleOverride>,  // bO
+    pub capability:           Option<StyleOverride>,  // ca
 
     pub filenames: Option<HashMap<String, FileNameStyleOverride>>,
     pub extensions: Option<HashMap<String, FileNameStyleOverride>>,
@@ -684,6 +685,7 @@ impl FromOverride<UiStylesOverride> for UiStyles {
                 value.broken_path_overlay,
                 default.broken_path_overlay,
             ),
+            capability: FromOverride::from(value.capability, default.capability),
 
             filenames: FromOverride::from(value.filenames, default.filenames),
             extensions: FromOverride::from(value.extensions, default.extensions),

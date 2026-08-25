@@ -54,6 +54,7 @@ pub struct UiStyles {
     pub control_char:         Option<Style>,  // cc
     pub broken_symlink:       Option<Style>,  // or
     pub broken_path_overlay:  Option<Style>,  // bO
+    pub capability:           Option<Style>,  // ca
 
     pub filenames: Option<HashMap<String, FileNameStyle>>,
     pub extensions: Option<HashMap<String, FileNameStyle>>,
@@ -118,7 +119,8 @@ field_accessors!(
     symlink_path: Option<Style>,
     control_char: Option<Style>,
     broken_symlink: Option<Style>,
-    broken_path_overlay: Option<Style>
+    broken_path_overlay: Option<Style>,
+    capability: Option<Style>
 );
 
 /// How symbolic links should be coloured: with a fixed style, or by
@@ -580,6 +582,7 @@ impl UiStyles {
             symlink_path: Some(Style::default()),
             control_char: Some(Style::default()),
             broken_symlink: Some(Style::default()),
+            capability: Some(Style::default()),
             broken_path_overlay: Some(Style::default()),
 
             filenames: None,
@@ -645,9 +648,10 @@ impl UiStyles {
                 } // LINK
             }
             "or" => self.broken_symlink         = Some(pair.to_style()),  // ORPHAN
+            "ca" => self.capability             = Some(pair.to_style()),  // CAPABILITY
              _   => return false,
              // Codes we don’t do anything with:
-             // MULTIHARDLINK, DOOR, SETUID, SETGID, CAPABILITY,
+             // MULTIHARDLINK, DOOR, SETUID, SETGID,
              // STICKY_OTHER_WRITABLE, OTHER_WRITABLE, STICKY, MISSING
         }
         true
