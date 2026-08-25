@@ -290,3 +290,10 @@ from eza's open pull requests and issues.
 `lez` is licensed under the [EUPL-1.2](LICENSE.txt), inherited from eza; files
 originating in exa remain under the MIT license, as recorded in their SPDX
 headers.
+
+## The name
+
+This project was called `lsr` through v0.24.1, until it turned out
+[rockorager/lsr](https://github.com/rockorager/lsr) and the
+[`lsr` crate](https://crates.io/crates/lsr) already held that name.
+`lez` keeps the shape of exa and eza, and is unclaimed everywhere.
