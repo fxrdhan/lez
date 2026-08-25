@@ -8,6 +8,17 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.25.0] - 2026-08-26
+
+### Breaking Changes
+
+- Rename the project from `lsr` to `lez`. The binary, the crate, the man pages, the shell completions, and the `LSR_*` environment variables all take the new name; the `EZA_*` and `EXA_*` fallbacks are untouched, so migrating from eza is unaffected. The old name was already held by [rockorager/lsr](https://github.com/rockorager/lsr) and by an unrelated `lsr` crate on crates.io, which permanently closed off publishing through the standard Rust channel.
+
+### Documentation
+
+- Record the naming collision and the origin of the new name in the README
+- Point the Nix binary cache at the renamed `lez` Cachix cache
+
 ## [0.24.1] - 2026-08-26
 
 ### Performance Improvements
