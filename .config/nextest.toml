@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+
+# `cargo test` runs one test binary at a time, parallelising only within each
+# one. This suite is ninety-one binaries with a median of five tests apiece,
+# so most of a run is spent with the machine idle. nextest puts every test
+# into one pool instead: 256s to 49s on a ten-core machine.
+[profile.default]
+# Integration tests spawn the binary and touch the filesystem, so they are
+# nowhere near CPU-bound; oversubscribing keeps cores busy while others wait
+# on I/O.
+test-threads = "num-cpus"
+# A hung test should fail the run rather than stall it. The whole suite
+# finishes in about fifty seconds, so a single test past a minute is stuck,
+# not slow, and one past three minutes is never coming back.
+slow-timeout = { period = "60s", terminate-after = 3 }
+fail-fast = false
+
+[profile.ci]
+# CI reruns a failure once before believing it: the suite creates real files
+# and symlinks, and a runner under load can lose a race that is not a real
+# regression.
+retries = 1
+failure-output = "immediate-final"
+status-level = "fail"
+fail-fast = false

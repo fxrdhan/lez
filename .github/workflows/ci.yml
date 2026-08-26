@@ -37,6 +37,7 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
+              - '.config/nextest.toml'
               - '.github/workflows/ci.yml'
               # The suite asserts on these from disk (man_docs_tests,
               # zsh_completion_classify_tests, theme_schema_tests), so a
@@ -156,8 +157,21 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
+      # nextest runs every test binary in one pool. `cargo test` runs them
+      # one at a time, and this suite is ninety-one binaries with a median of
+      # five tests each, so most of a run is spent with the runner idle.
+      #
+      # Pinned: nextest 0.9.129 and later require rustc 1.91, above this
+      # crate's MSRV.
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.128
       - name: Run all tests
-        run: cargo test --all-targets --features git,inspect-archives
+        run: cargo nextest run --profile ci --all-targets --features git,inspect-archives
+      # nextest does not run doc tests; this covers them.
+      - name: Run doc tests
+        run: cargo test --doc --features git,inspect-archives
   build-release:
     name: Release Build (${{ matrix.os }})
     needs: [unit-and-integration-tests]

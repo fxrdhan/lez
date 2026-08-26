@@ -89,8 +89,8 @@ CLI Input (Args & Env)
 | Build (debug) | `cargo build` | `just build` |
 | Build (release) | `cargo build --release` | `just build-release` |
 | Run unit tests | `cargo test --lib` | `just test` |
-| Run all tests | `cargo test --workspace` | `just test` |
-| Run integration/CLI tests | `cargo test --test cli_tests` | `just test` |
+| Run all tests | `cargo nextest run` | `just test` |
+| Run integration/CLI tests | `cargo nextest run --test cli_tests` | `just test` |
 | Lint codebase | `cargo clippy` | `just clippy` |
 | Format code | `cargo fmt` | `nix fmt` |
 | Build man pages | `pandoc ...` | `just man` |
@@ -99,12 +99,22 @@ CLI Input (Args & Env)
 | Layer | Location | How to run |
 |---|---|---|
 | Unit tests (inline `#[cfg(test)]`) | throughout `src/` | `cargo test --lib` |
-| Rust integration tests | `tests/*.rs` | `cargo test --workspace` |
-| trycmd CLI snapshots | `tests/cmd/*.toml` + fixtures in `tests/itest/`, `tests/itest-loc/` | `cargo test --test cli_tests` |
+| Rust integration tests | `tests/*.rs` | `cargo nextest run` |
+| trycmd CLI snapshots | `tests/cmd/*.toml` + fixtures in `tests/itest/`, `tests/itest-loc/` | `cargo nextest run --test cli_tests` |
 | Generated snapshots (nix-gated) | `tests/gen/` | nix build (`just itest`) |
 | Powertest corpus (feature-gated) | `tests/ptests/` | built via powertest tool (`just regen`) |
 
 Snapshot regeneration: `just idump` (refresh `.stdout`/`.stderr` dumps) and `just regen` (regenerate powertest cases from `powertest.yaml`). `just regen` is idempotent.
+
+### Running the suite
+
+Use `cargo nextest run`, not `cargo test`. `cargo test` runs one test binary at a time and parallelises only within each; this suite is 91 binaries with a median of five tests apiece, so most of a run leaves the machine idle. On a ten-core machine the same 2,168 tests take 256 s under `cargo test` and 49 s under nextest. Configuration lives in `.config/nextest.toml`; CI uses its `ci` profile, which retries a failure once.
+
+Install it with `cargo install cargo-nextest --locked --version 0.9.128`. Pin that version: 0.9.129 and later require rustc 1.91, above this crate's MSRV of 1.90.
+
+nextest does not run doc tests. `cargo test --doc` covers them, and CI runs it as a separate step.
+
+**On macOS, exempt your terminal from Gatekeeper first.** Every freshly linked binary is assessed on its first execution, and this suite relinks 91 of them per source change and spawns the binary from 438 call sites. Without the exemption the run takes 21 minutes with the machine 86% idle, waiting on `syspolicyd` and `XprotectService`; with it, 256 s. Add your terminal under System Settings, Privacy & Security, Developer Tools. Gatekeeper stays active everywhere else.
 
 ---
 
