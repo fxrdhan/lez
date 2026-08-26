@@ -148,6 +148,10 @@ nextest does not run doc tests. `cargo test --doc` covers them, and CI runs it a
 - Ensure all licenses comply with REUSE / SPDX guidelines (`EUPL-1.2` or `MIT`).
 - Run `cargo clippy` and `cargo test --lib` before committing.
 
+### 5. Pull Request Format & Standards (Strict Conformance)
+- **PR Title**: Must strictly follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat: ...`, `fix: ...`, `perf: ...`, `refactor: ...`, `chore: ...`).
+- **Strict Template Adherence**: All PRs **MUST strictly adhere** to [`.github/PULL_REQUEST_TEMPLATE/pull_request_template.md`](.github/PULL_REQUEST_TEMPLATE/pull_request_template.md). Read the template directly and fill out all relevant sections; never submit PRs with raw/unstructured bodies or omitted template sections.
+
 ---
 
 ## 5. Upstream Policy & Triage Summary
