@@ -8,6 +8,13 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.26.1] - 2026-08-26
+
+### Miscellaneous Tasks
+
+- Update the lockfile to current compatible versions. Eighty-six crates move, twenty-eight leave the dependency graph and six join it, taking the total from 245 to 223. Every move is semver-compatible, so no manifest requirement or source change is involved. Among the direct dependencies: clap 4.5.59 to 4.6.6, libc 0.2.182 to 0.2.189, log 0.4.29 to 0.4.34, rayon 1.11.0 to 1.12.0, chrono 0.4.43 to 0.4.45.
+- `anyhow` leaves the graph, and it carried the only RustSec finding against this tree — [RUSTSEC-2026-0190](https://rustsec.org/advisories/RUSTSEC-2026-0190), unsoundness in `Error::downcast_mut()`. `cargo audit` is now clean without anything being allowed through.
+
 ## [0.26.0] - 2026-08-26
 
 ### Performance
