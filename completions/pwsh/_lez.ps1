@@ -140,7 +140,7 @@ Register-ArgumentCompleter -Native -CommandName 'lez' -ScriptBlock {
         default {
         #   [CompletionResult]::new('-?'                         ,'help'                , [CompletionResultType]::ParameterName, 'show list of command-line options')
             [CompletionResult]::new('--help'                     ,'help'                , [CompletionResultType]::ParameterName, 'show list of command-line options')
-        #   [CompletionResult]::new('-v'                         ,'version'             , [CompletionResultType]::ParameterName, 'show version of lez')
+            [CompletionResult]::new('-v'                         ,'v'                   , [CompletionResultType]::ParameterName, 'sort numerically within names, as ls -v does (the default)')
             [CompletionResult]::new('--version'                  ,'version'             , [CompletionResultType]::ParameterName, 'show version of lez')
         #   [CompletionResult]::new('-1'                         ,'oneline'             , [CompletionResultType]::ParameterName, 'display one entry per line')
             [CompletionResult]::new('--oneline'                  ,'oneline'             , [CompletionResultType]::ParameterName, 'display one entry per line')

@@ -10,7 +10,8 @@ __lez() {
     # `-s` for option stacking like `lez -ab` for `lez -a -b` and
     # `-S` for delimiting options with `--` like in `lez -- -a`.
     _arguments -s -S \
-        "(- *)"{-v,--version}"[Show version of lez]" \
+        "(- *)"--version"[Show version of lez]" \
+        -v"[Sort numerically within names, as ls -v does (the default)]" \
         "(- *)"--help"[Show list of command-line options]" \
         {-1,--oneline}"[Display one entry per line]" \
         {-l,--long}"[Display extended file metadata as a table]" \

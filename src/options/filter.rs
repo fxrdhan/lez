@@ -42,7 +42,16 @@ impl FileFilter {
             }
         }
 
-        let sort_field = *matches.get_one("sort").unwrap();
+        // `-v` is ls's spelling for the numeric-aware name ordering that
+        // `--sort=name` already gives. Whichever of the two came last on the
+        // command line wins: `--sort` carries no index when it fell back to
+        // its default, and `Some(_) > None`, so a lone `-v` takes effect.
+        let sort_field =
+            if matches.get_flag("v") && matches.index_of("v") > matches.index_of("sort") {
+                SortField::Name(SortCase::AaBbCc)
+            } else {
+                *matches.get_one("sort").unwrap()
+            };
 
         let since = matches.get_one::<std::time::Duration>("since").copied();
         let collator = LocaleCollator::deduce(vars);

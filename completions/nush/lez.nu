@@ -8,7 +8,8 @@
 # --color-scale, --colour-scale, --icons, --quotes, --hyperlink, --absolute,
 # --code and --loc.
 export extern "lez" [
-    --version(-v)              # Show version of lez
+    --version                  # Show version of lez
+    -v                         # Sort numerically within names, as ls -v does (the default)
     --help                     # Show list of command-line options
     --oneline(-1)              # Display one entry per line
     --long(-l)                 # Display extended file metadata as a table
