@@ -56,7 +56,12 @@ pub fn get_command() -> clap::Command {
         .next_help_heading("META OPTIONS")
         .arg(arg!(--stdin "read file names from stdin"))
         .arg(arg!(-'?' --help "Print help").action(clap::ArgAction::HelpShort))
-        .arg(arg!(-v --version "Print help").action(clap::ArgAction::Version))
+        .arg(arg!(--version "Print version").action(clap::ArgAction::Version))
+        // `ls -v` orders embedded numbers by value, which is what sorting by
+        // name already does here -- the collator runs with `Numeric::On`. The
+        // flag exists so that reflex does the expected thing rather than
+        // printing a version string and exiting, which is what it used to do.
+        .arg(arg!(v: -v "sort numerically within names, as `ls -v` does (the default)"))
 
         .next_help_heading("LAYOUT OPTIONS")
         .arg(arg!(-'1' --oneline "display one entry per line"))

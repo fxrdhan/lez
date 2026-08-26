@@ -9,7 +9,8 @@ function __eza_value_follows_an_equals_sign
 end
 
 # Meta-stuff
-complete -c eza -s v -l version -d "Show version of eza"
+complete -c eza -l version -d "Show version of eza"
+complete -c eza -s v -d "Sort numerically within names, as ls -v does (the default)"
 complete -c eza -l help -d "Show list of command-line options"
 
 # Display options

@@ -5,7 +5,8 @@ Usage: lez [OPTIONS] [FILE]...
 META OPTIONS:
       --stdin    read file names from stdin
   -?, --help     Print help
-  -v, --version  Print help
+      --version  Print version
+  -v             sort numerically within names, as `ls -v` does (the default)
 
 LAYOUT OPTIONS:
   -1, --oneline           display one entry per line

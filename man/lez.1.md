@@ -47,8 +47,14 @@ META OPTIONS
 `--help`, `-?`
 : Show list of command-line options with syntax-highlighted ANSI colors.
 
-`-v`, `--version`
+`--version`
 : Show version of lez.
+
+`-v`
+: Sort numerically within names, the way `ls -v` does. This is already the
+  default ordering, since sorting by name runs the collator with numeric
+  awareness on; the flag exists so the reflex works. Up to and including
+  v0.26.1, `-v` was an alias for `--version`.
 
 
 DISPLAY OPTIONS

@@ -9,7 +9,8 @@ function __lez_value_follows_an_equals_sign
 end
 
 # Meta-stuff
-complete -c lez -s v -l version -d "Show version of lez"
+complete -c lez -l version -d "Show version of lez"
+complete -c lez -s v -d "Sort numerically within names, as ls -v does (the default)"
 complete -c lez -l help -d "Show list of command-line options"
 
 # Display options
