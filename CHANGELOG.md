@@ -8,6 +8,24 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.26.0] - 2026-08-26
+
+### Performance
+
+- Cache whether a symlink points to a directory. Resolving one costs a `readlink` plus a `stat` on the target, and the directory-grouping sort asked it twice per comparison — O(n log n) times per listing. A directory of 10,000 entries including 3,000 symlinks goes from 571 ms to 186 ms under `-l --group-directories-first`.
+- Sort listings above 2,048 entries on all cores. A comparison through the ICU collator costs far more than the byte comparison it replaces, and accounted for 58 ms of a 205 ms listing of 10,000 files. `par_sort_by` is stable, so the resulting order is unchanged. The long view of 10,000 files goes from 205 ms to 162 ms and the grid from 77 ms to 34 ms.
+
+Measured on an Apple M1 Pro over at least 35 interleaved runs per binary. No workload regressed, and output is byte-identical across five flag combinations on four directories.
+
+### Testing
+
+- Run the suite with `cargo nextest run` rather than `cargo test`, in CI, the justfile and the developer guide. `cargo test` runs one test binary at a time and this suite is 91 binaries with a median of five tests each; the same 2,168 tests take 256 s under `cargo test` and 49 s under nextest.
+
+### Documentation
+
+- Publish the benchmark against eza v0.23.5 in the README, with the machine, method and commands to reproduce it
+- Record the macOS Gatekeeper exemption that the test suite needs, without which a run takes 21 minutes with the machine 86% idle
+
 ## [0.25.1] - 2026-08-26
 
 ### Bug Fixes
