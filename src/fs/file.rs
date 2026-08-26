@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Mutex;
 use std::sync::OnceLock;
+use std::sync::atomic::{self, AtomicU8};
 use std::time::SystemTime;
 
 use chrono::prelude::*;
@@ -51,6 +52,13 @@ static DIRECTORY_SIZE_CACHE: LazyLock<
 /// once, have its file extension extracted at least once, and have its metadata
 /// information queried at least once, so it makes sense to do all this at the
 /// start and hold on to all the information.
+/// `points_to_dir` has not been worked out yet.
+const POINTS_TO_DIR_UNKNOWN: u8 = 0;
+/// `points_to_dir` was worked out and the answer was no.
+const POINTS_TO_DIR_NO: u8 = 1;
+/// `points_to_dir` was worked out and the answer was yes.
+const POINTS_TO_DIR_YES: u8 = 2;
+
 pub struct File<'dir> {
     /// The filename portion of this file’s path, including the extension.
     ///
@@ -114,6 +122,20 @@ pub struct File<'dir> {
 
     /// The recursive directory size when `total_size` is used.
     recursive_size: RecursiveSize,
+
+    /// Whether this file — or, for a symlink, the file it points to — is a
+    /// directory.
+    ///
+    /// Answering this for a symlink costs a `readlink` plus a `stat` on the
+    /// target, and the directory-grouping sort asks it twice per comparison,
+    /// so O(n log n) times over a listing. Caching turns that back into one
+    /// lookup per file.
+    ///
+    /// A tri-state byte rather than a `OnceLock<bool>`, which is sixteen bytes
+    /// and would grow every entry in a listing to save the same lookup. Two
+    /// threads racing here both compute the same answer, so the store needs no
+    /// ordering beyond `Relaxed`.
+    points_to_dir: AtomicU8,
 
     /// The extended attributes of this file.
     extended_attributes: OnceLock<Vec<Attribute>>,
@@ -218,6 +240,7 @@ impl<'dir> File<'dir> {
             mime_read_contents,
             dot_filter,
             metadata: OnceLock::new(),
+            points_to_dir: AtomicU8::new(POINTS_TO_DIR_UNKNOWN),
             extended_attributes: OnceLock::new(),
             absolute_path: OnceLock::new(),
             mimetype: OnceLock::new(),
@@ -259,6 +282,7 @@ impl<'dir> File<'dir> {
             mime_read_contents,
             dot_filter,
             metadata: OnceLock::new(),
+            points_to_dir: AtomicU8::new(POINTS_TO_DIR_UNKNOWN),
             absolute_path: OnceLock::new(),
             extended_attributes: OnceLock::new(),
             filetype: OnceLock::new(),
@@ -414,18 +438,39 @@ impl<'dir> File<'dir> {
 
     /// Whether this file is a directory, or a symlink pointing to a directory.
     pub fn points_to_directory(&self) -> bool {
+        // Both of these are already answered by the cached `filetype`, so
+        // they cost nothing and settle the question for everything that is
+        // not a symlink -- which is nearly every entry in a listing. Reaching
+        // for the cache first would tax them for a saving they never collect.
         if self.is_directory() {
             return true;
         }
-
-        if self.is_link() {
-            let target = self.link_target();
-            if let FileTarget::Ok(target) = target {
-                return target.points_to_directory();
-            }
+        if !self.is_link() {
+            return false;
         }
 
-        false
+        // Only symlinks get this far, and only they pay a `readlink` plus a
+        // `stat` on the target, so only they carry the cache.
+        match self.points_to_dir.load(atomic::Ordering::Relaxed) {
+            POINTS_TO_DIR_NO => return false,
+            POINTS_TO_DIR_YES => return true,
+            _ => {}
+        }
+
+        let answer = match self.link_target() {
+            FileTarget::Ok(target) => target.points_to_directory(),
+            _ => false,
+        };
+
+        self.points_to_dir.store(
+            if answer {
+                POINTS_TO_DIR_YES
+            } else {
+                POINTS_TO_DIR_NO
+            },
+            atomic::Ordering::Relaxed,
+        );
+        answer
     }
 
     /// Initializes a new `Dir` object using the `PathBuf` of
@@ -712,6 +757,7 @@ impl<'dir> File<'dir> {
                     name,
                     is_all_all: false,
                     deref_links: self.deref_links,
+                    points_to_dir: AtomicU8::new(POINTS_TO_DIR_UNKNOWN),
                     extended_attributes,
                     absolute_path: absolute_path_cell,
                     recursive_size: RecursiveSize::None,
@@ -1614,6 +1660,45 @@ mod broken_symlink_test {
             target.is_broken(),
             "symlink with deleted target should be considered broken"
         );
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    /// The answer is cached after the first call, and only for symlinks --
+    /// the sort asks it O(n log n) times, so it must give the same answer
+    /// every time rather than only the first.
+    #[test]
+    fn repeated_calls_agree_for_every_kind_of_entry() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("lez_test_ptd_cache_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let real_dir = temp_dir.join("real_dir");
+        std::fs::create_dir(&real_dir).unwrap();
+        let real_file = temp_dir.join("real_file");
+        std::fs::write(&real_file, b"x").unwrap();
+
+        let dir_link = temp_dir.join("dir_link");
+        unix_fs::symlink(&real_dir, &dir_link).unwrap();
+        let file_link = temp_dir.join("file_link");
+        unix_fs::symlink(&real_file, &file_link).unwrap();
+
+        for (path, expected) in [
+            (real_dir, true),
+            (real_file, false),
+            (dir_link, true),
+            (file_link, false),
+        ] {
+            let file = make_file(path.clone());
+            for call in 0..4 {
+                assert_eq!(
+                    file.points_to_directory(),
+                    expected,
+                    "call {call} on {path:?} disagreed with the first"
+                );
+            }
+        }
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
