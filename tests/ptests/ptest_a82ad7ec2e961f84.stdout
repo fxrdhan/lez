@@ -1,4 +1,10 @@
-lez A modern, fast, and feature-rich replacement for ls written in Rust
-[..]
-https://github.com/fxrdhan/lez
-
+dirs-ext
+git
+grid
+group
+icons
+perms
+size
+specials
+symlinks
+time
