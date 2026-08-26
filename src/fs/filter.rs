@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: MIT
 //! Filtering and sorting the list of files before displaying them.
 
+use rayon::slice::ParallelSliceMut;
 use std::cmp::Ordering;
 use std::iter::FromIterator;
 #[cfg(unix)]
@@ -413,7 +414,7 @@ impl FileFilter {
     /// Sort the files in the given vector based on the sort field option and locale collator.
     pub fn sort_files<'a, F>(&self, files: &mut [F])
     where
-        F: AsRef<File<'a>>,
+        F: AsRef<File<'a>> + Send,
     {
         if self.sort_field == SortField::Unsorted
             && !self.flags.contains(&FileFilterFlags::Reverse)
@@ -423,12 +424,20 @@ impl FileFilter {
             return;
         }
 
+        // Comparing two names through the ICU collator is orders of magnitude
+        // dearer than the byte comparison it replaces, and a sort makes
+        // O(n log n) of them. Above a few thousand entries that dominates the
+        // whole listing, and it parallelises perfectly. `par_sort_by` is
+        // stable, exactly like `sort_by`, so the resulting order is identical.
+        const PARALLEL_SORT_THRESHOLD: usize = 2048;
+        let parallel = files.len() >= PARALLEL_SORT_THRESHOLD;
+
         let reverse = self.flags.contains(&FileFilterFlags::Reverse);
         let list_dirs_first = self.flags.contains(&FileFilterFlags::ListDirsFirst);
         let list_dirs_last = self.flags.contains(&FileFilterFlags::ListDirsLast);
 
         if list_dirs_first || list_dirs_last {
-            files.sort_by(|a, b| {
+            let compare = |a: &F, b: &F| {
                 let file_a = a.as_ref();
                 let file_b = b.as_ref();
 
@@ -457,15 +466,27 @@ impl FileFilter {
                 } else {
                     sort_order
                 }
-            });
+            };
+
+            if parallel {
+                files.par_sort_by(compare);
+            } else {
+                files.sort_by(compare);
+            }
         } else {
-            files.sort_by(|a, b| {
+            let compare = |a: &F, b: &F| {
                 self.sort_field.compare_files_with_collator(
                     a.as_ref(),
                     b.as_ref(),
                     self.collator.as_ref(),
                 )
-            });
+            };
+
+            if parallel {
+                files.par_sort_by(compare);
+            } else {
+                files.sort_by(compare);
+            }
 
             if reverse {
                 files.reverse();

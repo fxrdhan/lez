@@ -41,15 +41,17 @@ genDemo:
 # running tests #
 #---------------#
 
-# run unit tests
+# run the whole suite (nextest; see AGENTS.md for why, and for the macOS caveat)
 [group('testing')]
 @test:
-    cargo test --workspace -- --quiet
+    cargo nextest run --workspace
+    cargo test --doc --quiet
 
-# run unit tests (in release mode)
+# run the whole suite (in release mode)
 [group('testing')]
 @test-release:
-    cargo test --workspace --release --verbose
+    cargo nextest run --workspace --release
+    cargo test --doc --release --quiet
 
 #-----------------------#
 # code quality and misc #
