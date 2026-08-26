@@ -8,6 +8,16 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.27.0] - 2026-08-26
+
+### Breaking Changes
+
+- `-v` no longer prints the version; use `--version`. It now orders embedded numbers by value, the way `ls -v` does. Of the eighteen short flags this project spells differently from `ls`, it was the only one that failed silently — every other collision at least prints a listing, while `-v` printed a version banner and exited, turning an `ls` reflex into a wrong answer rather than an error. The ordering itself is unchanged: sorting by name already runs the collator with `Numeric::On`, so `file2` already preceded `file10`. Whichever of `-v` and `--sort` comes last on the command line wins.
+
+### Bug Fixes
+
+- The help text for the version flag read `Print help`
+
 ## [0.26.1] - 2026-08-26
 
 ### Miscellaneous Tasks
