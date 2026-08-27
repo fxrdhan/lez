@@ -201,6 +201,16 @@ jobs:
         uses: actions/checkout@v7
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          extra-conf: |
+            sandbox = false
+            ssl-cert-file = /etc/ssl/certs/ca-certificates.crt
+            extra-sandbox-paths = /etc/ssl/certs
+            user-agent = lez-ci (https://github.com/fxrdhan/lez)
+      - name: Configure curl user-agent for crates.io
+        run: |
+          echo 'user-agent = "lez-ci (https://github.com/fxrdhan/lez)"' >> ~/.curlrc
+          sudo sh -c 'echo "user-agent = \"lez-ci (https://github.com/fxrdhan/lez)\"" >> /etc/curlrc' 2>/dev/null || true
       # Activates once the repo variable CACHIX_CACHE and the secret
       # CACHIX_AUTH_TOKEN are configured; skipped (plain cold build) before
       # that. The action both pulls from and pushes to the cache.
@@ -214,3 +224,5 @@ jobs:
         run: nix flake check -L
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+          SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt

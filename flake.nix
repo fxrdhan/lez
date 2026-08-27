@@ -72,6 +72,14 @@
           cargo = toolchain;
           rustc = toolchain;
           clippy = toolchain;
+          fetchurl =
+            args:
+            pkgs.fetchurl (
+              args
+              // {
+                curlOpts = "--user-agent lez-ci --cacert ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              }
+            );
         };
 
         treefmtEval = treefmt-nix.lib.evalModule pkgs .config/treefmt.nix;
@@ -167,7 +175,12 @@
               };
             };
           formatting = treefmtEval.config.build.check self;
-          inherit (packages) default trycmd;
+          inherit (packages)
+            default
+            check
+            test
+            clippy
+            ;
         };
       }
     );
