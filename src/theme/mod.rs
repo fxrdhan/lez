@@ -249,6 +249,12 @@ pub trait FileStyle: Sync {
     /// `theme`.
     fn get_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style>;
 
+    /// Return an explicit or inherently non-executable style that takes precedence
+    /// before evaluating executable permissions (`is_executable_file`).
+    fn get_precedence_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
+        self.get_style(file, theme)
+    }
+
     /// Return the style for an entry known only by its name.
     ///
     /// Archive contents have no file on disk behind them: they cannot be
@@ -282,6 +288,12 @@ where
         self.0
             .get_style(file, theme)
             .or_else(|| self.1.get_style(file, theme))
+    }
+
+    fn get_precedence_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
+        self.0
+            .get_precedence_style(file, theme)
+            .or_else(|| self.1.get_precedence_style(file, theme))
     }
 
     fn get_style_for_name(&self, name: &str, theme: &Theme) -> Option<Style> {
@@ -415,6 +427,15 @@ impl FileTypes {
 impl FileStyle for FileTypes {
     fn get_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
         Self::style_of(FileType::get_file_type(file), theme)
+    }
+
+    fn get_precedence_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
+        let ft = FileType::get_file_type(file)?;
+        if ft.is_non_executable() {
+            Self::style_of(Some(ft), theme)
+        } else {
+            None
+        }
     }
 
     fn get_style_for_name(&self, name: &str, theme: &Theme) -> Option<Style> {
@@ -623,11 +644,12 @@ impl FileNameColours for Theme {
     fn classify_char(&self)       -> Style { self.ui.punctuation() }
 
     fn custom_file_style(&self, file: &File<'_>) -> Option<Style> {
-        self.exts.get_style(file, self)
+        self.exts.get_precedence_style(file, self)
     }
 
     fn colour_file(&self, file: &File<'_>) -> Style {
-        self.custom_file_style(file)
+        self.exts
+            .get_style(file, self)
             .unwrap_or(self.ui.filekinds.unwrap_or_default().normal())
     }
 

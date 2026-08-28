@@ -34,6 +34,25 @@ pub enum FileType {
     Source,
 }
 
+impl FileType {
+    /// Whether this file type is inherently non-executable (documents, media, archives, etc.)
+    /// allowing its style to be safely resolved without querying executable permissions on disk.
+    #[must_use]
+    pub const fn is_non_executable(&self) -> bool {
+        matches!(
+            self,
+            Self::Image
+                | Self::Video
+                | Self::Music
+                | Self::Lossless
+                | Self::Crypto
+                | Self::Document
+                | Self::Compressed
+                | Self::Temp
+        )
+    }
+}
+
 /// Mapping from full filenames to file type.
 const FILENAME_TYPES: Map<&'static str, FileType> = phf_map! {
     /* Immediate file - kick off the build of a project */
