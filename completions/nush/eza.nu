@@ -11,6 +11,8 @@ export extern "eza" [
     --version                  # Show version of eza
     -v                         # Sort numerically within names, as ls -v does (the default)
     --help                     # Show list of command-line options
+    --config: string           # Load options from specified configuration file
+    --no-config                # Do not load any configuration files
     --oneline(-1)              # Display one entry per line
     --long(-l)                 # Display extended file metadata as a table
     --grid(-G)                 # Display entries in a grid

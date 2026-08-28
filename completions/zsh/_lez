@@ -13,6 +13,8 @@ __lez() {
         "(- *)"--version"[Show version of lez]" \
         -v"[Sort numerically within names, as ls -v does (the default)]" \
         "(- *)"--help"[Show list of command-line options]" \
+        --config="[Load options from specified configuration file]:(config file):_files" \
+        --no-config"[Do not load any configuration files]" \
         {-1,--oneline}"[Display one entry per line]" \
         {-l,--long}"[Display extended file metadata as a table]" \
         {-G,--grid}"[Display entries as a grid]" \

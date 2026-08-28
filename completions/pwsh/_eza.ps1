@@ -214,6 +214,8 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--since'                    ,'since'               , [CompletionResultType]::ParameterName, 'filter and display only files created or modified within duration window')
             [CompletionResult]::new('--print-total'              ,'print-total'         , [CompletionResultType]::ParameterName, 'display total number of entries')
             [CompletionResult]::new('--mime-types'               ,'mimetypes'           , [CompletionResultType]::ParameterName, 'determine file MIME types to better inform styling decisions (unix only)')
+            [CompletionResult]::new('--config'                   ,'config'              , [CompletionResultType]::ParameterName, 'load options from specified configuration file')
+            [CompletionResult]::new('--no-config'                ,'no-config'           , [CompletionResultType]::ParameterName, 'do not load any configuration files')
             break
         }
         

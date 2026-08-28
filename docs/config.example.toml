@@ -1,0 +1,142 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+
+# Example Configuration File for `lez`
+#
+# Global configuration discovery order:
+#   1. $LEZ_CONFIG_FILE or --config <PATH>
+#   2. $LEZ_CONFIG_DIR/{config,lez}.{toml,yaml,yml}
+#   3. $EZA_CONFIG_DIR/{config,eza}.{toml,yaml,yml}
+#   4. $XDG_CONFIG_HOME/lez/{config,lez}.{toml,yaml,yml}
+#   5. ~/.config/lez/{config,lez}.{toml,yaml,yml}
+#
+# Local (per-directory) configuration:
+#   .lez.toml, .lez.yaml, .lez.yml, .eza.toml, .eza.yaml in current working directory.
+#
+# Precedence hierarchy:
+#   CLI Argument > Environment Variable > Local Config (.lez.toml) > Global Config (config.toml) > Built-in Default
+
+[display]
+# Default view mode: "grid", "lines" (oneline), "long", "tree", "json", or "code"
+# mode = "grid"
+
+# Show table column headers in long view
+# header = true
+
+# Show group ownership column
+# group = false
+
+# Show numeric user and group IDs instead of names
+# numeric = false
+
+# Show hard link count column
+# links = false
+
+# Show inode number column
+# inode = false
+
+# Show mount points / filesystem info in long mode
+# mounts = false
+
+# Show allocated filesystem blocks
+# blocksize = false
+
+# Calculate and show recursive directory total size (can be slow on large trees)
+# total_size = false
+
+# Number of decimal/fraction digits for file size (e.g. 0 to 4)
+# size_digits = 1
+
+# Timestamp style: "default", "iso", "long-iso", "full-iso", "relative", "relative-recent", or custom strftime "+%Y-%m-%d %H:%M"
+# time_style = "default"
+
+# Show permissions in octal format (Unix only)
+# octal_permissions = false
+
+# Dereference symlinks when showing file details
+# dereference = false
+
+# Show extended attributes in long view
+# extended = false
+
+# Show security context (SELinux, AppArmor, Windows security)
+# security_context = false
+
+# Show BSD / macOS / Windows file flags
+# file_flags = false
+
+# Only show group column if group name differs from owner
+# smart_group = false
+
+# Absolute path mode: "off", "on", or "follow"
+# absolute = "off"
+
+# Embed hyperlinks (OSC 8): "never", "auto", or "always"
+# hyperlink = "never"
+
+# Filename quoting style: "never", "auto", or "always"
+# quotes = "auto"
+
+[filter]
+# Show all hidden and dot files (equivalent to -a)
+# all = false
+
+# Show hidden files excluding '.' and '..' (equivalent to -A)
+# almost_all = false
+
+# List only directories
+# only_dirs = false
+
+# List only regular files
+# only_files = false
+
+# Show dotfiles without showing other hidden entries
+# show_dotfiles = false
+
+# List of glob patterns to ignore
+# ignore_globs = ["*.tmp", ".DS_Store", "node_modules"]
+
+# Ignore git submodule contents
+# ignore_submodules = false
+
+# Respect .gitignore rules when within a Git repository
+# git_ignore = false
+
+# Sort field: "name", "filename", "lex", "size", "extension", "date", "modified", "accessed", "created", "type", "inode", "none"
+# sort = "name"
+
+# Reverse sort order
+# reverse = false
+
+# Maximum directory recursion depth
+# level = 2
+
+[git]
+# Show Git status in long mode
+# git = false
+
+# Display Git status indicators using Nerd Font glyphs/icons
+# git_glyphs = false
+
+# List git repository status summary and branch
+# git_repos = false
+
+# List git repository branch name only (faster)
+# git_repos_no_status = false
+
+[icons]
+# When to display icons: "never", "auto", or "always"
+# icons = "auto"
+
+# Number of spaces between icons and file names (1, 2, or 3)
+# spacing = 1
+
+[theme]
+# Terminal colour usage: "never", "auto", or "always"
+# color = "auto"
+
+# Colour scale highlighting: "none", "all", "age", or "size"
+# color_scale = "none"
+
+# Colour scale gradient mode: "fixed" or "gradient"
+# color_scale_mode = "gradient"
