@@ -67,6 +67,31 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 
 ---
 
+# Feature Matrix
+
+| Feature / Capability | `lez` | `eza` | `lsd` |
+| :--- | :---: | :---: | :---: |
+| **Nerd Font Icons & Color Themes** | ✅ | ✅ | ✅ |
+| **Directory Tree View** (`--tree`) | ✅ | ✅ | ✅ |
+| **Hyperlink Support** (`--hyperlink` OSC 8) | ✅ | ✅ | ✅ |
+| **Custom Column Order** (`--blocks`) | ❌ | ❌ | ✅ |
+| **Classic GNU `ls` Mode** (`--classic`) | ❌ | ❌ | ✅ |
+| **Unicode Emoji Fallback** (`--icon-theme unicode`) | ❌ | ❌ | ✅ |
+| **Multithreaded Traversal** (Rayon Engine) | ✅ | ⚠️ Limited | ❌ |
+| **Lines-of-Code Counter** (`--code` for 100+ langs) | ✅ | ❌ | ❌ |
+| **Structured JSON Export** (`--json`) | ✅ | ❌ | ❌ |
+| **Archive Inspection** (`--inspect-archives` for `.tar`) | ✅ | ❌ | ❌ |
+| **Time-Window Filtering** (`--since`) | ✅ | ❌ | ❌ |
+| **Size Precision Formatting** (`--size-digits`) | ✅ | ❌ | ❌ |
+| **Nix Store Hash Abbreviation** (`--short-nix`) | ✅ | ❌ | ❌ |
+| **Deep Git Integration** (`--git`, `--git-glyphs`, `--git-repos`) | ✅ | ✅ | ⚠️ Basic |
+| **macOS Finder Color Tags** (`-e`, `--tags`) | ✅ | ✅ | ❌ |
+| **BSD & macOS File Flags** (`-O`, `--flags`) | ✅ | ✅ | ❌ |
+| **Filesystem Mount Points** (`-M`, `--mounts`) | ✅ | ✅ | ❌ |
+| **Automatic Color Scaling & Heatmap** (`--color-scale`) | ✅ | ✅ | ❌ |
+
+---
+
 <a id="try-it">
 <h1>Try it!</h1>
 </a>
