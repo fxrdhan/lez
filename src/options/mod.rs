@@ -97,6 +97,7 @@ pub mod parser;
 pub mod vars;
 pub use self::vars::Vars;
 pub mod config;
+pub mod file_config;
 pub mod stdin;
 /// These **options** represent a parsed, error-checked versions of the
 /// user’s command-line options.
