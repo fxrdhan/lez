@@ -12,6 +12,8 @@ end
 complete -c eza -l version -d "Show version of eza"
 complete -c eza -s v -d "Sort numerically within names, as ls -v does (the default)"
 complete -c eza -l help -d "Show list of command-line options"
+complete -c eza -l config -d "Load options from specified configuration file" -r -F
+complete -c eza -l no-config -d "Do not load any configuration files"
 
 # Display options
 complete -c eza -s 1 -l oneline -d "Display one entry per line"

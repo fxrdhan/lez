@@ -12,6 +12,8 @@ end
 complete -c lez -l version -d "Show version of lez"
 complete -c lez -s v -d "Sort numerically within names, as ls -v does (the default)"
 complete -c lez -l help -d "Show list of command-line options"
+complete -c lez -l config -d "Load options from specified configuration file" -r -F
+complete -c lez -l no-config -d "Do not load any configuration files"
 
 # Display options
 complete -c lez -s 1 -l oneline -d "Display one entry per line"

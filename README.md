@@ -84,6 +84,7 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 | **Time-Window Filtering** (`--since`) | ✅ | ❌ | ❌ |
 | **Size Precision Formatting** (`--size-digits`) | ✅ | ❌ | ❌ |
 | **Nix Store Hash Abbreviation** (`--short-nix`) | ✅ | ❌ | ❌ |
+| **Global & Per-Directory Config Files** (`config.toml` / `.lez.toml`) | ✅ | ❌ | ✅ |
 | **Deep Git Integration** (`--git`, `--git-glyphs`, `--git-repos`) | ✅ | ✅ | ⚠️ Basic |
 | **macOS Finder Color Tags** (`-e`, `--tags`) | ✅ | ✅ | ❌ |
 | **BSD & macOS File Flags** (`-O`, `--flags`) | ✅ | ✅ | ❌ |
@@ -269,6 +270,8 @@ These options are available when running with `--long` (`-l`):
 - **--no-user**: suppress the user field
 - **--no-time**: suppress the time field
 - **--stdin**: read file names from stdin
+- **--config**: load default options from specified configuration file (`.toml`, `.yaml`, or `.yml`)
+- **--no-config**: do not load any global or per-directory configuration files
 
 Some of the options accept parameters:
 
@@ -282,6 +285,43 @@ See the `man` pages for further documentation of usage. They are available:
 - in your terminal via `man lez`
 </details>
 
+## Configuration Files
+
+<details>
+<summary>Click to expand</summary>
+
+**`lez`** supports structured configuration files (TOML or YAML) to set default flags without needing cumbersome shell aliases or wrapper scripts.
+
+### Discovery & Precedence
+
+1. **CLI Flag**: `--config <PATH>` or `--no-config`
+2. **Environment Variable**: `LEZ_CONFIG_FILE`
+3. **Local (per-directory) Config**: `.lez.toml`, `.lez.yaml`, `.lez.yml`, `.eza.toml`, `.eza.yaml` in the current working directory
+4. **Global Config**: `config.toml`, `lez.toml`, `config.yaml` in `$LEZ_CONFIG_DIR` (or `$XDG_CONFIG_HOME/lez`, `~/.config/lez`)
+5. **Built-in Defaults**
+
+### Example `config.toml`
+
+```toml
+[display]
+header = true
+time_style = "relative-recent"
+
+[icons]
+icons = "auto"
+spacing = 1
+
+[filter]
+git_ignore = true
+
+[git]
+git_glyphs = true
+```
+
+An annotated sample configuration is provided in [`docs/config.example.toml`](docs/config.example.toml).
+
+</details>
+
 ## Environment Variables
 
 <details>
@@ -291,8 +331,9 @@ See the `man` pages for further documentation of usage. They are available:
 
 | Variable | Description |
 |---|---|
+| `LEZ_CONFIG_FILE` / `EZA_CONFIG_FILE` | Explicit path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). |
+| `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez` or `~/.config/lez`). |
 | `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. |
-| `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Custom directory containing `theme.yml` (default: `$XDG_CONFIG_HOME/lez` or `$XDG_CONFIG_HOME/eza`). |
 | `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (0..=100) for color scaling on dates and sizes. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
 | `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |

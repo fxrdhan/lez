@@ -87,7 +87,12 @@ _lez() {
     esac
 
     case "$prev" in
-        --help|--version|-v|--smart-group|--show-dotfiles|--mime-types)
+        --help|--version|-v|--smart-group|--show-dotfiles|--mime-types|--no-config)
+            return
+            ;;
+
+        --config)
+            _filedir
             return
             ;;
 

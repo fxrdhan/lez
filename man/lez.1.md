@@ -56,6 +56,12 @@ META OPTIONS
   awareness on; the flag exists so the reflex works. Up to and including
   v0.26.1, `-v` was an alias for `--version`.
 
+`--config=PATH`
+: Load default options from the specified configuration file (`.toml`, `.yaml`, or `.yml`).
+
+`--no-config`
+: Do not load any global or per-directory configuration files.
+
 
 DISPLAY OPTIONS
 ===============
@@ -479,6 +485,10 @@ Any explicit use of the `--icons=WHEN` flag overrides this behavior.
 
 Specifies the separator to use when file names are piped from stdin. Defaults to newline.
 
+## `LEZ_CONFIG_FILE`, `EZA_CONFIG_FILE`
+
+Explicitly specifies the path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). Overrides standard discovery.
+
 ## `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR`
 
 Specifies the directory where lez will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lez`, `$XDG_CONFIG_HOME/eza`, `$HOME/.config/lez`, or `$HOME/.config/eza` if `XDG_CONFIG_HOME` is not set.
@@ -486,6 +496,26 @@ Specifies the directory where lez will look for its configuration and theme file
 ## `LEZ_QUOTING_STYLE`, `EZA_QUOTING_STYLE`
 
 Specifies when file names are quoted, as if `--quotes` had been given. Valid values are `always`, `auto`, and `never`; invalid or unset values fall back to `auto`. `--quotes=never` is equivalent to `ls -N`, and the command-line option overrides this variable.
+
+
+CONFIGURATION FILES
+===================
+
+`lez` supports both global and per-directory configuration files written in TOML or YAML format.
+
+## Discovery and Precedence
+
+Configuration is evaluated in the following precedence order:
+1. Command-line arguments
+2. Environment variables (`LEZ_*`, `EZA_*`, `LS_COLORS`, etc.)
+3. Local (per-directory) configuration file (`.lez.toml`, `.lez.yaml`, `.lez.yml`, `.eza.toml`, `.eza.yaml` in the current working directory)
+4. Global configuration file (`$LEZ_CONFIG_FILE`, or `config.toml` / `lez.toml` in `$LEZ_CONFIG_DIR` or `~/.config/lez/`)
+5. Built-in defaults
+
+Passing `--no-config` disables loading both global and per-directory configuration files.
+
+For full schema and example configuration options, refer to `docs/config.example.toml`.
+
 
 EXIT STATUSES
 =============
