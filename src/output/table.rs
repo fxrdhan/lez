@@ -33,6 +33,7 @@ use crate::theme::Theme;
 #[derive(PartialEq, Eq, Debug)]
 pub struct Options {
     pub size_format: SizeFormat,
+    pub size_digits: u8,
     pub time_format: TimeFormat,
     pub user_format: UserFormat,
     pub group_format: GroupFormat,
@@ -433,6 +434,7 @@ pub struct Table<'a> {
     widths: TableWidths,
     time_format: TimeFormat,
     size_format: SizeFormat,
+    size_digits: u8,
     #[cfg(unix)]
     user_format: UserFormat,
     #[cfg(unix)]
@@ -476,6 +478,7 @@ impl<'a> Table<'a> {
             env,
             time_format: options.time_format.clone(),
             size_format: options.size_format,
+            size_digits: options.size_digits,
             #[cfg(unix)]
             user_format: options.user_format,
             #[cfg(unix)]
@@ -552,6 +555,7 @@ impl<'a> Table<'a> {
             Column::FileSize => file.size().render(
                 self.theme,
                 self.size_format,
+                self.size_digits,
                 &self.env.numeric,
                 color_scale_info,
             ),
@@ -575,10 +579,12 @@ impl<'a> Table<'a> {
             #[cfg(unix)]
             Column::Inode => file.inode().render(self.theme.ui.inode.unwrap_or_default()),
             #[cfg(unix)]
-            Column::Blocksize => {
-                file.blocksize()
-                    .render(self.theme, self.size_format, &self.env.numeric)
-            }
+            Column::Blocksize => file.blocksize().render(
+                self.theme,
+                self.size_format,
+                self.size_digits,
+                &self.env.numeric,
+            ),
             #[cfg(unix)]
             Column::User => {
                 file.user()

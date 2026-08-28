@@ -91,8 +91,8 @@ _lez() {
             return
             ;;
 
-        -L|--level)
-            mapfile -t COMPREPLY < <(compgen -W '{0..9}' -- "$cur")
+        -L|--level|--size-digits|--digits)
+            mapfile -t COMPREPLY < <(compgen -W '{1..8}' -- "$cur")
             return
             ;;
 

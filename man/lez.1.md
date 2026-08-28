@@ -271,6 +271,9 @@ These options are available when running with `--long` (`-l`):
 `-B`, `--bytes`
 : List file sizes in bytes, without any prefixes. Overrides preceding `-b`/`--binary` flags.
 
+`--size-digits=(NUM)`, `--digits=(NUM)`
+: Number of digits to display for file sizes (1..=8, default: 3). Can also be set via the `LEZ_SIZE_DIGITS` environment variable.
+
 `--changed`
 : Use the changed timestamp field.
 
@@ -435,6 +438,12 @@ Different terminals display icons differently, as they usually take up more than
 Set to any value to give every directory the same icon, instead of a different one when it is empty.
 
 Telling the two apart means asking the filesystem about each directory listed: its link count, and — when that does not settle the question — a read of its contents. On a local disk this is not worth thinking about. On a FUSE mount or a network share every one of those is a round trip, and a directory of a few thousand subdirectories can take long enough that lez looks like it has hung. This is the way to stop paying for a distinction you may not want.
+
+## `LEZ_SIZE_DIGITS`, `EZA_SIZE_DIGITS`
+
+Specifies the default number of digits (from 1 to 8) to display for formatted file sizes (default: `3`).
+
+For example, setting `LEZ_SIZE_DIGITS=4` causes sizes like `2.3Gi` to be formatted with higher precision as `2.34Gi`.
 
 ## `NO_COLOR`
 

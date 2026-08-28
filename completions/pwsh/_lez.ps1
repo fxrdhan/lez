@@ -125,6 +125,8 @@ Register-ArgumentCompleter -Native -CommandName 'lez' -ScriptBlock {
             [CompletionResult]::new('--no-permissions'           ,'no-permissions'      , [CompletionResultType]::ParameterName, 'suppress the permissions field') 
             [CompletionResult]::new('--octal-permissions'        ,'octal-permissions'   , [CompletionResultType]::ParameterName, 'list each file''s permission in octal format')
             [CompletionResult]::new('--no-filesize'              ,'no-filesize'         , [CompletionResultType]::ParameterName, 'suppress the filesize field')
+            [CompletionResult]::new('--size-digits'              ,'size-digits'         , [CompletionResultType]::ParameterName, 'number of digits to display for file sizes (1..=8, default: 3)')
+            [CompletionResult]::new('--digits'                   ,'digits'              , [CompletionResultType]::ParameterName, 'number of digits to display for file sizes (1..=8, default: 3)')
             [CompletionResult]::new('--no-user'                  ,'no-user'             , [CompletionResultType]::ParameterName, 'suppress the user field')
             [CompletionResult]::new('--no-time'                  ,'no-time'             , [CompletionResultType]::ParameterName, 'suppress the time field')
             [CompletionResult]::new('--stdin'                    ,'stdin'               , [CompletionResultType]::ParameterName, 'read file names from stdin, one per line or other separator specified in environment')

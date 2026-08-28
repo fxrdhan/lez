@@ -379,16 +379,22 @@ impl<'a> JsonFileObject<'a> {
             Column::Timestamp(time_type) => time_type
                 .get_corresponding_time(f)
                 .render_json(self.options.time_format.clone(), self.options.use_utc),
-            Column::FileSize => f.size().render_json(self.options.size_format, &env.numeric),
+            Column::FileSize => f.size().render_json(
+                self.options.size_format,
+                self.options.size_digits,
+                &env.numeric,
+            ),
             #[cfg(unix)]
             Column::User => f
                 .user()
                 .render_json(&*env.lock_users(), self.options.user_format),
             Column::GitStatus => Some(self.git_status(f).render_json()),
             #[cfg(unix)]
-            Column::Blocksize => f
-                .blocksize()
-                .render_json(self.options.size_format, &env.numeric),
+            Column::Blocksize => f.blocksize().render_json(
+                self.options.size_format,
+                self.options.size_digits,
+                &env.numeric,
+            ),
             Column::FileFlags => f.flags().render_json(self.options.flags_format),
             #[cfg(unix)]
             Column::Group => f.group().render_json(

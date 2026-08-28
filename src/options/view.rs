@@ -333,12 +333,14 @@ impl TableOptions {
         let time_format = TimeFormat::deduce(matches, vars);
         let flags_format = FlagsFormat::deduce(vars);
         let size_format = SizeFormat::deduce(matches);
+        let size_digits = SizeDigits::deduce(matches, vars)?;
         let user_format = UserFormat::deduce(matches);
         let group_format = GroupFormat::deduce(matches);
         let columns = Columns::deduce(matches, vars)?;
         let use_utc = matches.get_flag("utc");
         Ok(Self {
             size_format,
+            size_digits,
             time_format,
             user_format,
             group_format,
@@ -347,6 +349,42 @@ impl TableOptions {
             use_utc,
             spaces,
         })
+    }
+}
+
+pub struct SizeDigits;
+
+impl SizeDigits {
+    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<u8, OptionsError> {
+        if let Some(digits) = matches.get_one::<u8>("size-digits") {
+            return Ok(*digits);
+        }
+
+        if let Some(val) = vars
+            .get(vars::LEZ_SIZE_DIGITS)
+            .or_else(|| vars.get(vars::EZA_SIZE_DIGITS))
+            .or_else(|| vars.get(vars::EXA_SIZE_DIGITS))
+            .map(|s| s.to_string_lossy().to_string())
+        {
+            match val.parse::<u8>() {
+                Ok(digits) if (1..=8).contains(&digits) => Ok(digits),
+                Ok(_) | Err(_) => {
+                    let source = NumberSource::Env(if vars.get(vars::LEZ_SIZE_DIGITS).is_some() {
+                        vars::LEZ_SIZE_DIGITS
+                    } else {
+                        vars.source(vars::EZA_SIZE_DIGITS, vars::EXA_SIZE_DIGITS)
+                            .unwrap_or(vars::LEZ_SIZE_DIGITS)
+                    });
+                    let err = match val.parse::<u8>() {
+                        Err(e) => e,
+                        Ok(_) => "invalid digit range".parse::<u8>().unwrap_err(),
+                    };
+                    Err(OptionsError::FailedParse(val, source, err))
+                }
+            }
+        } else {
+            Ok(3)
+        }
     }
 }
 
@@ -1076,6 +1114,50 @@ mod tests {
         assert_eq!(
             SizeFormat::deduce(&mock_cli(vec!["--bytes", "-b"])),
             SizeFormat::BinaryBytes
+        );
+    }
+
+    #[test]
+    fn deduce_size_digits_default() {
+        let vars = MockVars::default();
+        assert_eq!(SizeDigits::deduce(&mock_cli(vec![""]), &vars), Ok(3));
+    }
+
+    #[test]
+    fn deduce_size_digits_cli_flag() {
+        let vars = MockVars::default();
+        assert_eq!(
+            SizeDigits::deduce(&mock_cli(vec!["--size-digits", "4"]), &vars),
+            Ok(4)
+        );
+        assert_eq!(
+            SizeDigits::deduce(&mock_cli(vec!["--digits", "5"]), &vars),
+            Ok(5)
+        );
+    }
+
+    #[test]
+    fn deduce_size_digits_env_vars() {
+        let mut vars = MockVars::default();
+        vars.set(vars::LEZ_SIZE_DIGITS, &OsString::from("4"));
+        assert_eq!(SizeDigits::deduce(&mock_cli(vec![""]), &vars), Ok(4));
+
+        let mut vars = MockVars::default();
+        vars.set(vars::EZA_SIZE_DIGITS, &OsString::from("2"));
+        assert_eq!(SizeDigits::deduce(&mock_cli(vec![""]), &vars), Ok(2));
+
+        let mut vars = MockVars::default();
+        vars.set(vars::EXA_SIZE_DIGITS, &OsString::from("6"));
+        assert_eq!(SizeDigits::deduce(&mock_cli(vec![""]), &vars), Ok(6));
+    }
+
+    #[test]
+    fn deduce_size_digits_cli_overrides_env() {
+        let mut vars = MockVars::default();
+        vars.set(vars::LEZ_SIZE_DIGITS, &OsString::from("2"));
+        assert_eq!(
+            SizeDigits::deduce(&mock_cli(vec!["--size-digits", "5"]), &vars),
+            Ok(5)
         );
     }
 
