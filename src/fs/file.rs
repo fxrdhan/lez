@@ -563,7 +563,7 @@ impl<'dir> File<'dir> {
     #[cfg(target_os = "linux")]
     pub fn is_btrfs_subvolume(&self) -> bool {
         const BTRFS_FIRST_FREE_OBJECTID: u64 = 256;
-        self.is_directory() && self.inode().0 == BTRFS_FIRST_FREE_OBJECTID && self.is_btrfs()
+        self.is_directory() && self.is_btrfs() && self.inode().0 == BTRFS_FIRST_FREE_OBJECTID
     }
 
     #[cfg(not(target_os = "linux"))]

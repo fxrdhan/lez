@@ -679,17 +679,28 @@ impl<C: Colours> FileName<'_, '_, C> {
     /// Resolves the colour for a single file, without any symlink-target
     /// handling; `ln=target` links recurse into their target through here.
     fn style_for_file(&self, file: &File<'_>) -> Style {
+        if file.is_file() {
+            if let Some(custom) = self.colours.custom_file_style(file) {
+                return custom;
+            }
+            if self.colours.capability().is_some() && file.has_capabilities() {
+                return self.colours.capability().unwrap_or_default();
+            }
+            if file.is_executable_file() {
+                return self.colours.executable_file();
+            }
+            #[cfg(unix)]
+            if self.colours.multi_hardlink().is_some() && file.links().multiple {
+                return self.colours.multi_hardlink().unwrap_or_default();
+            }
+            return self.colours.colour_file(file);
+        }
+
         #[rustfmt::skip]
         return match file {
             f if f.is_mount_point()      => self.colours.mount_point(),
             f if f.is_btrfs_subvolume()  => self.colours.btrfs_subvol(),
             f if f.is_directory()        => self.colours.directory(),
-            f if self.colours.capability().is_some() && f.has_capabilities()
-                                         => self.colours.capability().unwrap_or_default(),
-            f if f.is_executable_file()  => self.colours.executable_file(),
-            #[cfg(unix)]
-            f if self.colours.multi_hardlink().is_some() && f.links().multiple
-                                         => self.colours.multi_hardlink().unwrap_or_default(),
             f if f.is_link()             => match self.colours.symlink() {
                 LinkColouring::AnsiStyle(style) => style,
                 LinkColouring::Target => match self.target.as_ref() {
@@ -707,8 +718,7 @@ impl<C: Colours> FileName<'_, '_, C> {
             f if f.is_char_device()      => self.colours.char_device(),
             #[cfg(unix)]
             f if f.is_socket()           => self.colours.socket(),
-            f if ! f.is_file()           => self.colours.special(),
-            _                            => self.colours.colour_file(file),
+            _                            => self.colours.special(),
         };
     }
 
@@ -795,6 +805,10 @@ pub trait Colours: FiletypeColours {
 
     /// The style to paint a file kind indicator.
     fn classify_char(&self) -> Style;
+
+    fn custom_file_style(&self, _file: &File<'_>) -> Option<Style> {
+        None
+    }
 
     fn colour_file(&self, file: &File<'_>) -> Style;
 
