@@ -120,6 +120,11 @@ pub static XDG_CONFIG_HOME: &str = "XDG_CONFIG_HOME";
 pub static LEZ_CONFIG_DIR: &str = "LEZ_CONFIG_DIR";
 pub static EZA_CONFIG_DIR: &str = "EZA_CONFIG_DIR";
 
+/// Environment variable used to specify an explicit configuration file for lez.
+pub static LEZ_CONFIG_FILE: &str = "LEZ_CONFIG_FILE";
+pub static EZA_CONFIG_FILE: &str = "EZA_CONFIG_FILE";
+pub static EXA_CONFIG_FILE: &str = "EXA_CONFIG_FILE";
+
 /// Environment variable used to choose when file names are quoted:
 /// `always`, `auto`, or `never`.
 pub static LEZ_QUOTING_STYLE: &str = "LEZ_QUOTING_STYLE";
@@ -209,6 +214,9 @@ pub mod test {
         pub time: OsString,
         pub lez_config_dir: OsString,
         pub eza_config_dir: OsString,
+        pub lez_config_file: OsString,
+        pub eza_config_file: OsString,
+        pub exa_config_file: OsString,
         pub quoting_style: OsString,
         pub xdg_config_home: OsString,
         pub home: OsString,
@@ -301,6 +309,15 @@ pub mod test {
                 "EZA_CONFIG_DIR" if !self.eza_config_dir.is_empty() => {
                     Some(self.eza_config_dir.clone())
                 }
+                "LEZ_CONFIG_FILE" if !self.lez_config_file.is_empty() => {
+                    Some(self.lez_config_file.clone())
+                }
+                "EZA_CONFIG_FILE" if !self.eza_config_file.is_empty() => {
+                    Some(self.eza_config_file.clone())
+                }
+                "EXA_CONFIG_FILE" if !self.exa_config_file.is_empty() => {
+                    Some(self.exa_config_file.clone())
+                }
                 "LEZ_QUOTING_STYLE" | "EZA_QUOTING_STYLE" if !self.quoting_style.is_empty() => {
                     Some(self.quoting_style.clone())
                 }
@@ -377,6 +394,9 @@ pub mod test {
                 "TIME_STYLE" => self.time = value.clone(),
                 "LEZ_CONFIG_DIR" => self.lez_config_dir = value.clone(),
                 "EZA_CONFIG_DIR" => self.eza_config_dir = value.clone(),
+                "LEZ_CONFIG_FILE" => self.lez_config_file = value.clone(),
+                "EZA_CONFIG_FILE" => self.eza_config_file = value.clone(),
+                "EXA_CONFIG_FILE" => self.exa_config_file = value.clone(),
                 "LEZ_QUOTING_STYLE" | "EZA_QUOTING_STYLE" => self.quoting_style = value.clone(),
                 "XDG_CONFIG_HOME" => self.xdg_config_home = value.clone(),
                 "HOME" => self.home = value.clone(),
@@ -436,6 +456,24 @@ pub mod test {
         assert_eq!(
             vars.get(EZA_CONFIG_DIR),
             Some(OsString::from("~/.config/eza"))
+        );
+
+        vars.set(LEZ_CONFIG_FILE, &OsString::from("/etc/lez.toml"));
+        assert_eq!(
+            vars.get(LEZ_CONFIG_FILE),
+            Some(OsString::from("/etc/lez.toml"))
+        );
+
+        vars.set(EZA_CONFIG_FILE, &OsString::from("/etc/eza.toml"));
+        assert_eq!(
+            vars.get(EZA_CONFIG_FILE),
+            Some(OsString::from("/etc/eza.toml"))
+        );
+
+        vars.set(EXA_CONFIG_FILE, &OsString::from("/etc/exa.toml"));
+        assert_eq!(
+            vars.get(EXA_CONFIG_FILE),
+            Some(OsString::from("/etc/exa.toml"))
         );
 
         vars.set(XDG_CONFIG_HOME, &OsString::from("/home/user/.config"));
