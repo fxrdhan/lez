@@ -18,28 +18,48 @@ use crate::options::OptionsError;
 use crate::options::{Vars, vars};
 use crate::output::hidden_count::WarnHiddenMode;
 
+use crate::options::file_config::FileConfig;
+
 impl FileFilter {
     /// Determines which of all the file filter options to use.
     pub fn deduce<V: Vars>(
         matches: &ArgMatches,
         strict: bool,
         vars: &V,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
         use FileFilterFlags as FFF;
         let mut filter_flags: Vec<FileFilterFlags> = vec![];
 
-        for (flag, filter_flag) in &[
-            ("reverse", FFF::Reverse),
-            ("only-dirs", FFF::OnlyDirs),
-            ("only-files", FFF::OnlyFiles),
-            ("no-symlinks", FFF::NoSymlinks),
-            ("show-symlinks", FFF::ShowSymlinks),
-            ("dirs-last", FFF::ListDirsLast),
-            ("dirs-first", FFF::ListDirsFirst),
-        ] {
-            if matches.get_flag(flag) {
-                filter_flags.push(filter_flag.clone());
-            }
+        let reverse = matches.get_flag("reverse") || config.filter.reverse.unwrap_or(false);
+        let only_dirs = matches.get_flag("only-dirs") || config.filter.only_dirs.unwrap_or(false);
+        let only_files =
+            matches.get_flag("only-files") || config.filter.only_files.unwrap_or(false);
+        let no_symlinks = matches.get_flag("no-symlinks");
+        let show_symlinks = matches.get_flag("show-symlinks");
+        let dirs_last = matches.get_flag("dirs-last");
+        let dirs_first = matches.get_flag("dirs-first");
+
+        if reverse {
+            filter_flags.push(FFF::Reverse);
+        }
+        if only_dirs {
+            filter_flags.push(FFF::OnlyDirs);
+        }
+        if only_files {
+            filter_flags.push(FFF::OnlyFiles);
+        }
+        if no_symlinks {
+            filter_flags.push(FFF::NoSymlinks);
+        }
+        if show_symlinks {
+            filter_flags.push(FFF::ShowSymlinks);
+        }
+        if dirs_last {
+            filter_flags.push(FFF::ListDirsLast);
+        }
+        if dirs_first {
+            filter_flags.push(FFF::ListDirsFirst);
         }
 
         // `-v` is ls's spelling for the numeric-aware name ordering that
@@ -57,17 +77,18 @@ impl FileFilter {
         let collator = LocaleCollator::deduce(vars);
 
         Ok(Self {
-            no_symlinks: matches.get_flag("no-symlinks"),
-            show_symlinks: matches.get_flag("show-symlinks"),
+            no_symlinks,
+            show_symlinks,
             flags: filter_flags,
             sort_field,
-            dot_filter: DotFilter::deduce(matches, strict)?,
-            ignore_patterns: IgnorePatterns::deduce(matches)?,
+            dot_filter: DotFilter::deduce(matches, strict, config)?,
+            ignore_patterns: IgnorePatterns::deduce(matches, config)?,
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
-            git_ignore: GitIgnore::deduce(matches, vars),
+            git_ignore: GitIgnore::deduce(matches, vars, config),
             ignore_cachedir: IgnoreCacheDir::deduce(matches),
             warn_hidden: WarnHiddenMode::deduce(matches),
-            ignore_submodule_contents: matches.get_flag("ignore-submodule-contents"),
+            ignore_submodule_contents: matches.get_flag("ignore-submodule-contents")
+                || config.filter.ignore_submodules.unwrap_or(false),
             since,
             collator,
         })
@@ -123,7 +144,11 @@ impl DotFilter {
     ///
     /// `--almost-all` binds stronger than multiple `--all` as we currently do not take the order
     /// of arguments into account and it is the safer option (does not clash with `--tree`)
-    pub fn deduce(matches: &ArgMatches, strict: bool) -> Result<Self, OptionsError> {
+    pub fn deduce(
+        matches: &ArgMatches,
+        strict: bool,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
         let all_count = matches.get_count("all");
         let has_almost_all = matches.get_flag("almost-all");
         let show_dotfiles = matches.get_flag("show-dotfiles");
@@ -133,7 +158,15 @@ impl DotFilter {
         }
         match all_count {
             0 if show_dotfiles => Ok(Self::DotfilesByName),
-            0 => Ok(Self::JustFiles),
+            0 => {
+                if config.filter.all.unwrap_or(false) || config.filter.almost_all.unwrap_or(false) {
+                    Ok(Self::Dotfiles)
+                } else if config.filter.show_dotfiles.unwrap_or(false) {
+                    Ok(Self::DotfilesByName)
+                } else {
+                    Ok(Self::JustFiles)
+                }
+            }
             1 => Ok(Self::Dotfiles),
             c => {
                 if matches.get_flag("tree") {
@@ -152,14 +185,24 @@ impl IgnorePatterns {
     /// Determines the set of glob patterns to use based on the
     /// `--ignore-glob` argument’s value. This is a list of strings
     /// separated by pipe (`|`) characters, given in any order.
-    pub fn deduce(matches: &ArgMatches) -> Result<Self, OptionsError> {
-        // If there are no inputs, we return a set of patterns that doesn’t
-        // match anything, rather than, say, `None`.
-        let Some(inputs) = matches.get_many::<String>("ignore-glob") else {
-            return Ok(Self::empty());
-        };
+    pub fn deduce(matches: &ArgMatches, config: &FileConfig) -> Result<Self, OptionsError> {
+        let mut all_inputs: Vec<String> = vec![];
+        if let Some(inputs) = matches.get_many::<String>("ignore-glob") {
+            for input in inputs {
+                all_inputs.push(input.clone());
+            }
+        }
+        if let Some(config_globs) = &config.filter.ignore_globs {
+            for glob_pattern in config_globs {
+                all_inputs.push(glob_pattern.clone());
+            }
+        }
 
-        let iter = inputs.flat_map(|s| s.split('|'));
+        if all_inputs.is_empty() {
+            return Ok(Self::empty());
+        }
+
+        let iter = all_inputs.iter().flat_map(|s| s.split('|'));
         let (patterns, mut errors) = Self::parse_from_iter(iter);
 
         // It can actually return more than one glob error,
@@ -192,13 +235,17 @@ impl IgnorePatterns {
 }
 
 impl GitIgnore {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
+    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
         let no_git_env = vars
             .get(vars::LEZ_OVERRIDE_GIT)
             .or_else(|| vars.get_with_fallback(vars::EZA_OVERRIDE_GIT, vars::EXA_OVERRIDE_GIT))
             .is_some();
 
-        if matches.get_flag("git-ignore") && !matches.get_flag("no-git") && !no_git_env {
+        if matches.get_flag("no-git") || no_git_env {
+            return Self::Off;
+        }
+
+        if matches.get_flag("git-ignore") || config.filter.git_ignore.unwrap_or(false) {
             Self::CheckAndIgnore
         } else {
             Self::Off
@@ -237,7 +284,11 @@ mod tests {
     #[test]
     fn deduce_git_ignore_off() {
         assert_eq!(
-            GitIgnore::deduce(&mock_cli(vec![""]), &MockVars::default()),
+            GitIgnore::deduce(
+                &mock_cli(vec![""]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             GitIgnore::Off
         );
     }
@@ -245,7 +296,11 @@ mod tests {
     #[test]
     fn deduce_git_ignore_on() {
         assert_eq!(
-            GitIgnore::deduce(&mock_cli(vec!["--git-ignore"]), &MockVars::default()),
+            GitIgnore::deduce(
+                &mock_cli(vec!["--git-ignore"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             GitIgnore::CheckAndIgnore
         );
     }
@@ -255,7 +310,8 @@ mod tests {
         assert_eq!(
             GitIgnore::deduce(
                 &mock_cli(vec!["--git-ignore", "--no-git"]),
-                &MockVars::default()
+                &MockVars::default(),
+                &FileConfig::default()
             ),
             GitIgnore::Off
         );
@@ -265,7 +321,11 @@ mod tests {
     fn deduce_git_ignore_env_override() {
         let vars = Some(OsString::from("1"));
         assert_eq!(
-            GitIgnore::deduce(&mock_cli(vec!["--git-ignore"]), &vars),
+            GitIgnore::deduce(
+                &mock_cli(vec!["--git-ignore"]),
+                &vars,
+                &FileConfig::default()
+            ),
             GitIgnore::Off
         );
     }
@@ -273,7 +333,7 @@ mod tests {
     #[test]
     fn deduce_ignore_patterns_empty() {
         assert_eq!(
-            IgnorePatterns::deduce(&mock_cli(vec![""])),
+            IgnorePatterns::deduce(&mock_cli(vec![""]), &FileConfig::default()),
             Ok(IgnorePatterns::empty())
         );
     }
@@ -284,7 +344,10 @@ mod tests {
         let (res, _) = IgnorePatterns::parse_from_iter(pattern.to_string_lossy().split('|'));
 
         assert_eq!(
-            IgnorePatterns::deduce(&mock_cli(vec!["--ignore-glob", "*.o"])),
+            IgnorePatterns::deduce(
+                &mock_cli(vec!["--ignore-glob", "*.o"]),
+                &FileConfig::default()
+            ),
             Ok(res)
         );
     }
@@ -294,7 +357,10 @@ mod tests {
         let pattern = OsString::from("[");
         let (_, mut e) = IgnorePatterns::parse_from_iter(pattern.to_string_lossy().split('|'));
         assert_eq!(
-            IgnorePatterns::deduce(&mock_cli(vec!["--ignore-glob", "["])),
+            IgnorePatterns::deduce(
+                &mock_cli(vec!["--ignore-glob", "["]),
+                &FileConfig::default()
+            ),
             Err(e.pop().unwrap().into())
         );
     }
@@ -358,7 +424,7 @@ mod tests {
     #[test]
     fn deduce_dot_filter_just_files() {
         assert_eq!(
-            DotFilter::deduce(&mock_cli(vec![""]), false),
+            DotFilter::deduce(&mock_cli(vec![""]), false, &FileConfig::default()),
             Ok(DotFilter::JustFiles)
         );
     }
@@ -366,7 +432,7 @@ mod tests {
     #[test]
     fn deduce_dot_filter_dotfiles() {
         assert_eq!(
-            DotFilter::deduce(&mock_cli(vec!["--all"]), false),
+            DotFilter::deduce(&mock_cli(vec!["--all"]), false, &FileConfig::default()),
             Ok(DotFilter::Dotfiles)
         );
     }
@@ -374,7 +440,11 @@ mod tests {
     #[test]
     fn deduce_dot_filter_dotfiles_and_dots() {
         assert_eq!(
-            DotFilter::deduce(&mock_cli(vec!["--all", "--all"]), false),
+            DotFilter::deduce(
+                &mock_cli(vec!["--all", "--all"]),
+                false,
+                &FileConfig::default()
+            ),
             Ok(DotFilter::DotfilesAndDots)
         );
     }
@@ -382,7 +452,11 @@ mod tests {
     #[test]
     fn deduce_dot_filter_tree_all_all() {
         assert_eq!(
-            DotFilter::deduce(&mock_cli(vec!["--all", "--all", "--tree"]), false),
+            DotFilter::deduce(
+                &mock_cli(vec!["--all", "--all", "--tree"]),
+                false,
+                &FileConfig::default()
+            ),
             Err(OptionsError::TreeAllAll)
         );
     }
@@ -390,7 +464,11 @@ mod tests {
     #[test]
     fn deduce_dot_filter_all_all() {
         assert_eq!(
-            DotFilter::deduce(&mock_cli(vec!["--all", "--all", "--all"]), true),
+            DotFilter::deduce(
+                &mock_cli(vec!["--all", "--all", "--all"]),
+                true,
+                &FileConfig::default()
+            ),
             Err(OptionsError::Conflict("all", "all"))
         );
     }
@@ -398,7 +476,11 @@ mod tests {
     #[test]
     fn deduce_dot_filter_almost_all() {
         assert_eq!(
-            DotFilter::deduce(&mock_cli(vec!["--almost-all"]), false),
+            DotFilter::deduce(
+                &mock_cli(vec!["--almost-all"]),
+                false,
+                &FileConfig::default()
+            ),
             Ok(DotFilter::Dotfiles)
         );
     }
@@ -406,7 +488,11 @@ mod tests {
     #[test]
     fn deduce_dot_filter_show_dotfiles() {
         assert_eq!(
-            DotFilter::deduce(&mock_cli(vec!["--show-dotfiles"]), false),
+            DotFilter::deduce(
+                &mock_cli(vec!["--show-dotfiles"]),
+                false,
+                &FileConfig::default()
+            ),
             Ok(DotFilter::DotfilesByName)
         );
     }
@@ -414,7 +500,11 @@ mod tests {
     #[test]
     fn deduce_dot_filter_show_dotfiles_and_all() {
         assert_eq!(
-            DotFilter::deduce(&mock_cli(vec!["--show-dotfiles", "--all"]), false),
+            DotFilter::deduce(
+                &mock_cli(vec!["--show-dotfiles", "--all"]),
+                false,
+                &FileConfig::default()
+            ),
             Ok(DotFilter::Dotfiles)
         );
     }
@@ -664,7 +754,12 @@ mod tests {
     #[test]
     fn deduce_file_filter_default() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec![""]), false, &MockVars::default()),
+            FileFilter::deduce(
+                &mock_cli(vec![""]),
+                false,
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             Ok(FileFilter {
                 warn_hidden: WarnHiddenMode::Never,
                 ignore_submodule_contents: false,
@@ -686,7 +781,12 @@ mod tests {
     #[test]
     fn deduce_file_filter_reverse() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--reverse"]), false, &MockVars::default()),
+            FileFilter::deduce(
+                &mock_cli(vec!["--reverse"]),
+                false,
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             Ok(FileFilter {
                 warn_hidden: WarnHiddenMode::Never,
                 ignore_submodule_contents: false,
@@ -708,7 +808,12 @@ mod tests {
     #[test]
     fn deduce_file_filter_only_dirs() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--only-dirs"]), false, &MockVars::default()),
+            FileFilter::deduce(
+                &mock_cli(vec!["--only-dirs"]),
+                false,
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             Ok(FileFilter {
                 warn_hidden: WarnHiddenMode::Never,
                 ignore_submodule_contents: false,
@@ -730,7 +835,12 @@ mod tests {
     #[test]
     fn deduce_file_filter_only_files() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["--only-files"]), false, &MockVars::default()),
+            FileFilter::deduce(
+                &mock_cli(vec!["--only-files"]),
+                false,
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             Ok(FileFilter {
                 warn_hidden: WarnHiddenMode::Never,
                 ignore_submodule_contents: false,
@@ -760,7 +870,8 @@ mod tests {
             FileFilter::deduce(
                 &mock_cli(vec!["--ignore-glob-ci", "*.rs"]),
                 false,
-                &MockVars::default()
+                &MockVars::default(),
+                &FileConfig::default()
             ),
             Ok(FileFilter {
                 warn_hidden: WarnHiddenMode::Never,
@@ -795,9 +906,13 @@ mod tests {
         ];
 
         for (arg, expected_duration) in cases {
-            let filter =
-                FileFilter::deduce(&mock_cli(vec!["--since", arg]), false, &MockVars::default())
-                    .unwrap();
+            let filter = FileFilter::deduce(
+                &mock_cli(vec!["--since", arg]),
+                false,
+                &MockVars::default(),
+                &FileConfig::default(),
+            )
+            .unwrap();
             assert_eq!(
                 filter.since,
                 Some(expected_duration),
@@ -817,33 +932,53 @@ mod tests {
     #[test]
     fn deduce_sort_field_time_flag_defaults_to_age() {
         assert_eq!(
-            FileFilter::deduce(&mock_cli(vec!["-t"]), false, &MockVars::default())
-                .unwrap()
-                .sort_field,
+            FileFilter::deduce(
+                &mock_cli(vec!["-t"]),
+                false,
+                &MockVars::default(),
+                &FileConfig::default()
+            )
+            .unwrap()
+            .sort_field,
             SortField::ModifiedAge
         );
     }
 
     #[test]
     fn deduce_sort_field_time_flag_with_reverse() {
-        let filter =
-            FileFilter::deduce(&mock_cli(vec!["-t", "-r"]), false, &MockVars::default()).unwrap();
+        let filter = FileFilter::deduce(
+            &mock_cli(vec!["-t", "-r"]),
+            false,
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert_eq!(filter.sort_field, SortField::ModifiedAge);
         assert!(filter.flags.contains(&FileFilterFlags::Reverse));
     }
 
     #[test]
     fn deduce_sort_field_time_flag_clustered_ltr() {
-        let filter =
-            FileFilter::deduce(&mock_cli(vec!["-ltr"]), false, &MockVars::default()).unwrap();
+        let filter = FileFilter::deduce(
+            &mock_cli(vec!["-ltr"]),
+            false,
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert_eq!(filter.sort_field, SortField::ModifiedAge);
         assert!(filter.flags.contains(&FileFilterFlags::Reverse));
     }
 
     #[test]
     fn deduce_sort_field_time_flag_clustered_1tr() {
-        let filter =
-            FileFilter::deduce(&mock_cli(vec!["-1tr"]), false, &MockVars::default()).unwrap();
+        let filter = FileFilter::deduce(
+            &mock_cli(vec!["-1tr"]),
+            false,
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert_eq!(filter.sort_field, SortField::ModifiedAge);
         assert!(filter.flags.contains(&FileFilterFlags::Reverse));
     }
@@ -854,7 +989,8 @@ mod tests {
             FileFilter::deduce(
                 &mock_cli(vec!["-t", "--sort=size"]),
                 false,
-                &MockVars::default()
+                &MockVars::default(),
+                &FileConfig::default()
             )
             .unwrap()
             .sort_field,
@@ -864,7 +1000,8 @@ mod tests {
             FileFilter::deduce(
                 &mock_cli(vec!["--sort=size", "-t"]),
                 false,
-                &MockVars::default()
+                &MockVars::default(),
+                &FileConfig::default()
             )
             .unwrap()
             .sort_field,
@@ -878,7 +1015,8 @@ mod tests {
             FileFilter::deduce(
                 &mock_cli(vec!["--time=accessed"]),
                 false,
-                &MockVars::default()
+                &MockVars::default(),
+                &FileConfig::default()
             )
             .unwrap()
             .sort_field,
@@ -895,7 +1033,13 @@ mod tests {
             lang: OsString::from("de_DE.UTF-8"),
             ..MockVars::default()
         };
-        let filter = FileFilter::deduce(&mock_cli(vec![""]), false, &vars_all).unwrap();
+        let filter = FileFilter::deduce(
+            &mock_cli(vec![""]),
+            false,
+            &vars_all,
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert_eq!(filter.collator.as_ref().unwrap().locale_tag(), "hu_HU");
 
         // LC_COLLATE takes precedence over LANG
@@ -904,7 +1048,13 @@ mod tests {
             lang: OsString::from("de_DE.UTF-8"),
             ..MockVars::default()
         };
-        let filter = FileFilter::deduce(&mock_cli(vec![""]), false, &vars_collate).unwrap();
+        let filter = FileFilter::deduce(
+            &mock_cli(vec![""]),
+            false,
+            &vars_collate,
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert_eq!(filter.collator.as_ref().unwrap().locale_tag(), "sv_SE");
 
         // LANG is used when LC_ALL and LC_COLLATE are unset
@@ -912,7 +1062,13 @@ mod tests {
             lang: OsString::from("de_DE.UTF-8@euro"),
             ..MockVars::default()
         };
-        let filter = FileFilter::deduce(&mock_cli(vec![""]), false, &vars_lang).unwrap();
+        let filter = FileFilter::deduce(
+            &mock_cli(vec![""]),
+            false,
+            &vars_lang,
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert_eq!(filter.collator.as_ref().unwrap().locale_tag(), "de_DE");
 
         // C / POSIX disables collator
@@ -921,7 +1077,13 @@ mod tests {
             lang: OsString::from("hu_HU.UTF-8"),
             ..MockVars::default()
         };
-        let filter = FileFilter::deduce(&mock_cli(vec![""]), false, &vars_posix).unwrap();
+        let filter = FileFilter::deduce(
+            &mock_cli(vec![""]),
+            false,
+            &vars_posix,
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(filter.collator.is_none());
     }
 }

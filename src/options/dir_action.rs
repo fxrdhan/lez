@@ -12,6 +12,8 @@ use crate::fs::dir_action::{DirAction, RecurseOptions};
 
 use clap::ArgMatches;
 
+use crate::options::file_config::FileConfig;
+
 impl DirAction {
     /// Determine which action to perform when trying to list a directory.
     /// There are three possible actions, and they overlap somewhat: the
@@ -22,6 +24,7 @@ impl DirAction {
         matches: &ArgMatches,
         can_tree: bool,
         strict: bool,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
         let recurse = matches.get_flag("recurse");
         let as_file = matches.get_flag("treat-dirs-as-files");
@@ -41,9 +44,11 @@ impl DirAction {
         if tree && can_tree {
             // Tree is only appropriate in details mode, so this has to
             // examine the View, which should have already been deduced by now
-            Ok(Self::Recurse(RecurseOptions::deduce(matches, true)))
+            Ok(Self::Recurse(RecurseOptions::deduce(matches, true, config)))
         } else if recurse {
-            Ok(Self::Recurse(RecurseOptions::deduce(matches, false)))
+            Ok(Self::Recurse(RecurseOptions::deduce(
+                matches, false, config,
+            )))
         } else if as_file {
             Ok(Self::AsFile)
         } else {
@@ -57,10 +62,10 @@ impl RecurseOptions {
     /// flag’s value, and whether the `--tree` flag was passed, which was
     /// determined earlier. The maximum level should be a number, and this
     /// will fail with an `Err` if it isn’t.
-    pub fn deduce(matches: &ArgMatches, tree: bool) -> Self {
+    pub fn deduce(matches: &ArgMatches, tree: bool, config: &FileConfig) -> Self {
         Self {
             tree,
-            max_depth: matches.get_one("level").copied(),
+            max_depth: matches.get_one("level").copied().or(config.filter.level),
         }
     }
 }
@@ -73,7 +78,7 @@ mod tests {
     #[test]
     fn deduce_dir_action_list() {
         assert_eq!(
-            DirAction::deduce(&mock_cli(vec![""]), false, false),
+            DirAction::deduce(&mock_cli(vec![""]), false, false, &FileConfig::default()),
             Ok(DirAction::List)
         );
     }
@@ -81,7 +86,11 @@ mod tests {
     #[test]
     fn deduce_recurse_options_level() {
         assert_eq!(
-            RecurseOptions::deduce(&mock_cli(vec!["--level", "3"]), false),
+            RecurseOptions::deduce(
+                &mock_cli(vec!["--level", "3"]),
+                false,
+                &FileConfig::default()
+            ),
             RecurseOptions {
                 tree: false,
                 max_depth: Some(3),
@@ -92,7 +101,12 @@ mod tests {
     #[test]
     fn deduce_recurse_options_no_level() {
         assert_eq!(
-            DirAction::deduce(&mock_cli(vec!["--recurse"]), true, true),
+            DirAction::deduce(
+                &mock_cli(vec!["--recurse"]),
+                true,
+                true,
+                &FileConfig::default()
+            ),
             Ok(DirAction::Recurse(RecurseOptions {
                 tree: false,
                 max_depth: None,
@@ -103,7 +117,12 @@ mod tests {
     #[test]
     fn deduce_dir_action_as_file() {
         assert_eq!(
-            DirAction::deduce(&mock_cli(vec!["--treat-dirs-as-files"]), false, false),
+            DirAction::deduce(
+                &mock_cli(vec!["--treat-dirs-as-files"]),
+                false,
+                false,
+                &FileConfig::default()
+            ),
             Ok(DirAction::AsFile)
         );
     }
@@ -111,7 +130,12 @@ mod tests {
     #[test]
     fn deduce_dir_action_recurse() {
         assert_eq!(
-            DirAction::deduce(&mock_cli(vec!["--recurse"]), false, false),
+            DirAction::deduce(
+                &mock_cli(vec!["--recurse"]),
+                false,
+                false,
+                &FileConfig::default()
+            ),
             Ok(DirAction::Recurse(RecurseOptions {
                 tree: false,
                 max_depth: None,
@@ -122,7 +146,12 @@ mod tests {
     #[test]
     fn deduce_dir_action_tree() {
         assert_eq!(
-            DirAction::deduce(&mock_cli(vec!["--tree"]), true, false),
+            DirAction::deduce(
+                &mock_cli(vec!["--tree"]),
+                true,
+                false,
+                &FileConfig::default()
+            ),
             Ok(DirAction::Recurse(RecurseOptions {
                 tree: true,
                 max_depth: None,
@@ -133,7 +162,12 @@ mod tests {
     #[test]
     fn deduce_dir_action_tree_level() {
         assert_eq!(
-            DirAction::deduce(&mock_cli(vec!["--tree", "--level", "3"]), true, false),
+            DirAction::deduce(
+                &mock_cli(vec!["--tree", "--level", "3"]),
+                true,
+                false,
+                &FileConfig::default()
+            ),
             Ok(DirAction::Recurse(RecurseOptions {
                 tree: true,
                 max_depth: Some(3),
@@ -144,7 +178,12 @@ mod tests {
     #[test]
     fn deduce_dir_action_tree_level_conflict() {
         assert_eq!(
-            DirAction::deduce(&mock_cli(vec!["--level", "3"]), false, true),
+            DirAction::deduce(
+                &mock_cli(vec!["--level", "3"]),
+                false,
+                true,
+                &FileConfig::default()
+            ),
             Err(OptionsError::Useless2("level", "recurse", "tree"))
         );
     }

@@ -5,6 +5,7 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 use clap::{
     Error, ValueEnum, arg,
@@ -55,6 +56,9 @@ pub fn get_command() -> clap::Command {
 
         .next_help_heading("META OPTIONS")
         .arg(arg!(--stdin "read file names from stdin"))
+        .arg(arg!(--config <PATH> "load custom configuration file")
+            .value_parser(value_parser!(PathBuf)))
+        .arg(arg!(--"no-config" "do not read any configuration file"))
         .arg(arg!(-'?' --help "Print help").action(clap::ArgAction::HelpShort))
         .arg(arg!(--version "Print version").action(clap::ArgAction::Version))
         // `ls -v` orders embedded numbers by value, which is what sorting by

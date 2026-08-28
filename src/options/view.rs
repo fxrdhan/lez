@@ -26,26 +26,31 @@ use crate::output::{
 
 use super::parser::{ColorScaleArgs, TimeArgs};
 
+use crate::options::file_config::FileConfig;
+
 impl View {
     pub fn deduce<V: Vars>(
         matches: &ArgMatches,
         vars: &V,
         strict: bool,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
         let width = TerminalWidth::deduce(matches, vars)?;
         let width_is_known = width.actual_terminal_width().is_some();
         let is_tty = vars.stdout_is_terminal();
-        let mode = Mode::deduce(matches, vars, width_is_known, strict)?;
-        let deref_links = matches.get_flag("dereference");
+        let mode = Mode::deduce(matches, vars, width_is_known, strict, config)?;
+        let deref_links =
+            matches.get_flag("dereference") || config.display.dereference.unwrap_or(false);
         let follow_links = matches.get_flag("follow-symlinks");
-        let total_size = matches.get_flag("total-size");
+        let total_size =
+            matches.get_flag("total-size") || config.display.total_size.unwrap_or(false);
         let total_entries = matches.get_flag("print-total");
         let summary = matches.get_flag("summary");
         let mime_read_contents = matches.get_flag("mime-types")
             || vars
                 .get_with_fallback(vars::LEZ_MIME_TYPES, vars::EZA_MIME_TYPES)
                 .is_some();
-        let file_style = FileStyle::deduce(matches, vars, is_tty)?;
+        let file_style = FileStyle::deduce(matches, vars, is_tty, config)?;
         Ok(Self {
             mode,
             width,
@@ -74,6 +79,7 @@ impl Mode {
         vars: &V,
         is_tty: bool,
         strict: bool,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
         // `--code` is its own standalone tool: it summarises languages rather
         // than listing files, so it takes precedence over the layout flags.
@@ -81,16 +87,38 @@ impl Mode {
             return Ok(Self::Code(code::Options { content }));
         }
 
-        let long = matches.get_flag("long");
-        let oneline = matches.get_flag("oneline");
-        let grid = matches.get_flag("grid");
-        let tree = matches.get_flag("tree");
-        let json = matches.get_flag("json");
+        let mut long = matches.get_flag("long");
+        let mut oneline = matches.get_flag("oneline");
+        let mut grid = matches.get_flag("grid");
+        let mut tree = matches.get_flag("tree");
+        let mut json = matches.get_flag("json");
         let spacing = SpacingBetweenColumns::deduce(matches);
 
+        if !long
+            && !oneline
+            && !grid
+            && !tree
+            && !json
+            && let Some(mode_str) = &config.display.mode
+        {
+            match mode_str.to_lowercase().as_str() {
+                "long" | "details" => long = true,
+                "oneline" | "lines" | "1" => oneline = true,
+                "grid" => grid = true,
+                "tree" => tree = true,
+                "json" => json = true,
+                _ => {}
+            }
+        }
+
         if json {
-            let json =
-                json::Options::deduce(matches, vars, long, spacing.spaces(SpacingMode::Details))?;
+            let json = json::Options::deduce(
+                matches,
+                vars,
+                long,
+                spacing.spaces(SpacingMode::Details),
+                config,
+            )?;
             return Ok(Self::Json(json));
         }
 
@@ -112,6 +140,7 @@ impl Mode {
                 vars,
                 strict,
                 spacing.spaces(SpacingMode::Details),
+                config,
             )?;
 
             if grid {
@@ -130,7 +159,7 @@ impl Mode {
         }
 
         if tree {
-            let details = details::Options::deduce_tree(matches, vars);
+            let details = details::Options::deduce_tree(matches, vars, config);
             return Ok(Self::Details(details));
         }
 
@@ -195,9 +224,12 @@ impl json::Options {
         vars: &V,
         long: bool,
         spaces: usize,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
         let details = if long {
-            Some(details::Options::deduce_json(matches, vars, spaces)?)
+            Some(details::Options::deduce_json(
+                matches, vars, spaces, config,
+            )?)
         } else {
             None
         };
@@ -207,16 +239,19 @@ impl json::Options {
 }
 
 impl details::Options {
-    fn deduce_tree<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
+    fn deduce_tree<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
         details::Options {
             table: None,
-            header: false,
-            xattr: xattr::ENABLED && matches.get_flag("extended"),
+            header: matches.get_flag("header") || config.display.header.unwrap_or(false),
+            xattr: xattr::ENABLED
+                && (matches.get_flag("extended") || config.display.extended.unwrap_or(false)),
             tags: xattr::ENABLED && matches.get_flag("tags"),
-            secattr: xattr::ENABLED && matches.get_flag("security-context"),
+            secattr: xattr::ENABLED
+                && (matches.get_flag("security-context")
+                    || config.display.security_context.unwrap_or(false)),
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
-            mounts: matches.get_flag("mounts"),
+            mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
             color_scale: ColorScaleOptions::deduce(matches, vars),
             follow_links: matches.get_flag("follow-symlinks"),
         }
@@ -226,16 +261,20 @@ impl details::Options {
         matches: &ArgMatches,
         vars: &V,
         spaces: usize,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
         Ok(details::Options {
-            table: Some(TableOptions::deduce(matches, vars, spaces)?),
-            header: false,
-            xattr: xattr::ENABLED && matches.get_flag("extended"),
+            table: Some(TableOptions::deduce(matches, vars, spaces, config)?),
+            header: matches.get_flag("header") || config.display.header.unwrap_or(false),
+            xattr: xattr::ENABLED
+                && (matches.get_flag("extended") || config.display.extended.unwrap_or(false)),
             tags: xattr::ENABLED && matches.get_flag("tags"),
-            secattr: xattr::ENABLED && matches.get_flag("security-context"),
+            secattr: xattr::ENABLED
+                && (matches.get_flag("security-context")
+                    || config.display.security_context.unwrap_or(false)),
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
-            mounts: matches.get_flag("mounts"),
+            mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
             color_scale: ColorScaleOptions::default(),
             follow_links: matches.get_flag("follow-symlinks"),
         })
@@ -246,6 +285,7 @@ impl details::Options {
         vars: &V,
         strict: bool,
         spaces: usize,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
         if strict {
             if matches.get_flag("across") && !matches.get_flag("grid") {
@@ -256,14 +296,17 @@ impl details::Options {
         }
 
         Ok(details::Options {
-            table: Some(TableOptions::deduce(matches, vars, spaces)?),
-            header: matches.get_flag("header"),
-            xattr: xattr::ENABLED && matches.get_flag("extended"),
+            table: Some(TableOptions::deduce(matches, vars, spaces, config)?),
+            header: matches.get_flag("header") || config.display.header.unwrap_or(false),
+            xattr: xattr::ENABLED
+                && (matches.get_flag("extended") || config.display.extended.unwrap_or(false)),
             tags: xattr::ENABLED && matches.get_flag("tags"),
-            secattr: xattr::ENABLED && matches.get_flag("security-context"),
+            secattr: xattr::ENABLED
+                && (matches.get_flag("security-context")
+                    || config.display.security_context.unwrap_or(false)),
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
-            mounts: matches.get_flag("mounts"),
+            mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
             color_scale: ColorScaleOptions::deduce(matches, vars),
             follow_links: matches.get_flag("follow-symlinks"),
         })
@@ -329,14 +372,15 @@ impl TableOptions {
         matches: &ArgMatches,
         vars: &V,
         spaces: usize,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
-        let time_format = TimeFormat::deduce(matches, vars);
+        let time_format = TimeFormat::deduce(matches, vars, config);
         let flags_format = FlagsFormat::deduce(vars);
         let size_format = SizeFormat::deduce(matches);
-        let size_digits = SizeDigits::deduce(matches, vars)?;
-        let user_format = UserFormat::deduce(matches);
-        let group_format = GroupFormat::deduce(matches);
-        let columns = Columns::deduce(matches, vars)?;
+        let size_digits = SizeDigits::deduce(matches, vars, config)?;
+        let user_format = UserFormat::deduce(matches, config);
+        let group_format = GroupFormat::deduce(matches, config);
+        let columns = Columns::deduce(matches, vars, config)?;
         let use_utc = matches.get_flag("utc");
         Ok(Self {
             size_format,
@@ -355,7 +399,11 @@ impl TableOptions {
 pub struct SizeDigits;
 
 impl SizeDigits {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<u8, OptionsError> {
+    pub fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<u8, OptionsError> {
         if let Some(digits) = matches.get_one::<u8>("size-digits") {
             return Ok(*digits);
         }
@@ -382,6 +430,8 @@ impl SizeDigits {
                     Err(OptionsError::FailedParse(val, source, err))
                 }
             }
+        } else if let Some(digits) = config.display.size_digits {
+            Ok(digits.clamp(1, 8))
         } else {
             Ok(3)
         }
@@ -389,7 +439,11 @@ impl SizeDigits {
 }
 
 impl Columns {
-    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<Self, OptionsError> {
+    fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
         let time_types = TimeTypes::deduce(matches)?;
 
         let no_git_env = vars
@@ -397,26 +451,37 @@ impl Columns {
             .or_else(|| vars.get_with_fallback(vars::EZA_OVERRIDE_GIT, vars::EXA_OVERRIDE_GIT))
             .is_some();
 
-        let git = matches.get_flag("git") && !matches.get_flag("no-git") && !no_git_env;
-        let git_glyphs = matches.get_flag("git-glyphs");
-        let subdir_git_repos =
-            matches.get_flag("git-repos") && !matches.get_flag("no-git") && !no_git_env;
+        let git = !matches.get_flag("no-git")
+            && !no_git_env
+            && (matches.get_flag("git") || config.git.git.unwrap_or(false));
+        let git_glyphs = matches.get_flag("git-glyphs") || config.git.git_glyphs.unwrap_or(false);
+        let subdir_git_repos = !matches.get_flag("no-git")
+            && !no_git_env
+            && (matches.get_flag("git-repos") || config.git.git_repos.unwrap_or(false));
         let subdir_git_repos_no_stat = !subdir_git_repos
-            && matches.get_flag("git-repos-no-status")
             && !matches.get_flag("no-git")
-            && !no_git_env;
+            && !no_git_env
+            && (matches.get_flag("git-repos-no-status")
+                || config.git.git_repos_no_status.unwrap_or(false));
 
-        let file_flags = matches.get_flag("file-flags");
-        let blocksize = matches.get_flag("blocksize");
+        let file_flags =
+            matches.get_flag("file-flags") || config.display.file_flags.unwrap_or(false);
+        let blocksize = matches.get_flag("blocksize") || config.display.blocksize.unwrap_or(false);
         // `--smart-group` only controls *how* the group is rendered; on its own
         // it would have no effect because the group column is hidden unless
         // `--group` is given. Treat it as implying `--group` so the column
         // actually shows up.
-        let group = matches.get_flag("group") || matches.get_flag("smart-group");
-        let inode = matches.get_flag("inode");
-        let links = matches.get_flag("links");
-        let octal = matches.get_flag("octal-permissions");
-        let security_context = xattr::ENABLED && matches.get_flag("security-context");
+        let group = matches.get_flag("group")
+            || matches.get_flag("smart-group")
+            || config.display.group.unwrap_or(false)
+            || config.display.smart_group.unwrap_or(false);
+        let inode = matches.get_flag("inode") || config.display.inode.unwrap_or(false);
+        let links = matches.get_flag("links") || config.display.links.unwrap_or(false);
+        let octal = matches.get_flag("octal-permissions")
+            || config.display.octal_permissions.unwrap_or(false);
+        let security_context = xattr::ENABLED
+            && (matches.get_flag("security-context")
+                || config.display.security_context.unwrap_or(false));
 
         let permissions = !matches.get_flag("no-permissions");
         let filesize = !matches.get_flag("no-filesize");
@@ -595,22 +660,22 @@ fn validate_custom_format(fmt: &str) -> Result<(), String> {
 
 impl TimeFormat {
     /// Determine how time should be formatted in timestamp columns.
-    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
+    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
         if let Some(arg) = matches.get_one::<TimeFormat>("time-style") {
             arg.clone()
+        } else if let Some(t) = vars.get(vars::TIME_STYLE).filter(|t| !t.is_empty()) {
+            TimeFormat::try_from_str(t.to_str().unwrap_or("")).unwrap_or(TimeFormat::DefaultFormat)
+        } else if let Some(t) = &config.display.time_style {
+            TimeFormat::try_from_str(t).unwrap_or(TimeFormat::DefaultFormat)
         } else {
-            match vars.get(vars::TIME_STYLE) {
-                Some(t) if !t.is_empty() => TimeFormat::try_from_str(t.to_str().unwrap_or(""))
-                    .unwrap_or(TimeFormat::DefaultFormat),
-                _ => Self::DefaultFormat,
-            }
+            Self::DefaultFormat
         }
     }
 }
 
 impl UserFormat {
-    fn deduce(matches: &ArgMatches) -> Self {
-        if matches.get_flag("numeric") {
+    fn deduce(matches: &ArgMatches, config: &FileConfig) -> Self {
+        if matches.get_flag("numeric") || config.display.numeric.unwrap_or(false) {
             Self::Numeric
         } else {
             Self::Name
@@ -619,8 +684,8 @@ impl UserFormat {
 }
 
 impl GroupFormat {
-    fn deduce(matches: &ArgMatches) -> Self {
-        if matches.get_flag("smart-group") {
+    fn deduce(matches: &ArgMatches, config: &FileConfig) -> Self {
+        if matches.get_flag("smart-group") || config.display.smart_group.unwrap_or(false) {
             Self::Smart
         } else {
             Self::Regular
@@ -760,14 +825,15 @@ mod tests {
     #[test]
     fn deduce_table_options_utc_flag() {
         let cli = mock_cli(vec!["--long", "--utc"]);
-        let opts = TableOptions::deduce(&cli, &MockVars::default(), 2).unwrap();
+        let opts =
+            TableOptions::deduce(&cli, &MockVars::default(), 2, &FileConfig::default()).unwrap();
         assert!(opts.use_utc);
     }
 
     #[test]
     fn deduce_view_mime_types_flag() {
         let cli = mock_cli(vec!["--mime-types"]);
-        let view = View::deduce(&cli, &MockVars::default(), false).unwrap();
+        let view = View::deduce(&cli, &MockVars::default(), false, &FileConfig::default()).unwrap();
         assert!(view.mime_read_contents);
     }
 
@@ -778,7 +844,7 @@ mod tests {
             lez_mime_types: OsString::from("1"),
             ..MockVars::default()
         };
-        let view = View::deduce(&cli, &vars, false).unwrap();
+        let view = View::deduce(&cli, &vars, false, &FileConfig::default()).unwrap();
         assert!(view.mime_read_contents);
     }
 
@@ -789,21 +855,22 @@ mod tests {
             eza_mime_types: OsString::from("1"),
             ..MockVars::default()
         };
-        let view = View::deduce(&cli, &vars, false).unwrap();
+        let view = View::deduce(&cli, &vars, false, &FileConfig::default()).unwrap();
         assert!(view.mime_read_contents);
     }
 
     #[test]
     fn deduce_view_mime_types_default_off() {
         let cli = mock_cli(vec![""]);
-        let view = View::deduce(&cli, &MockVars::default(), false).unwrap();
+        let view = View::deduce(&cli, &MockVars::default(), false, &FileConfig::default()).unwrap();
         assert!(!view.mime_read_contents);
     }
 
     #[test]
     fn deduce_table_options_utc_default_off() {
         let cli = mock_cli(vec!["--long"]);
-        let opts = TableOptions::deduce(&cli, &MockVars::default(), 2).unwrap();
+        let opts =
+            TableOptions::deduce(&cli, &MockVars::default(), 2, &FileConfig::default()).unwrap();
         assert!(!opts.use_utc);
     }
 
@@ -1011,7 +1078,7 @@ mod tests {
     #[test]
     fn deduce_group_format_on() {
         assert_eq!(
-            GroupFormat::deduce(&mock_cli(vec!["--smart-group"])),
+            GroupFormat::deduce(&mock_cli(vec!["--smart-group"]), &FileConfig::default()),
             GroupFormat::Smart
         );
     }
@@ -1019,7 +1086,7 @@ mod tests {
     #[test]
     fn deduce_group_format_off() {
         assert_eq!(
-            GroupFormat::deduce(&mock_cli(vec![""])),
+            GroupFormat::deduce(&mock_cli(vec![""]), &FileConfig::default()),
             GroupFormat::Regular
         );
     }
@@ -1027,14 +1094,17 @@ mod tests {
     #[test]
     fn deduce_user_format_on() {
         assert_eq!(
-            UserFormat::deduce(&mock_cli(vec!["--numeric"])),
+            UserFormat::deduce(&mock_cli(vec!["--numeric"]), &FileConfig::default()),
             UserFormat::Numeric
         );
     }
 
     #[test]
     fn deduce_user_format_off() {
-        assert_eq!(UserFormat::deduce(&mock_cli(vec![""])), UserFormat::Name);
+        assert_eq!(
+            UserFormat::deduce(&mock_cli(vec![""]), &FileConfig::default()),
+            UserFormat::Name
+        );
     }
 
     #[test]
@@ -1120,18 +1190,29 @@ mod tests {
     #[test]
     fn deduce_size_digits_default() {
         let vars = MockVars::default();
-        assert_eq!(SizeDigits::deduce(&mock_cli(vec![""]), &vars), Ok(3));
+        assert_eq!(
+            SizeDigits::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
+            Ok(3)
+        );
     }
 
     #[test]
     fn deduce_size_digits_cli_flag() {
         let vars = MockVars::default();
         assert_eq!(
-            SizeDigits::deduce(&mock_cli(vec!["--size-digits", "4"]), &vars),
+            SizeDigits::deduce(
+                &mock_cli(vec!["--size-digits", "4"]),
+                &vars,
+                &FileConfig::default()
+            ),
             Ok(4)
         );
         assert_eq!(
-            SizeDigits::deduce(&mock_cli(vec!["--digits", "5"]), &vars),
+            SizeDigits::deduce(
+                &mock_cli(vec!["--digits", "5"]),
+                &vars,
+                &FileConfig::default()
+            ),
             Ok(5)
         );
     }
@@ -1140,15 +1221,24 @@ mod tests {
     fn deduce_size_digits_env_vars() {
         let mut vars = MockVars::default();
         vars.set(vars::LEZ_SIZE_DIGITS, &OsString::from("4"));
-        assert_eq!(SizeDigits::deduce(&mock_cli(vec![""]), &vars), Ok(4));
+        assert_eq!(
+            SizeDigits::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
+            Ok(4)
+        );
 
         let mut vars = MockVars::default();
         vars.set(vars::EZA_SIZE_DIGITS, &OsString::from("2"));
-        assert_eq!(SizeDigits::deduce(&mock_cli(vec![""]), &vars), Ok(2));
+        assert_eq!(
+            SizeDigits::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
+            Ok(2)
+        );
 
         let mut vars = MockVars::default();
         vars.set(vars::EXA_SIZE_DIGITS, &OsString::from("6"));
-        assert_eq!(SizeDigits::deduce(&mock_cli(vec![""]), &vars), Ok(6));
+        assert_eq!(
+            SizeDigits::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
+            Ok(6)
+        );
     }
 
     #[test]
@@ -1156,7 +1246,11 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::LEZ_SIZE_DIGITS, &OsString::from("2"));
         assert_eq!(
-            SizeDigits::deduce(&mock_cli(vec!["--size-digits", "5"]), &vars),
+            SizeDigits::deduce(
+                &mock_cli(vec!["--size-digits", "5"]),
+                &vars,
+                &FileConfig::default()
+            ),
             Ok(5)
         );
     }
@@ -1177,7 +1271,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::TIME_STYLE, &OsString::from("iso"));
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             TimeFormat::ISOFormat
         );
     }
@@ -1186,7 +1280,11 @@ mod tests {
     fn deduce_time_style_iso_arg() {
         let vars = MockVars::default();
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec!["--time-style", "iso"]), &vars),
+            TimeFormat::deduce(
+                &mock_cli(vec!["--time-style", "iso"]),
+                &vars,
+                &FileConfig::default()
+            ),
             TimeFormat::ISOFormat
         );
     }
@@ -1196,7 +1294,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::TIME_STYLE, &OsString::from("long-iso"));
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             TimeFormat::LongISO
         );
     }
@@ -1205,7 +1303,11 @@ mod tests {
     fn deduce_time_style_long_iso_arg() {
         let vars = MockVars::default();
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec!["--time-style", "long-iso"]), &vars),
+            TimeFormat::deduce(
+                &mock_cli(vec!["--time-style", "long-iso"]),
+                &vars,
+                &FileConfig::default()
+            ),
             TimeFormat::LongISO
         );
     }
@@ -1215,7 +1317,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::TIME_STYLE, &OsString::from("full-iso"));
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             TimeFormat::FullISO
         );
     }
@@ -1224,7 +1326,11 @@ mod tests {
     fn deduce_time_style_full_iso_arg() {
         let vars = MockVars::default();
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec!["--time-style", "full-iso"]), &vars),
+            TimeFormat::deduce(
+                &mock_cli(vec!["--time-style", "full-iso"]),
+                &vars,
+                &FileConfig::default()
+            ),
             TimeFormat::FullISO
         );
     }
@@ -1234,7 +1340,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::TIME_STYLE, &OsString::from("relative"));
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             TimeFormat::Relative
         );
     }
@@ -1243,7 +1349,11 @@ mod tests {
     fn deduce_time_style_relative_arg() {
         let vars = MockVars::default();
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec!["--time-style", "relative"]), &vars),
+            TimeFormat::deduce(
+                &mock_cli(vec!["--time-style", "relative"]),
+                &vars,
+                &FileConfig::default()
+            ),
             TimeFormat::Relative
         );
     }
@@ -1253,7 +1363,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::TIME_STYLE, &OsString::from("relative-recent"));
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             TimeFormat::RelativeRecent {
                 recent_window_days: None
             }
@@ -1264,7 +1374,11 @@ mod tests {
     fn deduce_time_style_relative_recent_arg() {
         let vars = MockVars::default();
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec!["--time-style", "relative-recent"]), &vars),
+            TimeFormat::deduce(
+                &mock_cli(vec!["--time-style", "relative-recent"]),
+                &vars,
+                &FileConfig::default()
+            ),
             TimeFormat::RelativeRecent {
                 recent_window_days: None
             }
@@ -1276,7 +1390,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::TIME_STYLE, &OsString::from("relative-recent:14"));
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             TimeFormat::RelativeRecent {
                 recent_window_days: Some(14)
             }
@@ -1287,7 +1401,11 @@ mod tests {
     fn deduce_time_style_relative_recent_custom_days_arg() {
         let vars = MockVars::default();
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec!["--time-style", "relative-recent:3"]), &vars),
+            TimeFormat::deduce(
+                &mock_cli(vec!["--time-style", "relative-recent:3"]),
+                &vars,
+                &FileConfig::default()
+            ),
             TimeFormat::RelativeRecent {
                 recent_window_days: Some(3)
             }
@@ -1348,7 +1466,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::TIME_STYLE, &OsString::from("+%Y-%b-%d"));
         assert_eq!(
-            TimeFormat::deduce(&mock_cli(vec![""]), &vars),
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             TimeFormat::Custom {
                 non_recent: String::from("%Y-%b-%d"),
                 recent: None
@@ -1361,7 +1479,8 @@ mod tests {
         assert_eq!(
             TimeFormat::deduce(
                 &mock_cli(vec!["--time-style", "+%Y-%b-%d"]),
-                &MockVars::default()
+                &MockVars::default(),
+                &FileConfig::default()
             ),
             TimeFormat::Custom {
                 non_recent: String::from("%Y-%b-%d"),
@@ -1375,7 +1494,8 @@ mod tests {
         assert_eq!(
             TimeFormat::deduce(
                 &mock_cli(vec!["--time-style", "+%Y-%m-%d %H\n--%m-%d %H:%M"]),
-                &MockVars::default()
+                &MockVars::default(),
+                &FileConfig::default()
             ),
             TimeFormat::Custom {
                 non_recent: String::from("%Y-%m-%d %H"),
@@ -1574,7 +1694,8 @@ mod tests {
                 &mock_cli(vec!["--grid"]),
                 &MockVars::default(),
                 false,
-                false
+                false,
+                &FileConfig::default()
             ),
             Ok(Mode::Grid(grid::Options {
                 across: false,
@@ -1590,7 +1711,8 @@ mod tests {
                 &mock_cli(vec!["--grid", "--across"]),
                 &MockVars::default(),
                 false,
-                false
+                false,
+                &FileConfig::default()
             ),
             Ok(Mode::Grid(grid::Options {
                 across: true,
@@ -1602,7 +1724,7 @@ mod tests {
     fn deduce_details_options_tree() {
         let cli = mock_cli(vec!["--tree"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
             details::Options {
                 table: None,
                 header: false,
@@ -1622,7 +1744,7 @@ mod tests {
     fn deduce_details_options_tree_mounts() {
         let cli = mock_cli(vec!["--tree", "--mounts"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
             details::Options {
                 table: None,
                 header: false,
@@ -1642,7 +1764,7 @@ mod tests {
     fn deduce_details_options_tree_xattr() {
         let cli = mock_cli(vec!["--tree", "--extended"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
             details::Options {
                 table: None,
                 header: false,
@@ -1662,7 +1784,7 @@ mod tests {
     fn deduce_details_options_tree_tags() {
         let cli = mock_cli(vec!["--tree", "--tags"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
             details::Options {
                 table: None,
                 header: false,
@@ -1682,7 +1804,7 @@ mod tests {
     fn deduce_details_options_tree_secattr() {
         let cli = mock_cli(vec!["--tree", "--context"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
             details::Options {
                 table: None,
                 header: false,
@@ -1705,7 +1827,8 @@ mod tests {
                 &mock_cli(vec!["--long", "--across"]),
                 &MockVars::default(),
                 true,
-                1
+                1,
+                &FileConfig::default()
             ),
             Err(OptionsError::Useless("across", true, "long"))
         );
@@ -1718,7 +1841,8 @@ mod tests {
                 &mock_cli(vec!["--long", "--oneline"]),
                 &MockVars::default(),
                 true,
-                1
+                1,
+                &FileConfig::default()
             ),
             Err(OptionsError::Useless("one-line", true, "long"))
         );
@@ -1811,7 +1935,8 @@ mod tests {
                 &mock_cli(vec!["--code"]),
                 &MockVars::default(),
                 false,
-                false
+                false,
+                &FileConfig::default()
             ),
             Ok(Mode::Code(code::Options {
                 content: CodeContent::Both
@@ -1826,7 +1951,8 @@ mod tests {
                 &mock_cli(vec!["--code=lines"]),
                 &MockVars::default(),
                 false,
-                false
+                false,
+                &FileConfig::default()
             ),
             Ok(Mode::Code(code::Options {
                 content: CodeContent::Lines
@@ -1837,9 +1963,13 @@ mod tests {
     #[test]
     fn deduce_columns_loc_percent() {
         assert_eq!(
-            Columns::deduce(&mock_cli(vec!["--loc=percent"]), &MockVars::default())
-                .unwrap()
-                .loc,
+            Columns::deduce(
+                &mock_cli(vec!["--loc=percent"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            )
+            .unwrap()
+            .loc,
             Some(CodeContent::Percent)
         );
     }
@@ -1847,9 +1977,13 @@ mod tests {
     #[test]
     fn deduce_columns_loc_bare_is_both() {
         assert_eq!(
-            Columns::deduce(&mock_cli(vec!["--loc"]), &MockVars::default())
-                .unwrap()
-                .loc,
+            Columns::deduce(
+                &mock_cli(vec!["--loc"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            )
+            .unwrap()
+            .loc,
             Some(CodeContent::Both)
         );
     }
@@ -1857,45 +1991,72 @@ mod tests {
     #[test]
     fn deduce_columns_loc_absent() {
         assert_eq!(
-            Columns::deduce(&mock_cli(vec![""]), &MockVars::default())
-                .unwrap()
-                .loc,
+            Columns::deduce(
+                &mock_cli(vec![""]),
+                &MockVars::default(),
+                &FileConfig::default()
+            )
+            .unwrap()
+            .loc,
             None
         );
     }
 
     #[test]
     fn deduce_columns_smart_group_implies_group() {
-        let columns =
-            Columns::deduce(&mock_cli(vec!["--smart-group"]), &MockVars::default()).unwrap();
+        let columns = Columns::deduce(
+            &mock_cli(vec!["--smart-group"]),
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(columns.group);
     }
 
     #[test]
     fn deduce_columns_no_group_by_default() {
-        let columns = Columns::deduce(&mock_cli(vec![""]), &MockVars::default()).unwrap();
+        let columns = Columns::deduce(
+            &mock_cli(vec![""]),
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(!columns.group);
     }
 
     #[test]
     fn deduce_columns_explicit_group() {
-        let columns = Columns::deduce(&mock_cli(vec!["-g"]), &MockVars::default()).unwrap();
+        let columns = Columns::deduce(
+            &mock_cli(vec!["-g"]),
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(columns.group);
 
-        let columns_long =
-            Columns::deduce(&mock_cli(vec!["--group"]), &MockVars::default()).unwrap();
+        let columns_long = Columns::deduce(
+            &mock_cli(vec!["--group"]),
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(columns_long.group);
     }
 
     #[test]
     fn deduce_columns_both_group_and_smart_group() {
-        let columns =
-            Columns::deduce(&mock_cli(vec!["-g", "--smart-group"]), &MockVars::default()).unwrap();
+        let columns = Columns::deduce(
+            &mock_cli(vec!["-g", "--smart-group"]),
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(columns.group);
 
         let columns_long = Columns::deduce(
             &mock_cli(vec!["--group", "--smart-group"]),
             &MockVars::default(),
+            &FileConfig::default(),
         )
         .unwrap();
         assert!(columns_long.group);
@@ -1904,7 +2065,16 @@ mod tests {
     #[test]
     fn strict_check_long_flags_default_is_ok() {
         assert_eq!(Mode::strict_check_long_flags(&mock_cli(vec![""])), Ok(()));
-        assert!(Mode::deduce(&mock_cli(vec![""]), &MockVars::default(), false, true).is_ok());
+        assert!(
+            Mode::deduce(
+                &mock_cli(vec![""]),
+                &MockVars::default(),
+                false,
+                true,
+                &FileConfig::default()
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -1929,7 +2099,13 @@ mod tests {
                 "Expected --{flag} to trigger OptionsError::Useless without --long"
             );
             assert_eq!(
-                Mode::deduce(&matches, &MockVars::default(), false, true),
+                Mode::deduce(
+                    &matches,
+                    &MockVars::default(),
+                    false,
+                    true,
+                    &FileConfig::default()
+                ),
                 Err(OptionsError::Useless(flag, false, "long")),
                 "Expected Mode::deduce with --{flag} to fail in strict mode"
             );
@@ -1953,7 +2129,14 @@ mod tests {
             let arg = format!("--{flag}");
             let matches = mock_cli(vec!["--long", &arg]);
             assert!(
-                Mode::deduce(&matches, &MockVars::default(), false, true).is_ok(),
+                Mode::deduce(
+                    &matches,
+                    &MockVars::default(),
+                    false,
+                    true,
+                    &FileConfig::default()
+                )
+                .is_ok(),
                 "Expected --long with --{flag} to succeed in strict mode"
             );
         }
@@ -1980,7 +2163,13 @@ mod tests {
                 "Expected {short_flag} to trigger OptionsError::Useless for {expected_name}"
             );
             assert_eq!(
-                Mode::deduce(&matches, &MockVars::default(), false, true),
+                Mode::deduce(
+                    &matches,
+                    &MockVars::default(),
+                    false,
+                    true,
+                    &FileConfig::default()
+                ),
                 Err(OptionsError::Useless(expected_name, false, "long")),
                 "Expected Mode::deduce with {short_flag} to fail in strict mode"
             );
@@ -1995,42 +2184,90 @@ mod tests {
             Err(OptionsError::Useless("blocksize", false, "long")),
         );
         assert_eq!(
-            Mode::deduce(&matches, &MockVars::default(), false, true),
+            Mode::deduce(
+                &matches,
+                &MockVars::default(),
+                false,
+                true,
+                &FileConfig::default()
+            ),
             Err(OptionsError::Useless("blocksize", false, "long")),
         );
         // In non-strict mode without --long, it should succeed and ignore the flag
-        assert!(Mode::deduce(&matches, &MockVars::default(), false, false).is_ok());
+        assert!(
+            Mode::deduce(
+                &matches,
+                &MockVars::default(),
+                false,
+                false,
+                &FileConfig::default()
+            )
+            .is_ok()
+        );
 
         // With --long, it should succeed in strict mode
         let matches_long = mock_cli(vec!["--long", "--blocks"]);
-        assert!(Mode::deduce(&matches_long, &MockVars::default(), false, true).is_ok());
+        assert!(
+            Mode::deduce(
+                &matches_long,
+                &MockVars::default(),
+                false,
+                true,
+                &FileConfig::default()
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn deduce_view_print_total_flag() {
         let matches = mock_cli(vec!["--print-total"]);
-        let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
+        let view = View::deduce(
+            &matches,
+            &MockVars::default(),
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(view.total_entries);
     }
 
     #[test]
     fn deduce_view_print_total_default() {
         let matches = mock_cli(vec![""]);
-        let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
+        let view = View::deduce(
+            &matches,
+            &MockVars::default(),
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(!view.total_entries);
     }
 
     #[test]
     fn deduce_view_summary_flag() {
         let matches = mock_cli(vec!["--summary"]);
-        let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
+        let view = View::deduce(
+            &matches,
+            &MockVars::default(),
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(view.summary);
     }
 
     #[test]
     fn deduce_view_summary_default() {
         let matches = mock_cli(vec![""]);
-        let view = View::deduce(&matches, &MockVars::default(), false).unwrap();
+        let view = View::deduce(
+            &matches,
+            &MockVars::default(),
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
         assert!(!view.summary);
     }
 
@@ -2041,7 +2278,14 @@ mod tests {
             (vec!["-l", "--no-extended"], false),
         ] {
             let matches = mock_cli(args);
-            let mode = Mode::deduce(&matches, &MockVars::default(), false, false).unwrap();
+            let mode = Mode::deduce(
+                &matches,
+                &MockVars::default(),
+                false,
+                false,
+                &FileConfig::default(),
+            )
+            .unwrap();
             match mode {
                 Mode::Details(opts) => assert_eq!(opts.indicate_xattr, expected),
                 _ => panic!("Expected Mode::Details"),
@@ -2052,7 +2296,14 @@ mod tests {
     #[test]
     fn test_deduce_json_short() {
         let matches = mock_cli(vec!["--json"]);
-        let mode = Mode::deduce(&matches, &MockVars::default(), false, false).unwrap();
+        let mode = Mode::deduce(
+            &matches,
+            &MockVars::default(),
+            false,
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
         match mode {
             Mode::Json(opts) => {
                 assert!(opts.details.is_none());
@@ -2064,7 +2315,14 @@ mod tests {
     #[test]
     fn test_deduce_json_long() {
         let matches = mock_cli(vec!["--long", "--json"]);
-        let mode = Mode::deduce(&matches, &MockVars::default(), false, false).unwrap();
+        let mode = Mode::deduce(
+            &matches,
+            &MockVars::default(),
+            false,
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
         match mode {
             Mode::Json(opts) => {
                 assert!(opts.details.is_some());
@@ -2076,7 +2334,14 @@ mod tests {
     #[test]
     fn test_deduce_json_columns() {
         let matches = mock_cli(vec!["--long", "--octal-permissions", "--bytes", "--json"]);
-        let mode = Mode::deduce(&matches, &MockVars::default(), false, false).unwrap();
+        let mode = Mode::deduce(
+            &matches,
+            &MockVars::default(),
+            false,
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
         match mode {
             Mode::Json(opts) => {
                 let details = opts.details.expect("details must be Some");
@@ -2095,7 +2360,13 @@ mod tests {
         vars.set(vars::COLUMNS, &OsString::from("200"));
         vars.stdout_is_terminal = false;
 
-        let view = View::deduce(&mock_cli(vec!["--icons=auto"]), &vars, false).unwrap();
+        let view = View::deduce(
+            &mock_cli(vec!["--icons=auto"]),
+            &vars,
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
 
         assert_eq!(view.width, Set(200));
         assert_eq!(
@@ -2120,7 +2391,13 @@ mod tests {
             ..MockVars::default()
         };
 
-        let view = View::deduce(&mock_cli(vec!["--icons=auto"]), &vars, false).unwrap();
+        let view = View::deduce(
+            &mock_cli(vec!["--icons=auto"]),
+            &vars,
+            false,
+            &FileConfig::default(),
+        )
+        .unwrap();
 
         assert_eq!(
             view.file_style.show_icons,

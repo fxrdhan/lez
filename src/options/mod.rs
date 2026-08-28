@@ -159,8 +159,22 @@ impl Options {
     }
 
     /// Determines the complete set of options based on the given command-line
-    /// arguments, after they’ve been parsed.
+    /// arguments, after they’ve been parsed, loading any configuration file.
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<Self, OptionsError> {
+        let custom_config = matches
+            .get_one::<std::path::PathBuf>("config")
+            .map(|p| p.as_path());
+        let no_config = matches.get_flag("no-config");
+        let config = file_config::FileConfig::load_merged(custom_config, no_config, vars, None);
+        Self::deduce_with_config(matches, vars, &config)
+    }
+
+    /// Determines the complete set of options with an explicitly loaded `FileConfig`.
+    pub fn deduce_with_config<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &file_config::FileConfig,
+    ) -> Result<Self, OptionsError> {
         if cfg!(not(feature = "git")) && (matches.get_flag("git") || matches.get_flag("git-ignore"))
         {
             return Err(OptionsError::Unsupported(String::from(
@@ -172,10 +186,15 @@ impl Options {
             .or_else(|| vars.get_with_fallback(vars::EZA_STRICT, vars::EXA_STRICT))
             .is_some();
 
-        let view = View::deduce(matches, vars, strict)?;
-        let dir_action = DirAction::deduce(matches, matches!(view.mode, Mode::Details(_)), strict)?;
-        let filter = FileFilter::deduce(matches, strict, vars)?;
-        let theme = ThemeOptions::deduce(matches, vars);
+        let view = View::deduce(matches, vars, strict, config)?;
+        let dir_action = DirAction::deduce(
+            matches,
+            matches!(view.mode, Mode::Details(_)),
+            strict,
+            config,
+        )?;
+        let filter = FileFilter::deduce(matches, strict, vars, config)?;
+        let theme = ThemeOptions::deduce(matches, vars, config);
         let stdin = FilesInput::deduce(matches, vars);
 
         Ok(Self {

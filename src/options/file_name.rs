@@ -14,14 +14,17 @@ use crate::output::file_name::{
 
 use clap::ArgMatches;
 
+use crate::options::file_config::FileConfig;
+
 impl Options {
     pub fn deduce<V: Vars>(
         matches: &ArgMatches,
         vars: &V,
         is_a_tty: bool,
+        config: &FileConfig,
     ) -> Result<Self, OptionsError> {
         let classify = Classify::deduce(matches);
-        let show_icons = ShowIcons::deduce(matches, vars)?;
+        let show_icons = ShowIcons::deduce(matches, vars, config)?;
 
         let quote_style = QuoteStyle::deduce(matches, vars);
         let embed_hyperlinks = EmbedHyperlinks::deduce(matches);
@@ -62,23 +65,42 @@ impl Classify {
 }
 
 impl ShowIcons {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Result<Self, OptionsError> {
+    pub fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
         let force_icons = vars
             .get_with_fallback(vars::LEZ_ICONS_AUTO, vars::EZA_ICONS_AUTO)
             .is_some();
-        let mode_opt = &matches.get_one("icons");
-        if !force_icons && mode_opt.is_none() {
+        let mode_opt = matches.get_one::<ShowWhen>("icons");
+        let config_icons = config.icons.icons.as_deref();
+
+        if !force_icons && mode_opt.is_none() && config_icons.is_none() {
             return Ok(Self::Never);
         }
 
+        let width = Self::get_width(vars, config)?;
         match mode_opt {
             Some(ShowWhen::Never) => Ok(Self::Never),
-            Some(ShowWhen::Always) => Ok(Self::Always(Self::get_width(vars)?)),
-            Some(ShowWhen::Auto) | None => Ok(Self::Automatic(Self::get_width(vars)?)),
+            Some(ShowWhen::Always) => Ok(Self::Always(width)),
+            Some(ShowWhen::Auto) => Ok(Self::Automatic(width)),
+            None => match config_icons {
+                Some("always") => Ok(Self::Always(width)),
+                Some("never") => Ok(Self::Never),
+                Some("auto") | Some("automatic") => Ok(Self::Automatic(width)),
+                _ => {
+                    if force_icons {
+                        Ok(Self::Automatic(width))
+                    } else {
+                        Ok(Self::Never)
+                    }
+                }
+            },
         }
     }
 
-    fn get_width<V: Vars>(vars: &V) -> Result<u32, OptionsError> {
+    fn get_width<V: Vars>(vars: &V, config: &FileConfig) -> Result<u32, OptionsError> {
         if let Some(columns) = vars
             .get(vars::LEZ_ICON_SPACING)
             .or_else(|| vars.get(vars::EZA_ICON_SPACING))
@@ -97,6 +119,8 @@ impl ShowIcons {
                     Err(OptionsError::FailedParse(columns.clone(), source, e))
                 }
             }
+        } else if let Some(spacing) = config.icons.spacing {
+            Ok(spacing as u32)
         } else {
             Ok(1)
         }
@@ -426,7 +450,7 @@ mod tests {
     #[test]
     fn the_empty_directory_icon_is_on_unless_a_variable_turns_it_off() {
         let opts = |vars: &MockVars| {
-            Options::deduce(&mock_cli(vec![""]), vars, false)
+            Options::deduce(&mock_cli(vec![""]), vars, false, &FileConfig::default())
                 .expect("options should deduce")
                 .empty_dir_icon
         };
@@ -447,7 +471,11 @@ mod tests {
     #[test]
     fn deduce_show_icons_never_no_arg() {
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec![""]), &MockVars::default()),
+            ShowIcons::deduce(
+                &mock_cli(vec![""]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             Ok(ShowIcons::Never)
         );
     }
@@ -457,7 +485,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_ICONS_AUTO, &OsString::from("1"));
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec![""]), &vars),
+            ShowIcons::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             Ok(ShowIcons::Automatic(1))
         );
     }
@@ -465,7 +493,11 @@ mod tests {
     #[test]
     fn deduce_show_icon_always() {
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons=always"]), &MockVars::default()),
+            ShowIcons::deduce(
+                &mock_cli(vec!["--icons=always"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             Ok(ShowIcons::Always(1)),
         );
     }
@@ -473,7 +505,11 @@ mod tests {
     #[test]
     fn deduce_show_icons_never() {
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons=never"]), &MockVars::default()),
+            ShowIcons::deduce(
+                &mock_cli(vec!["--icons=never"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             Ok(ShowIcons::Never)
         );
     }
@@ -481,7 +517,11 @@ mod tests {
     #[test]
     fn deduce_show_icons_auto() {
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons=auto"]), &MockVars::default()),
+            ShowIcons::deduce(
+                &mock_cli(vec!["--icons=auto"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             Ok(ShowIcons::Automatic(1))
         );
     }
@@ -500,7 +540,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_ICON_SPACING, &OsString::from("3"));
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons"]), &vars),
+            ShowIcons::deduce(&mock_cli(vec!["--icons"]), &vars, &FileConfig::default()),
             Ok(ShowIcons::Automatic(3))
         );
     }
@@ -517,7 +557,11 @@ mod tests {
             .parse();
 
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons=auto"]), &vars),
+            ShowIcons::deduce(
+                &mock_cli(vec!["--icons=auto"]),
+                &vars,
+                &FileConfig::default()
+            ),
             Err(OptionsError::FailedParse(
                 String::from("foo"),
                 NumberSource::Env(vars::EZA_ICON_SPACING),
@@ -537,7 +581,11 @@ mod tests {
         let e: Result<i64, ParseIntError> = "foo".parse();
 
         assert_eq!(
-            ShowIcons::deduce(&mock_cli(vec!["--icons=auto"]), &vars),
+            ShowIcons::deduce(
+                &mock_cli(vec!["--icons=auto"]),
+                &vars,
+                &FileConfig::default()
+            ),
             Err(OptionsError::FailedParse(
                 String::from("foo"),
                 NumberSource::Env(vars::EZA_ICON_SPACING),
@@ -549,7 +597,12 @@ mod tests {
     #[test]
     fn deduce_options() {
         assert_eq!(
-            Options::deduce(&mock_cli(vec![""]), &MockVars::default(), true),
+            Options::deduce(
+                &mock_cli(vec![""]),
+                &MockVars::default(),
+                true,
+                &FileConfig::default()
+            ),
             Ok(Options {
                 classify: Classify::JustFilenames,
                 show_icons: ShowIcons::Never,
@@ -567,9 +620,14 @@ mod tests {
     #[test]
     fn deduce_options_short_nix() {
         assert!(
-            Options::deduce(&mock_cli(vec!["--short-nix"]), &MockVars::default(), true)
-                .unwrap()
-                .short_nix
+            Options::deduce(
+                &mock_cli(vec!["--short-nix"]),
+                &MockVars::default(),
+                true,
+                &FileConfig::default()
+            )
+            .unwrap()
+            .short_nix
         );
     }
 
@@ -579,7 +637,8 @@ mod tests {
             Options::deduce(
                 &mock_cli(vec!["--no-symlink-targets"]),
                 &MockVars::default(),
-                true
+                true,
+                &FileConfig::default()
             )
             .unwrap()
             .show_symlink_targets,
