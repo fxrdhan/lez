@@ -660,38 +660,32 @@ impl Lez<'_> {
 
         let result = match (mode, self.console_width) {
             (Mode::Grid(opts), Some(console_width)) => {
-                let filter = &self.options.filter;
                 let r = grid::Render {
                     files,
                     theme,
                     file_style,
                     opts,
                     console_width,
-                    filter,
                 };
                 r.render(&mut self.writer)
             }
 
             (Mode::Grid(opts), None) => {
-                let filter = &self.options.filter;
                 let r = grid::Render {
                     files,
                     theme,
                     file_style,
                     opts,
                     console_width: 80,
-                    filter,
                 };
                 r.render(&mut self.writer)
             }
 
             (Mode::Lines, _) => {
-                let filter = &self.options.filter;
                 let r = lines::Render {
                     files,
                     theme,
                     file_style,
-                    filter,
                 };
                 r.render(&mut self.writer)
             }

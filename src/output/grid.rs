@@ -9,7 +9,6 @@ use std::io::{self, Write};
 use term_grid::{Direction, Filling, Grid, GridOptions};
 
 use crate::fs::File;
-use crate::fs::filter::FileFilter;
 use crate::output::file_name::Options as FileStyle;
 use crate::theme::Theme;
 
@@ -36,13 +35,10 @@ pub struct Render<'a> {
     pub file_style: &'a FileStyle,
     pub opts: &'a Options,
     pub console_width: usize,
-    pub filter: &'a FileFilter,
 }
 
 impl Render<'_> {
-    pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<()> {
-        self.filter.sort_files(&mut self.files);
-
+    pub fn render<W: Write>(self, w: &mut W) -> io::Result<()> {
         let cells = self
             .files
             .iter()
