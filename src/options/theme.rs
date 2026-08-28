@@ -13,10 +13,11 @@ use crate::theme::{Definitions, Options, UseColours};
 use std::path::PathBuf;
 
 use super::config::{ThemeConfig, config_dir_from_env};
+use crate::options::file_config::FileConfig;
 
 impl Options {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
-        let use_colours = UseColours::deduce(matches, vars);
+    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
+        let use_colours = UseColours::deduce(matches, vars, config);
         let colour_scale = ColorScaleOptions::deduce(matches, vars);
         let theme_config = ThemeConfig::deduce(vars);
 
@@ -60,16 +61,24 @@ impl ThemeConfig {
 }
 
 impl UseColours {
-    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
+    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
         let default_value = match vars.get(vars::NO_COLOR) {
             Some(_) => Self::Never,
-            None => Self::Automatic,
+            None => match config.theme.color.as_deref() {
+                Some("never") => Self::Never,
+                Some("always") => Self::Always,
+                _ => Self::Automatic,
+            },
         };
 
-        match matches.get_one("color").unwrap() {
-            ShowWhen::Auto => default_value,
-            ShowWhen::Always => Self::Always,
-            ShowWhen::Never => Self::Never,
+        if matches.value_source("color") == Some(clap::parser::ValueSource::CommandLine) {
+            match matches.get_one("color").unwrap() {
+                ShowWhen::Auto => default_value,
+                ShowWhen::Always => Self::Always,
+                ShowWhen::Never => Self::Never,
+            }
+        } else {
+            default_value
         }
     }
 }
@@ -175,7 +184,7 @@ mod tests {
         };
 
         assert_eq!(
-            UseColours::deduce(&mock_cli(vec![""]), &vars),
+            UseColours::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             UseColours::Never
         );
     }
@@ -187,7 +196,7 @@ mod tests {
         };
 
         assert_eq!(
-            UseColours::deduce(&mock_cli(vec!["--color=never"]), &vars),
+            UseColours::deduce(&mock_cli(vec!["--color=never"]), &vars, &FileConfig::default()),
             UseColours::Never
         );
     }
@@ -199,7 +208,7 @@ mod tests {
         };
 
         assert_eq!(
-            UseColours::deduce(&mock_cli(vec!["--color=always"]), &vars),
+            UseColours::deduce(&mock_cli(vec!["--color=always"]), &vars, &FileConfig::default()),
             UseColours::Always
         );
     }
@@ -211,7 +220,7 @@ mod tests {
         };
 
         assert_eq!(
-            UseColours::deduce(&mock_cli(vec!["--color=auto"]), &vars),
+            UseColours::deduce(&mock_cli(vec!["--color=auto"]), &vars, &FileConfig::default()),
             UseColours::Automatic
         );
     }
