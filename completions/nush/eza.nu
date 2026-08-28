@@ -70,6 +70,8 @@ export extern "eza" [
     --no-permissions           # Suppress the permissions field
     --octal-permissions(-o)    # List each file's permission in octal format
     --no-filesize              # Suppress the filesize field
+    --size-digits: int         # Number of digits to display for file sizes (1..=8)
+    --digits: int              # Number of digits to display for file sizes (1..=8)
     --no-user                  # Suppress the user field
     --no-time                  # Suppress the time field
     --mounts(-M)               # Show mount details

@@ -17,6 +17,7 @@ impl f::Blocksize {
         self,
         colours: &C,
         size_format: SizeFormat,
+        size_digits: u8,
         numerics: &NumericLocale,
     ) -> TextCell {
         use unit_prefix::NumberPrefix;
@@ -50,16 +51,10 @@ impl f::Blocksize {
             NumberPrefix::Prefixed(p, n) => (p, n),
         };
 
-        let (prefix, n) = super::size::carry_to_next_prefix(prefix, n);
+        let (prefix, n) = super::size::carry_to_next_prefix(prefix, n, size_digits);
 
         let symbol = prefix.symbol();
-        // perform rounding before formatting for edge cases near n = 10
-        let rounded_1dp = (n * 10_f64).round() / 10_f64;
-        let number = if rounded_1dp < 10_f64 {
-            numerics.format_float(n, 1)
-        } else {
-            numerics.format_int(n.round() as isize)
-        };
+        let number = super::size::format_size_number(n, size_digits, numerics);
 
         TextCell {
             // symbol is guaranteed to be ASCII since unit prefixes are hardcoded.
@@ -72,7 +67,12 @@ impl f::Blocksize {
         }
     }
 
-    pub fn render_json(self, size_format: SizeFormat, numerics: &NumericLocale) -> Option<String> {
+    pub fn render_json(
+        self,
+        size_format: SizeFormat,
+        size_digits: u8,
+        numerics: &NumericLocale,
+    ) -> Option<String> {
         use unit_prefix::NumberPrefix;
 
         let size = match self {
@@ -98,14 +98,10 @@ impl f::Blocksize {
             NumberPrefix::Prefixed(p, n) => (p, n),
         };
 
+        let (prefix, n) = super::size::carry_to_next_prefix(prefix, n, size_digits);
+
         let symbol = prefix.symbol();
-        // perform rounding before formatting for edge cases near n = 10
-        let rounded_1dp = (n * 10_f64).round() / 10_f64;
-        let number = if rounded_1dp < 10_f64 {
-            numerics.format_float(n, 1)
-        } else {
-            numerics.format_int(n.round() as isize)
-        };
+        let number = super::size::format_size_number(n, size_digits, numerics);
 
         Some(number + symbol)
     }
@@ -149,6 +145,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::JustBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -167,6 +164,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -185,6 +183,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::BinaryBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -203,6 +202,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::JustBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -220,6 +220,7 @@ pub mod test {
             file.render(
                 &TestColours,
                 SizeFormat::BinaryBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -237,6 +238,7 @@ pub mod test {
             file.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -254,6 +256,7 @@ pub mod test {
             file.render(
                 &TestColours,
                 SizeFormat::BinaryBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -271,6 +274,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -288,6 +292,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
                 &NumericLocale::english()
             )
         );
@@ -299,7 +304,7 @@ pub mod test {
         let expected = None;
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::JustBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::JustBytes, 3, &NumericLocale::english())
         );
     }
 
@@ -310,7 +315,7 @@ pub mod test {
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::DecimalBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::DecimalBytes, 3, &NumericLocale::english())
         );
     }
 
@@ -321,7 +326,7 @@ pub mod test {
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::BinaryBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::BinaryBytes, 3, &NumericLocale::english())
         );
     }
 
@@ -332,7 +337,7 @@ pub mod test {
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::JustBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::JustBytes, 3, &NumericLocale::english())
         );
     }
 }

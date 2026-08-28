@@ -113,6 +113,7 @@ Work an unread upstream report in this order:
 | [#1642](https://github.com/eza-community/eza/issues/1642) (part) | `bl` in `LS_COLORS` parsed but never read; fixed to use block palette. |
 | [#765](https://github.com/eza-community/eza/issues/765) | `mh` accepted and properly parsed. |
 | [#1002](https://github.com/eza-community/eza/issues/1002), [#745](https://github.com/eza-community/eza/issues/745) | High stat overhead on empty directory glyph probing over FUSE/NFS. `LEZ_NO_EMPTY_DIR_ICON` avoids probing. |
+| [#1732](https://github.com/eza-community/eza/issues/1732) | `--size-digits=<NUM>` (alias `--digits`) and `LEZ_SIZE_DIGITS` added to customize size column precision/digit count. |
 
 ### Reproduced but Still Open / By Design
 

@@ -18,6 +18,7 @@ impl f::Size {
         self,
         colours: &C,
         size_format: SizeFormat,
+        size_digits: u8,
         numerics: &NumericLocale,
         color_scale_info: Option<ColorScaleInformation>,
     ) -> TextCell {
@@ -74,16 +75,10 @@ impl f::Size {
             NumberPrefix::Prefixed(p, n)  => (p, n),
         };
 
-        let (prefix, n) = carry_to_next_prefix(prefix, n);
+        let (prefix, n) = carry_to_next_prefix(prefix, n, size_digits);
 
         let symbol = prefix.symbol();
-        // perform rounding before formatting for edge cases near n = 10
-        let rounded_1dp = (n * 10_f64).round() / 10_f64;
-        let number = if rounded_1dp < 10_f64 {
-            numerics.format_float(n, 1)
-        } else {
-            numerics.format_int(n.round() as isize)
-        };
+        let number = format_size_number(n, size_digits, numerics);
 
         TextCell {
             // symbol is guaranteed to be ASCII since unit prefixes are hardcoded.
@@ -116,7 +111,12 @@ impl f::Size {
         }
     }
 
-    pub fn render_json(self, size_format: SizeFormat, numerics: &NumericLocale) -> Option<String> {
+    pub fn render_json(
+        self,
+        size_format: SizeFormat,
+        size_digits: u8,
+        numerics: &NumericLocale,
+    ) -> Option<String> {
         use unit_prefix::NumberPrefix;
 
         let size = match self {
@@ -136,18 +136,45 @@ impl f::Size {
             NumberPrefix::Prefixed(p, n) => (p, n),
         };
 
-        let (prefix, n) = carry_to_next_prefix(prefix, n);
+        let (prefix, n) = carry_to_next_prefix(prefix, n, size_digits);
 
         let symbol = prefix.symbol();
-        // perform rounding before formatting for edge cases near n = 10
-        let rounded_1dp = (n * 10_f64).round() / 10_f64;
-        let number = if rounded_1dp < 10_f64 {
-            numerics.format_float(n, 1)
-        } else {
-            numerics.format_int(n.round() as isize)
-        };
+        let number = format_size_number(n, size_digits, numerics);
 
         Some(number + symbol)
+    }
+}
+
+/// Format a floating point number `n` using `size_digits` total digits.
+pub fn format_size_number(n: f64, size_digits: u8, numerics: &NumericLocale) -> String {
+    let int_digits = if n < 10.0 {
+        1
+    } else if n < 100.0 {
+        2
+    } else {
+        3
+    };
+
+    let decimals = (size_digits as usize).saturating_sub(int_digits + 1);
+
+    if decimals > 0 {
+        let factor = 10_f64.powi(decimals as i32);
+        let rounded = (n * factor).round() / factor;
+        let new_int_digits = if rounded < 10.0 {
+            1
+        } else if rounded < 100.0 {
+            2
+        } else {
+            3
+        };
+        let new_decimals = (size_digits as usize).saturating_sub(new_int_digits + 1);
+        if new_decimals > 0 {
+            numerics.format_float(rounded, new_decimals)
+        } else {
+            numerics.format_int(rounded.round() as isize)
+        }
+    } else {
+        numerics.format_int(n.round() as isize)
     }
 }
 
@@ -159,7 +186,7 @@ impl f::Size {
 /// `1,024Ki` instead of `1.0Mi`. `NumberPrefix` only ever hands back a value in
 /// `1 .. base`, so rounding can at most reach `base` exactly, which is one of
 /// the next unit.
-pub fn carry_to_next_prefix(prefix: Prefix, n: f64) -> (Prefix, f64) {
+pub fn carry_to_next_prefix(prefix: Prefix, n: f64, size_digits: u8) -> (Prefix, f64) {
     #[rustfmt::skip]
     let (base, next) = match prefix {
         Prefix::Kilo  => (1000_f64, Some(Prefix::Mega)),
@@ -180,12 +207,16 @@ pub fn carry_to_next_prefix(prefix: Prefix, n: f64) -> (Prefix, f64) {
         Prefix::Yobi  => (1024_f64, None),
     };
 
-    // Mirror the rounding that the number will be displayed with.
-    let rounded = if n < 10_f64 {
-        (n * 10_f64).round() / 10_f64
+    let int_digits = if n < 10.0 {
+        1
+    } else if n < 100.0 {
+        2
     } else {
-        n.round()
+        3
     };
+    let decimals = (size_digits as usize).saturating_sub(int_digits + 1);
+    let factor = 10_f64.powi(decimals as i32);
+    let rounded = (n * factor).round() / factor;
 
     match next {
         Some(next) if rounded >= base => (next, 1_f64),
@@ -258,6 +289,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::JustBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -277,6 +309,43 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
+                &NumericLocale::english(),
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn file_decimal_custom_digits() {
+        let directory = f::Size::Some(2_345_678);
+        // 4 digits: "2.35M"
+        let expected_4 = TextCell {
+            width: DisplayWidth::from(5),
+            contents: vec![Fixed(66).paint("2.35"), Fixed(77).bold().paint("M")].into(),
+        };
+        assert_eq!(
+            expected_4,
+            directory.render(
+                &TestColours,
+                SizeFormat::DecimalBytes,
+                4,
+                &NumericLocale::english(),
+                None
+            )
+        );
+
+        // 5 digits: "2.346M"
+        let expected_5 = TextCell {
+            width: DisplayWidth::from(6),
+            contents: vec![Fixed(66).paint("2.346"), Fixed(77).bold().paint("M")].into(),
+        };
+        assert_eq!(
+            expected_5,
+            directory.render(
+                &TestColours,
+                SizeFormat::DecimalBytes,
+                5,
                 &NumericLocale::english(),
                 None
             )
@@ -296,6 +365,43 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::BinaryBytes,
+                3,
+                &NumericLocale::english(),
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn file_binary_custom_digits() {
+        let file = f::Size::Some(2_510_000_000); // 2.3376 GiB
+        // 3 digits: "2.3Gi"
+        let expected_3 = TextCell {
+            width: DisplayWidth::from(5),
+            contents: vec![Fixed(66).paint("2.3"), Fixed(77).bold().paint("Gi")].into(),
+        };
+        assert_eq!(
+            expected_3,
+            file.render(
+                &TestColours,
+                SizeFormat::BinaryBytes,
+                3,
+                &NumericLocale::english(),
+                None
+            )
+        );
+
+        // 4 digits: "2.34Gi"
+        let expected_4 = TextCell {
+            width: DisplayWidth::from(6),
+            contents: vec![Fixed(66).paint("2.34"), Fixed(77).bold().paint("Gi")].into(),
+        };
+        assert_eq!(
+            expected_4,
+            file.render(
+                &TestColours,
+                SizeFormat::BinaryBytes,
+                4,
                 &NumericLocale::english(),
                 None
             )
@@ -315,6 +421,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::JustBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -342,6 +449,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::JustBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -360,6 +468,7 @@ pub mod test {
             file.render(
                 &TestColours,
                 SizeFormat::BinaryBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -378,6 +487,7 @@ pub mod test {
             file.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -396,6 +506,7 @@ pub mod test {
             file.render(
                 &TestColours,
                 SizeFormat::BinaryBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -414,6 +525,7 @@ pub mod test {
             file.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -432,6 +544,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -450,6 +563,7 @@ pub mod test {
             directory.render(
                 &TestColours,
                 SizeFormat::DecimalBytes,
+                3,
                 &NumericLocale::english(),
                 None
             )
@@ -462,91 +576,91 @@ pub mod test {
 
         // Decimal carries
         assert_eq!(
-            carry_to_next_prefix(Prefix::Kilo, 999.99),
+            carry_to_next_prefix(Prefix::Kilo, 999.99, 3),
             (Prefix::Mega, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Mega, 999.99),
+            carry_to_next_prefix(Prefix::Mega, 999.99, 3),
             (Prefix::Giga, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Giga, 999.99),
+            carry_to_next_prefix(Prefix::Giga, 999.99, 3),
             (Prefix::Tera, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Tera, 999.99),
+            carry_to_next_prefix(Prefix::Tera, 999.99, 3),
             (Prefix::Peta, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Peta, 999.99),
+            carry_to_next_prefix(Prefix::Peta, 999.99, 3),
             (Prefix::Exa, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Exa, 999.99),
+            carry_to_next_prefix(Prefix::Exa, 999.99, 3),
             (Prefix::Zetta, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Zetta, 999.99),
+            carry_to_next_prefix(Prefix::Zetta, 999.99, 3),
             (Prefix::Yotta, 1.0)
         );
         // Top prefix (Yotta) has no next prefix, so it remains unchanged
         assert_eq!(
-            carry_to_next_prefix(Prefix::Yotta, 1000.0),
+            carry_to_next_prefix(Prefix::Yotta, 1000.0, 3),
             (Prefix::Yotta, 1000.0)
         );
 
         // Binary carries
         assert_eq!(
-            carry_to_next_prefix(Prefix::Kibi, 1023.99),
+            carry_to_next_prefix(Prefix::Kibi, 1023.99, 3),
             (Prefix::Mebi, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Mebi, 1023.99),
+            carry_to_next_prefix(Prefix::Mebi, 1023.99, 3),
             (Prefix::Gibi, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Gibi, 1023.99),
+            carry_to_next_prefix(Prefix::Gibi, 1023.99, 3),
             (Prefix::Tebi, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Tebi, 1023.99),
+            carry_to_next_prefix(Prefix::Tebi, 1023.99, 3),
             (Prefix::Pebi, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Pebi, 1023.99),
+            carry_to_next_prefix(Prefix::Pebi, 1023.99, 3),
             (Prefix::Exbi, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Exbi, 1023.99),
+            carry_to_next_prefix(Prefix::Exbi, 1023.99, 3),
             (Prefix::Zebi, 1.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Zebi, 1023.99),
+            carry_to_next_prefix(Prefix::Zebi, 1023.99, 3),
             (Prefix::Yobi, 1.0)
         );
         // Top prefix (Yobi) has no next prefix, so it remains unchanged
         assert_eq!(
-            carry_to_next_prefix(Prefix::Yobi, 1024.0),
+            carry_to_next_prefix(Prefix::Yobi, 1024.0, 3),
             (Prefix::Yobi, 1024.0)
         );
 
         // Sub-10 values do not carry over across units
         assert_eq!(
-            carry_to_next_prefix(Prefix::Kilo, 9.95),
+            carry_to_next_prefix(Prefix::Kilo, 9.95, 3),
             (Prefix::Kilo, 9.95)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Kibi, 9.95),
+            carry_to_next_prefix(Prefix::Kibi, 9.95, 3),
             (Prefix::Kibi, 9.95)
         );
 
         // Values below threshold do not carry
         assert_eq!(
-            carry_to_next_prefix(Prefix::Kilo, 500.0),
+            carry_to_next_prefix(Prefix::Kilo, 500.0, 3),
             (Prefix::Kilo, 500.0)
         );
         assert_eq!(
-            carry_to_next_prefix(Prefix::Kibi, 512.0),
+            carry_to_next_prefix(Prefix::Kibi, 512.0, 3),
             (Prefix::Kibi, 512.0)
         );
     }
@@ -557,7 +671,7 @@ pub mod test {
         let expected = None;
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::JustBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::JustBytes, 3, &NumericLocale::english())
         );
     }
 
@@ -568,7 +682,7 @@ pub mod test {
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::DecimalBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::DecimalBytes, 3, &NumericLocale::english())
         );
     }
 
@@ -579,7 +693,7 @@ pub mod test {
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::BinaryBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::BinaryBytes, 3, &NumericLocale::english())
         );
     }
 
@@ -590,7 +704,7 @@ pub mod test {
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::JustBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::JustBytes, 3, &NumericLocale::english())
         );
     }
 
@@ -604,7 +718,7 @@ pub mod test {
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::JustBytes, &NumericLocale::english())
+            directory.render_json(SizeFormat::JustBytes, 3, &NumericLocale::english())
         );
     }
 }

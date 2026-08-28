@@ -131,6 +131,11 @@ pub static EZA_QUOTING_STYLE: &str = "EZA_QUOTING_STYLE";
 pub static LEZ_WINDOWS_ATTRIBUTES: &str = "LEZ_WINDOWS_ATTRIBUTES";
 pub static EZA_WINDOWS_ATTRIBUTES: &str = "EZA_WINDOWS_ATTRIBUTES";
 
+/// Environment variable used to specify the number of digits to display for file sizes.
+pub static LEZ_SIZE_DIGITS: &str = "LEZ_SIZE_DIGITS";
+pub static EZA_SIZE_DIGITS: &str = "EZA_SIZE_DIGITS";
+pub static EXA_SIZE_DIGITS: &str = "EXA_SIZE_DIGITS";
+
 /// Mockable wrapper for `std::env::var_os`.
 pub trait Vars {
     fn get(&self, name: &'static str) -> Option<OsString>;
@@ -213,6 +218,10 @@ pub mod test {
         pub lez_mime_types: OsString,
         pub eza_mime_types: OsString,
         pub mimetypes: OsString,
+        pub lez_size_digits: OsString,
+        pub eza_size_digits: OsString,
+        pub exa_size_digits: OsString,
+        pub size_digits: OsString,
         pub lc_all: OsString,
         pub lc_collate: OsString,
         pub lang: OsString,
@@ -319,6 +328,20 @@ pub mod test {
                 "LEZ_MIME_TYPES" | "EZA_MIME_TYPES" if !self.mimetypes.is_empty() => {
                     Some(self.mimetypes.clone())
                 }
+                "LEZ_SIZE_DIGITS" if !self.lez_size_digits.is_empty() => {
+                    Some(self.lez_size_digits.clone())
+                }
+                "EZA_SIZE_DIGITS" if !self.eza_size_digits.is_empty() => {
+                    Some(self.eza_size_digits.clone())
+                }
+                "EXA_SIZE_DIGITS" if !self.exa_size_digits.is_empty() => {
+                    Some(self.exa_size_digits.clone())
+                }
+                "LEZ_SIZE_DIGITS" | "EZA_SIZE_DIGITS" | "EXA_SIZE_DIGITS"
+                    if !self.size_digits.is_empty() =>
+                {
+                    Some(self.size_digits.clone())
+                }
                 "LC_ALL" if !self.lc_all.is_empty() => Some(self.lc_all.clone()),
                 "LC_COLLATE" if !self.lc_collate.is_empty() => Some(self.lc_collate.clone()),
                 "LANG" if !self.lang.is_empty() => Some(self.lang.clone()),
@@ -361,6 +384,9 @@ pub mod test {
                 "EZA_STDIN_SEPARATOR" => self.eza_stdin_separator = value.clone(),
                 "LEZ_MIME_TYPES" => self.lez_mime_types = value.clone(),
                 "EZA_MIME_TYPES" => self.eza_mime_types = value.clone(),
+                "LEZ_SIZE_DIGITS" => self.lez_size_digits = value.clone(),
+                "EZA_SIZE_DIGITS" => self.eza_size_digits = value.clone(),
+                "EXA_SIZE_DIGITS" => self.exa_size_digits = value.clone(),
                 "LC_ALL" => self.lc_all = value.clone(),
                 "LC_COLLATE" => self.lc_collate = value.clone(),
                 "LANG" => self.lang = value.clone(),
@@ -438,5 +464,14 @@ pub mod test {
 
         vars.set(EZA_MIME_TYPES, &OsString::from("1"));
         assert_eq!(vars.get(EZA_MIME_TYPES), Some(OsString::from("1")));
+
+        vars.set(LEZ_SIZE_DIGITS, &OsString::from("4"));
+        assert_eq!(vars.get(LEZ_SIZE_DIGITS), Some(OsString::from("4")));
+
+        vars.set(EZA_SIZE_DIGITS, &OsString::from("4"));
+        assert_eq!(vars.get(EZA_SIZE_DIGITS), Some(OsString::from("4")));
+
+        vars.set(EXA_SIZE_DIGITS, &OsString::from("4"));
+        assert_eq!(vars.get(EXA_SIZE_DIGITS), Some(OsString::from("4")));
     }
 }
