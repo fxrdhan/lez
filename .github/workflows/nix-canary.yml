@@ -22,7 +22,19 @@ jobs:
         uses: actions/checkout@v7
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          extra-conf: |
+            sandbox = false
+            ssl-cert-file = /etc/ssl/certs/ca-certificates.crt
+            extra-sandbox-paths = /etc/ssl/certs
+            user-agent = lez-ci (https://github.com/fxrdhan/lez)
+      - name: Configure curl user-agent for crates.io
+        run: |
+          echo 'user-agent = "lez-ci (https://github.com/fxrdhan/lez)"' >> ~/.curlrc
+          sudo sh -c 'echo "user-agent = \"lez-ci (https://github.com/fxrdhan/lez)\"" >> /etc/curlrc' 2>/dev/null || true
       - name: Nix Flake Check (substituters disabled)
         run: nix flake check -L --option substituters ""
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+          SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt

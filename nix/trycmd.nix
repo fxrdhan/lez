@@ -18,8 +18,11 @@
     singleStep = true;
     # generate testing files
     buildPhase = ''
-      bash devtools/dir-generator.sh tests/test_dir && echo "Dir generated"
+      bash devtools/dir-generator.sh tests/test_dir
       bash devtools/generate-timestamp-test-dir.sh tests/timestamp_test_dir
+      touch --date=@0 tests/itest/*
+      touch --date=@0 tests/ptests/*
+      fd -e stdout -e stderr -H -t file -X sed -i 's/[CWD]\//\/build\/source\//g'
     '';
     cargoTestOptions =
       opts:
@@ -30,7 +33,11 @@
         "--features powertest"
       ];
     inherit buildInputs;
-    nativeBuildInputs = with pkgs; [ git ];
+    nativeBuildInputs = with pkgs; [
+      fd
+      gnused
+      git
+    ];
   };
 
   # TODO: add conditionally to checks.
