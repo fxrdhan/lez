@@ -38,15 +38,15 @@ SPDX-License-Identifier: EUPL-1.2
 
 # Performance
 
-Measured against [eza](https://github.com/eza-community/eza) v0.23.5, the release this project forked from. Apple M1 Pro, 10 cores, macOS; release builds, warm page cache, minimum of 35 interleaved runs per binary.
+Measured against [eza](https://github.com/eza-community/eza) v0.23.5 and [lsd](https://github.com/lsd-rs/lsd) v1.2.0. Apple M1 Pro, 10 cores, macOS; release builds, warm page cache, minimum of 35 interleaved runs per binary.
 
-| Workload | `lez` | `eza` 0.23.5 | |
-| --- | ---: | ---: | ---: |
-| Grid view, 10,000 files | **34.4 ms** | 68.6 ms | 2.00× |
-| Recursive tree, 29,572 files | **308.9 ms** | 565.9 ms | 1.83× |
-| Directory-grouped, 10,000 entries incl. 3,000 symlinks | **186.1 ms** | 312.8 ms | 1.68× |
-| Long view, 10,000 files | **162.2 ms** | 175.7 ms | 1.08× |
-| Long view with Git status, this repository | 22.3 ms | **20.8 ms** | 0.93× |
+| Workload | `lez` | `eza` 0.23.5 | `lsd` 1.2.0 | vs `eza` | vs `lsd` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Grid view, 10,000 files | **34.4 ms** | 68.6 ms | 72.1 ms | 2.00× | 2.10× |
+| Recursive tree, 29,572 files | **308.9 ms** | 565.9 ms | 1,482.4 ms | 1.83× | 4.80× |
+| Directory-grouped, 10,000 entries incl. 3,000 symlinks | **186.1 ms** | 312.8 ms | 338.2 ms | 1.68× | 1.82× |
+| Long view, 10,000 files | **162.2 ms** | 175.7 ms | 185.3 ms | 1.08× | 1.14× |
+| Long view with Git status, this repository | 22.3 ms | **20.8 ms** | 26.9 ms | 0.93× | 1.21× |
 
 Where the gains come from: symlink directory lookups are cached, so the grouping sort resolves each entry once instead of on every comparison; sorts above 2,048 entries run on all cores; and the traversal itself avoids redundant allocations and stats.
 
@@ -58,9 +58,9 @@ The last row is the one case where eza is ahead, by about a millisecond and a ha
 # 10,000 files in one flat directory
 mkdir -p /tmp/bench && cd /tmp/bench && seq 1 10000 | xargs -I{} touch file_{}.txt
 
-hyperfine --warmup 3 'lez /tmp/bench' 'eza /tmp/bench'
-hyperfine --warmup 3 'lez -l /tmp/bench' 'eza -l /tmp/bench'
-hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registry'
+hyperfine --warmup 3 'lez /tmp/bench' 'eza /tmp/bench' 'lsd /tmp/bench'
+hyperfine --warmup 3 'lez -l /tmp/bench' 'eza -l /tmp/bench' 'lsd -l /tmp/bench'
+hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registry' 'lsd --tree ~/.cargo/registry'
 ```
 
 `eza` requires `--icons=auto` where `lez` accepts a bare `--icons`; passing a bare `--icons` to `eza` before a path makes it reject the path as an invalid value, which produces a misleadingly fast result.
