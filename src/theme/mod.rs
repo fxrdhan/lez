@@ -622,9 +622,12 @@ impl FileNameColours for Theme {
     fn btrfs_subvol(&self)        -> Style { self.ui.filekinds.unwrap_or_default().btrfs_subvol() }
     fn classify_char(&self)       -> Style { self.ui.punctuation() }
 
+    fn custom_file_style(&self, file: &File<'_>) -> Option<Style> {
+        self.exts.get_style(file, self)
+    }
+
     fn colour_file(&self, file: &File<'_>) -> Style {
-        self.exts
-            .get_style(file, self)
+        self.custom_file_style(file)
             .unwrap_or(self.ui.filekinds.unwrap_or_default().normal())
     }
 
@@ -637,14 +640,13 @@ impl FileNameColours for Theme {
             }
 
             if let Some(ref ext_overrides) = self.ui.extensions {
-                if file.is_empty_dir() {
-                    if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY_EMPTY) {
-                        return Some(file_override.clone());
-                    }
-                    if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY) {
-                        return Some(file_override.clone());
-                    }
-                } else if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY) {
+                if ext_overrides.contains_key(FileDefaults::DIRECTORY_EMPTY)
+                    && file.is_empty_dir()
+                    && let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY_EMPTY)
+                {
+                    return Some(file_override.clone());
+                }
+                if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY) {
                     return Some(file_override.clone());
                 }
             }
