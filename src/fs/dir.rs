@@ -27,6 +27,20 @@ use crate::fs::File;
 /// This object gets passed to the Files themselves, in order for them to
 /// check the existence of surrounding files, then highlight themselves
 /// accordingly. (See `File#get_source_files`)
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum DirReadState {
+    #[default]
+    Unread,
+    Read,
+    Failed(io::ErrorKind),
+}
+
+/// A **Dir** provides a cached list of the file paths in a directory that’s
+/// being listed.
+///
+/// This object gets passed to the Files themselves, in order for them to
+/// check the existence of surrounding files, then highlight themselves
+/// accordingly. (See `File#get_source_files`)
 #[derive(Debug)]
 pub struct Dir {
     /// A vector of the files that have been read from this directory.
@@ -38,6 +52,9 @@ pub struct Dir {
     /// The same paths as `contents`, in a form that can be searched in
     /// constant time. Built on first use, since most listings never ask.
     paths: OnceLock<HashSet<PathBuf>>,
+
+    /// Cached read state to avoid duplicate I/O roundtrips during parallel traversal.
+    read_state: DirReadState,
 }
 
 #[cfg(unix)]
@@ -56,23 +73,39 @@ impl Dir {
             contents: vec![],
             path,
             paths: OnceLock::new(),
+            read_state: DirReadState::Unread,
         }
     }
 
-    /// Reads the contents of the directory into `DirEntry`.
-    ///
-    /// It is recommended to use this method in conjunction with `new` in recursive
-    /// calls, rather than `read_dir`, to avoid holding multiple open file descriptors
-    /// simultaneously, which can lead to "too many open files" errors.
+    /// Reads the contents of the directory into `DirEntry`, always performing an actual
+    /// filesystem read and invalidating any cached paths.
     pub fn read(&mut self) -> io::Result<&Self> {
         info!("Reading directory {:?}", self.path);
 
-        self.contents = fs::read_dir(&self.path)?.collect::<Result<Vec<_>, _>>()?;
-        // The contents just changed, so anything derived from them is stale.
-        self.paths = OnceLock::new();
+        match fs::read_dir(&self.path).and_then(|rd| rd.collect::<Result<Vec<_>, _>>()) {
+            Ok(entries) => {
+                self.contents = entries;
+                // The contents just changed, so anything derived from them is stale.
+                self.paths = OnceLock::new();
+                self.read_state = DirReadState::Read;
+                info!("Read directory success {:?}", self.path);
+                Ok(self)
+            }
+            Err(e) => {
+                self.read_state = DirReadState::Failed(e.kind());
+                Err(e)
+            }
+        }
+    }
 
-        info!("Read directory success {:?}", self.path);
-        Ok(self)
+    /// Ensures the contents of the directory have been read, returning the cached result
+    /// if an earlier parallel read already populated this directory.
+    pub fn ensure_read(&mut self) -> io::Result<&Self> {
+        match self.read_state {
+            DirReadState::Read => Ok(self),
+            DirReadState::Failed(kind) => Err(io::Error::from(kind)),
+            DirReadState::Unread => self.read(),
+        }
     }
 
     /// Create a new Dir object filled with all the files in the directory
@@ -93,6 +126,7 @@ impl Dir {
             contents,
             path,
             paths: OnceLock::new(),
+            read_state: DirReadState::Read,
         })
     }
 
@@ -269,7 +303,9 @@ impl<'dir> Files<'dir, '_, '_> {
                 }
 
                 let path = entry.path();
-                let filename = file_name.to_string_lossy().to_string();
+                let filename = file_name
+                    .into_string()
+                    .unwrap_or_else(|os| os.to_string_lossy().into_owned());
 
                 if self.git_ignoring {
                     let git_status = self
