@@ -456,7 +456,7 @@ impl Lez<'_> {
 
     fn print_dirs(
         &mut self,
-        dir_files: Vec<Dir>,
+        mut dir_files: Vec<Dir>,
         mut first: bool,
         is_only_dir: bool,
         exit_status: i32,
@@ -469,13 +469,22 @@ impl Lez<'_> {
 
         let mut denied_dirs = vec![];
 
+        // Parallelize reading directory contents across worker threads when multiple directories
+        // are queued for listing, eliminating sequential I/O blocking during recursive traversal.
+        if dir_files.len() > 1 {
+            use rayon::prelude::*;
+            dir_files.par_iter_mut().for_each(|dir| {
+                let _ = dir.ensure_read();
+            });
+        }
+
         // Set when this call — or any recursive call below it — had to skip a
         // directory it wasn’t allowed to read, so `run` can surface it as an
         // exit code instead of only a stderr line.
         let mut denied_anywhere = false;
 
         for mut dir in dir_files {
-            let dir = match dir.read() {
+            let dir = match dir.ensure_read() {
                 Ok(dir) => dir,
                 Err(e) => {
                     if e.kind() == ErrorKind::PermissionDenied {
