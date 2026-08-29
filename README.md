@@ -78,7 +78,7 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 | **Classic GNU `ls` Mode** (`--classic`) | ❌ | ❌ | ✅ |
 | **Unicode Emoji Fallback** (`--icon-theme unicode`) | ❌ | ❌ | ✅ |
 | **Multithreaded Traversal** (Rayon Engine) | ✅ | ⚠️ Limited | ❌ |
-| **Lines-of-Code Counter** (`--code` for 100+ langs) | ✅ | ❌ | ❌ |
+| **Lines-of-Code Counter** (`--code`, `--loc`) | ✅ 100+ langs | ✅ 50+ langs | ❌ |
 | **Structured JSON Export** (`--json`) | ✅ | ❌ | ❌ |
 | **Archive Inspection** (`--inspect-archives` for `.tar`) | ✅ | ❌ | ❌ |
 | **Time-Window Filtering** (`--since`) | ✅ | ❌ | ❌ |
