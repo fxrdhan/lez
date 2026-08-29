@@ -126,10 +126,13 @@ Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
 ## 5. Engineering Standards & Conventions
 
 ### Performance & Memory Rules
+- **Measure, Don't Guess (Profiling First)**: Never assume a performance bottleneck from code inspection alone (e.g. assuming CPU sorting overhead when the real bottleneck is I/O syscalls). Always capture concrete profiling data (`strace -c` on Linux, `hyperfine`, or flamegraphs) on representative workloads before proposing a fix.
+- **Syscall Amplification Prevention**: Probing filesystem metadata (`stat`, `statx`, `is_executable`, `is_empty_dir`) incurs severe latency penalties on FUSE filesystems (Unraid `shfs`, `bindfs`), network shares (NFS, CIFS), and mechanical disk arrays due to kernel $\leftrightarrow$ user-space context switches. Every filesystem syscall must be treated as expensive.
+- **In-Memory Fast Paths Before Disk Probing**: Always evaluate in-memory data structures first (e.g. custom extension/filename styles in themes, registered mappings) before querying the filesystem or metadata cache for permissions or attributes (e.g. PR #87 reduced `statx` calls by 99.7% by resolving extension styles prior to `is_executable_file`).
 - **Lazy Evaluation via `OnceLock`**: Never eagerly query metadata on [`File`](src/fs/file.rs). Extended attributes, Git status, security context, mounts, and recursive sizes must stay lazily evaluated via `OnceLock` only when the active view/columns request them.
-- **Stat Amplification Prevention**: Avoid probing filesystem metadata unnecessarily on directory traversal (e.g. respect `LEZ_NO_EMPTY_DIR_ICON` to prevent roundtrips on FUSE/network shares).
 - **Parallelism**: Use Rayon `par_iter()` for expensive batch operations (directory scanning and LOC counting).
 - **Memoization**: Cache repetitive queries (e.g. `Dir::contains` set memoization).
+- **Validation Before Claiming Resolution**: Never declare an issue resolved or push a claimed fix without reproducing and verifying the performance delta on the affected storage/platform layer.
 
 ### Exit Codes & Error Handling
 | Exit Code | Meaning | Context |
