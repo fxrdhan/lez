@@ -984,14 +984,16 @@ impl<'dir> File<'dir> {
     /// of a directory when `total_size` is used.
     #[inline]
     pub fn length(&self) -> u64 {
-        self.recursive_size.unwrap_bytes_or(
-            match (self.is_link(), self.deref_links, self.link_target_recurse()) {
-                (true, true, FileTarget::Ok(ref f)) => f,
-                _ => self,
+        self.recursive_size.unwrap_bytes_or({
+            if self.is_link() && self.deref_links {
+                match self.link_target_recurse() {
+                    FileTarget::Ok(ref f) => f.metadata().map_or(0, std::fs::Metadata::len),
+                    _ => self.metadata().map_or(0, std::fs::Metadata::len),
+                }
+            } else {
+                self.metadata().map_or(0, std::fs::Metadata::len)
             }
-            .metadata()
-            .map_or(0, std::fs::Metadata::len),
-        )
+        })
     }
 
     /// Is the file is using recursive size calculation
