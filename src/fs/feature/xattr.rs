@@ -32,6 +32,8 @@ pub struct Attribute {
 pub trait FileAttributes {
     fn attributes(&self) -> io::Result<Vec<Attribute>>;
     fn symlink_attributes(&self) -> io::Result<Vec<Attribute>>;
+    fn has_attributes(&self) -> bool;
+    fn has_symlink_attributes(&self) -> bool;
 }
 
 #[cfg(any(
@@ -48,6 +50,14 @@ impl FileAttributes for Path {
     fn symlink_attributes(&self) -> io::Result<Vec<Attribute>> {
         extended_attrs::attributes(self, false)
     }
+
+    fn has_attributes(&self) -> bool {
+        extended_attrs::has_attributes(self, true)
+    }
+
+    fn has_symlink_attributes(&self) -> bool {
+        extended_attrs::has_attributes(self, false)
+    }
 }
 
 #[cfg(not(any(
@@ -63,6 +73,14 @@ impl FileAttributes for Path {
 
     fn symlink_attributes(&self) -> io::Result<Vec<Attribute>> {
         Ok(Vec::new())
+    }
+
+    fn has_attributes(&self) -> bool {
+        false
+    }
+
+    fn has_symlink_attributes(&self) -> bool {
+        false
     }
 }
 
@@ -438,6 +456,16 @@ mod extended_attrs {
         })
     }
 
+    // Fast probe to check if any extended attributes exist without fetching their values
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    pub fn has_attributes(path: &Path, follow_symlinks: bool) -> bool {
+        let Ok(c_path) = CString::new(path.as_os_str().as_bytes()) else {
+            return false;
+        };
+        let res = os::list_xattr(follow_symlinks, c_path.as_ptr(), std::ptr::null_mut(), 0);
+        res > 0
+    }
+
     // Get a vector of all attribute names and values on `path`
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     pub fn attributes(path: &Path, follow_symlinks: bool) -> io::Result<Vec<Attribute>> {
@@ -530,6 +558,21 @@ mod extended_attrs {
         )?;
 
         Ok(attrs)
+    }
+
+    #[cfg(any(target_os = "netbsd", target_os = "freebsd"))]
+    pub fn has_attributes(path: &Path, follow_symlinks: bool) -> bool {
+        let Ok(c_path) = CString::new(path.as_os_str().as_bytes()) else {
+            return false;
+        };
+        let sys_res =
+            os::list_system_xattr(follow_symlinks, c_path.as_ptr(), std::ptr::null_mut(), 0);
+        if sys_res > 0 {
+            return true;
+        }
+        let user_res =
+            os::list_user_xattr(follow_symlinks, c_path.as_ptr(), std::ptr::null_mut(), 0);
+        user_res > 0
     }
 }
 

@@ -126,7 +126,7 @@ impl<'a> Render<'a> {
             .map(|file| {
                 let row = table.row_for_file(
                     file,
-                    show_xattr_hint(self.details.secattr, file),
+                    show_xattr_hint(self.details.indicate_xattr, self.details.secattr, file),
                     color_scale_info,
                 );
                 table.add_widths(&row);

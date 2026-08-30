@@ -67,7 +67,7 @@ pub enum TimeFormat {
 
 impl TimeFormat {
     #[must_use]
-    pub fn format(self, time: &DateTime<FixedOffset>, use_utc: bool) -> String {
+    pub fn format(&self, time: &DateTime<FixedOffset>, use_utc: bool) -> String {
         #[rustfmt::skip]
         return match self {
             Self::DefaultFormat                 => default(time),
@@ -75,7 +75,7 @@ impl TimeFormat {
             Self::LongISO                       => long(time),
             Self::FullISO                       => full(time, use_utc),
             Self::Relative                      => relative(time),
-            Self::RelativeRecent { recent_window_days } => relative_recent(time, recent_window_days),
+            Self::RelativeRecent { recent_window_days } => relative_recent(time, *recent_window_days),
             Self::Custom { non_recent, recent } => custom(
                 time, non_recent.as_str(), recent.as_deref(), use_utc
             ),

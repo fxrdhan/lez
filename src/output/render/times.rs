@@ -11,8 +11,8 @@ use chrono::prelude::*;
 use nu_ansi_term::Style;
 
 pub trait Render {
-    fn render(self, style: Style, time_format: TimeFormat, use_utc: bool) -> TextCell;
-    fn render_json(self, time_format: TimeFormat, use_utc: bool) -> Option<String>;
+    fn render(self, style: Style, time_format: &TimeFormat, use_utc: bool) -> TextCell;
+    fn render_json(self, time_format: &TimeFormat, use_utc: bool) -> Option<String>;
 }
 
 /// Resolves the zone offset that was in effect at this very timestamp, so
@@ -27,7 +27,7 @@ fn local_offset_for(time: chrono::NaiveDateTime, use_utc: bool) -> FixedOffset {
 }
 
 impl Render for Option<NaiveDateTime> {
-    fn render(self, style: Style, time_format: TimeFormat, use_utc: bool) -> TextCell {
+    fn render(self, style: Style, time_format: &TimeFormat, use_utc: bool) -> TextCell {
         let datestamp = if let Some(time) = self {
             let offset = local_offset_for(time, use_utc);
             time_format.format(
@@ -41,7 +41,7 @@ impl Render for Option<NaiveDateTime> {
         TextCell::paint(style, datestamp)
     }
 
-    fn render_json(self, time_format: TimeFormat, use_utc: bool) -> Option<String> {
+    fn render_json(self, time_format: &TimeFormat, use_utc: bool) -> Option<String> {
         self.map(|time| {
             let offset = local_offset_for(time, use_utc);
             time_format.format(

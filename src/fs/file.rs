@@ -425,6 +425,22 @@ impl<'dir> File<'dir> {
             .get_or_init(|| self.gather_extended_attributes())
     }
 
+    /// Whether this file has any extended attributes without fetching their full values.
+    pub fn has_xattrs(&self) -> bool {
+        use crate::fs::feature::xattr::FileAttributes;
+        if !xattr::ENABLED {
+            return false;
+        }
+        if let Some(xattrs) = self.extended_attributes.get() {
+            return !xattrs.is_empty();
+        }
+        if self.deref_links {
+            self.path.has_attributes()
+        } else {
+            self.path.has_symlink_attributes()
+        }
+    }
+
     /// Whether this file is a directory on the filesystem.
     pub fn is_directory(&self) -> bool {
         self.filetype().is_some_and(std::fs::FileType::is_dir)
