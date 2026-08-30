@@ -170,7 +170,7 @@ impl Columns {
 }
 
 /// A table contains these.
-#[derive(Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum Column {
     Permissions,
     FileSize,
@@ -524,10 +524,27 @@ impl<'a> Table<'a> {
         xattrs: bool,
         color_scale_info: Option<ColorScaleInformation>,
     ) -> Row {
+        #[cfg(unix)]
+        let users_guard =
+            if self.columns.contains(&Column::User) || self.columns.contains(&Column::Group) {
+                Some(self.env.lock_users())
+            } else {
+                None
+            };
+
         let cells = self
             .columns
             .iter()
-            .map(|&c| self.display(file, c, xattrs, color_scale_info))
+            .map(|&c| {
+                #[cfg(unix)]
+                {
+                    self.display(file, c, xattrs, color_scale_info, users_guard.as_deref())
+                }
+                #[cfg(not(unix))]
+                {
+                    self.display(file, c, xattrs, color_scale_info)
+                }
+            })
             .collect();
 
         Row { cells }
@@ -549,6 +566,7 @@ impl<'a> Table<'a> {
         column: Column,
         xattrs: bool,
         color_scale_info: Option<ColorScaleInformation>,
+        #[cfg(unix)] users_cache: Option<&uzers::UsersCache>,
     ) -> TextCell {
         match column {
             Column::Permissions => file.permissions_plus(xattrs).render(self.theme),
@@ -587,17 +605,20 @@ impl<'a> Table<'a> {
             ),
             #[cfg(unix)]
             Column::User => {
-                file.user()
-                    .render(self.theme, &*self.env.lock_users(), self.user_format)
+                let users = users_cache.expect("users cache must be available for Column::User");
+                file.user().render(self.theme, users, self.user_format)
             }
             #[cfg(unix)]
-            Column::Group => file.group().render(
-                self.theme,
-                &*self.env.lock_users(),
-                self.user_format,
-                self.group_format,
-                file.user(),
-            ),
+            Column::Group => {
+                let users = users_cache.expect("users cache must be available for Column::Group");
+                file.group().render(
+                    self.theme,
+                    users,
+                    self.user_format,
+                    self.group_format,
+                    file.user(),
+                )
+            }
             #[cfg(unix)]
             Column::SecurityContext => file.security_context().render(self.theme),
             Column::FileFlags => file
@@ -618,7 +639,7 @@ impl<'a> Table<'a> {
                 } else {
                     self.theme.ui.date.unwrap_or_default()
                 },
-                self.time_format.clone(),
+                &self.time_format,
                 self.use_utc,
             ),
         }

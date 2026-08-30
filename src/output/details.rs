@@ -340,7 +340,7 @@ impl<'a> Render<'a> {
                 let table_row = table.as_ref().map(|t| {
                     t.row_for_file(
                         file,
-                        show_xattr_hint(self.opts.secattr && self.opts.indicate_xattr, file),
+                        show_xattr_hint(self.opts.indicate_xattr, self.opts.secattr, file),
                         color_scale_info,
                     )
                 });
@@ -685,14 +685,20 @@ impl Iterator for Iter {
 }
 
 /// Whether to show the extended attribute hint
-pub fn show_xattr_hint(secattr: bool, file: &File<'_>) -> bool {
-    // Do not show the hint '@' if the only extended attribute is the security
-    // attribute and the security attribute column is active.
+pub fn show_xattr_hint(indicate_xattr: bool, secattr: bool, file: &File<'_>) -> bool {
+    if !indicate_xattr {
+        return false;
+    }
+    // If the security attribute column is NOT active, any xattr will display '@'.
+    if !secattr {
+        return file.has_xattrs();
+    }
+    // When secattr is active, do not show the hint '@' if the only extended attribute
+    // is the security attribute.
     let xattr_count = file.extended_attributes().len();
-    let selinux_ctx_shown = secattr
-        && match file.security_context().context {
-            SecurityContextType::SELinux(_) => true,
-            SecurityContextType::None => false,
-        };
+    let selinux_ctx_shown = match file.security_context().context {
+        SecurityContextType::SELinux(_) => true,
+        SecurityContextType::None => false,
+    };
     xattr_count > 1 || (xattr_count == 1 && !selinux_ctx_shown)
 }
