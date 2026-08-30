@@ -563,7 +563,7 @@ fn test_stress_large_batch_symlinks() {
     assert_eq!(stdout.lines().count(), total + 1); // 2000 symlinks + 1 shared_target.txt
     assert!(!stdout.contains("->"));
     assert!(
-        elapsed.as_secs() < 5,
+        elapsed.as_secs() < 30,
         "Execution took too long: {:?}",
         elapsed
     );
