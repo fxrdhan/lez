@@ -173,7 +173,7 @@ jobs:
       - name: Run doc tests
         run: cargo test --doc --features git,inspect-archives
   build-release:
-    name: Release Build (${{ matrix.target || matrix.os }})
+    name: Release Build (${{ matrix.target }})
     needs: [unit-and-integration-tests]
     runs-on: ${{ matrix.os }}
     strategy:
@@ -181,8 +181,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
           - os: macos-latest
+            target: aarch64-apple-darwin
           - os: windows-latest
+            target: x86_64-pc-windows-msvc
           - os: windows-latest
             target: aarch64-pc-windows-msvc
     steps:
@@ -191,13 +194,13 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target || '' }}
+          targets: ${{ matrix.target }}
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: release-${{ matrix.target || matrix.os }}
+          key: release-${{ matrix.target }}
       - name: Build release binary
-        run: cargo build --release --features git,inspect-archives ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+        run: cargo build --release --target ${{ matrix.target }} --features git,inspect-archives
   nix-flake-check:
     name: Nix Flake Validation
     needs: changes
