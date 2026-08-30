@@ -9,7 +9,7 @@
 # Integration tests spawn the binary and touch the filesystem, so they are
 # nowhere near CPU-bound; oversubscribing keeps cores busy while others wait
 # on I/O.
-test-threads = "num-cpus"
+test-threads = 16
 # A hung test should fail the run rather than stall it. The whole suite
 # finishes in about fifty seconds, so a single test past a minute is stuck,
 # not slow, and one past three minutes is never coming back.
