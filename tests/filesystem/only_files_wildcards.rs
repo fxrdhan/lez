@@ -301,3 +301,131 @@ fn test_only_files_with_ignore_glob_on_mixed_positional() {
         "subdir contents must not be listed: {stdout}"
     );
 }
+
+#[test]
+fn test_composed_only_files_and_no_symlinks_child_files() {
+    let temp = TempTestDir::new("composed_only_files_no_symlinks");
+    temp.create_file("regular.txt");
+    temp.create_dir("subdir");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        let _ = symlink("subdir", temp.path.join("dir_link"));
+        let _ = symlink("regular.txt", temp.path.join("file_link"));
+    }
+
+    let output = Command::new(bin_path())
+        .arg("--only-files")
+        .arg("--no-symlinks")
+        .arg("--color=never")
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("regular.txt"),
+        "regular.txt must be listed: {stdout}"
+    );
+    assert!(
+        !stdout.contains("subdir"),
+        "subdir must be filtered out: {stdout}"
+    );
+    #[cfg(unix)]
+    {
+        assert!(
+            !stdout.contains("dir_link"),
+            "dir_link must be filtered out by --no-symlinks: {stdout}"
+        );
+        assert!(
+            !stdout.contains("file_link"),
+            "file_link must be filtered out by --no-symlinks: {stdout}"
+        );
+    }
+}
+
+#[test]
+fn test_composed_only_files_and_no_symlinks_with_d_flag_positional() {
+    let temp = TempTestDir::new("composed_positional_d_flag");
+    let file = temp.create_file("file.txt");
+    let dir = temp.create_dir("target_subdir");
+    #[cfg(unix)]
+    let link = {
+        use std::os::unix::fs::symlink;
+        let p = temp.path.join("symlink_to_file");
+        let _ = symlink("file.txt", &p);
+        p
+    };
+
+    let mut cmd = Command::new(bin_path());
+    cmd.arg("-d")
+        .arg("--only-files")
+        .arg("--no-symlinks")
+        .arg("--color=never")
+        .arg(&file)
+        .arg(&dir);
+
+    #[cfg(unix)]
+    cmd.arg(&link);
+
+    let output = cmd.output().expect("Failed to run lez");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("file.txt"),
+        "file.txt must be listed: {stdout}"
+    );
+    assert!(
+        !stdout.contains("target_subdir"),
+        "target_subdir must be filtered out by --only-files: {stdout}"
+    );
+    #[cfg(unix)]
+    {
+        assert!(
+            !stdout.contains("symlink_to_file"),
+            "symlink_to_file must be filtered out by --no-symlinks: {stdout}"
+        );
+    }
+}
+
+#[test]
+fn test_composed_only_dirs_and_no_symlinks() {
+    let temp = TempTestDir::new("composed_only_dirs_no_symlinks");
+    temp.create_file("regular.txt");
+    temp.create_dir("target_subdir");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        let _ = symlink("target_subdir", temp.path.join("link_to_subdir"));
+    }
+
+    let output = Command::new(bin_path())
+        .arg("--only-dirs")
+        .arg("--no-symlinks")
+        .arg("--color=never")
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("target_subdir"),
+        "target_subdir must be listed: {stdout}"
+    );
+    assert!(
+        !stdout.contains("regular.txt"),
+        "regular.txt must be filtered out by --only-dirs: {stdout}"
+    );
+    #[cfg(unix)]
+    {
+        assert!(
+            !stdout.contains("link_to_subdir"),
+            "link_to_subdir must be filtered out by --no-symlinks: {stdout}"
+        );
+    }
+}

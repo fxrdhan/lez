@@ -332,34 +332,46 @@ impl FileFilter {
         matches!(reader.read_exact(&mut buf), Ok(())) && &buf == CACHEDIR_MAGIC
     }
 
-    /// Remove every file in the given vector that does *not* pass the
-    /// filter predicate for files found inside a directory.
-    #[rustfmt::skip]
-    pub fn filter_child_files(&self, is_recurse: bool, files: &mut Vec<File<'_>>) {
+    /// Evaluates whether a file matches the active file type filter flags
+    /// (`--only-dirs`, `--only-files`, `--no-symlinks`, `--show-symlinks`).
+    #[must_use]
+    pub fn matches_file_type_filters(&self, f: &File<'_>, is_recurse_or_tree: bool) -> bool {
         use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
 
+        let no_symlinks = self.flags.contains(&NoSymlinks);
+        let show_symlinks = self.flags.contains(&ShowSymlinks);
+
+        if no_symlinks && f.is_link() {
+            return false;
+        }
+
+        if self.flags.contains(&OnlyDirs)
+            && !(f.is_directory() || (show_symlinks && f.points_to_directory()))
+        {
+            return false;
+        }
+
+        if self.flags.contains(&OnlyFiles)
+            && !is_recurse_or_tree
+            && !(f.is_file() || (show_symlinks && f.is_link() && !f.points_to_directory()))
+        {
+            return false;
+        }
+
+        true
+    }
+
+    /// Remove every file in the given vector that does *not* pass the
+    /// filter predicate for files found inside a directory.
+    pub fn filter_child_files(&self, is_recurse: bool, files: &mut Vec<File<'_>>) {
         files.retain(|f| self.matches_since(f));
         files.retain(|f| {
             !self.ignore_patterns.is_ignored_path(&f.path, &f.name)
-                && !self.ignore_patterns_caseins.is_ignored_path(&f.path, &f.name)
+                && !self
+                    .ignore_patterns_caseins
+                    .is_ignored_path(&f.path, &f.name)
         });
-        files.retain(|f| {
-            match (
-                self.flags.contains(&OnlyDirs),
-                self.flags.contains(&OnlyFiles),
-                self.flags.contains(&NoSymlinks),
-                self.flags.contains(&ShowSymlinks),
-            ) {
-                (true, false, false, false) => f.is_directory(),
-                (true, false, true, false) => f.is_directory(),
-                (true, false, false, true) => f.is_directory() || f.points_to_directory(),
-                (false, true, false, false) => if is_recurse { true } else {f.is_file() },
-                (false, true, false, true) => if is_recurse { true } else { f.is_file() || f.is_link() && !f.points_to_directory()
-                },
-                (false, false, true, false) => !f.is_link(),
-                _ => true,
-            }
-        });
+        files.retain(|f| self.matches_file_type_filters(f, is_recurse));
     }
 
     /// Remove every file in the given vector that does *not* pass the
@@ -372,8 +384,6 @@ impl FileFilter {
     /// `exa -I='*.ogg' music/*` should filter out the ogg files obtained
     /// from the glob, even though the globbing is done by the shell!
     pub fn filter_argument_files(&self, is_tree: bool, files: &mut Vec<File<'_>>) {
-        use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
-
         files.retain(|f| self.matches_since(f));
         files.retain(|f| {
             !self.ignore_patterns.is_ignored_path(&f.path, &f.name)
@@ -381,34 +391,7 @@ impl FileFilter {
                     .ignore_patterns_caseins
                     .is_ignored_path(&f.path, &f.name)
         });
-        files.retain(|f| {
-            match (
-                self.flags.contains(&OnlyDirs),
-                self.flags.contains(&OnlyFiles),
-                self.flags.contains(&NoSymlinks),
-                self.flags.contains(&ShowSymlinks),
-            ) {
-                (true, false, false, false) => f.is_directory(),
-                (true, false, true, false) => f.is_directory(),
-                (true, false, false, true) => f.is_directory() || f.points_to_directory(),
-                (false, true, false, false) => {
-                    if is_tree {
-                        true
-                    } else {
-                        f.is_file()
-                    }
-                }
-                (false, true, false, true) => {
-                    if is_tree {
-                        true
-                    } else {
-                        f.is_file() || (f.is_link() && !f.points_to_directory())
-                    }
-                }
-                (false, false, true, false) => !f.is_link(),
-                _ => true,
-            }
-        });
+        files.retain(|f| self.matches_file_type_filters(f, is_tree));
     }
 
     /// Sort the files in the given vector based on the sort field option and locale collator.
