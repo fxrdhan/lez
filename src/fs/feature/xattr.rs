@@ -936,6 +936,12 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_linux_capabilities_security_attribute_contract() {
+        let non_existent = Path::new("/tmp/non_existent_file_path_xyz_12345");
+        assert!(!has_capabilities(non_existent));
+    }
+
+    #[test]
     fn test_empty_attribute_display() {
         let attr = Attribute {
             name: "user.empty".to_string(),

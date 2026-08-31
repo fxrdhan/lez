@@ -184,3 +184,58 @@ fn a_relative_symlink_pointing_up_and_back_down_still_lists() {
         "the link's contents should be listed, got: {stdout}"
     );
 }
+
+#[test]
+fn windows_hidden_file_attribute_is_hidden_by_default_and_shown_with_all() {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_ATTRIBUTE_HIDDEN, GetFileAttributesW, SetFileAttributesW,
+    };
+
+    let dir = Fixture::new("hidden_attr");
+    dir.file("visible.txt")
+        .file("hidden_attr.txt")
+        .file(".dotfile");
+
+    let wide = dir
+        .path
+        .join("hidden_attr.txt")
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+
+    unsafe {
+        let attrs = GetFileAttributesW(wide.as_ptr());
+        if attrs != u32::MAX {
+            SetFileAttributesW(wide.as_ptr(), attrs | FILE_ATTRIBUTE_HIDDEN);
+        }
+    }
+
+    // 1. Default: hidden_attr.txt and .dotfile are hidden
+    let (code, stdout, _) = run_in(&dir.path, &[]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("visible.txt"));
+    assert!(!stdout.contains("hidden_attr.txt"));
+    assert!(!stdout.contains(".dotfile"));
+
+    // 2. -a: all files shown
+    let (code_a, stdout_a, _) = run_in(&dir.path, &["-a"]);
+    assert_eq!(code_a, 0);
+    assert!(stdout_a.contains("visible.txt"));
+    assert!(stdout_a.contains("hidden_attr.txt"));
+    assert!(stdout_a.contains(".dotfile"));
+
+    // 3. --show-dotfiles: only .dotfile shown, hidden_attr.txt remains hidden
+    let (code_sd, stdout_sd, _) = run_in(&dir.path, &["--show-dotfiles"]);
+    assert_eq!(code_sd, 0);
+    assert!(stdout_sd.contains("visible.txt"));
+    assert!(stdout_sd.contains(".dotfile"));
+    assert!(!stdout_sd.contains("hidden_attr.txt"));
+
+    // 4. -l --flags: displays 'H' attribute flag
+    let (code_fl, stdout_fl, _) = run_in(&dir.path, &["-la", "--flags"]);
+    assert_eq!(code_fl, 0);
+    assert!(stdout_fl.contains("hidden_attr.txt"));
+    assert!(stdout_fl.contains('H') || stdout_fl.contains("hidden_attr"));
+}

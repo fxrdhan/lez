@@ -55,36 +55,120 @@ fn bin_path() -> PathBuf {
     path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
+#[cfg(unix)]
+fn set_test_xattr(file_path: &Path, name: &str, value: &[u8]) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let c_path = match std::ffi::CString::new(file_path.as_os_str().as_bytes()) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let c_name = match std::ffi::CString::new(name) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    #[cfg(target_os = "macos")]
+    unsafe {
+        libc::setxattr(
+            c_path.as_ptr(),
+            c_name.as_ptr(),
+            value.as_ptr() as *const libc::c_void,
+            value.len(),
+            0,
+            0,
+        ) == 0
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))]
+    unsafe {
+        libc::setxattr(
+            c_path.as_ptr(),
+            c_name.as_ptr(),
+            value.as_ptr() as *const libc::c_void,
+            value.len(),
+            0,
+        ) == 0
+    }
+
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "netbsd"
+    )))]
+    {
+        false
+    }
+}
+
 #[test]
 fn test_extended_attributes_cli_flag() {
     let temp = TempTestDir::new("xattr_flag");
-    temp.create_file("test_file.txt", b"sample content for xattr test");
+    let file = temp.create_file("test_file.txt", b"sample content for xattr test");
+
+    #[cfg(unix)]
+    let (xattr_name, has_xattr) = {
+        #[cfg(target_os = "macos")]
+        let name = "com.apple.metadata:kCustomAttribute";
+        #[cfg(not(target_os = "macos"))]
+        let name = "user.custom_checksum";
+        (name, set_test_xattr(&file, name, b"12345678"))
+    };
 
     let output = Command::new(bin_path())
         .arg("-l")
         .arg("-@")
-        .arg(&temp.path)
+        .arg(&file)
         .output()
         .expect("Failed to execute lez with -l -@");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("test_file.txt"));
+
+    #[cfg(unix)]
+    if has_xattr {
+        assert!(
+            stdout.contains(xattr_name),
+            "Output should list xattr name '{xattr_name}': {stdout}"
+        );
+        assert!(
+            stdout.contains('8') || stdout.contains("8B"),
+            "Output should display xattr length 8: {stdout}"
+        );
+    }
 }
 
 #[test]
 fn test_extended_attributes_long_option() {
     let temp = TempTestDir::new("xattr_long");
-    temp.create_file("binary.bin", b"\x00\x01\x02\x03");
+    let file = temp.create_file("binary.bin", b"\x00\x01\x02\x03");
+
+    #[cfg(unix)]
+    let (xattr_name, has_xattr) = {
+        #[cfg(target_os = "macos")]
+        let name = "com.apple.test.binary_attr";
+        #[cfg(not(target_os = "macos"))]
+        let name = "user.test_binary_attr";
+        (name, set_test_xattr(&file, name, b"binary_value_payload"))
+    };
 
     let output = Command::new(bin_path())
         .arg("-l")
         .arg("--extended")
-        .arg(&temp.path)
+        .arg(&file)
         .output()
         .expect("Failed to execute lez with -l --extended");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("binary.bin"));
+
+    #[cfg(unix)]
+    if has_xattr {
+        assert!(
+            stdout.contains(xattr_name),
+            "Output should list xattr name '{xattr_name}': {stdout}"
+        );
+    }
 }

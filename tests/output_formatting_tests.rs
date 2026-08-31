@@ -15,6 +15,9 @@ mod grid_details;
 mod grid_packing;
 #[path = "output_formatting/palette.rs"]
 mod palette;
+#[cfg(unix)]
+#[path = "output_formatting/pty_terminal.rs"]
+mod pty_terminal;
 #[path = "output_formatting/size_digits.rs"]
 mod size_digits;
 #[path = "output_formatting/spacing.rs"]
