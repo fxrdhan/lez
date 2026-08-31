@@ -207,3 +207,55 @@ fn test_pty_colorless_mode_clean_output() {
     );
     assert!(stdout.contains("test.txt"));
 }
+
+#[test]
+fn test_pty_extreme_geometry_narrow_terminal() {
+    let temp = TempPtyDir::new("narrow_geom");
+    for i in 0..6 {
+        temp.create_file(&format!("long_filename_item_{i:02}.txt"), b"data");
+    }
+
+    // Extremely narrow terminal (10 columns, clamped to minimal valid cell width)
+    let pty = PtySession::spawn(&["--grid", temp.path.to_str().unwrap()], 10, 24, &[]);
+    let (status, stdout) = pty.read_to_string();
+    assert!(status.success());
+    assert!(!stdout.is_empty());
+    assert!(stdout.contains("long_filename_item_00.txt"));
+}
+
+#[test]
+fn test_pty_extreme_geometry_ultra_wide_terminal() {
+    let temp = TempPtyDir::new("wide_geom");
+    for i in 0..12 {
+        temp.create_file(&format!("item_{i:02}.txt"), b"data");
+    }
+
+    // Ultra-wide terminal (400 columns)
+    let pty = PtySession::spawn(&["--grid", temp.path.to_str().unwrap()], 400, 50, &[]);
+    let (status, stdout) = pty.read_to_string();
+    assert!(status.success());
+    assert!(!stdout.is_empty());
+    assert!(stdout.contains("item_00.txt"));
+    assert!(stdout.contains("item_11.txt"));
+}
+
+#[test]
+fn test_pty_tree_and_long_view_interactive() {
+    let temp = TempPtyDir::new("tree_long_tty");
+    let sub = temp.path.join("nested_folder");
+    fs::create_dir_all(&sub).unwrap();
+    temp.create_file("nested_folder/child.txt", b"child");
+
+    // Interactive tree mode
+    let pty_tree = PtySession::spawn(&["-T", temp.path.to_str().unwrap()], 120, 40, &[]);
+    let (status_t, stdout_t) = pty_tree.read_to_string();
+    assert!(status_t.success());
+    assert!(stdout_t.contains("nested_folder"));
+    assert!(stdout_t.contains("child.txt"));
+
+    // Interactive long mode
+    let pty_long = PtySession::spawn(&["-l", temp.path.to_str().unwrap()], 120, 40, &[]);
+    let (status_l, stdout_l) = pty_long.read_to_string();
+    assert!(status_l.success());
+    assert!(stdout_l.contains("nested_folder"));
+}

@@ -150,3 +150,78 @@ impl f::Flags {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_empty_flags() {
+        assert_eq!(flags_to_windows_string(0), "-");
+        assert_eq!(flags_to_bsd_string(0), "-");
+    }
+
+    #[test]
+    fn test_single_flags() {
+        assert_eq!(flags_to_windows_string(FILE_ATTRIBUTE_READONLY), "R");
+        assert_eq!(flags_to_bsd_string(FILE_ATTRIBUTE_READONLY), "readonly");
+
+        assert_eq!(flags_to_windows_string(FILE_ATTRIBUTE_HIDDEN), "H");
+        assert_eq!(flags_to_bsd_string(FILE_ATTRIBUTE_HIDDEN), "hidden");
+
+        assert_eq!(flags_to_windows_string(FILE_ATTRIBUTE_SYSTEM), "S");
+        assert_eq!(flags_to_bsd_string(FILE_ATTRIBUTE_SYSTEM), "system");
+
+        assert_eq!(flags_to_windows_string(FILE_ATTRIBUTE_ARCHIVE), "A");
+        assert_eq!(flags_to_bsd_string(FILE_ATTRIBUTE_ARCHIVE), "archive");
+
+        assert_eq!(flags_to_windows_string(FILE_ATTRIBUTE_TEMPORARY), "T");
+        assert_eq!(flags_to_bsd_string(FILE_ATTRIBUTE_TEMPORARY), "temporary");
+
+        assert_eq!(flags_to_windows_string(FILE_ATTRIBUTE_COMPRESSED), "C");
+        assert_eq!(flags_to_bsd_string(FILE_ATTRIBUTE_COMPRESSED), "compressed");
+
+        assert_eq!(flags_to_windows_string(FILE_ATTRIBUTE_ENCRYPTED), "E");
+        assert_eq!(flags_to_bsd_string(FILE_ATTRIBUTE_ENCRYPTED), "encrypted");
+    }
+
+    #[test]
+    fn test_multiple_flags() {
+        let flags = FILE_ATTRIBUTE_READONLY
+            | FILE_ATTRIBUTE_HIDDEN
+            | FILE_ATTRIBUTE_SYSTEM
+            | FILE_ATTRIBUTE_ARCHIVE;
+        assert_eq!(flags_to_windows_string(flags), "RHSA");
+        assert_eq!(flags_to_bsd_string(flags), "readonly-hidden-system-archive");
+    }
+
+    #[test]
+    fn test_all_flags() {
+        let mut all = 0u32;
+        for attr in &ATTRIBUTES {
+            all |= attr.flag;
+        }
+        assert_eq!(flags_to_windows_string(all), "RHSATCOIEXUPM");
+        assert_eq!(
+            flags_to_bsd_string(all),
+            "readonly-hidden-system-archive-temporary-compressed-offline-not indexed-encrypted-no scrub-unpinned-pinned-recall on data access"
+        );
+    }
+
+    #[test]
+    fn test_render_and_json() {
+        let flags = f::Flags(FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
+        assert_eq!(
+            flags.render_json(FlagsFormat::Short),
+            Some("RA".to_string())
+        );
+        assert_eq!(
+            flags.render_json(FlagsFormat::Long),
+            Some("readonly-archive".to_string())
+        );
+
+        let empty = f::Flags(0);
+        assert_eq!(empty.render_json(FlagsFormat::Short), Some("-".to_string()));
+        assert_eq!(empty.render_json(FlagsFormat::Long), Some("-".to_string()));
+    }
+}

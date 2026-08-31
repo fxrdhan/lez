@@ -15,6 +15,8 @@ mod broken_pipe_resilience;
 mod deep_stack_recursion;
 #[path = "adversarial/determinism_stress.rs"]
 mod determinism_stress;
+#[path = "adversarial/dynamic_fs_concurrency.rs"]
+mod dynamic_fs_concurrency;
 #[path = "adversarial/fd_exhaustion.rs"]
 mod fd_exhaustion;
 #[path = "adversarial/filesystem_types_stress.rs"]
@@ -29,6 +31,8 @@ mod janet_loc_stress;
 mod json_output_stress;
 #[path = "adversarial/massive_workload.rs"]
 mod massive_workload;
+#[path = "adversarial/memory_allocation_limits.rs"]
+mod memory_allocation_limits;
 #[path = "adversarial/nested_git_and_time_env.rs"]
 mod nested_git_and_time_env;
 #[path = "adversarial/property_fuzz_engine.rs"]
