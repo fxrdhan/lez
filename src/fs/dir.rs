@@ -414,6 +414,16 @@ pub enum DotFilter {
 
 impl DotFilter {
     /// Whether this filter should show dotfiles in a listing.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::fs::DotFilter;
+    ///
+    /// assert!(!DotFilter::JustFiles.shows_dotfiles());
+    /// assert!(DotFilter::Dotfiles.shows_dotfiles());
+    /// assert!(DotFilter::DotfilesByName.shows_dotfiles());
+    /// assert!(DotFilter::DotfilesAndDots.shows_dotfiles());
+    /// ```
     #[must_use]
     pub fn shows_dotfiles(self) -> bool {
         match self {

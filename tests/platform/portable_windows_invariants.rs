@@ -140,7 +140,15 @@ fn test_portable_windows_attribute_flags_invariants() {
     const FILE_ATTRIBUTE_READONLY: u32 = 0x0000_0001; // R
     const FILE_ATTRIBUTE_HIDDEN: u32 = 0x0000_0002; // H
     const FILE_ATTRIBUTE_SYSTEM: u32 = 0x0000_0004; // S
+    const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x0000_0010; // D
     const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x0000_0020; // A
+    const FILE_ATTRIBUTE_TEMPORARY: u32 = 0x0000_0100; // T
+    const FILE_ATTRIBUTE_SPARSE_FILE: u32 = 0x0000_0200;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    const FILE_ATTRIBUTE_COMPRESSED: u32 = 0x0000_0800; // C
+    const FILE_ATTRIBUTE_OFFLINE: u32 = 0x0000_1000; // O
+    const FILE_ATTRIBUTE_NOT_CONTENT_INDEXED: u32 = 0x0000_2000; // I
+    const FILE_ATTRIBUTE_ENCRYPTED: u32 = 0x0000_4000; // E
 
     let decode_flags = |attrs: u32| -> String {
         let mut s = String::new();
@@ -185,5 +193,29 @@ fn test_portable_windows_attribute_flags_invariants() {
                 | FILE_ATTRIBUTE_ARCHIVE
         ),
         "RHSA"
+    );
+
+    // Verify extended Windows attributes do not collide with core RHSA bits
+    let extended_mask = FILE_ATTRIBUTE_DIRECTORY
+        | FILE_ATTRIBUTE_TEMPORARY
+        | FILE_ATTRIBUTE_SPARSE_FILE
+        | FILE_ATTRIBUTE_REPARSE_POINT
+        | FILE_ATTRIBUTE_COMPRESSED
+        | FILE_ATTRIBUTE_OFFLINE
+        | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
+        | FILE_ATTRIBUTE_ENCRYPTED;
+
+    assert_eq!(
+        decode_flags(extended_mask),
+        "----",
+        "Extended attribute flags without RHSA should yield empty ----"
+    );
+    assert_eq!(
+        decode_flags(extended_mask | FILE_ATTRIBUTE_READONLY),
+        "R---"
+    );
+    assert_eq!(
+        decode_flags(extended_mask | FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_HIDDEN),
+        "-H-A"
     );
 }
