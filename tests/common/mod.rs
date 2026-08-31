@@ -85,6 +85,52 @@ impl TempTestDir {
         symlink(target, &p).expect("failed to create symlink");
         p
     }
+
+    /// Creates a rich, multi-type sample directory tree for testing
+    /// (subdirectories, multiple file extensions, hidden files, empty directories, symlinks)
+    /// in pure Rust without relying on platform-specific shell scripts like `dir-generator.sh`.
+    pub fn create_sample_tree(&self) {
+        self.create_dir("documents");
+        self.create_file("documents/report.pdf", b"%PDF-1.4 dummy pdf content");
+        self.create_file("documents/notes.txt", b"meeting notes");
+        self.create_file(
+            "documents/data.csv",
+            b"id,name,score\n1,alice,100\n2,bob,95\n",
+        );
+
+        self.create_dir("src/components");
+        self.create_file(
+            "src/main.rs",
+            b"fn main() {\n    println!(\"Hello World\");\n}\n",
+        );
+        self.create_file("src/lib.rs", b"pub fn helper() -> bool { true }\n");
+        self.create_file(
+            "src/components/button.tsx",
+            b"export const Button = () => <button />;\n",
+        );
+        self.create_file(
+            "src/components/style.css",
+            b".btn { color: #fff; background: #007bff; }\n",
+        );
+
+        self.create_dir("empty_folder");
+        self.create_dir("deep/level1/level2/level3");
+        self.create_file(
+            "deep/level1/level2/level3/leaf.bin",
+            &[0x00, 0x01, 0x02, 0x03],
+        );
+
+        self.create_dir(".hidden_folder");
+        self.create_file(".hidden_folder/secret.key", b"super_secret_key");
+        self.create_file(".config.json", b"{\"theme\": \"dark\", \"debug\": false}\n");
+
+        #[cfg(unix)]
+        {
+            let _ = self.create_symlink("documents/notes.txt", "notes_link.txt");
+            let _ = self.create_symlink("documents", "docs_symlink");
+            let _ = self.create_symlink("nonexistent_target", "broken_symlink");
+        }
+    }
 }
 
 impl Drop for TempTestDir {

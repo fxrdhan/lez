@@ -5,8 +5,12 @@
 
 mod common;
 
+#[path = "adversarial/archive_fuzz_stress.rs"]
+mod archive_fuzz_stress;
 #[path = "adversarial/blocksize_column_stress.rs"]
 mod blocksize_column_stress;
+#[path = "adversarial/broken_pipe_resilience.rs"]
+mod broken_pipe_resilience;
 #[path = "adversarial/deep_stack_recursion.rs"]
 mod deep_stack_recursion;
 #[path = "adversarial/determinism_stress.rs"]
@@ -39,5 +43,9 @@ mod smart_group_stress;
 mod strict_mode_permutations;
 #[path = "adversarial/symlink_targets_stress.rs"]
 mod symlink_targets_stress;
+#[path = "adversarial/syscall_invariants.rs"]
+mod syscall_invariants;
+#[path = "adversarial/theme_yaml_fuzz_stress.rs"]
+mod theme_yaml_fuzz_stress;
 #[path = "adversarial/tree_view_stress.rs"]
 mod tree_view_stress;
