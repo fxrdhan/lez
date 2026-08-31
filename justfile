@@ -53,6 +53,12 @@ genDemo:
     cargo nextest run --workspace --release
     cargo test --doc --release --quiet
 
+# generate code coverage report via cargo-llvm-cov
+[group('testing')]
+@coverage:
+    cargo llvm-cov nextest --features git,inspect-archives --workspace
+    cargo llvm-cov report
+
 #-----------------------#
 # code quality and misc #
 #-----------------------#
