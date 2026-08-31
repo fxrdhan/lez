@@ -369,4 +369,58 @@ pub mod test {
         let expected = Some("1777".to_string());
         assert_eq!(expected, octal.render_json());
     }
+
+    #[test]
+    fn none_octal_render() {
+        let octal: Option<f::OctalPermissions> = None;
+        let expected = TextCell::paint_str(Purple.bold(), "----");
+        assert_eq!(expected, octal.render(Purple.bold()));
+        assert_eq!(None, octal.render_json());
+    }
+
+    #[test]
+    fn zero_permissions_render() {
+        let bits = f::Permissions {
+            user_read: false,
+            user_write: false,
+            user_execute: false,
+            setuid: false,
+            group_read: false,
+            group_write: false,
+            group_execute: false,
+            setgid: false,
+            other_read: false,
+            other_write: false,
+            other_execute: false,
+            sticky: false,
+        };
+
+        let octal = Some(f::OctalPermissions { permissions: bits });
+        let expected = TextCell::paint_str(Purple.bold(), "0000");
+        assert_eq!(expected, octal.render(Purple.bold()));
+        assert_eq!(Some("0000".to_string()), octal.render_json());
+    }
+
+    #[test]
+    fn full_special_bits_render() {
+        let bits = f::Permissions {
+            user_read: true,
+            user_write: true,
+            user_execute: true,
+            setuid: true,
+            group_read: true,
+            group_write: true,
+            group_execute: true,
+            setgid: true,
+            other_read: true,
+            other_write: true,
+            other_execute: true,
+            sticky: true,
+        };
+
+        let octal = Some(f::OctalPermissions { permissions: bits });
+        let expected = TextCell::paint_str(Purple.bold(), "7777");
+        assert_eq!(expected, octal.render(Purple.bold()));
+        assert_eq!(Some("7777".to_string()), octal.render_json());
+    }
 }

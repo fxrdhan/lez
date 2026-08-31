@@ -455,6 +455,15 @@ impl Default for Tags {
 }
 
 impl UiStyles {
+    /// Creates an uncoloured, plain `UiStyles` instance where all styling defaults to `Style::default()`.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::theme::UiStyles;
+    ///
+    /// let plain = UiStyles::plain();
+    /// assert_eq!(plain.colourful, Some(false));
+    /// ```
     #[must_use]
     pub fn plain() -> Self {
         Self {

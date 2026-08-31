@@ -79,4 +79,30 @@ mod test {
         let cell = flags.render(Style::default(), FlagsFormat::Short);
         assert_eq!(*cell.width, 1);
     }
+
+    #[test]
+    fn test_bsd_flags_render_and_json() {
+        #[cfg(any(
+            target_os = "macos",
+            target_os = "freebsd",
+            target_os = "dragonfly",
+            target_os = "openbsd",
+            target_os = "netbsd"
+        ))]
+        {
+            let nodump = f::Flags(libc::UF_NODUMP);
+            let s = nodump.render_json(FlagsFormat::Short).unwrap();
+            assert!(s.contains("nodump"), "Expected nodump in string, got: {s}");
+
+            let uchg = f::Flags(libc::UF_IMMUTABLE);
+            let s_uchg = uchg.render_json(FlagsFormat::Short).unwrap();
+            assert!(
+                s_uchg.contains("uchg") || s_uchg.contains("uappnd"),
+                "Expected uchg in string, got: {s_uchg}"
+            );
+
+            let cell = nodump.render(Style::default(), FlagsFormat::Short);
+            assert_eq!(*cell.width, s.len());
+        }
+    }
 }
