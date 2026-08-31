@@ -134,3 +134,56 @@ fn test_case_insensitive_filtering_invariants() {
     assert!(filter.ignore_patterns_caseins.is_ignored("THUMBS.DB"));
     assert!(!filter.ignore_patterns_caseins.is_ignored("normal.rs"));
 }
+
+#[test]
+fn test_portable_windows_attribute_flags_invariants() {
+    const FILE_ATTRIBUTE_READONLY: u32 = 0x0000_0001; // R
+    const FILE_ATTRIBUTE_HIDDEN: u32 = 0x0000_0002; // H
+    const FILE_ATTRIBUTE_SYSTEM: u32 = 0x0000_0004; // S
+    const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x0000_0020; // A
+
+    let decode_flags = |attrs: u32| -> String {
+        let mut s = String::new();
+        s.push(if attrs & FILE_ATTRIBUTE_READONLY != 0 {
+            'R'
+        } else {
+            '-'
+        });
+        s.push(if attrs & FILE_ATTRIBUTE_HIDDEN != 0 {
+            'H'
+        } else {
+            '-'
+        });
+        s.push(if attrs & FILE_ATTRIBUTE_SYSTEM != 0 {
+            'S'
+        } else {
+            '-'
+        });
+        s.push(if attrs & FILE_ATTRIBUTE_ARCHIVE != 0 {
+            'A'
+        } else {
+            '-'
+        });
+        s
+    };
+
+    assert_eq!(decode_flags(0), "----");
+    assert_eq!(decode_flags(FILE_ATTRIBUTE_HIDDEN), "-H--");
+    assert_eq!(
+        decode_flags(FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_HIDDEN),
+        "RH--"
+    );
+    assert_eq!(
+        decode_flags(FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_ARCHIVE),
+        "--SA"
+    );
+    assert_eq!(
+        decode_flags(
+            FILE_ATTRIBUTE_READONLY
+                | FILE_ATTRIBUTE_HIDDEN
+                | FILE_ATTRIBUTE_SYSTEM
+                | FILE_ATTRIBUTE_ARCHIVE
+        ),
+        "RHSA"
+    );
+}

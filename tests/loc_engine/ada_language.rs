@@ -108,11 +108,35 @@ fn test_ada_code_summary_cli() {
         "Output missing Ada language in --code summary: {}",
         stdout
     );
-    // Should show 3 files counted under Ada
+    // Exact column counts for 3 Ada files (15 lines, 11 code, 3 comments, 1 blank):
+    let ada_row = stdout
+        .lines()
+        .find(|line| line.contains("Ada"))
+        .expect("Ada row must exist in summary table");
+
     assert!(
-        stdout.contains('3'),
-        "Output should show 3 files counted: {}",
-        stdout
+        ada_row.contains('3'),
+        "Files column should show 3: {ada_row}"
+    );
+    assert!(
+        ada_row.contains("15"),
+        "Lines column should show 15: {ada_row}"
+    );
+    assert!(
+        ada_row.contains("11"),
+        "Code column should show 11: {ada_row}"
+    );
+    assert!(
+        ada_row.contains('3'),
+        "Comments column should show 3: {ada_row}"
+    );
+    assert!(
+        ada_row.contains('1'),
+        "Blanks column should show 1: {ada_row}"
+    );
+    assert!(
+        ada_row.contains("100.0%"),
+        "Code % should show 100.0%: {ada_row}"
     );
 }
 
@@ -160,4 +184,34 @@ fn test_ada_comment_counting_edge_cases() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert!(stdout.contains("Ada"));
+    let ada_row = stdout
+        .lines()
+        .find(|line| line.contains("Ada"))
+        .expect("Ada row must exist in summary table");
+
+    // 1 file, 9 lines, 6 code, 2 comments, 1 blank, 100.0% share
+    assert!(
+        ada_row.contains('1'),
+        "Files column should show 1: {ada_row}"
+    );
+    assert!(
+        ada_row.contains('9'),
+        "Lines column should show 9: {ada_row}"
+    );
+    assert!(
+        ada_row.contains('6'),
+        "Code column should show 6: {ada_row}"
+    );
+    assert!(
+        ada_row.contains('2'),
+        "Comments column should show 2: {ada_row}"
+    );
+    assert!(
+        ada_row.contains('1'),
+        "Blanks column should show 1: {ada_row}"
+    );
+    assert!(
+        ada_row.contains("100.0%"),
+        "Code % should show 100.0%: {ada_row}"
+    );
 }

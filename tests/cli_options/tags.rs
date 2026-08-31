@@ -55,10 +55,40 @@ fn bin_path() -> PathBuf {
     path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
 }
 
+#[cfg(target_os = "macos")]
+fn set_macos_tags(file_path: &Path, tags: &[&str]) {
+    let plist_arr: Vec<plist::Value> = tags
+        .iter()
+        .map(|t| plist::Value::String((*t).to_string()))
+        .collect();
+    let val = plist::Value::Array(plist_arr);
+    let mut buf = Vec::new();
+    val.to_writer_binary(&mut buf)
+        .expect("Failed to serialize binary plist");
+
+    use std::os::unix::ffi::OsStrExt;
+    let c_path = std::ffi::CString::new(file_path.as_os_str().as_bytes()).unwrap();
+    let c_name = std::ffi::CString::new("com.apple.metadata:_kMDItemUserTags").unwrap();
+    unsafe {
+        let ret = libc::setxattr(
+            c_path.as_ptr(),
+            c_name.as_ptr(),
+            buf.as_ptr() as *const libc::c_void,
+            buf.len(),
+            0,
+            0,
+        );
+        assert_eq!(ret, 0, "libc::setxattr for macOS tags should succeed");
+    }
+}
+
 #[test]
 fn test_tags_cli_flag() {
     let temp = TempTestDir::new("tags_flag");
-    temp.create_file("document.pdf", b"pdf content");
+    let _file = temp.create_file("document.pdf", b"pdf content");
+
+    #[cfg(target_os = "macos")]
+    set_macos_tags(&_file, &["Work\n6", "Review\n1"]);
 
     let output = Command::new(bin_path())
         .arg("-l")
@@ -70,6 +100,18 @@ fn test_tags_cli_flag() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("document.pdf"));
+
+    #[cfg(target_os = "macos")]
+    {
+        assert!(
+            stdout.contains("Work"),
+            "Output should render 'Work' tag: {stdout}"
+        );
+        assert!(
+            stdout.contains("Review"),
+            "Output should render 'Review' tag: {stdout}"
+        );
+    }
 }
 
 #[test]
@@ -77,6 +119,8 @@ fn test_tags_cli_flag() {
 fn test_macos_finder_tags_display() {
     let temp = TempTestDir::new("macos_tags");
     let file = temp.create_file("tagged_file.txt", b"tagged content");
+
+    set_macos_tags(&file, &["Important\n6"]);
 
     let output = Command::new(bin_path())
         .arg("-l")
@@ -88,4 +132,8 @@ fn test_macos_finder_tags_display() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("tagged_file.txt"));
+    assert!(
+        stdout.contains("Important"),
+        "Output should render 'Important' tag with -l -e: {stdout}"
+    );
 }
