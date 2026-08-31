@@ -5,6 +5,8 @@
 
 mod common;
 
+#[path = "platform/portable_windows_invariants.rs"]
+mod portable_windows_invariants;
 #[path = "platform/windows_paths.rs"]
 mod windows_paths;
 #[path = "platform/windows_underscore.rs"]

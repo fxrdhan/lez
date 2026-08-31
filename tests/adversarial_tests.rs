@@ -31,6 +31,8 @@ mod json_output_stress;
 mod massive_workload;
 #[path = "adversarial/nested_git_and_time_env.rs"]
 mod nested_git_and_time_env;
+#[path = "adversarial/property_fuzz_engine.rs"]
+mod property_fuzz_engine;
 #[path = "adversarial/raw_bytes_paths.rs"]
 mod raw_bytes_paths;
 #[path = "adversarial/since_duration_stress.rs"]
