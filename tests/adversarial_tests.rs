@@ -25,6 +25,8 @@ mod fd_exhaustion;
 mod filesystem_types_stress;
 #[path = "adversarial/grid_width_and_odin.rs"]
 mod grid_width_and_odin;
+#[path = "adversarial/io_error_isolation.rs"]
+mod io_error_isolation;
 #[path = "adversarial/janet_loc_basics.rs"]
 mod janet_loc_basics;
 #[path = "adversarial/janet_loc_stress.rs"]
@@ -41,6 +43,8 @@ mod nested_git_and_time_env;
 mod property_fuzz_engine;
 #[path = "adversarial/raw_bytes_paths.rs"]
 mod raw_bytes_paths;
+#[path = "adversarial/signal_cleanup.rs"]
+mod signal_cleanup;
 #[path = "adversarial/since_duration_stress.rs"]
 mod since_duration_stress;
 #[path = "adversarial/smart_group_basics.rs"]
