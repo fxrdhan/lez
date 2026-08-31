@@ -65,7 +65,7 @@ fn test_zsh_completion_f_flag_separate_from_classify() {
 
     // Verify separate -F flag definition
     let has_separate_f = content.lines().any(|line| {
-        let trimmed = line.trim();
+        let trimmed = line.trim().strip_prefix("\\*").unwrap_or(line.trim());
         trimmed.starts_with("-F\"[Display type indicator by file names")
             && !trimmed.contains(":(when):")
     });
@@ -83,7 +83,7 @@ fn test_zsh_completion_classify_with_equals_and_when_values() {
 
     // Verify --classify= option with equals and allowed values
     let has_classify_equals = content.lines().any(|line| {
-        let trimmed = line.trim();
+        let trimmed = line.trim().strip_prefix("\\*").unwrap_or(line.trim());
         trimmed.starts_with("--classify=\"[Display type indicator by file names]")
             && trimmed.contains(":(when):(always auto automatic never)")
     });
