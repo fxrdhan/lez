@@ -23,7 +23,7 @@ pub mod summary;
 pub mod table;
 pub mod time;
 
-mod cell;
+pub mod cell;
 pub mod escape;
 mod tree;
 

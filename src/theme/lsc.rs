@@ -30,6 +30,17 @@ use nu_ansi_term::{Color as Colour, Style};
 // just not worth doing, and there should really be a way to just use slices
 // of the LS_COLORS string without having to parse them.
 
+/// Structure for parsing `LS_COLORS` environment variable definitions.
+///
+/// # Examples
+/// ```
+/// use lez::theme::LSColors;
+///
+/// let mut lsc = LSColors("di=34:ln=36:ex=32");
+/// let mut keys = Vec::new();
+/// lsc.each_pair(|p| keys.push((p.key, p.value)));
+/// assert_eq!(keys, vec![("di", "34"), ("ln", "36"), ("ex", "32")]);
+/// ```
 pub struct LSColors<'var>(pub &'var str);
 
 impl<'var> LSColors<'var> {
@@ -101,6 +112,16 @@ pub struct Pair<'var> {
 }
 
 impl Pair<'_> {
+    /// Converts a raw `LS_COLORS` ANSI sequence pair into a `nu_ansi_term::Style`.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::theme::lsc::Pair;
+    ///
+    /// let p = Pair { key: "di", value: "1;34" };
+    /// let style = p.to_style();
+    /// assert!(style.is_bold);
+    /// ```
     pub fn to_style(&self) -> Style {
         let mut style = Style::default();
         let mut iter = self.value.split(';').peekable();

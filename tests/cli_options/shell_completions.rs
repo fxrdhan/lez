@@ -369,3 +369,37 @@ fn bash_really_offers_the_values_only_after_an_equals_sign() {
     let (replies, _) = bash_completions_for(&bash, &["lez", "--color-scale-mode", ""], 2);
     assert_eq!(replies, ["fixed", "gradient", "--"]);
 }
+
+#[test]
+fn all_clap_flags_are_present_in_completions() {
+    let command = lez::options::parser::get_command();
+    let mut clap_longs = Vec::new();
+    for arg in command.get_arguments() {
+        if let Some(long) = arg.get_long()
+            && long != "help"
+            && long != "version"
+        {
+            clap_longs.push(long.to_owned());
+        }
+    }
+    assert!(!clap_longs.is_empty());
+
+    for (dir, primary, _) in BACKENDS {
+        let script = completion(dir, primary);
+        if dir == "bash" {
+            // Bash completions use dynamic `lez --help` runtime parsing
+            assert!(
+                script.contains("lez --help"),
+                "completions/bash/{primary} must contain dynamic lez --help parser"
+            );
+        } else {
+            for flag in &clap_longs {
+                let zsh_expanded = flag.replace("color", "colo{,u}r");
+                assert!(
+                    script.contains(flag) || (dir == "zsh" && script.contains(&zsh_expanded)),
+                    "completions/{dir}/{primary} is missing CLI flag --{flag}"
+                );
+            }
+        }
+    }
+}

@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: MIT
 use std::io::{self, Write};
 
-use term_grid::{Direction, Filling, Grid, GridOptions};
+pub use term_grid::{Direction, Filling, Grid, GridOptions};
 
 use crate::fs::File;
 use crate::output::file_name::Options as FileStyle;

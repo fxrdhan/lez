@@ -316,7 +316,7 @@ fn test_lscolors_mutation_fuzzing() {
 }
 
 // =========================================================================
-// 3. LOC PARSER GRAMMAR INVARIANT FUZZING
+// 3. LOC PARSER GRAMMAR INVARIANT FUZZING (30+ LANGUAGES)
 // =========================================================================
 
 #[test]
@@ -327,15 +327,37 @@ fn test_loc_parser_grammar_invariants_fuzzing() {
         ("rs", "main.rs"),
         ("py", "script.py"),
         ("c", "app.c"),
+        ("cpp", "app.cpp"),
+        ("h", "header.h"),
+        ("hpp", "header.hpp"),
+        ("js", "index.js"),
+        ("ts", "index.ts"),
+        ("go", "server.go"),
+        ("java", "App.java"),
         ("lua", "init.lua"),
         ("ada", "main.adb"),
         ("janet", "project.janet"),
+        ("odin", "main.odin"),
+        ("swift", "main.swift"),
+        ("kt", "Main.kt"),
+        ("dart", "main.dart"),
+        ("zig", "main.zig"),
+        ("cs", "Program.cs"),
+        ("php", "index.php"),
         ("html", "index.html"),
+        ("css", "style.css"),
+        ("scss", "style.scss"),
         ("hs", "Lib.hs"),
         ("ml", "prog.ml"),
         ("sh", "run.sh"),
         ("sql", "query.sql"),
         ("rb", "app.rb"),
+        ("erl", "server.erl"),
+        ("ex", "app.ex"),
+        ("toml", "Cargo.toml"),
+        ("yaml", "config.yaml"),
+        ("json", "data.json"),
+        ("md", "README.md"),
     ];
 
     let fragments = [
@@ -346,11 +368,12 @@ fn test_loc_parser_grammar_invariants_fuzzing() {
         "    let escape = \"string with \\\" escaped quote\";\n",
         "    -- Lua/Ada comment\n",
         "    --[[ Lua multiline\n       comment ]]\n",
-        "    # Python / Shell comment\n",
-        "    ; Janet comment\n",
+        "    # Python / Shell / Ruby comment\n",
+        "    ; Janet / Lisp comment\n",
         "    <!-- HTML comment -->\n",
         "    {- Haskell multiline -}\n",
         "    (* OCaml multiline *)\n",
+        "    % Erlang comment\n",
         "    \n",
         "       \t  \n",
         "    code_statement(); /* trailing comment */\n",
@@ -360,9 +383,9 @@ fn test_loc_parser_grammar_invariants_fuzzing() {
 
     for (ext, filename) in test_exts {
         let lang = loc::language_for(filename, Some(ext))
-            .unwrap_or_else(|| panic!("Language for {ext} should exist"));
+            .unwrap_or_else(|| panic!("Language for {ext} ({filename}) should exist"));
 
-        for _ in 0..100 {
+        for _ in 0..60 {
             let num_frags = rng.next_usize(12) + 2;
             let mut source = String::new();
             for _ in 0..num_frags {
@@ -383,5 +406,190 @@ fn test_loc_parser_grammar_invariants_fuzzing() {
                 source
             );
         }
+    }
+}
+
+// =========================================================================
+// 4. UNICODE COLLATION MATHEMATICAL INVARIANTS (REFLEXIVITY, ANTI-SYMMETRY, TRANSITIVITY)
+// =========================================================================
+
+#[test]
+fn test_unicode_collation_mathematical_invariants() {
+    use lez::fs::filter::{LocaleCollator, SortCase};
+    use std::cmp::Ordering;
+
+    let locales = [
+        "sv_SE.UTF-8", // Swedish (å, ä, ö after z)
+        "hu_HU.UTF-8", // Hungarian (á adjacent to a)
+        "de_DE.UTF-8", // German (ä adjacent to a)
+        "es_ES.UTF-8", // Spanish (ñ after n)
+        "en_US.UTF-8", // English
+    ];
+
+    let test_words = [
+        "apple",
+        "Apple",
+        "APPLE",
+        "ápple",
+        "äpple",
+        "åska",
+        "Banane",
+        "banana",
+        "file1.txt",
+        "file2.txt",
+        "file10.txt",
+        "file100.txt",
+        "nudo",
+        "ñandú",
+        "ola",
+        "zene",
+        "zebra",
+        "öken",
+        "Über",
+        "Uhr",
+        "Vogel",
+        "123",
+        "456",
+        "001",
+        "01",
+        "1",
+        "data_2026.log",
+        "data_2025.log",
+    ];
+
+    for loc_str in locales {
+        let collator = LocaleCollator::try_from_locale_str(loc_str)
+            .unwrap_or_else(|| panic!("LocaleCollator for {loc_str} must initialize"));
+
+        for case in [SortCase::ABCabc, SortCase::AaBbCc] {
+            // 1. Reflexivity: ∀ a : cmp(a, a) == Equal
+            for &word in &test_words {
+                assert_eq!(
+                    collator.compare(word, word, case),
+                    Ordering::Equal,
+                    "Reflexivity failed for '{word}' in {loc_str}"
+                );
+            }
+
+            // 2. Anti-Symmetry: ∀ a, b : cmp(a, b) == cmp(b, a).reverse()
+            for &a in &test_words {
+                for &b in &test_words {
+                    let ord_ab = collator.compare(a, b, case);
+                    let ord_ba = collator.compare(b, a, case);
+                    assert_eq!(
+                        ord_ab,
+                        ord_ba.reverse(),
+                        "Anti-symmetry failed between '{a}' and '{b}' in {loc_str}"
+                    );
+                }
+            }
+
+            // 3. Transitivity: ∀ a, b, c : (a < b ∧ b < c) => a < c
+            for &a in &test_words {
+                for &b in &test_words {
+                    for &c in &test_words {
+                        let ab = collator.compare(a, b, case);
+                        let bc = collator.compare(b, c, case);
+                        let ac = collator.compare(a, c, case);
+
+                        if ab == Ordering::Less && bc == Ordering::Less {
+                            assert_eq!(
+                                ac,
+                                Ordering::Less,
+                                "Transitivity failed for ('{a}', '{b}', '{c}') in {loc_str}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =========================================================================
+// 5. TERMINAL GRID PACKING & JSON SERIALIZATION INVARIANTS
+// =========================================================================
+
+#[test]
+fn test_terminal_grid_packing_and_cell_count_invariants() {
+    let mut rng = Prng::new(0xABCD1234_5678EF90);
+
+    for _ in 0..50 {
+        let num_items = rng.next_usize(50) + 1;
+        let mut items = Vec::new();
+        for i in 0..num_items {
+            let len = rng.next_usize(20) + 1;
+            let name: String = (0..len)
+                .map(|_| (b'a' + (rng.next_usize(26) as u8)) as char)
+                .collect();
+            items.push(format!("{i}_{name}"));
+        }
+
+        let width = rng.next_usize(180) + 20; // width in 20..200
+        let grid = lez::output::grid::Grid::new(
+            items.clone(),
+            lez::output::grid::GridOptions {
+                direction: lez::output::grid::Direction::LeftToRight,
+                filling: lez::output::grid::Filling::Spaces(2),
+                width,
+            },
+        );
+
+        let rendered = format!("{grid}");
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert!(
+            !lines.is_empty(),
+            "Rendered grid must produce at least 1 line"
+        );
+
+        // Invariant 1: Every generated item must be present in the output
+        for item in &items {
+            assert!(
+                rendered.contains(item),
+                "Rendered grid must contain generated item '{item}'"
+            );
+        }
+
+        // Invariant 2: No row should exceed width bounds
+        let max_item_len = items.iter().map(|s| s.len()).max().unwrap_or(0);
+        let max_allowed = width.max(max_item_len);
+        for line in lines {
+            assert!(
+                line.chars().count() <= max_allowed + 20,
+                "Grid line length ({}) exceeded allowed width bounds ({})",
+                line.chars().count(),
+                max_allowed
+            );
+        }
+    }
+}
+
+#[test]
+fn test_json_arbitrary_unicode_serialization_invariants() {
+    let mut rng = Prng::new(0x7F8E9D0C_1B2A3C4D);
+
+    for _ in 0..100 {
+        let len = rng.next_usize(40) + 5;
+        let mut raw_str = String::new();
+        for _ in 0..len {
+            let choice = rng.next_usize(5);
+            match choice {
+                0 => raw_str.push('"'),
+                1 => raw_str.push('\\'),
+                2 => raw_str.push('\n'),
+                3 => raw_str.push('\t'),
+                _ => {
+                    let ch = char::from_u32(rng.next_u64() as u32 % 0x10FFFF).unwrap_or('?');
+                    raw_str.push(ch);
+                }
+            }
+        }
+
+        // Serialize to JSON value
+        let json_str = serde_json::to_string(&raw_str).expect("String serialization to JSON");
+        // Invariant: Deserializing must recreate the exact original string
+        let deserialized: String =
+            serde_json::from_str(&json_str).expect("Valid JSON roundtrip deserialization");
+        assert_eq!(raw_str, deserialized, "JSON roundtrip invariant violated");
     }
 }

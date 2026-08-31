@@ -40,6 +40,18 @@ impl Eq for LocaleCollator {}
 impl LocaleCollator {
     /// Attempt to initialize collators for the given locale identifier string.
     /// Returns `None` if the locale is "C" / "POSIX", invalid, or unsupported.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::fs::filter::LocaleCollator;
+    ///
+    /// let collator = LocaleCollator::try_from_locale_str("en_US.UTF-8");
+    /// assert!(collator.is_some());
+    /// assert_eq!(collator.unwrap().locale_tag(), "en_US");
+    ///
+    /// assert!(LocaleCollator::try_from_locale_str("C").is_none());
+    /// assert!(LocaleCollator::try_from_locale_str("POSIX").is_none());
+    /// ```
     pub fn try_from_locale_str(locale_str: &str) -> Option<Self> {
         let clean = Self::clean_locale_str(locale_str)?;
         let locale: Locale = clean.replace('_', "-").parse().ok()?;
@@ -90,6 +102,14 @@ impl LocaleCollator {
 
     /// Clean/normalize a locale string by stripping encoding (.UTF-8) and modifiers (@euro).
     /// Returns None if empty or if it represents a C/POSIX locale.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::fs::filter::LocaleCollator;
+    ///
+    /// assert_eq!(LocaleCollator::clean_locale_str("de_DE.UTF-8@euro"), Some("de_DE".to_string()));
+    /// assert_eq!(LocaleCollator::clean_locale_str("C.UTF-8"), None);
+    /// ```
     pub fn clean_locale_str(raw: &str) -> Option<String> {
         let trimmed = raw.trim();
         if trimmed.is_empty() || Self::is_c_or_posix(trimmed) {
@@ -117,6 +137,15 @@ impl LocaleCollator {
     }
 
     /// Check if string indicates standard C or POSIX collation.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::fs::filter::LocaleCollator;
+    ///
+    /// assert!(LocaleCollator::is_c_or_posix("C"));
+    /// assert!(LocaleCollator::is_c_or_posix("POSIX.UTF-8"));
+    /// assert!(!LocaleCollator::is_c_or_posix("fr_FR.UTF-8"));
+    /// ```
     pub fn is_c_or_posix(s: &str) -> bool {
         let lower = s.trim().to_ascii_lowercase();
         lower == "c"
