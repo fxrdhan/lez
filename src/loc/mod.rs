@@ -70,6 +70,19 @@ impl AddAssign for LocCounts {
 
 impl LocCounts {
     /// Count the lines of the given `source`, using `lang`’s comment rules.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lez::loc::{language_for, LocCounts};
+    ///
+    /// let rust = language_for("main.rs", Some("rs")).unwrap();
+    /// let code = "fn main() {\n    // comment\n    println!(\"hi\");\n}\n";
+    /// let counts = LocCounts::from_source(code, rust);
+    /// assert_eq!(counts.lines, 4);
+    /// assert_eq!(counts.code, 3);
+    /// assert_eq!(counts.comments, 1);
+    /// ```
     #[must_use]
     pub fn from_source(source: &str, lang: &Language) -> Self {
         let mut counts = Self::default();

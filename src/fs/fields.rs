@@ -60,6 +60,17 @@ pub enum Type {
 }
 
 impl Type {
+    /// Returns `true` if this type is a regular file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lez::fs::fields::Type;
+    ///
+    /// assert!(Type::File.is_regular_file());
+    /// assert!(!Type::Directory.is_regular_file());
+    /// assert!(!Type::Link.is_regular_file());
+    /// ```
     #[must_use]
     pub fn is_regular_file(self) -> bool {
         matches!(self, Self::File)
@@ -173,6 +184,17 @@ pub enum Blocksize {
 
 #[cfg(unix)]
 impl Blocksize {
+    /// Returns the allocated bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lez::fs::fields::{AllocatedSize, Blocksize};
+    ///
+    /// let b = Blocksize::Some(AllocatedSize { bytes: 4096, blocks: 8, block_size: 4096 });
+    /// assert_eq!(b.bytes(), 4096);
+    /// assert_eq!(Blocksize::None.bytes(), 0);
+    /// ```
     pub fn bytes(self) -> u64 {
         match self {
             Blocksize::Some(a) => a.bytes,
@@ -180,6 +202,17 @@ impl Blocksize {
         }
     }
 
+    /// Returns the number of allocated blocks.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lez::fs::fields::{AllocatedSize, Blocksize};
+    ///
+    /// let b = Blocksize::Some(AllocatedSize { bytes: 4096, blocks: 8, block_size: 4096 });
+    /// assert_eq!(b.blocks(), 1);
+    /// assert_eq!(Blocksize::None.blocks(), 0);
+    /// ```
     pub fn blocks(self) -> u64 {
         match self {
             Blocksize::Some(a) => {

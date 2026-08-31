@@ -79,6 +79,23 @@ pub struct Theme {
 }
 
 impl Options {
+    /// Converts these options into a live `Theme`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lez::theme::{Options, UseColours, Definitions};
+    /// use lez::output::color_scale::ColorScaleOptions;
+    ///
+    /// let opts = Options {
+    ///     use_colours: UseColours::Never,
+    ///     colour_scale: ColorScaleOptions::default(),
+    ///     definitions: Definitions::default(),
+    ///     theme_config: None,
+    /// };
+    /// let theme = opts.to_theme(false);
+    /// assert!(theme.plain);
+    /// ```
     #[must_use]
     pub fn to_theme(&self, isatty: bool) -> Theme {
         let use_colours = self.use_colours != UseColours::Never
