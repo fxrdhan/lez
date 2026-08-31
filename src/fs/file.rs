@@ -1302,6 +1302,56 @@ impl<'dir> File<'dir> {
         )
     }
 
+    #[cfg(target_os = "linux")]
+    pub fn flags(&self) -> f::Flags {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+
+        // Skip non-dereferenced symlinks and non-regular/non-directory entries (FIFOs, sockets, devices)
+        // to prevent unwanted blocking, side effects, or ELOOP.
+        if (!self.deref_links && self.is_link()) || (!self.is_file() && !self.is_directory()) {
+            return f::Flags(0);
+        }
+
+        let Ok(c_path) = CString::new(self.path.as_os_str().as_bytes()) else {
+            return f::Flags(0);
+        };
+
+        let fd = unsafe {
+            libc::open(
+                c_path.as_ptr(),
+                libc::O_RDONLY | libc::O_NONBLOCK | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+            )
+        };
+
+        if fd < 0 {
+            return f::Flags(0);
+        }
+
+        // FS_IOC_GETFLAGS = _IOR('f', 1, long)
+        #[cfg(target_env = "musl")]
+        type IoctlReq = libc::c_int;
+        #[cfg(not(target_env = "musl"))]
+        type IoctlReq = libc::c_ulong;
+
+        const FS_IOC_GETFLAGS: IoctlReq = {
+            const SIZE: usize = std::mem::size_of::<libc::c_long>();
+            ((2u32 << 30) | ((b'f' as u32) << 8) | 1u32 | ((SIZE as u32) << 16)) as IoctlReq
+        };
+
+        let mut raw_flags: libc::c_long = 0;
+        let ret = unsafe { libc::ioctl(fd, FS_IOC_GETFLAGS, &mut raw_flags) };
+        unsafe {
+            libc::close(fd);
+        }
+
+        if ret == 0 {
+            f::Flags(raw_flags as f::flag_t)
+        } else {
+            f::Flags(0)
+        }
+    }
+
     #[cfg(windows)]
     pub fn flags(&self) -> f::Flags {
         f::Flags(self.metadata().map_or(0, |md| md.file_attributes()))
@@ -1313,6 +1363,7 @@ impl<'dir> File<'dir> {
         target_os = "netbsd",
         target_os = "openbsd",
         target_os = "dragonfly",
+        target_os = "linux",
         target_os = "windows"
     )))]
     pub fn flags(&self) -> f::Flags {

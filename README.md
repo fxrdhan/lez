@@ -87,7 +87,7 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 | **Global & Per-Directory Config Files** (`config.toml` / `.lez.toml`) | ✅ | ❌ | ✅ |
 | **Deep Git Integration** (`--git`, `--git-glyphs`, `--git-repos`) | ✅ | ✅ | ⚠️ Basic |
 | **macOS Finder Color Tags** (`-e`, `--tags`) | ✅ | ✅ | ❌ |
-| **BSD & macOS File Flags** (`-O`, `--flags`) | ✅ | ✅ | ❌ |
+| **File Flags & Attributes** (`-O`, `--flags`) | ✅ | ⚠️ BSD/Win only | ❌ |
 | **Filesystem Mount Points** (`-M`, `--mounts`) | ✅ | ✅ | ❌ |
 | **Automatic Color Scaling & Heatmap** (`--color-scale`) | ✅ | ✅ | ❌ |
 
@@ -252,7 +252,7 @@ These options are available when running with `--long` (`-l`):
 - **--utc**: show timestamps in the UTC timezone
 - **-X**, **--dereference**: dereference symlinks for file information and sorting
 - **-Z**, **--context**: list each file’s security context
-- **-O**, **--flags**: list file flags (macOS, BSD, and Windows only)
+- **-O**, **--flags**: list file flags / attributes (Linux, macOS, BSD, and Windows)
 - **-@**, **--extended**: list each file’s extended attributes and sizes
 - **--no-extended**: don't show the `@` marker that a file has extended attributes
 - **-e**, **--tags**: list each file's color tags stored in extended attributes (macOS Finder tags)

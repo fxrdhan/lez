@@ -304,6 +304,7 @@ impl Default for SubdirGitRepo {
 
 /// The user file flags on the file. This will only ever be a number;
 /// looking up the flags is done in the `display` module.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Flags(pub flag_t);
 
 /// Tag colors in macOS.

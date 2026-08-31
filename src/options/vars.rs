@@ -130,6 +130,11 @@ pub static EXA_CONFIG_FILE: &str = "EXA_CONFIG_FILE";
 pub static LEZ_QUOTING_STYLE: &str = "LEZ_QUOTING_STYLE";
 pub static EZA_QUOTING_STYLE: &str = "EZA_QUOTING_STYLE";
 
+/// Environment variable used to choose how file flags and attributes are displayed.
+/// Short will display single character abbreviations, long will display separated descriptions.
+pub static LEZ_FLAGS_FORMAT: &str = "LEZ_FLAGS_FORMAT";
+pub static EZA_FLAGS_FORMAT: &str = "EZA_FLAGS_FORMAT";
+
 /// Environment variable used to choose how windows attributes are displayed.
 /// Short will display a single character for each set attribute, long will
 /// display a comma separated list of descriptions.
@@ -233,6 +238,12 @@ pub mod test {
         pub lc_all: OsString,
         pub lc_collate: OsString,
         pub lang: OsString,
+        pub lez_flags_format: OsString,
+        pub eza_flags_format: OsString,
+        pub flags_format: OsString,
+        pub lez_windows_attributes: OsString,
+        pub eza_windows_attributes: OsString,
+        pub windows_attributes: OsString,
         pub sys_locale: Option<String>,
         pub stdout_is_terminal: bool,
     }
@@ -359,6 +370,26 @@ pub mod test {
                 {
                     Some(self.size_digits.clone())
                 }
+                "LEZ_FLAGS_FORMAT" if !self.lez_flags_format.is_empty() => {
+                    Some(self.lez_flags_format.clone())
+                }
+                "EZA_FLAGS_FORMAT" if !self.eza_flags_format.is_empty() => {
+                    Some(self.eza_flags_format.clone())
+                }
+                "LEZ_FLAGS_FORMAT" | "EZA_FLAGS_FORMAT" if !self.flags_format.is_empty() => {
+                    Some(self.flags_format.clone())
+                }
+                "LEZ_WINDOWS_ATTRIBUTES" if !self.lez_windows_attributes.is_empty() => {
+                    Some(self.lez_windows_attributes.clone())
+                }
+                "EZA_WINDOWS_ATTRIBUTES" if !self.eza_windows_attributes.is_empty() => {
+                    Some(self.eza_windows_attributes.clone())
+                }
+                "LEZ_WINDOWS_ATTRIBUTES" | "EZA_WINDOWS_ATTRIBUTES"
+                    if !self.windows_attributes.is_empty() =>
+                {
+                    Some(self.windows_attributes.clone())
+                }
                 "LC_ALL" if !self.lc_all.is_empty() => Some(self.lc_all.clone()),
                 "LC_COLLATE" if !self.lc_collate.is_empty() => Some(self.lc_collate.clone()),
                 "LANG" if !self.lang.is_empty() => Some(self.lang.clone()),
@@ -407,6 +438,10 @@ pub mod test {
                 "LEZ_SIZE_DIGITS" => self.lez_size_digits = value.clone(),
                 "EZA_SIZE_DIGITS" => self.eza_size_digits = value.clone(),
                 "EXA_SIZE_DIGITS" => self.exa_size_digits = value.clone(),
+                "LEZ_FLAGS_FORMAT" => self.lez_flags_format = value.clone(),
+                "EZA_FLAGS_FORMAT" => self.eza_flags_format = value.clone(),
+                "LEZ_WINDOWS_ATTRIBUTES" => self.lez_windows_attributes = value.clone(),
+                "EZA_WINDOWS_ATTRIBUTES" => self.eza_windows_attributes = value.clone(),
                 "LC_ALL" => self.lc_all = value.clone(),
                 "LC_COLLATE" => self.lc_collate = value.clone(),
                 "LANG" => self.lang = value.clone(),
@@ -511,5 +546,23 @@ pub mod test {
 
         vars.set(EXA_SIZE_DIGITS, &OsString::from("4"));
         assert_eq!(vars.get(EXA_SIZE_DIGITS), Some(OsString::from("4")));
+
+        vars.set(LEZ_FLAGS_FORMAT, &OsString::from("short"));
+        assert_eq!(vars.get(LEZ_FLAGS_FORMAT), Some(OsString::from("short")));
+
+        vars.set(EZA_FLAGS_FORMAT, &OsString::from("long"));
+        assert_eq!(vars.get(EZA_FLAGS_FORMAT), Some(OsString::from("long")));
+
+        vars.set(LEZ_WINDOWS_ATTRIBUTES, &OsString::from("short"));
+        assert_eq!(
+            vars.get(LEZ_WINDOWS_ATTRIBUTES),
+            Some(OsString::from("short"))
+        );
+
+        vars.set(EZA_WINDOWS_ATTRIBUTES, &OsString::from("long"));
+        assert_eq!(
+            vars.get(EZA_WINDOWS_ATTRIBUTES),
+            Some(OsString::from("long"))
+        );
     }
 }
