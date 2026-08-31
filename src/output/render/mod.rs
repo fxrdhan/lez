@@ -67,6 +67,9 @@ pub use self::securityctx::Colours as SecurityCtxColours;
 ))]
 mod flags_bsd;
 
+#[cfg(target_os = "linux")]
+mod flags_linux;
+
 #[cfg(windows)]
 mod flags_windows;
 
@@ -76,6 +79,7 @@ mod flags_windows;
     target_os = "netbsd",
     target_os = "openbsd",
     target_os = "dragonfly",
+    target_os = "linux",
     target_os = "windows"
 )))]
 mod flags;
