@@ -142,3 +142,91 @@ end Main;
     );
     assert!(ada_counts.comments >= 1);
 }
+
+#[test]
+fn test_javascript_typescript_template_literals_and_comments() {
+    let js = loc::language_for("app.ts", Some("ts")).expect("TypeScript language");
+    let js_source = r##"
+// Top-level line comment
+import { useState } from 'react';
+
+export function Component() {
+    /* Multi-line
+       block comment */
+    const template = `Hello ${/* nested comment in template */ (() => "world")()}`;
+    const escaped = `\`not a comment\` // inside template`;
+    return <div>{template}</div>;
+}
+"##;
+    let counts = LocCounts::from_source(js_source, js);
+    assert_eq!(
+        counts.code + counts.comments + counts.blanks,
+        counts.lines,
+        "Mathematical invariant code + comments + blanks == lines must hold"
+    );
+    assert!(counts.comments >= 3, "Must count comment lines");
+    assert!(counts.code >= 4, "Must count code lines");
+}
+
+#[test]
+fn test_ruby_and_perl_heredocs_and_comments() {
+    let rb = loc::language_for("script.rb", Some("rb")).expect("Ruby language");
+    let rb_source = r##"
+# Ruby header comment
+def render_doc
+    heredoc = <<~HEREDOC
+        # This is text inside heredoc, not a Ruby comment
+        echo "hello"
+    HEREDOC
+    puts heredoc # trailing comment
+end
+"##;
+    let rb_counts = LocCounts::from_source(rb_source, rb);
+    assert_eq!(
+        rb_counts.code + rb_counts.comments + rb_counts.blanks,
+        rb_counts.lines
+    );
+    assert!(rb_counts.comments >= 2);
+    assert!(rb_counts.code >= 5);
+
+    let pl = loc::language_for("script.pl", Some("pl")).expect("Perl language");
+    let pl_source = r##"
+#!/usr/bin/perl
+# Perl comment
+my $text = <<'END';
+# Not a comment
+END
+print $text;
+"##;
+    let pl_counts = LocCounts::from_source(pl_source, pl);
+    assert_eq!(
+        pl_counts.code + pl_counts.comments + pl_counts.blanks,
+        pl_counts.lines
+    );
+    assert!(pl_counts.comments >= 2);
+}
+
+#[test]
+fn test_html_xml_markdown_comment_structures() {
+    let html = loc::language_for("index.html", Some("html")).expect("HTML language");
+    let html_source = r##"
+<!DOCTYPE html>
+<!-- HTML comment line 1
+     HTML comment line 2 -->
+<html>
+<head>
+    <title>Test <!-- not a comment --> Page</title>
+</head>
+<body>
+    <h1>Hello</h1>
+</body>
+</html>
+"##;
+    let html_counts = LocCounts::from_source(html_source, html);
+    assert_eq!(
+        html_counts.code + html_counts.comments + html_counts.blanks,
+        html_counts.lines
+    );
+    assert!(html_counts.comments >= 2);
+    assert!(html_counts.code >= 8);
+}
