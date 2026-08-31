@@ -172,6 +172,35 @@ jobs:
       # nextest does not run doc tests; this covers them.
       - name: Run doc tests
         run: cargo test --doc --features git,inspect-archives
+  code-coverage:
+    name: Code Coverage (LLVM-Cov)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: llvm-cov
+      - name: Install cargo-llvm-cov & cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,cargo-nextest@0.9.128
+      - name: Generate Code Coverage Report
+        run: |
+          cargo llvm-cov nextest --features git,inspect-archives --workspace --lcov --output-path lcov.info
+          cargo llvm-cov report
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-lcov
+          path: lcov.info
   build-release:
     name: Release Build (${{ matrix.target }})
     needs: [unit-and-integration-tests]

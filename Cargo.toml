@@ -14,6 +14,7 @@ rust-version = "1.90"
 exclude = [
   "/docs/",
   "/devtools/",
+  "/fuzz/",
   "/snap/",
   "/tests/",
   "/.config/",

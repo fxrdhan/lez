@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+name: Fuzz Canary
+# Automated coverage-guided fuzzing smoke test using LLVM libFuzzer and AddressSanitizer (ASan).
+# Runs fuzz targets against Tar archives, YAML themes, LS_COLORS, and duration parsers.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly run on Sundays at 04:00 UTC
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
+  cancel-in-progress: true
+jobs:
+  fuzz:
+    name: Fuzz Targets (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_tar_archive
+          - fuzz_theme_yaml
+          - fuzz_lscolors
+          - fuzz_since_duration
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Nightly Rust (for libfuzzer)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: x86_64-unknown-linux-gnu
+      - name: Install cargo-fuzz
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: fuzz-${{ matrix.target }}
+      - name: Run Fuzz Smoke Test (30 seconds)
+        run: cargo +nightly fuzz run --target x86_64-unknown-linux-gnu ${{ matrix.target }} -- -max_total_time=30

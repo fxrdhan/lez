@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+[package]
+name = "lez-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+lez = { path = "..", features = ["git", "inspect-archives"] }
+
+[[bin]]
+name = "fuzz_tar_archive"
+path = "fuzz_targets/fuzz_tar_archive.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_theme_yaml"
+path = "fuzz_targets/fuzz_theme_yaml.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_lscolors"
+path = "fuzz_targets/fuzz_lscolors.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_since_duration"
+path = "fuzz_targets/fuzz_since_duration.rs"
+test = false
+doc = false
