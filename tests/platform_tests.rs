@@ -1,0 +1,13 @@
+// SPDX-FileCopyrightText: 2026 fxrdhan
+// SPDX-License-Identifier: EUPL-1.2
+
+#![allow(unused_imports, dead_code)]
+
+mod common;
+
+#[path = "platform/windows_paths.rs"]
+mod windows_paths;
+#[path = "platform/windows_underscore.rs"]
+mod windows_underscore;
+#[path = "platform/wsl_hyperlinks.rs"]
+mod wsl_hyperlinks;
