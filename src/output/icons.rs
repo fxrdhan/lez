@@ -1176,6 +1176,20 @@ pub fn iconify_style(style: Style) -> Style {
 /// Lookup the icon for a plain file name and lowercase extension, without
 /// needing a whole `File`. Used by the `--code` summary to give each
 /// language the icon of a representative source file.
+///
+/// # Examples
+///
+/// ```
+/// use lez::output::icons::icon_for_name_ext;
+///
+/// // Known filename
+/// let icon = icon_for_name_ext("Dockerfile", None);
+/// assert_eq!(icon, '\u{e650}');
+///
+/// // Known extension
+/// let icon = icon_for_name_ext("main.rs", Some("rs"));
+/// assert_eq!(icon, '\u{e68b}');
+/// ```
 pub fn icon_for_name_ext(name: &str, ext: Option<&str>) -> char {
     if let Some(icon) = FILENAME_ICONS.get(name) {
         *icon

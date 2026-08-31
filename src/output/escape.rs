@@ -134,6 +134,20 @@ fn parse_wsl_mnt_drive(abs_path: &str) -> Option<(char, &str)> {
     }
 }
 
+/// Format an absolute filesystem path as a standard OSC 8 URI or WSL network path.
+///
+/// # Examples
+///
+/// ```
+/// use lez::output::escape::format_hyperlink_url;
+///
+/// // WSL path resolution
+/// let wsl_url = format_hyperlink_url("/home/user/file.txt", Some("Ubuntu"));
+/// assert_eq!(wsl_url, "file://wsl$/Ubuntu/home/user/file.txt");
+///
+/// let win_mount = format_hyperlink_url("/mnt/c/Users/Alice/Doc.txt", Some("Ubuntu"));
+/// assert_eq!(win_mount, "file://C:\\Users\\Alice\\Doc.txt");
+/// ```
 pub fn format_hyperlink_url(abs_path: &str, wsl_distro: Option<&str>) -> String {
     if let Some(distro) = wsl_distro.filter(|d| !d.is_empty()) {
         if let Some((drive, subpath)) = parse_wsl_mnt_drive(abs_path) {
@@ -172,6 +186,17 @@ pub fn get_hyperlink_start_tag(abs_path: &str) -> String {
     get_hyperlink_start_tag_with_distro(abs_path, wsl_distro.as_deref())
 }
 
+/// Construct the opening ANSI OSC 8 escape sequence for an absolute path and optional WSL distro.
+///
+/// # Examples
+///
+/// ```
+/// use lez::output::escape::get_hyperlink_start_tag_with_distro;
+///
+/// let tag = get_hyperlink_start_tag_with_distro("/home/user/file.txt", Some("Ubuntu"));
+/// assert!(tag.starts_with("\x1B]8;;file://wsl$/Ubuntu/"));
+/// assert!(tag.ends_with("\x1B\\"));
+/// ```
 pub fn get_hyperlink_start_tag_with_distro(abs_path: &str, wsl_distro: Option<&str>) -> String {
     let url = format_hyperlink_url(abs_path, wsl_distro);
     format!("{HYPERLINK_OPENING_START}{url}{HYPERLINK_OPENING_END}")

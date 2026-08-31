@@ -181,6 +181,20 @@ fn consume_string(s: &str, quote: char) -> &str {
 
 /// Work out the language of a file from its whole name (for files like
 /// `Makefile`) or, failing that, its already-lowercased extension.
+///
+/// # Examples
+///
+/// ```
+/// use lez::loc::language_for;
+///
+/// let rust = language_for("main.rs", Some("rs")).unwrap();
+/// assert_eq!(rust.name, "Rust");
+///
+/// let makefile = language_for("Makefile", None).unwrap();
+/// assert_eq!(makefile.name, "Makefile");
+///
+/// assert!(language_for("unknown.xyz", Some("xyz")).is_none());
+/// ```
 #[must_use]
 pub fn language_for(name: &str, ext: Option<&str>) -> Option<&'static Language> {
     if let Some(lang) = BY_FILENAME.get(name) {

@@ -105,6 +105,15 @@ pub enum SpacingMode {
 
 impl SpacingMode {
     /// Get the default number of spaces for this mode.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lez::output::SpacingMode;
+    ///
+    /// assert_eq!(SpacingMode::Grid.default_spaces(), 2);
+    /// assert_eq!(SpacingMode::Details.default_spaces(), 1);
+    /// ```
     #[must_use]
     pub fn default_spaces(self) -> usize {
         match self {
@@ -134,6 +143,16 @@ impl SpacingBetweenColumns {
 
     /// Get the actual number of spaces to use between columns.
     /// Takes the spacing mode to determine the correct default.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lez::output::{SpacingBetweenColumns, SpacingMode};
+    ///
+    /// assert_eq!(SpacingBetweenColumns::Default.spaces(SpacingMode::Grid), 2);
+    /// assert_eq!(SpacingBetweenColumns::Default.spaces(SpacingMode::Details), 1);
+    /// assert_eq!(SpacingBetweenColumns::Set(5).spaces(SpacingMode::Grid), 5);
+    /// ```
     #[must_use]
     pub fn spaces(self, mode: SpacingMode) -> usize {
         match self {
