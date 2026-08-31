@@ -11,6 +11,8 @@ mod archive_fuzz_stress;
 mod blocksize_column_stress;
 #[path = "adversarial/broken_pipe_resilience.rs"]
 mod broken_pipe_resilience;
+#[path = "adversarial/continuous_fuzz_guard.rs"]
+mod continuous_fuzz_guard;
 #[path = "adversarial/deep_stack_recursion.rs"]
 mod deep_stack_recursion;
 #[path = "adversarial/determinism_stress.rs"]

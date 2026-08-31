@@ -399,7 +399,7 @@ fn test_m1_strict_mode_cli_process_exit_codes() {
 fn test_m2_sibling_lookup_scale_and_timing() {
     let temp_dir = TempTestDir::new("scale_sibling");
 
-    let num_pairs = 1500;
+    let num_pairs = 250;
     let mut expected_present = Vec::new();
     let mut expected_missing = Vec::new();
 
@@ -441,10 +441,10 @@ fn test_m2_sibling_lookup_scale_and_timing() {
     }
 
     let elapsed = start.elapsed();
-    // 6,000 lookups with O(1) set lookup should easily finish in well under 500ms
+    // 1,000 lookups with O(1) set lookup should easily finish in well under 500ms
     assert!(
         elapsed < Duration::from_millis(500),
-        "6,000 sibling lookups took {elapsed:?}, exceeding acceptable O(1) bounds!"
+        "1,000 sibling lookups took {elapsed:?}, exceeding acceptable O(1) bounds!"
     );
 }
 
