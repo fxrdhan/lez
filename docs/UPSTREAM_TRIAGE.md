@@ -97,12 +97,13 @@ Work an unread upstream report in this order:
 | [#1750](https://github.com/eza-community/eza/issues/1750) | `--ignore-glob-ci` |
 | [#1773](https://github.com/eza-community/eza/pull/1773) | `--hyperlink[=WHEN]` |
 | [#1835](https://github.com/eza-community/eza/issues/1835) | `--sort=path` |
+| [#1642](https://github.com/eza-community/eza/issues/1642), [#1640](https://github.com/eza-community/eza/issues/1640) | `--blocks` added for integer filesystem block count column alongside `-S` / `--blocksize` (byte size) and `bl` in `LS_COLORS` styled with block palette. |
 | [#1904](https://github.com/eza-community/eza/issues/1904) | `Dir::contains` memoises into a set; 5000 `.log` files list in 0.07s |
 | [#1912](https://github.com/eza-community/eza/pull/1912) | `palette_derive` pinned to `=0.7.5` beside `palette` |
 | [#223](https://github.com/eza-community/eza/issues/223), [#579](https://github.com/eza-community/eza/issues/579) | the Git column is dropped when nothing in the listing is in a repo |
 | [#139](https://github.com/eza-community/eza/issues/139), [#766](https://github.com/eza-community/eza/issues/766), [#770](https://github.com/eza-community/eza/pull/770), [#812](https://github.com/eza-community/eza/issues/812), [#1587](https://github.com/eza-community/eza/issues/1587), [#1707](https://github.com/eza-community/eza/issues/1707), [#1875](https://github.com/eza-community/eza/issues/1875) | Configuration file for option defaults (`config.toml`, `.lez.toml`), `--config`, `--no-config`, `LEZ_CONFIG_FILE` |
 
-*Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` yes, `-N` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no), [#1466](https://github.com/eza-community/eza/issues/1466) (`--context` yes, MCS translation no), [#1642](https://github.com/eza-community/eza/issues/1642) (`--blocksize` in bytes, no block count), [#1735](https://github.com/eza-community/eza/issues/1735) (csv/sqlite yes, parquet/hdf5/npy no), [#1768](https://github.com/eza-community/eza/issues/1768) (`--show-dotfiles` yes, the other two axes no), [#1823](https://github.com/eza-community/eza/issues/1823) (`--git-glyphs` yes, choosing the glyph no).
+*Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` yes, `-N` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no), [#1466](https://github.com/eza-community/eza/issues/1466) (`--context` yes, MCS translation no), [#1735](https://github.com/eza-community/eza/issues/1735) (csv/sqlite yes, parquet/hdf5/npy no), [#1768](https://github.com/eza-community/eza/issues/1768) (`--show-dotfiles` yes, the other two axes no), [#1823](https://github.com/eza-community/eza/issues/1823) (`--git-glyphs` yes, choosing the glyph no).
 
 ### Reproduced and Fixed in `lez`
 
@@ -112,7 +113,7 @@ Work an unread upstream report in this order:
 | [#509](https://github.com/eza-community/eza/issues/509), [#1743](https://github.com/eza-community/eza/issues/1743), [#1448](https://github.com/eza-community/eza/issues/1448), [#1892](https://github.com/eza-community/eza/issues/1892) | `natord` was the only comparator, breaking `LC_ALL=C` hex sort. `--sort=lexicographic` added for plain comparison. |
 | [#1868](https://github.com/eza-community/eza/issues/1868) | `--code` skipped dotfiles and `-a` did nothing. Fixed to count correctly with `--loc`. |
 | [#922](https://github.com/eza-community/eza/issues/922), [#558](https://github.com/eza-community/eza/issues/558) | Syscall overhead (buffered stdout write and unnecessary stat when colors were off). Reduced 5000 stats to 1 on `lez -1 dir \| wc -l`. |
-| [#1642](https://github.com/eza-community/eza/issues/1642) (part) | `bl` in `LS_COLORS` parsed but never read; fixed to use block palette. |
+| [#1642](https://github.com/eza-community/eza/issues/1642), [#1640](https://github.com/eza-community/eza/issues/1640) | `--blocks` CLI flag added for integer filesystem block count column alongside `-S` / `--blocksize` (byte size) and `bl` in `LS_COLORS` styled. |
 | [#765](https://github.com/eza-community/eza/issues/765) | `mh` accepted and properly parsed. |
 | [#1002](https://github.com/eza-community/eza/issues/1002), [#745](https://github.com/eza-community/eza/issues/745) | High stat overhead on empty directory glyph probing over FUSE/NFS. `LEZ_NO_EMPTY_DIR_ICON` avoids probing. |
 | [#1732](https://github.com/eza-community/eza/issues/1732) | `--size-digits=<NUM>` (alias `--digits`) and `LEZ_SIZE_DIGITS` added to customize size column precision/digit count. |

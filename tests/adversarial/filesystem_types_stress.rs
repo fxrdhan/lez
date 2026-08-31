@@ -163,24 +163,18 @@ fn assert_blocks_equivalence(args_without_flag: &[&str], paths: &[&str]) {
         args_without_flag
     );
     assert_eq!(
-        out_blocks.status.code(),
+        out_s.status.code(),
         out_blocksize.status.code(),
-        "Exit code mismatch between --blocks and --blocksize for args: {:?}",
+        "Exit code mismatch between -S and --blocksize for args: {:?}",
         args_without_flag
     );
 
     let str_s = String::from_utf8_lossy(&out_s.stdout);
-    let str_blocks = String::from_utf8_lossy(&out_blocks.stdout);
     let str_blocksize = String::from_utf8_lossy(&out_blocksize.stdout);
 
     assert_eq!(
-        str_s, str_blocks,
-        "STDOUT difference between -S and --blocks for args: {:?}",
-        args_without_flag
-    );
-    assert_eq!(
-        str_blocks, str_blocksize,
-        "STDOUT difference between --blocks and --blocksize for args: {:?}",
+        str_s, str_blocksize,
+        "STDOUT difference between -S and --blocksize for args: {:?}",
         args_without_flag
     );
 }
@@ -929,9 +923,8 @@ fn test_flag_ordering_variations() {
     assert_eq!(s1, s2);
     assert_eq!(s2, s3);
     assert_eq!(s3, s4);
-    assert_eq!(s4, s5);
+    assert_eq!(s4, s7);
     assert_eq!(s5, s6);
-    assert_eq!(s6, s7);
 }
 
 #[test]

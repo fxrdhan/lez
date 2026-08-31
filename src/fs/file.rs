@@ -843,14 +843,34 @@ impl<'dir> File<'dir> {
                 _ => f::Blocksize::None,
             }
         } else if self.is_directory() {
+            let md = self.metadata();
             self.recursive_size.map_or(f::Blocksize::None, |_, blocks| {
-                f::Blocksize::Some(blocks * 512)
+                f::Blocksize::Some(f::AllocatedSize {
+                    bytes: blocks.saturating_mul(512),
+                    blocks,
+                    block_size: md.map_or(0, std::os::unix::fs::MetadataExt::blksize),
+                })
             })
         } else if self.is_file() {
             // Note that metadata.blocks returns the number of blocks
             // for 512 byte blocks according to the POSIX standard
             // even though the physical block size may be different.
-            f::Blocksize::Some(self.metadata().map_or(0, |md| md.blocks() * 512))
+            if let Ok(md) = self.metadata() {
+                use std::os::unix::fs::MetadataExt;
+                let blocks = md.blocks();
+                let block_size = md.blksize();
+                f::Blocksize::Some(f::AllocatedSize {
+                    bytes: blocks.saturating_mul(512),
+                    blocks,
+                    block_size,
+                })
+            } else {
+                f::Blocksize::Some(f::AllocatedSize {
+                    bytes: 0,
+                    blocks: 0,
+                    block_size: 0,
+                })
+            }
         } else {
             // directory or symlinks
             f::Blocksize::None

@@ -10,22 +10,35 @@ use unit_prefix::Prefix;
 
 use crate::fs::fields as f;
 use crate::output::cell::{DisplayWidth, TextCell};
-use crate::output::table::SizeFormat;
+use crate::output::table::{AllocatedSizeMode, SizeFormat};
 
 impl f::Blocksize {
     pub fn render<C: Colours>(
         self,
         colours: &C,
+        allocated_size_mode: AllocatedSizeMode,
         size_format: SizeFormat,
         size_digits: u8,
         numerics: &NumericLocale,
     ) -> TextCell {
         use unit_prefix::NumberPrefix;
 
-        let size = match self {
-            Self::Some(s) => s,
+        let allocated = match self {
+            Self::Some(a) => a,
             Self::None => return TextCell::blank(colours.no_blocksize()),
         };
+
+        if let AllocatedSizeMode::Blocks = allocated_size_mode {
+            let blocks: u64 = if allocated.block_size > 0 && allocated.block_size != 512 {
+                allocated.bytes.div_ceil(allocated.block_size)
+            } else {
+                allocated.blocks
+            };
+            let string = numerics.format_int(blocks);
+            return TextCell::paint(colours.blocksize(None), string);
+        }
+
+        let size = allocated.bytes;
 
         let result = match size_format {
             SizeFormat::DecimalBytes => NumberPrefix::decimal(size as f64),
@@ -69,16 +82,28 @@ impl f::Blocksize {
 
     pub fn render_json(
         self,
+        allocated_size_mode: AllocatedSizeMode,
         size_format: SizeFormat,
         size_digits: u8,
         numerics: &NumericLocale,
     ) -> Option<String> {
         use unit_prefix::NumberPrefix;
 
-        let size = match self {
-            Self::Some(s) => s,
+        let allocated = match self {
+            Self::Some(a) => a,
             Self::None => return None,
         };
+
+        if let AllocatedSizeMode::Blocks = allocated_size_mode {
+            let blocks: u64 = if allocated.block_size > 0 && allocated.block_size != 512 {
+                allocated.bytes.div_ceil(allocated.block_size)
+            } else {
+                allocated.blocks
+            };
+            return Some(blocks.to_string());
+        }
+
+        let size = allocated.bytes;
 
         let result = match size_format {
             SizeFormat::DecimalBytes => NumberPrefix::decimal(size as f64),
@@ -122,7 +147,7 @@ pub mod test {
     use super::Colours;
     use crate::fs::fields as f;
     use crate::output::cell::{DisplayWidth, TextCell};
-    use crate::output::table::SizeFormat;
+    use crate::output::table::{AllocatedSizeMode, SizeFormat};
 
     use locale::Numeric as NumericLocale;
     use unit_prefix::Prefix;
@@ -136,6 +161,22 @@ pub mod test {
         fn no_blocksize(&self)                       -> Style { Black.italic() }
     }
 
+    fn some_bytes(bytes: u64) -> f::Blocksize {
+        f::Blocksize::Some(f::AllocatedSize {
+            bytes,
+            blocks: bytes / 512,
+            block_size: 4096,
+        })
+    }
+
+    fn some_blocks(blocks: u64, block_size: u64) -> f::Blocksize {
+        f::Blocksize::Some(f::AllocatedSize {
+            bytes: blocks * 512,
+            blocks,
+            block_size,
+        })
+    }
+
     #[test]
     fn directory() {
         let directory = f::Blocksize::None;
@@ -144,6 +185,7 @@ pub mod test {
             expected,
             directory.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::JustBytes,
                 3,
                 &NumericLocale::english()
@@ -153,7 +195,7 @@ pub mod test {
 
     #[test]
     fn file_decimal() {
-        let directory = f::Blocksize::Some(2_100_000);
+        let directory = some_bytes(2_100_000);
         let expected = TextCell {
             width: DisplayWidth::from(4),
             contents: vec![Fixed(66).paint("2.1"), Fixed(77).bold().paint("M")].into(),
@@ -163,6 +205,7 @@ pub mod test {
             expected,
             directory.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::DecimalBytes,
                 3,
                 &NumericLocale::english()
@@ -172,7 +215,7 @@ pub mod test {
 
     #[test]
     fn file_binary() {
-        let directory = f::Blocksize::Some(1_048_576);
+        let directory = some_bytes(1_048_576);
         let expected = TextCell {
             width: DisplayWidth::from(5),
             contents: vec![Fixed(66).paint("1.0"), Fixed(77).bold().paint("Mi")].into(),
@@ -182,6 +225,7 @@ pub mod test {
             expected,
             directory.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::BinaryBytes,
                 3,
                 &NumericLocale::english()
@@ -191,7 +235,7 @@ pub mod test {
 
     #[test]
     fn file_bytes() {
-        let directory = f::Blocksize::Some(1_048_576);
+        let directory = some_bytes(1_048_576);
         let expected = TextCell {
             width: DisplayWidth::from(9),
             contents: vec![Fixed(66).paint("1,048,576")].into(),
@@ -201,6 +245,7 @@ pub mod test {
             expected,
             directory.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::JustBytes,
                 3,
                 &NumericLocale::english()
@@ -210,7 +255,7 @@ pub mod test {
 
     #[test]
     fn blocksize_binary_carries_to_next_prefix() {
-        let file = f::Blocksize::Some(1_048_575);
+        let file = some_bytes(1_048_575);
         let expected = TextCell {
             width: DisplayWidth::from(5),
             contents: vec![Fixed(66).paint("1.0"), Fixed(77).bold().paint("Mi")].into(),
@@ -219,6 +264,7 @@ pub mod test {
             expected,
             file.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::BinaryBytes,
                 3,
                 &NumericLocale::english()
@@ -228,7 +274,7 @@ pub mod test {
 
     #[test]
     fn blocksize_decimal_carries_to_next_prefix() {
-        let file = f::Blocksize::Some(999_999);
+        let file = some_bytes(999_999);
         let expected = TextCell {
             width: DisplayWidth::from(4),
             contents: vec![Fixed(66).paint("1.0"), Fixed(77).bold().paint("M")].into(),
@@ -237,6 +283,7 @@ pub mod test {
             expected,
             file.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::DecimalBytes,
                 3,
                 &NumericLocale::english()
@@ -246,7 +293,7 @@ pub mod test {
 
     #[test]
     fn blocksize_binary_below_boundary_is_unchanged() {
-        let file = f::Blocksize::Some(1_047_000);
+        let file = some_bytes(1_047_000);
         let expected = TextCell {
             width: DisplayWidth::from(7),
             contents: vec![Fixed(66).paint("1,022"), Fixed(77).bold().paint("Ki")].into(),
@@ -255,6 +302,7 @@ pub mod test {
             expected,
             file.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::BinaryBytes,
                 3,
                 &NumericLocale::english()
@@ -264,7 +312,7 @@ pub mod test {
 
     #[test]
     fn rounding_down_to_float() {
-        let directory = f::Blocksize::Some(9_940);
+        let directory = some_bytes(9_940);
         let expected = TextCell {
             width: DisplayWidth::from(4),
             contents: vec![Fixed(66).paint("9.9"), Fixed(77).bold().paint("k")].into(),
@@ -273,6 +321,7 @@ pub mod test {
             expected,
             directory.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::DecimalBytes,
                 3,
                 &NumericLocale::english()
@@ -282,7 +331,7 @@ pub mod test {
 
     #[test]
     fn rounding_up_to_integer() {
-        let directory = f::Blocksize::Some(9_990);
+        let directory = some_bytes(9_990);
         let expected = TextCell {
             width: DisplayWidth::from(3),
             contents: vec![Fixed(66).paint("10"), Fixed(77).bold().paint("k")].into(),
@@ -291,7 +340,46 @@ pub mod test {
             expected,
             directory.render(
                 &TestColours,
+                AllocatedSizeMode::Bytes,
                 SizeFormat::DecimalBytes,
+                3,
+                &NumericLocale::english()
+            )
+        );
+    }
+
+    #[test]
+    fn file_blocks_mode() {
+        let file = some_blocks(8, 4096); // 8 * 512 = 4096 bytes => 1 block
+        let expected = TextCell {
+            width: DisplayWidth::from(1),
+            contents: vec![Fixed(66).paint("1")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                AllocatedSizeMode::Blocks,
+                SizeFormat::JustBytes,
+                3,
+                &NumericLocale::english()
+            )
+        );
+    }
+
+    #[test]
+    fn file_blocks_mode_multiple() {
+        let file = some_blocks(16, 4096); // 16 * 512 = 8192 bytes => 2 blocks
+        let expected = TextCell {
+            width: DisplayWidth::from(1),
+            contents: vec![Fixed(66).paint("2")].into(),
+        };
+        assert_eq!(
+            expected,
+            file.render(
+                &TestColours,
+                AllocatedSizeMode::Blocks,
+                SizeFormat::JustBytes,
                 3,
                 &NumericLocale::english()
             )
@@ -304,40 +392,76 @@ pub mod test {
         let expected = None;
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::JustBytes, 3, &NumericLocale::english())
+            directory.render_json(
+                AllocatedSizeMode::Bytes,
+                SizeFormat::JustBytes,
+                3,
+                &NumericLocale::english()
+            )
         );
     }
 
     #[test]
     fn file_decimal_json() {
-        let directory = f::Blocksize::Some(2_100_000);
+        let directory = some_bytes(2_100_000);
         let expected = Some("2.1M".to_string());
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::DecimalBytes, 3, &NumericLocale::english())
+            directory.render_json(
+                AllocatedSizeMode::Bytes,
+                SizeFormat::DecimalBytes,
+                3,
+                &NumericLocale::english()
+            )
         );
     }
 
     #[test]
     fn file_binary_json() {
-        let directory = f::Blocksize::Some(1_048_576);
+        let directory = some_bytes(1_048_576);
         let expected = Some("1.0Mi".to_string());
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::BinaryBytes, 3, &NumericLocale::english())
+            directory.render_json(
+                AllocatedSizeMode::Bytes,
+                SizeFormat::BinaryBytes,
+                3,
+                &NumericLocale::english()
+            )
         );
     }
 
     #[test]
     fn file_bytes_json() {
-        let directory = f::Blocksize::Some(1_048_576);
+        let directory = some_bytes(1_048_576);
         let expected = Some("1,048,576".to_string());
 
         assert_eq!(
             expected,
-            directory.render_json(SizeFormat::JustBytes, 3, &NumericLocale::english())
+            directory.render_json(
+                AllocatedSizeMode::Bytes,
+                SizeFormat::JustBytes,
+                3,
+                &NumericLocale::english()
+            )
+        );
+    }
+
+    #[test]
+    fn file_blocks_json() {
+        let file = some_blocks(16, 4096);
+        let expected = Some("2".to_string());
+
+        assert_eq!(
+            expected,
+            file.render_json(
+                AllocatedSizeMode::Blocks,
+                SizeFormat::JustBytes,
+                3,
+                &NumericLocale::english()
+            )
         );
     }
 }

@@ -17,7 +17,8 @@ use crate::output::color_scale::{ColorScaleMode, ColorScaleOptions};
 use crate::output::file_name::Options as FileStyle;
 use crate::output::grid_details::{self, RowThreshold};
 use crate::output::table::{
-    Columns, FlagsFormat, GroupFormat, Options as TableOptions, SizeFormat, TimeTypes, UserFormat,
+    AllocatedSizeMode, Columns, FlagsFormat, GroupFormat, Options as TableOptions, SizeFormat,
+    TimeTypes, UserFormat,
 };
 use crate::output::time::TimeFormat;
 use crate::output::{
@@ -182,6 +183,7 @@ impl Mode {
             "links",
             "header",
             "blocksize",
+            "blocks",
             "group",
             "numeric",
             "mounts",
@@ -376,6 +378,7 @@ impl TableOptions {
     ) -> Result<Self, OptionsError> {
         let time_format = TimeFormat::deduce(matches, vars, config);
         let flags_format = FlagsFormat::deduce(vars);
+        let allocated_size_mode = AllocatedSizeMode::deduce(matches, &config.display);
         let size_format = SizeFormat::deduce(matches);
         let size_digits = SizeDigits::deduce(matches, vars, config)?;
         let user_format = UserFormat::deduce(matches, config);
@@ -389,10 +392,25 @@ impl TableOptions {
             user_format,
             group_format,
             flags_format,
+            allocated_size_mode,
             columns,
             use_utc,
             spaces,
         })
+    }
+}
+
+impl AllocatedSizeMode {
+    fn deduce(matches: &ArgMatches, display: &crate::options::file_config::DisplayConfig) -> Self {
+        if matches.get_flag("blocks") {
+            Self::Blocks
+        } else if matches.get_flag("blocksize") {
+            Self::Bytes
+        } else if display.blocks.unwrap_or(false) {
+            Self::Blocks
+        } else {
+            Self::Bytes
+        }
     }
 }
 
@@ -466,7 +484,10 @@ impl Columns {
 
         let file_flags =
             matches.get_flag("file-flags") || config.display.file_flags.unwrap_or(false);
-        let blocksize = matches.get_flag("blocksize") || config.display.blocksize.unwrap_or(false);
+        let blocksize = matches.get_flag("blocksize")
+            || matches.get_flag("blocks")
+            || config.display.blocksize.unwrap_or(false)
+            || config.display.blocks.unwrap_or(false);
         // `--smart-group` only controls *how* the group is rendered; on its own
         // it would have no effect because the group column is hidden unless
         // `--group` is given. Treat it as implying `--group` so the column
@@ -2086,6 +2107,7 @@ mod tests {
             "links",
             "header",
             "blocksize",
+            "blocks",
             "group",
             "numeric",
             "mounts",
@@ -2121,6 +2143,7 @@ mod tests {
             "links",
             "header",
             "blocksize",
+            "blocks",
             "group",
             "numeric",
             "mounts",
@@ -2177,11 +2200,11 @@ mod tests {
     }
 
     #[test]
-    fn strict_and_non_strict_blocks_alias_without_long() {
+    fn strict_and_non_strict_blocks_flag_without_long() {
         let matches = mock_cli(vec!["--blocks"]);
         assert_eq!(
             Mode::strict_check_long_flags(&matches),
-            Err(OptionsError::Useless("blocksize", false, "long")),
+            Err(OptionsError::Useless("blocks", false, "long")),
         );
         assert_eq!(
             Mode::deduce(
@@ -2191,7 +2214,7 @@ mod tests {
                 true,
                 &FileConfig::default()
             ),
-            Err(OptionsError::Useless("blocksize", false, "long")),
+            Err(OptionsError::Useless("blocks", false, "long")),
         );
         // In non-strict mode without --long, it should succeed and ignore the flag
         assert!(
@@ -2217,6 +2240,53 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn allocated_size_mode_deduction() {
+        let matches_blocksize = mock_cli(vec!["--long", "--blocksize"]);
+        let table_opts = TableOptions::deduce(
+            &matches_blocksize,
+            &MockVars::default(),
+            2,
+            &FileConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(table_opts.allocated_size_mode, AllocatedSizeMode::Bytes);
+        assert!(table_opts.columns.blocksize);
+
+        let matches_blocks = mock_cli(vec!["--long", "--blocks"]);
+        let table_opts = TableOptions::deduce(
+            &matches_blocks,
+            &MockVars::default(),
+            2,
+            &FileConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(table_opts.allocated_size_mode, AllocatedSizeMode::Blocks);
+        assert!(table_opts.columns.blocksize);
+
+        // Overrides: blocks overrides blocksize
+        let matches_override1 = mock_cli(vec!["--long", "--blocksize", "--blocks"]);
+        let table_opts = TableOptions::deduce(
+            &matches_override1,
+            &MockVars::default(),
+            2,
+            &FileConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(table_opts.allocated_size_mode, AllocatedSizeMode::Blocks);
+
+        // Overrides: blocksize overrides blocks
+        let matches_override2 = mock_cli(vec!["--long", "--blocks", "--blocksize"]);
+        let table_opts = TableOptions::deduce(
+            &matches_override2,
+            &MockVars::default(),
+            2,
+            &FileConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(table_opts.allocated_size_mode, AllocatedSizeMode::Bytes);
     }
 
     #[test]

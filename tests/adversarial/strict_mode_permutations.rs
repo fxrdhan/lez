@@ -217,7 +217,7 @@ fn test_m1_strict_mode_long_only_flags_fail_without_long() {
         ("--header", "header"),
         ("-h", "header"),
         ("--blocksize", "blocksize"),
-        ("--blocks", "blocksize"),
+        ("--blocks", "blocks"),
         ("-S", "blocksize"),
         ("--group", "group"),
         ("-g", "group"),

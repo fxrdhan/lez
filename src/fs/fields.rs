@@ -148,12 +148,24 @@ pub struct Links {
 #[derive(Copy, Clone)]
 pub struct Inode(pub ino_t);
 
+/// A file's allocated size and block metadata.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg(unix)]
+pub struct AllocatedSize {
+    /// The actual size of the file on disk, in bytes.
+    pub bytes: u64,
+    /// The number of 512-byte POSIX blocks.
+    pub blocks: u64,
+    /// Physical block size of the file system in bytes.
+    pub block_size: u64,
+}
+
 /// A file's size of allocated file system blocks.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg(unix)]
 pub enum Blocksize {
-    /// This file has the given number of blocks.
-    Some(u64),
+    /// This file has the given allocated size metadata.
+    Some(AllocatedSize),
 
     /// This file isn’t of a type that can take up blocks.
     None,
@@ -163,7 +175,20 @@ pub enum Blocksize {
 impl Blocksize {
     pub fn bytes(self) -> u64 {
         match self {
-            Blocksize::Some(n) => n,
+            Blocksize::Some(a) => a.bytes,
+            Blocksize::None => 0,
+        }
+    }
+
+    pub fn blocks(self) -> u64 {
+        match self {
+            Blocksize::Some(a) => {
+                if a.block_size > 0 && a.block_size != 512 {
+                    a.bytes.div_ceil(a.block_size)
+                } else {
+                    a.blocks
+                }
+            }
             Blocksize::None => 0,
         }
     }

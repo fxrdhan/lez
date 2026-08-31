@@ -127,8 +127,8 @@ fn test_long_view_with_blocks_flag_renders_blocks_column() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Blocksize"),
-        "Expected header 'Blocksize' in output with -l --blocks -h, got:\n{stdout}"
+        stdout.contains("Blocks"),
+        "Expected header 'Blocks' in output with -l --blocks -h, got:\n{stdout}"
     );
     assert!(stdout.contains("sample.dat"));
 }
@@ -158,7 +158,7 @@ fn test_long_view_with_blocksize_flag_renders_blocks_column() {
 
 #[test]
 #[cfg(unix)]
-fn test_output_equivalence_between_s_and_blocks_and_blocksize() {
+fn test_output_equivalence_between_s_and_blocksize() {
     let temp = TempTestDir::new("equiv");
     temp.create_file("file1.txt", b"First content");
     temp.create_file("file2.txt", b"Second content longer payload");
@@ -166,13 +166,6 @@ fn test_output_equivalence_between_s_and_blocks_and_blocksize() {
     let out_s = run_lez(&[
         "-l",
         "-S",
-        "--color=never",
-        "--time-style=iso",
-        temp.path.to_str().unwrap(),
-    ]);
-    let out_blocks = run_lez(&[
-        "-l",
-        "--blocks",
         "--color=never",
         "--time-style=iso",
         temp.path.to_str().unwrap(),
@@ -186,21 +179,49 @@ fn test_output_equivalence_between_s_and_blocks_and_blocksize() {
     ]);
 
     assert!(out_s.status.success());
-    assert!(out_blocks.status.success());
     assert!(out_blocksize.status.success());
 
     let str_s = String::from_utf8_lossy(&out_s.stdout);
-    let str_blocks = String::from_utf8_lossy(&out_blocks.stdout);
     let str_blocksize = String::from_utf8_lossy(&out_blocksize.stdout);
 
     assert_eq!(
-        str_s, str_blocks,
-        "-S and --blocks output should be completely identical"
+        str_s, str_blocksize,
+        "-S and --blocksize output should be completely identical"
     );
-    assert_eq!(
-        str_blocks, str_blocksize,
-        "--blocks and --blocksize output should be completely identical"
-    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_blocks_and_blocksize_override_behavior() {
+    let temp = TempTestDir::new("override");
+    temp.create_file("file1.txt", b"Content for testing override");
+
+    // --blocksize followed by --blocks => blocks wins
+    let out_blocks_wins = run_lez(&[
+        "-l",
+        "-h",
+        "--blocksize",
+        "--blocks",
+        "--color=never",
+        temp.path.to_str().unwrap(),
+    ]);
+    assert!(out_blocks_wins.status.success());
+    let str_blocks_wins = String::from_utf8_lossy(&out_blocks_wins.stdout);
+    assert!(str_blocks_wins.contains("Blocks"));
+    assert!(!str_blocks_wins.contains("Blocksize"));
+
+    // --blocks followed by --blocksize => blocksize wins
+    let out_blocksize_wins = run_lez(&[
+        "-l",
+        "-h",
+        "--blocks",
+        "--blocksize",
+        "--color=never",
+        temp.path.to_str().unwrap(),
+    ]);
+    assert!(out_blocksize_wins.status.success());
+    let str_blocksize_wins = String::from_utf8_lossy(&out_blocksize_wins.stdout);
+    assert!(str_blocksize_wins.contains("Blocksize"));
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +233,11 @@ fn test_strict_mode_blocks_without_long_fails() {
     let temp = TempTestDir::new("strict_blocks");
     temp.create_file("test.txt", b"data");
 
-    for flag in &["-S", "--blocks", "--blocksize"] {
+    for (flag, expected_arg) in &[
+        ("-S", "blocksize"),
+        ("--blocksize", "blocksize"),
+        ("--blocks", "blocks"),
+    ] {
         let output = run_lez_with_env(&[flag, temp.path.to_str().unwrap()], &[("EZA_STRICT", "1")]);
 
         assert!(
@@ -226,7 +251,7 @@ fn test_strict_mode_blocks_without_long_fails() {
         );
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
-            stderr.contains("useless without option long") && stderr.contains("blocksize"),
+            stderr.contains("useless without option long") && stderr.contains(expected_arg),
             "Expected stderr to indicate argument cannot be used without '--long', got:\n{stderr}"
         );
     }
