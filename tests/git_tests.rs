@@ -5,17 +5,17 @@
 
 mod common;
 
-#[path = "git/gitignore_explicit_target.rs"]
-mod gitignore_explicit_target;
+#[path = "git/gitignore.rs"]
+mod gitignore;
 #[path = "git/glyphs.rs"]
 mod glyphs;
 #[path = "git/repos_dotgit.rs"]
 mod repos_dotgit;
-#[path = "git/submodule_ignore.rs"]
-mod submodule_ignore;
-#[path = "git/symlink_status.rs"]
-mod symlink_status;
-#[path = "git/untracked_scan.rs"]
-mod untracked_scan;
+#[path = "git/submodules.rs"]
+mod submodules;
+#[path = "git/symlinks.rs"]
+mod symlinks;
+#[path = "git/untracked.rs"]
+mod untracked;
 #[path = "git/worktree.rs"]
 mod worktree;

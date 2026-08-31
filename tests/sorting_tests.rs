@@ -19,9 +19,9 @@ mod path;
 mod positional_args;
 #[path = "sorting/recurse_level.rs"]
 mod recurse_level;
-#[path = "sorting/recursive_rendering.rs"]
-mod recursive_rendering;
+#[path = "sorting/recursive.rs"]
+mod recursive;
 #[path = "sorting/size_deref_lazy.rs"]
 mod size_deref_lazy;
-#[path = "sorting/tree_dotfiles_recurse.rs"]
-mod tree_dotfiles_recurse;
+#[path = "sorting/tree_dotfiles.rs"]
+mod tree_dotfiles;

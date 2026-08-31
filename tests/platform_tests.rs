@@ -7,7 +7,7 @@ mod common;
 
 #[path = "platform/windows_paths.rs"]
 mod windows_paths;
-#[path = "platform/windows_underscore_prefix.rs"]
-mod windows_underscore_prefix;
+#[path = "platform/windows_underscore.rs"]
+mod windows_underscore;
 #[path = "platform/wsl_hyperlinks.rs"]
 mod wsl_hyperlinks;

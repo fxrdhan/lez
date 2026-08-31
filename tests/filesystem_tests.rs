@@ -5,27 +5,27 @@
 
 mod common;
 
-#[path = "filesystem/blocks_flag.rs"]
-mod blocks_flag;
+#[path = "filesystem/blocks_column.rs"]
+mod blocks_column;
 #[path = "filesystem/broken_symlinks.rs"]
 mod broken_symlinks;
-#[path = "filesystem/cachedir_ignore.rs"]
-mod cachedir_ignore;
-#[path = "filesystem/ignore_glob_path.rs"]
-mod ignore_glob_path;
+#[path = "filesystem/cachedir.rs"]
+mod cachedir;
+#[path = "filesystem/ignore_globs.rs"]
+mod ignore_globs;
 #[path = "filesystem/inspect_archives.rs"]
 mod inspect_archives;
 #[path = "filesystem/no_symlink_targets.rs"]
 mod no_symlink_targets;
-#[path = "filesystem/only_files_wildcard.rs"]
-mod only_files_wildcard;
-#[path = "filesystem/recsize_hardlink_stress.rs"]
-mod recsize_hardlink_stress;
+#[path = "filesystem/only_files_wildcards.rs"]
+mod only_files_wildcards;
+#[path = "filesystem/recsize_hardlinks.rs"]
+mod recsize_hardlinks;
 #[path = "filesystem/show_dotfiles.rs"]
 mod show_dotfiles;
-#[path = "filesystem/since_flag.rs"]
-mod since_flag;
-#[path = "filesystem/total_size_traversal.rs"]
-mod total_size_traversal;
+#[path = "filesystem/since_duration.rs"]
+mod since_duration;
+#[path = "filesystem/total_size.rs"]
+mod total_size;
 #[path = "filesystem/warn_hidden.rs"]
 mod warn_hidden;

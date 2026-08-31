@@ -5,39 +5,39 @@
 
 mod common;
 
-#[path = "adversarial/batch3.rs"]
-mod batch3;
-#[path = "adversarial/batch4.rs"]
-mod batch4;
-#[path = "adversarial/batch5.rs"]
-mod batch5;
-#[path = "adversarial/blocks_m2_challenger.rs"]
-mod blocks_m2_challenger;
-#[path = "adversarial/blocks_m2_challenger2_full.rs"]
-mod blocks_m2_challenger2_full;
-#[path = "adversarial/m1.rs"]
-mod m1;
-#[path = "adversarial/m2.rs"]
-mod m2;
-#[path = "adversarial/m3.rs"]
-mod m3;
-#[path = "adversarial/m3_challenger.rs"]
-mod m3_challenger;
-#[path = "adversarial/m4.rs"]
-mod m4;
-#[path = "adversarial/m4_challenger.rs"]
-mod m4_challenger;
-#[path = "adversarial/m5.rs"]
-mod m5;
-#[path = "adversarial/perf_deep_stack_recursion.rs"]
-mod perf_deep_stack_recursion;
-#[path = "adversarial/perf_determinism_stress.rs"]
-mod perf_determinism_stress;
-#[path = "adversarial/perf_fd_exhaustion.rs"]
-mod perf_fd_exhaustion;
-#[path = "adversarial/perf_massive_workload.rs"]
-mod perf_massive_workload;
-#[path = "adversarial/perf_raw_bytes_paths.rs"]
-mod perf_raw_bytes_paths;
-#[path = "adversarial/since_m1_challenger.rs"]
-mod since_m1_challenger;
+#[path = "adversarial/blocksize_column_stress.rs"]
+mod blocksize_column_stress;
+#[path = "adversarial/deep_stack_recursion.rs"]
+mod deep_stack_recursion;
+#[path = "adversarial/determinism_stress.rs"]
+mod determinism_stress;
+#[path = "adversarial/fd_exhaustion.rs"]
+mod fd_exhaustion;
+#[path = "adversarial/filesystem_types_stress.rs"]
+mod filesystem_types_stress;
+#[path = "adversarial/grid_width_and_odin.rs"]
+mod grid_width_and_odin;
+#[path = "adversarial/janet_loc_basics.rs"]
+mod janet_loc_basics;
+#[path = "adversarial/janet_loc_stress.rs"]
+mod janet_loc_stress;
+#[path = "adversarial/json_output_stress.rs"]
+mod json_output_stress;
+#[path = "adversarial/massive_workload.rs"]
+mod massive_workload;
+#[path = "adversarial/nested_git_and_time_env.rs"]
+mod nested_git_and_time_env;
+#[path = "adversarial/raw_bytes_paths.rs"]
+mod raw_bytes_paths;
+#[path = "adversarial/since_duration_stress.rs"]
+mod since_duration_stress;
+#[path = "adversarial/smart_group_basics.rs"]
+mod smart_group_basics;
+#[path = "adversarial/smart_group_stress.rs"]
+mod smart_group_stress;
+#[path = "adversarial/strict_mode_permutations.rs"]
+mod strict_mode_permutations;
+#[path = "adversarial/symlink_targets_stress.rs"]
+mod symlink_targets_stress;
+#[path = "adversarial/tree_view_stress.rs"]
+mod tree_view_stress;
