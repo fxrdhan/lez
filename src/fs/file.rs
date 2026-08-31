@@ -334,6 +334,15 @@ impl<'dir> File<'dir> {
     /// A file’s name is derived from its string. This needs to handle directories
     /// such as `/` or `..`, which have no `file_name` component. So instead, just
     /// use the last component as the name.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::path::Path;
+    /// use lez::fs::File;
+    ///
+    /// assert_eq!(File::filename(Path::new("src/main.rs")), "main.rs");
+    /// assert_eq!(File::filename(Path::new("deep/nested/dir/")), "dir");
+    /// ```
     #[must_use]
     pub fn filename(path: &Path) -> String {
         if let Some(back) = path.components().next_back() {

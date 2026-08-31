@@ -42,6 +42,15 @@ impl Deref for TextCell {
 impl TextCell {
     /// Creates a new text cell that holds the given text in the given style,
     /// computing the Unicode width of the text.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::output::cell::TextCell;
+    /// use nu_ansi_term::Style;
+    ///
+    /// let cell = TextCell::paint(Style::default(), "hello".to_string());
+    /// assert_eq!(*cell.width, 5);
+    /// ```
     pub fn paint(style: Style, text: String) -> Self {
         let width = DisplayWidth::from(&*text);
 
@@ -54,6 +63,15 @@ impl TextCell {
     /// Creates a new text cell that holds the given text in the given style,
     /// computing the Unicode width of the text. (This could be merged with
     /// `paint`, but.)
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::output::cell::TextCell;
+    /// use nu_ansi_term::Style;
+    ///
+    /// let cell = TextCell::paint_str(Style::default(), "rust 🦀");
+    /// assert_eq!(*cell.width, 7);
+    /// ```
     pub fn paint_str(style: Style, text: &'static str) -> Self {
         let width = DisplayWidth::from(text);
 
@@ -68,7 +86,16 @@ impl TextCell {
     /// value.
     ///
     /// This is used in place of empty table cells, as it is easier to read
-    /// tabular data when there is *something* in each cell.
+    /// than empty whitespace.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::output::cell::TextCell;
+    /// use nu_ansi_term::Style;
+    ///
+    /// let cell = TextCell::blank(Style::default());
+    /// assert_eq!(*cell.width, 1);
+    /// ```
     pub fn blank(style: Style) -> Self {
         Self {
             contents: vec![style.paint("-")].into(),

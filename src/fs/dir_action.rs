@@ -43,6 +43,16 @@ pub enum DirAction {
 
 impl DirAction {
     /// Gets the recurse options, if this dir action has any.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::fs::dir_action::{DirAction, RecurseOptions};
+    ///
+    /// let action = DirAction::Recurse(RecurseOptions { tree: true, max_depth: Some(3) });
+    /// assert_eq!(action.recurse_options(), Some(RecurseOptions { tree: true, max_depth: Some(3) }));
+    ///
+    /// assert_eq!(DirAction::List.recurse_options(), None);
+    /// ```
     #[must_use]
     pub fn recurse_options(self) -> Option<RecurseOptions> {
         match self {
@@ -52,6 +62,15 @@ impl DirAction {
     }
 
     /// Whether to treat directories as regular files or not.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::fs::dir_action::{DirAction, RecurseOptions};
+    ///
+    /// assert!(DirAction::AsFile.treat_dirs_as_files());
+    /// assert!(!DirAction::List.treat_dirs_as_files());
+    /// assert!(DirAction::Recurse(RecurseOptions { tree: true, max_depth: None }).treat_dirs_as_files());
+    /// ```
     #[must_use]
     pub fn treat_dirs_as_files(self) -> bool {
         match self {
@@ -76,6 +95,19 @@ pub struct RecurseOptions {
 
 impl RecurseOptions {
     /// Returns whether a directory of the given depth would be too deep.
+    ///
+    /// # Examples
+    /// ```
+    /// use lez::fs::dir_action::RecurseOptions;
+    ///
+    /// let opts = RecurseOptions { tree: false, max_depth: Some(2) };
+    /// assert!(!opts.is_too_deep(1));
+    /// assert!(opts.is_too_deep(2));
+    /// assert!(opts.is_too_deep(3));
+    ///
+    /// let unlimited = RecurseOptions { tree: true, max_depth: None };
+    /// assert!(!unlimited.is_too_deep(100));
+    /// ```
     #[must_use]
     pub fn is_too_deep(self, depth: usize) -> bool {
         match self.max_depth {

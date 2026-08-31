@@ -15,6 +15,17 @@ use crate::{
     output::{table::TimeType, tree::TreeDepth},
 };
 
+/// Options for applying dynamic color scaling to file sizes and timestamps.
+///
+/// # Examples
+/// ```
+/// use lez::output::color_scale::{ColorScaleOptions, ColorScaleMode};
+///
+/// let default_opts = ColorScaleOptions::default();
+/// assert_eq!(default_opts.mode, ColorScaleMode::Fixed);
+/// assert_eq!(default_opts.min_luminance, 50);
+/// assert_eq!(default_opts.max_luminance, 100);
+/// ```
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub struct ColorScaleOptions {
     pub mode: ColorScaleMode,
@@ -36,6 +47,14 @@ impl Default for ColorScaleOptions {
     }
 }
 
+/// Rendering mode for the dynamic color scale.
+///
+/// # Examples
+/// ```
+/// use lez::output::color_scale::ColorScaleMode;
+///
+/// assert_ne!(ColorScaleMode::Fixed, ColorScaleMode::Gradient);
+/// ```
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum ColorScaleMode {
     // Color scale is disabled, use a static color for the range

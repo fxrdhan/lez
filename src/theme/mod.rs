@@ -21,7 +21,7 @@ pub(crate) use self::ui_styles::FileType as ThemeFileType;
 pub(crate) use self::ui_styles::*;
 pub use self::ui_styles::{LinkStyle, UiStyles};
 
-mod lsc;
+pub mod lsc;
 pub use self::lsc::LSColors;
 
 mod default_theme;
