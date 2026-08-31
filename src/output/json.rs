@@ -289,9 +289,11 @@ impl<'a> Render<'a> {
         code_loc: Option<usize>,
     ) -> String {
         if let Some(table_opts) = &o.table {
-            let columns = table_opts
-                .columns
-                .collect(self.git.is_some(), self.git_repos);
+            let columns = table_opts.columns.collect(
+                self.git.is_some(),
+                self.git_repos,
+                table_opts.allocated_size_mode,
+            );
 
             let fobj = JsonFileObject::create_for_file(
                 f,
@@ -389,6 +391,14 @@ impl<'a> JsonFileObject<'a> {
             Column::GitStatus => Some(self.git_status(f).render_json()),
             #[cfg(unix)]
             Column::Blocksize => f.blocksize().render_json(
+                crate::output::table::AllocatedSizeMode::Bytes,
+                self.options.size_format,
+                self.options.size_digits,
+                &env.numeric,
+            ),
+            #[cfg(unix)]
+            Column::Blocks => f.blocksize().render_json(
+                crate::output::table::AllocatedSizeMode::Blocks,
                 self.options.size_format,
                 self.options.size_digits,
                 &env.numeric,

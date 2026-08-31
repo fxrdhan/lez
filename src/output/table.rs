@@ -31,6 +31,14 @@ use crate::output::render::{LanguageRender, LocRender, PermissionsPlusRender, Ti
 use crate::output::time::TimeFormat;
 use crate::theme::Theme;
 
+/// Mode for displaying allocated size: either formatted bytes or raw block count.
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
+pub enum AllocatedSizeMode {
+    #[default]
+    Bytes,
+    Blocks,
+}
+
 /// Options for displaying a table.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Options {
@@ -40,6 +48,7 @@ pub struct Options {
     pub user_format: UserFormat,
     pub group_format: GroupFormat,
     pub flags_format: FlagsFormat,
+    pub allocated_size_mode: AllocatedSizeMode,
     pub columns: Columns,
     pub use_utc: bool,
     pub spaces: usize,
@@ -77,7 +86,12 @@ pub struct Columns {
 
 impl Columns {
     #[must_use]
-    pub fn collect(&self, actually_enable_git: bool, git_repos: bool) -> Vec<Column> {
+    pub fn collect(
+        &self,
+        actually_enable_git: bool,
+        git_repos: bool,
+        _allocated_size_mode: AllocatedSizeMode,
+    ) -> Vec<Column> {
         let mut columns = Vec::with_capacity(4);
 
         if self.inode {
@@ -117,7 +131,10 @@ impl Columns {
 
         if self.blocksize {
             #[cfg(unix)]
-            columns.push(Column::Blocksize);
+            match _allocated_size_mode {
+                AllocatedSizeMode::Bytes => columns.push(Column::Blocksize),
+                AllocatedSizeMode::Blocks => columns.push(Column::Blocks),
+            }
         }
 
         if self.user {
@@ -182,6 +199,8 @@ pub enum Column {
     #[cfg(unix)]
     Blocksize,
     #[cfg(unix)]
+    Blocks,
+    #[cfg(unix)]
     User,
     #[cfg(unix)]
     Group,
@@ -217,6 +236,7 @@ impl Column {
             | Self::HardLinks
             | Self::Inode
             | Self::Blocksize
+            | Self::Blocks
             | Self::GitStatus
             | Self::Loc(_) => Alignment::Right,
             Self::Timestamp(_) | _ => Alignment::Left,
@@ -247,6 +267,8 @@ impl Column {
             Self::Timestamp(t) => t.header(),
             #[cfg(unix)]
             Self::Blocksize => "Blocksize",
+            #[cfg(unix)]
+            Self::Blocks => "Blocks",
             #[cfg(unix)]
             Self::User => "User",
             #[cfg(unix)]
@@ -466,7 +488,10 @@ impl<'a> Table<'a> {
         theme: &'a Theme,
         git_repos: bool,
     ) -> Table<'a> {
-        let columns = options.columns.collect(git.is_some(), git_repos);
+        let columns =
+            options
+                .columns
+                .collect(git.is_some(), git_repos, options.allocated_size_mode);
         let widths = TableWidths::zero(columns.len());
         let env = &*ENVIRONMENT;
 
@@ -602,6 +627,15 @@ impl<'a> Table<'a> {
             #[cfg(unix)]
             Column::Blocksize => file.blocksize().render(
                 self.theme,
+                AllocatedSizeMode::Bytes,
+                self.size_format,
+                self.size_digits,
+                &self.env.numeric,
+            ),
+            #[cfg(unix)]
+            Column::Blocks => file.blocksize().render(
+                self.theme,
+                AllocatedSizeMode::Blocks,
                 self.size_format,
                 self.size_digits,
                 &self.env.numeric,

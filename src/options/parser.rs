@@ -196,8 +196,10 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-B --bytes "show file sizes in bytes, without any prefixes")
             .overrides_with("binary"))
         .arg(arg!(--"total-size" "show the size of a directory as the one of its content (unix only)"))
-        .arg(arg!(-S --blocksize "list size of allocated file system blocks")
-            .alias("blocks"))
+        .arg(arg!(-S --blocksize "list size of allocated file system blocks in bytes")
+            .overrides_with("blocks"))
+        .arg(arg!(--blocks "list number of allocated file system blocks")
+            .overrides_with("blocksize"))
         .arg(arg!(-g --group "list each file's group"))
         .arg(arg!(--"smart-group" "only show group if it has a different name from owner"))
         .arg(arg!(-n --numeric "show user and group as their numeric IDs"))
@@ -1084,10 +1086,18 @@ pub mod test {
     }
 
     #[test]
-    fn blocks_aliases_and_short_flag_parsed_correctly() {
+    fn blocks_and_blocksize_flags_parsed_correctly() {
         assert!(mock_cli(vec!["-S"]).get_flag("blocksize"));
         assert!(mock_cli(vec!["--blocksize"]).get_flag("blocksize"));
-        assert!(mock_cli(vec!["--blocks"]).get_flag("blocksize"));
+        assert!(mock_cli(vec!["--blocks"]).get_flag("blocks"));
+        assert!(!mock_cli(vec!["--blocks"]).get_flag("blocksize"));
+        // Overrides: last flag wins
+        let matches = mock_cli(vec!["--blocksize", "--blocks"]);
+        assert!(matches.get_flag("blocks"));
+        assert!(!matches.get_flag("blocksize"));
+        let matches_rev = mock_cli(vec!["--blocks", "--blocksize"]);
+        assert!(matches_rev.get_flag("blocksize"));
+        assert!(!matches_rev.get_flag("blocks"));
     }
 
     /// Every flag whose value is optional has to be given that value with an

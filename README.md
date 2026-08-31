@@ -244,7 +244,8 @@ These options are available when running with `--long` (`-l`):
 - **--loc[=MODE]**: display language and lines-of-code columns (modes: `lines`, `percent`, `both`)
 - **-m**, **--modified**: use the modified timestamp field
 - **-M**, **--mounts**: show mount details (Linux and macOS only)
-- **-S**, **--blocks**, **--blocksize**: show size of allocated file system blocks
+- **-S**, **--blocksize**: list the allocated size of each file, in bytes
+- **--blocks**: list the allocated size of each file, in blocks
 - **-t**, **--time=(field)**: which timestamp field to use (modified [aliases: mod, m], accessed [acc], changed [ch], created [cr])
 - **-u**, **--accessed**: use the accessed timestamp field
 - **-U**, **--created**: use the created timestamp field

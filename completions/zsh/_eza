@@ -71,7 +71,8 @@ __eza() {
         \*--json"[Output file listing and metadata as structured JSON]" \
         \*{-m,--modified}"[Use the modified timestamp field]" \
         \*{-n,--numeric}"[List numeric user and group IDs.]" \
-        \*{-S,--blocksize}"[List each file's size of allocated file system blocks.]" \
+        \*{-S,--blocksize}"[List the allocated size of each file, in bytes.]" \
+        \*--blocks"[List the allocated size of each file, in blocks.]" \
         \*{-t,--time}="[Which time field to show]:(time field):(accessed acc changed ch created cr modified mod m)" \
         \*--time-style="[How to format timestamps]:(time style):(default iso long-iso full-iso relative +FORMAT)" \
         \*--total-size"[Show recursive directory size]" \

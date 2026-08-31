@@ -317,8 +317,11 @@ These options are available when running with `--long` (`-l`):
 `-O`, `--flags`
 : List file flags on Linux, macOS, and BSD systems, and file attributes on Windows systems. On Linux systems, lists inode flags/attributes (`FS_IOC_GETFLAGS`, equivalent to `lsattr`). On BSD systems see chflags(1) for a list of file flags and their meanings. By default, attributes are displayed in a long form. To display attributes as single-character abbreviations, set the environment variable `LEZ_FLAGS_FORMAT=short` (or `LEZ_WINDOWS_ATTRIBUTES=short`).
 
-`-S`, `--blocks`, `--blocksize`
-: List each file’s size of allocated file system blocks.
+`-S`, `--blocksize`
+: List the allocated size of each file, in bytes.
+
+`--blocks`
+: List the allocated size of each file, in blocks.
 
 `-t`, `--time=WORD`
 : Which timestamp field to list.

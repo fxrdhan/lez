@@ -138,13 +138,8 @@ fn test_adversarial_strict_output_equivalence_plain_and_colored() {
         );
 
         assert_eq!(
-            out_s.stdout, out_blocks.stdout,
-            "Stdout mismatch between -S and --blocks for base args {:?}",
-            base_args
-        );
-        assert_eq!(
-            out_blocks.stdout, out_blocksize.stdout,
-            "Stdout mismatch between --blocks and --blocksize for base args {:?}",
+            out_s.stdout, out_blocksize.stdout,
+            "Stdout mismatch between -S and --blocksize for base args {:?}",
             base_args
         );
     }
@@ -194,10 +189,6 @@ fn test_adversarial_short_flag_combinations_equivalence() {
 
     assert_eq!(out_ls.stdout, out_sep.stdout, "-lS must equal -l -S");
     assert_eq!(out_sl.stdout, out_sep.stdout, "-Sl must equal -l -S");
-    assert_eq!(
-        out_ls.stdout, out_blocks.stdout,
-        "-lS must equal -l --blocks"
-    );
 
     // Header combinations
     let out_lsh = run_lez(&[
@@ -212,9 +203,9 @@ fn test_adversarial_short_flag_combinations_equivalence() {
         "--time-style=iso",
         temp.path.to_str().unwrap(),
     ]);
-    let out_blocks_h = run_lez(&[
+    let out_blocksize_h = run_lez(&[
         "-l",
-        "--blocks",
+        "--blocksize",
         "-h",
         "--color=never",
         "--time-style=iso",
@@ -223,15 +214,15 @@ fn test_adversarial_short_flag_combinations_equivalence() {
 
     assert!(out_lsh.status.success());
     assert!(out_hls.status.success());
-    assert!(out_blocks_h.status.success());
+    assert!(out_blocksize_h.status.success());
 
     assert_eq!(
-        out_lsh.stdout, out_blocks_h.stdout,
-        "-lSh must equal -l --blocks -h"
+        out_lsh.stdout, out_blocksize_h.stdout,
+        "-lSh must equal -l --blocksize -h"
     );
     assert_eq!(
-        out_hls.stdout, out_blocks_h.stdout,
-        "-hlS must equal -l --blocks -h"
+        out_hls.stdout, out_blocksize_h.stdout,
+        "-hlS must equal -l --blocksize -h"
     );
 }
 
@@ -487,8 +478,7 @@ fn test_adversarial_binary_and_bytes_sizing_output() {
     assert!(out_bin_s.status.success());
     assert!(out_bin_blocks.status.success());
     assert!(out_bin_blocksize.status.success());
-    assert_eq!(out_bin_s.stdout, out_bin_blocks.stdout);
-    assert_eq!(out_bin_blocks.stdout, out_bin_blocksize.stdout);
+    assert_eq!(out_bin_s.stdout, out_bin_blocksize.stdout);
 
     // Raw bytes (-B)
     let out_bytes_s = run_lez(&[
@@ -516,8 +506,7 @@ fn test_adversarial_binary_and_bytes_sizing_output() {
     assert!(out_bytes_s.status.success());
     assert!(out_bytes_blocks.status.success());
     assert!(out_bytes_blocksize.status.success());
-    assert_eq!(out_bytes_s.stdout, out_bytes_blocks.stdout);
-    assert_eq!(out_bytes_blocks.stdout, out_bytes_blocksize.stdout);
+    assert_eq!(out_bytes_s.stdout, out_bytes_blocksize.stdout);
 }
 
 // ---------------------------------------------------------------------------
@@ -556,6 +545,5 @@ fn test_adversarial_direct_file_and_multi_target_invocations() {
     assert!(out_s.status.success());
     assert!(out_blocks.status.success());
     assert!(out_blocksize.status.success());
-    assert_eq!(out_s.stdout, out_blocks.stdout);
-    assert_eq!(out_blocks.stdout, out_blocksize.stdout);
+    assert_eq!(out_s.stdout, out_blocksize.stdout);
 }
