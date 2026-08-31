@@ -5,6 +5,8 @@
 
 mod common;
 
+#[path = "git/conflicts_and_states.rs"]
+mod conflicts_and_states;
 #[path = "git/gitignore.rs"]
 mod gitignore;
 #[path = "git/glyphs.rs"]

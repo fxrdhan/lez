@@ -15,6 +15,8 @@ mod cachedir;
 mod ignore_globs;
 #[path = "filesystem/inspect_archives.rs"]
 mod inspect_archives;
+#[path = "filesystem/inspect_archives_deep.rs"]
+mod inspect_archives_deep;
 #[path = "filesystem/no_symlink_targets.rs"]
 mod no_symlink_targets;
 #[path = "filesystem/only_files_wildcards.rs"]

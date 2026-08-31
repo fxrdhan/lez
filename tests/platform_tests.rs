@@ -11,6 +11,8 @@ mod portable_windows_invariants;
 mod windows_conpty;
 #[path = "platform/windows_paths.rs"]
 mod windows_paths;
+#[path = "platform/windows_reparse_points.rs"]
+mod windows_reparse_points;
 #[path = "platform/windows_underscore.rs"]
 mod windows_underscore;
 #[path = "platform/wsl_hyperlinks.rs"]
