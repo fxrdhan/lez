@@ -306,3 +306,81 @@ fn test_cli_end_to_end_fuzz_corpus_execution() {
     assert!(t_ok, "lez -T -l --inspect-archives failed: {t_err}");
     assert!(t_out.contains("valid.tar"));
 }
+
+#[test]
+fn test_concatenated_and_trailing_garbage_tar_archives() {
+    let fixture = ArchiveFuzzDir::new("concat_tar");
+
+    // Build first tar with file1
+    let mut buf1 = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut buf1);
+        let mut h = tar::Header::new_gnu();
+        h.set_size(5);
+        h.set_mode(0o644);
+        h.set_cksum();
+        builder
+            .append_data(&mut h, "part1.txt", &b"first"[..])
+            .unwrap();
+        builder.into_inner().unwrap();
+    }
+
+    // Build second tar with file2
+    let mut buf2 = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut buf2);
+        let mut h = tar::Header::new_gnu();
+        h.set_size(6);
+        h.set_mode(0o644);
+        h.set_cksum();
+        builder
+            .append_data(&mut h, "part2.txt", &b"second"[..])
+            .unwrap();
+        builder.into_inner().unwrap();
+    }
+
+    // Concatenate both buffers plus trailing random garbage
+    let mut concat = buf1;
+    concat.extend_from_slice(&buf2);
+    concat.extend_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33]);
+
+    let p = fixture.create_raw_file("concatenated.tar", &concat);
+    let entries = archives::read_entries(&p).expect("read_entries must not panic");
+    assert!(
+        !entries.is_empty(),
+        "Must read at least entries from the first tar block"
+    );
+    assert!(entries.iter().any(|e| e.path == "part1.txt"));
+}
+
+#[test]
+fn test_truncated_tar_blocks_in_middle_of_file() {
+    let fixture = ArchiveFuzzDir::new("mid_trunc");
+
+    let mut buf = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut buf);
+        for i in 0..5 {
+            let mut h = tar::Header::new_gnu();
+            h.set_size(100);
+            h.set_mode(0o644);
+            h.set_cksum();
+            builder
+                .append_data(&mut h, format!("entry_{i}.dat"), &vec![b'X'; 100][..])
+                .unwrap();
+        }
+        builder.into_inner().unwrap();
+    }
+
+    // Truncate halfway through the buffer (cutting an entry body or header in half)
+    let half_len = buf.len() / 2;
+    let truncated_buf = &buf[..half_len];
+
+    let p = fixture.create_raw_file("half_truncated.tar", truncated_buf);
+    let entries = archives::read_entries(&p).expect("read_entries on truncated archive");
+    // Should return whatever entries were completely parsed before truncation
+    assert!(
+        !entries.is_empty(),
+        "Should return partially parsed valid entries"
+    );
+}
