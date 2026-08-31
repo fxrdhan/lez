@@ -9,3 +9,5 @@ mod common;
 mod ada_language;
 #[path = "loc_engine/hidden_entries.rs"]
 mod hidden_entries;
+#[path = "loc_engine/syntax_edge_cases.rs"]
+mod syntax_edge_cases;
