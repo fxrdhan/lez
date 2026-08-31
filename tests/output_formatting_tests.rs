@@ -21,3 +21,5 @@ mod size_digits;
 mod spacing;
 #[path = "output_formatting/summary_stats.rs"]
 mod summary_stats;
+#[path = "output_formatting/truecolor_ansi_render.rs"]
+mod truecolor_ansi_render;

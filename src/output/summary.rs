@@ -23,6 +23,18 @@ pub struct Summary {
 
 impl Summary {
     /// Create a new zero-initialized summary.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lez::output::summary::Summary;
+    ///
+    /// let s = Summary::new();
+    /// assert_eq!(s.directories, 0);
+    /// assert_eq!(s.files, 0);
+    /// assert_eq!(s.symlinks, 0);
+    /// assert_eq!(s.total, 0);
+    /// ```
     #[must_use]
     pub const fn new() -> Self {
         Self {
