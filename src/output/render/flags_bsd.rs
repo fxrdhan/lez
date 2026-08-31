@@ -65,3 +65,18 @@ impl f::Flags {
         Some(wrapper_flags_to_string(self.0))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_zero_flags_render() {
+        let flags = f::Flags(0);
+        assert_eq!(flags.render_json(FlagsFormat::Short), Some("-".to_string()));
+        assert_eq!(flags.render_json(FlagsFormat::Long), Some("-".to_string()));
+
+        let cell = flags.render(Style::default(), FlagsFormat::Short);
+        assert_eq!(*cell.width, 1);
+    }
+}
