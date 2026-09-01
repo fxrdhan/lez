@@ -36,6 +36,9 @@ pub struct Language {
     /// The human-readable name shown in the summary and language column.
     pub name: &'static str,
 
+    /// Representative file name and optional extension for icon rendering.
+    pub rep_file: (&'static str, Option<&'static str>),
+
     /// Tokens that begin a comment lasting to the end of the line.
     pub line_comments: &'static [&'static str],
 
@@ -85,6 +88,15 @@ impl LocCounts {
     /// ```
     #[must_use]
     pub fn from_source(source: &str, lang: &Language) -> Self {
+        if std::ptr::eq(lang, &MARKDOWN) {
+            let breakdown = count_markdown_source(source);
+            let mut total = Self::default();
+            for (_, counts) in breakdown {
+                total += counts;
+            }
+            return total;
+        }
+
         let mut counts = Self::default();
         // The block-comment terminator we’re currently hunting for, if any.
         // This is threaded across lines so multi-line block comments work.
@@ -237,7 +249,33 @@ pub struct Report {
 
 impl Report {
     fn add(&mut self, language: &'static Language, counts: LocCounts, path: &Path) {
+        let is_native = language_for_path(path) == Some(language);
         let stat = self.languages.entry(language.name).or_insert_with(|| {
+            let (name, ext) = if is_native {
+                let name = path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let ext = path
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .map(str::to_ascii_lowercase);
+                (name, ext)
+            } else {
+                (
+                    language.rep_file.0.to_string(),
+                    language.rep_file.1.map(String::from),
+                )
+            };
+            LangStat {
+                language,
+                files: 0,
+                counts: LocCounts::default(),
+                rep_file: (name, ext),
+            }
+        });
+        if is_native {
             let name = path
                 .file_name()
                 .and_then(|s| s.to_str())
@@ -247,13 +285,8 @@ impl Report {
                 .extension()
                 .and_then(|s| s.to_str())
                 .map(str::to_ascii_lowercase);
-            LangStat {
-                language,
-                files: 0,
-                counts: LocCounts::default(),
-                rep_file: (name, ext),
-            }
-        });
+            stat.rep_file = (name, ext);
+        }
         stat.files += 1;
         stat.counts += counts;
     }
@@ -285,6 +318,15 @@ impl Report {
     }
 }
 
+fn language_for_path(path: &Path) -> Option<&'static Language> {
+    let name = path.file_name().and_then(|s| s.to_str())?;
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(str::to_ascii_lowercase);
+    language_for(name, ext.as_deref())
+}
+
 /// Recursively count every recognised source file under `roots`, using
 /// `is_ignored` to skip files (e.g. those matched by `.gitignore`). Hidden
 /// entries and symbolic links are always skipped, so `.git` and friends never
@@ -298,19 +340,36 @@ where
         collect_jobs(root, is_ignored, show_hidden, &mut jobs);
     }
 
-    let counted: Vec<(&'static Language, LocCounts, &PathBuf)> = jobs
+    let counted: Vec<Vec<(&'static Language, LocCounts, &PathBuf)>> = jobs
         .par_iter()
         .filter_map(|(path, lang)| {
-            LocCounts::from_path(path, lang)
-                .ok()
-                .flatten()
-                .map(|counts| (*lang, counts, path))
+            if std::ptr::eq(*lang, &MARKDOWN) {
+                match std::fs::read_to_string(path) {
+                    Ok(source) => {
+                        let breakdown = count_markdown_source(&source);
+                        let items: Vec<(&'static Language, LocCounts, &PathBuf)> = breakdown
+                            .into_iter()
+                            .filter(|(_, counts)| counts.lines > 0)
+                            .map(|(l, counts)| (l, counts, path))
+                            .collect();
+                        Some(items)
+                    }
+                    Err(_) => None,
+                }
+            } else {
+                LocCounts::from_path(path, lang)
+                    .ok()
+                    .flatten()
+                    .map(|counts| vec![(*lang, counts, path)])
+            }
         })
         .collect();
 
     let mut report = Report::default();
-    for (lang, counts, path) in counted {
-        report.add(lang, counts, path);
+    for items in counted {
+        for (lang, counts, path) in items {
+            report.add(lang, counts, path);
+        }
     }
     report
 }
@@ -414,10 +473,11 @@ const HASH_LINE: &[&str] = &["#"];
 const NO_BLOCK: &[(&str, &str)] = &[];
 
 macro_rules! languages {
-    ($( $konst:ident = ($name:literal, $line:expr, $block:expr); )*) => {
+    ($( $konst:ident = ($name:literal, $rep_name:literal, $rep_ext:expr, $line:expr, $block:expr); )*) => {
         $(
             static $konst: Language = Language {
                 name: $name,
+                rep_file: ($rep_name, $rep_ext),
                 line_comments: $line,
                 block_comments: $block,
             };
@@ -426,61 +486,61 @@ macro_rules! languages {
 }
 
 languages! {
-    RUST       = ("Rust",         C_LINE,               &[("/*", "*/")]);
-    C          = ("C",            C_LINE,               C_BLOCK);
-    CPP        = ("C++",          C_LINE,               C_BLOCK);
-    CSHARP     = ("C#",           C_LINE,               C_BLOCK);
-    JAVA       = ("Java",         C_LINE,               C_BLOCK);
-    KOTLIN     = ("Kotlin",       C_LINE,               C_BLOCK);
-    SCALA      = ("Scala",        C_LINE,               C_BLOCK);
-    SWIFT      = ("Swift",        C_LINE,               C_BLOCK);
-    GO         = ("Go",           C_LINE,               C_BLOCK);
-    JAVASCRIPT = ("JavaScript",   C_LINE,               C_BLOCK);
-    TYPESCRIPT = ("TypeScript",   C_LINE,               C_BLOCK);
-    JSX        = ("JSX",          C_LINE,               C_BLOCK);
-    TSX        = ("TSX",          C_LINE,               C_BLOCK);
-    DART       = ("Dart",         C_LINE,               C_BLOCK);
-    ZIG        = ("Zig",          C_LINE,               NO_BLOCK);
-    OBJC       = ("Objective-C",  C_LINE,               C_BLOCK);
-    PHP        = ("PHP",          &["//", "#"],         C_BLOCK);
-    CSS        = ("CSS",          NO_LINE,              C_BLOCK);
-    SCSS       = ("SCSS",         C_LINE,               C_BLOCK);
-    GLSL       = ("GLSL",         C_LINE,               C_BLOCK);
-    PYTHON     = ("Python",       HASH_LINE,            &[("\"\"\"", "\"\"\""), ("'''", "'''")]);
-    RUBY       = ("Ruby",         HASH_LINE,            &[("=begin", "=end")]);
-    PERL       = ("Perl",         HASH_LINE,            &[("=pod", "=cut")]);
-    SHELL      = ("Shell",        HASH_LINE,            NO_BLOCK);
-    FISH       = ("Fish",         HASH_LINE,            NO_BLOCK);
-    POWERSHELL = ("PowerShell",   HASH_LINE,            &[("<#", "#>")]);
-    LUA        = ("Lua",          &["--"],              &[("--[[", "]]")]);
-    HASKELL    = ("Haskell",      &["--"],              &[("{-", "-}")]);
-    ELM        = ("Elm",          &["--"],              &[("{-", "-}")]);
-    SQL        = ("SQL",          &["--"],              C_BLOCK);
-    NIX        = ("Nix",          HASH_LINE,            C_BLOCK);
-    TOML       = ("TOML",         HASH_LINE,            NO_BLOCK);
-    YAML       = ("YAML",         HASH_LINE,            NO_BLOCK);
-    JSON       = ("JSON",         NO_LINE,              NO_BLOCK);
-    MARKDOWN   = ("Markdown",     NO_LINE,              NO_BLOCK);
-    HTML       = ("HTML",         NO_LINE,              &[("<!--", "-->")]);
-    XML        = ("XML",          NO_LINE,              &[("<!--", "-->")]);
-    ELIXIR     = ("Elixir",       HASH_LINE,            NO_BLOCK);
-    ERLANG     = ("Erlang",       &["%"],               NO_BLOCK);
-    CLOJURE    = ("Clojure",      &[";"],               NO_BLOCK);
-    LISP       = ("Lisp",         &[";"],               &[("#|", "|#")]);
-    SCHEME     = ("Scheme",       &[";"],               &[("#|", "|#")]);
-    OCAML      = ("OCaml",        NO_LINE,              &[("(*", "*)")]);
-    FSHARP     = ("F#",           C_LINE,               &[("(*", "*)")]);
-    VIM        = ("Vim script",   &["\""],              NO_BLOCK);
-    MAKE       = ("Makefile",     HASH_LINE,            NO_BLOCK);
-    DOCKER     = ("Dockerfile",   HASH_LINE,            NO_BLOCK);
-    TEX        = ("TeX",          &["%"],               NO_BLOCK);
-    R          = ("R",            HASH_LINE,            NO_BLOCK);
-    JULIA      = ("Julia",        HASH_LINE,            &[("#=", "=#")]);
-    ASSEMBLY   = ("Assembly",     &[";"],               NO_BLOCK);
-    PROTOBUF   = ("Protocol Buffers", C_LINE,           C_BLOCK);
-    ODIN       = ("Odin",         C_LINE,               C_BLOCK);
-    JANET      = ("Janet",        HASH_LINE,            NO_BLOCK);
-    ADA        = ("Ada",          &["--"],              NO_BLOCK);
+    RUST       = ("Rust",             "main.rs",      Some("rs"),      C_LINE,               &[("/*", "*/")]);
+    C          = ("C",                "main.c",       Some("c"),       C_LINE,               C_BLOCK);
+    CPP        = ("C++",              "main.cpp",     Some("cpp"),     C_LINE,               C_BLOCK);
+    CSHARP     = ("C#",               "main.cs",      Some("cs"),      C_LINE,               C_BLOCK);
+    JAVA       = ("Java",             "Main.java",    Some("java"),    C_LINE,               C_BLOCK);
+    KOTLIN     = ("Kotlin",           "Main.kt",      Some("kt"),      C_LINE,               C_BLOCK);
+    SCALA      = ("Scala",            "Main.scala",   Some("scala"),   C_LINE,               C_BLOCK);
+    SWIFT      = ("Swift",            "Main.swift",   Some("swift"),   C_LINE,               C_BLOCK);
+    GO         = ("Go",               "main.go",      Some("go"),      C_LINE,               C_BLOCK);
+    JAVASCRIPT = ("JavaScript",       "main.js",      Some("js"),      C_LINE,               C_BLOCK);
+    TYPESCRIPT = ("TypeScript",       "main.ts",      Some("ts"),      C_LINE,               C_BLOCK);
+    JSX        = ("JSX",              "main.jsx",     Some("jsx"),     C_LINE,               C_BLOCK);
+    TSX        = ("TSX",              "main.tsx",     Some("tsx"),     C_LINE,               C_BLOCK);
+    DART       = ("Dart",             "main.dart",    Some("dart"),    C_LINE,               C_BLOCK);
+    ZIG        = ("Zig",              "main.zig",     Some("zig"),     C_LINE,               NO_BLOCK);
+    OBJC       = ("Objective-C",      "main.m",       Some("m"),       C_LINE,               C_BLOCK);
+    PHP        = ("PHP",              "main.php",     Some("php"),     &["//", "#"],         C_BLOCK);
+    CSS        = ("CSS",              "main.css",     Some("css"),     NO_LINE,              C_BLOCK);
+    SCSS       = ("SCSS",             "main.scss",    Some("scss"),    C_LINE,               C_BLOCK);
+    GLSL       = ("GLSL",             "main.glsl",    Some("glsl"),    C_LINE,               C_BLOCK);
+    PYTHON     = ("Python",           "main.py",      Some("py"),      HASH_LINE,            &[("\"\"\"", "\"\"\""), ("'''", "'''")]);
+    RUBY       = ("Ruby",             "main.rb",      Some("rb"),      HASH_LINE,            &[("=begin", "=end")]);
+    PERL       = ("Perl",             "main.pl",      Some("pl"),      HASH_LINE,            &[("=pod", "=cut")]);
+    SHELL      = ("Shell",            "main.sh",      Some("sh"),      HASH_LINE,            NO_BLOCK);
+    FISH       = ("Fish",             "main.fish",    Some("fish"),    HASH_LINE,            NO_BLOCK);
+    POWERSHELL = ("PowerShell",       "main.ps1",     Some("ps1"),     HASH_LINE,            &[("<#", "#>")]);
+    LUA        = ("Lua",              "main.lua",     Some("lua"),     &["--"],              &[("--[[", "]]")]);
+    HASKELL    = ("Haskell",          "main.hs",      Some("hs"),      &["--"],              &[("{-", "-}")]);
+    ELM        = ("Elm",              "main.elm",     Some("elm"),     &["--"],              &[("{-", "-}")]);
+    SQL        = ("SQL",              "main.sql",     Some("sql"),     &["--"],              C_BLOCK);
+    NIX        = ("Nix",              "default.nix",  Some("nix"),     HASH_LINE,            C_BLOCK);
+    TOML       = ("TOML",             "main.toml",    Some("toml"),    HASH_LINE,            NO_BLOCK);
+    YAML       = ("YAML",             "main.yaml",    Some("yaml"),    HASH_LINE,            NO_BLOCK);
+    JSON       = ("JSON",             "main.json",    Some("json"),    NO_LINE,              NO_BLOCK);
+    MARKDOWN   = ("Markdown",         "README.md",    Some("md"),      NO_LINE,              &[("<!--", "-->")]);
+    HTML       = ("HTML",             "index.html",   Some("html"),    NO_LINE,              &[("<!--", "-->")]);
+    XML        = ("XML",              "main.xml",     Some("xml"),     NO_LINE,              &[("<!--", "-->")]);
+    ELIXIR     = ("Elixir",           "main.ex",      Some("ex"),      HASH_LINE,            NO_BLOCK);
+    ERLANG     = ("Erlang",           "main.erl",     Some("erl"),     &["%"],               NO_BLOCK);
+    CLOJURE    = ("Clojure",          "main.clj",     Some("clj"),     &[";"],               NO_BLOCK);
+    LISP       = ("Lisp",             "main.lisp",    Some("lisp"),    &[";"],               &[("#|", "|#")]);
+    SCHEME     = ("Scheme",           "main.scm",     Some("scm"),     &[";"],               &[("#|", "|#")]);
+    OCAML      = ("OCaml",            "main.ml",      Some("ml"),      NO_LINE,              &[("(*", "*)")]);
+    FSHARP     = ("F#",               "main.fs",      Some("fs"),      C_LINE,               &[("(*", "*)")]);
+    VIM        = ("Vim script",       "main.vim",     Some("vim"),     &["\""],              NO_BLOCK);
+    MAKE       = ("Makefile",         "Makefile",     None,            HASH_LINE,            NO_BLOCK);
+    DOCKER     = ("Dockerfile",       "Dockerfile",   None,            HASH_LINE,            NO_BLOCK);
+    TEX        = ("TeX",              "main.tex",     Some("tex"),     &["%"],               NO_BLOCK);
+    R          = ("R",                "main.r",       Some("r"),       HASH_LINE,            NO_BLOCK);
+    JULIA      = ("Julia",            "main.jl",      Some("jl"),      HASH_LINE,            &[("#=", "=#")]);
+    ASSEMBLY   = ("Assembly",         "main.s",       Some("s"),       &[";"],               NO_BLOCK);
+    PROTOBUF   = ("Protocol Buffers", "main.proto",   Some("proto"),   C_LINE,               C_BLOCK);
+    ODIN       = ("Odin",             "main.odin",    Some("odin"),    C_LINE,               C_BLOCK);
+    JANET      = ("Janet",            "main.janet",   Some("janet"),   HASH_LINE,            NO_BLOCK);
+    ADA        = ("Ada",              "main.adb",     Some("adb"),     &["--"],              NO_BLOCK);
 }
 
 const NO_LINE: &[&str] = &[];
@@ -586,6 +646,195 @@ static BY_EXTENSION: Map<&'static str, &'static Language> = phf_map! {
     "ada"   => &ADA,
     "gpr"   => &ADA,
 };
+
+/// Aliases and full language identifiers commonly used in Markdown fenced code blocks.
+static FENCE_ALIASES: Map<&'static str, &'static Language> = phf_map! {
+    "rust"        => &RUST,
+    "python"      => &PYTHON,
+    "python3"     => &PYTHON,
+    "py3"         => &PYTHON,
+    "javascript"  => &JAVASCRIPT,
+    "node"        => &JAVASCRIPT,
+    "typescript"  => &TYPESCRIPT,
+    "golang"      => &GO,
+    "c++"         => &CPP,
+    "cplusplus"   => &CPP,
+    "c#"          => &CSHARP,
+    "csharp"      => &CSHARP,
+    "shell"       => &SHELL,
+    "bash"        => &SHELL,
+    "zsh"         => &SHELL,
+    "powershell"  => &POWERSHELL,
+    "pwsh"        => &POWERSHELL,
+    "ruby"        => &RUBY,
+    "perl"        => &PERL,
+    "jsonc"       => &JSON,
+    "svg"         => &XML,
+    "markdown"    => &MARKDOWN,
+    "mdx"         => &MARKDOWN,
+    "mkd"         => &MARKDOWN,
+    "make"        => &MAKE,
+    "dockerfile"  => &DOCKER,
+    "docker"      => &DOCKER,
+    "containerfile" => &DOCKER,
+    "haskell"     => &HASKELL,
+    "elixir"      => &ELIXIR,
+    "erlang"      => &ERLANG,
+    "clojure"     => &CLOJURE,
+    "emacs-lisp"  => &LISP,
+    "scheme"      => &SCHEME,
+    "ocaml"       => &OCAML,
+    "fsharp"      => &FSHARP,
+    "f#"          => &FSHARP,
+    "vimscript"   => &VIM,
+    "latex"       => &TEX,
+    "julia"       => &JULIA,
+    "assembly"    => &ASSEMBLY,
+    "protobuf"    => &PROTOBUF,
+    "swift"       => &SWIFT,
+    "kotlin"      => &KOTLIN,
+    "objective-c" => &OBJC,
+};
+
+/// Work out the language of a Markdown fenced code block from its tag.
+#[must_use]
+pub fn language_for_code_fence(tag: &str) -> Option<&'static Language> {
+    let tag = tag.trim().to_ascii_lowercase();
+    if tag.is_empty() {
+        return None;
+    }
+    if let Some(lang) = FENCE_ALIASES.get(tag.as_str()) {
+        return Some(lang);
+    }
+    if let Some(lang) = BY_EXTENSION.get(tag.as_str()) {
+        return Some(lang);
+    }
+    BY_FILENAME.get(tag.as_str()).copied()
+}
+
+/// Extract the primary language identifier from a Markdown fence's info string.
+fn extract_fence_tag(info: &str) -> &str {
+    let s = info.trim();
+    let first = s
+        .split(|c: char| c.is_whitespace() || c == ',' || c == '{' || c == ':' || c == ';')
+        .next()
+        .unwrap_or("");
+    first.trim()
+}
+
+struct CodeFenceState {
+    fence_char: u8,
+    fence_len: usize,
+    lang: &'static Language,
+    block_comment: Option<&'static str>,
+}
+
+/// Count lines across Markdown prose and embedded fenced code blocks.
+/// Returns a per-language breakdown.
+#[must_use]
+pub fn count_markdown_source(source: &str) -> Vec<(&'static Language, LocCounts)> {
+    let mut counts_by_lang: Vec<(&'static Language, LocCounts)> = Vec::with_capacity(4);
+
+    let mut active_fence: Option<CodeFenceState> = None;
+    let mut md_html_block: Option<&'static str> = None;
+
+    let add_line = |counts: &mut Vec<(&'static Language, LocCounts)>,
+                    lang: &'static Language,
+                    is_code: bool,
+                    is_comment: bool,
+                    is_blank: bool| {
+        if let Some((_, c)) = counts.iter_mut().find(|(l, _)| std::ptr::eq(*l, lang)) {
+            c.lines += 1;
+            if is_code {
+                c.code += 1;
+            } else if is_comment {
+                c.comments += 1;
+            } else if is_blank {
+                c.blanks += 1;
+            }
+        } else {
+            counts.push((
+                lang,
+                LocCounts {
+                    lines: 1,
+                    code: usize::from(is_code),
+                    comments: usize::from(is_comment),
+                    blanks: usize::from(is_blank),
+                },
+            ));
+        }
+    };
+
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+
+        if let Some(fence) = &mut active_fence {
+            let bytes = trimmed.as_bytes();
+            let count = bytes.iter().take_while(|&&b| b == fence.fence_char).count();
+            if count >= fence.fence_len && trimmed[count..].trim().is_empty() {
+                // Closing fence is Markdown syntax line
+                add_line(&mut counts_by_lang, &MARKDOWN, true, false, false);
+                active_fence = None;
+                continue;
+            }
+
+            if line.trim().is_empty() {
+                add_line(&mut counts_by_lang, fence.lang, false, false, true);
+            } else {
+                let (has_code, has_comment) =
+                    classify_line(line, fence.lang, &mut fence.block_comment);
+                if has_code {
+                    add_line(&mut counts_by_lang, fence.lang, true, false, false);
+                } else if has_comment {
+                    add_line(&mut counts_by_lang, fence.lang, false, true, false);
+                } else {
+                    add_line(&mut counts_by_lang, fence.lang, false, false, true);
+                }
+            }
+        } else {
+            let bytes = trimmed.as_bytes();
+            let backticks = bytes.iter().take_while(|&&b| b == b'`').count();
+            let tildes = bytes.iter().take_while(|&&b| b == b'~').count();
+
+            if backticks >= 3 || tildes >= 3 {
+                let (fence_char, fence_len) = if backticks >= 3 {
+                    (b'`', backticks)
+                } else {
+                    (b'~', tildes)
+                };
+                let info_str = &trimmed[fence_len..];
+                let tag = extract_fence_tag(info_str);
+                let lang = language_for_code_fence(tag).unwrap_or(&MARKDOWN);
+
+                // Opening fence is Markdown syntax line
+                add_line(&mut counts_by_lang, &MARKDOWN, true, false, false);
+                active_fence = Some(CodeFenceState {
+                    fence_char,
+                    fence_len,
+                    lang,
+                    block_comment: None,
+                });
+            } else if line.trim().is_empty() {
+                add_line(&mut counts_by_lang, &MARKDOWN, false, false, true);
+            } else {
+                let (has_code, has_comment) = classify_line(line, &MARKDOWN, &mut md_html_block);
+                if has_code {
+                    add_line(&mut counts_by_lang, &MARKDOWN, true, false, false);
+                } else if has_comment {
+                    add_line(&mut counts_by_lang, &MARKDOWN, false, true, false);
+                } else {
+                    add_line(&mut counts_by_lang, &MARKDOWN, false, false, true);
+                }
+            }
+        }
+    }
+
+    if counts_by_lang.is_empty() {
+        counts_by_lang.push((&MARKDOWN, LocCounts::default()));
+    }
+
+    counts_by_lang
+}
 
 #[cfg(test)]
 mod test {
@@ -855,6 +1104,77 @@ mod test {
                 comments: 0,
                 blanks: 0,
             }
+        );
+    }
+
+    #[test]
+    fn detects_language_for_code_fence() {
+        assert_eq!(language_for_code_fence("rust"), Some(&RUST));
+        assert_eq!(language_for_code_fence("rs"), Some(&RUST));
+        assert_eq!(language_for_code_fence("python"), Some(&PYTHON));
+        assert_eq!(language_for_code_fence("py"), Some(&PYTHON));
+        assert_eq!(language_for_code_fence("golang"), Some(&GO));
+        assert_eq!(language_for_code_fence("c++"), Some(&CPP));
+        assert_eq!(language_for_code_fence("shell"), Some(&SHELL));
+        assert_eq!(language_for_code_fence("bash"), Some(&SHELL));
+        assert_eq!(language_for_code_fence("sh"), Some(&SHELL));
+        assert_eq!(language_for_code_fence("typescript"), Some(&TYPESCRIPT));
+        assert_eq!(language_for_code_fence("ts"), Some(&TYPESCRIPT));
+        assert_eq!(language_for_code_fence("unknown_lang_123"), None);
+    }
+
+    #[test]
+    fn extracts_fence_tag_with_attributes() {
+        assert_eq!(extract_fence_tag("rust,no_run"), "rust");
+        assert_eq!(extract_fence_tag("python title=\"main.py\""), "python");
+        assert_eq!(extract_fence_tag("sh {1-3}"), "sh");
+        assert_eq!(extract_fence_tag("json:output"), "json");
+        assert_eq!(extract_fence_tag(""), "");
+    }
+
+    #[test]
+    fn counts_markdown_polyglot_embedded_blocks() {
+        let md = "# Title\n\nSome introductory prose.\n\n```rust\n// Rust comment\nfn main() {\n    println!(\"Hello!\");\n}\n```\n\nMore prose here.\n\n~~~python\n# Python comment\ndef greet():\n    pass\n~~~\n\n<!-- HTML comment in markdown -->\nFinal paragraph.\n";
+        let breakdown = count_markdown_source(md);
+        let find_counts = |l: &Language| {
+            breakdown
+                .iter()
+                .find(|(lang, _)| std::ptr::eq(*lang, l))
+                .map(|(_, c)| *c)
+                .unwrap_or_default()
+        };
+
+        let rust_counts = find_counts(&RUST);
+        assert_eq!(rust_counts.lines, 4);
+        assert_eq!(rust_counts.code, 3);
+        assert_eq!(rust_counts.comments, 1);
+        assert_eq!(rust_counts.blanks, 0);
+
+        let py_counts = find_counts(&PYTHON);
+        assert_eq!(py_counts.lines, 3);
+        assert_eq!(py_counts.code, 2);
+        assert_eq!(py_counts.comments, 1);
+        assert_eq!(py_counts.blanks, 0);
+
+        let md_counts = find_counts(&MARKDOWN);
+        assert_eq!(md_counts.comments, 1); // HTML comment
+        assert!(md_counts.code >= 5); // title + prose + fences
+        assert!(md_counts.blanks >= 4);
+
+        // Overall LocCounts from_source
+        let unified = LocCounts::from_source(md, &MARKDOWN);
+        let sum_lines = rust_counts.lines + py_counts.lines + md_counts.lines;
+        let sum_code = rust_counts.code + py_counts.code + md_counts.code;
+        let sum_comments = rust_counts.comments + py_counts.comments + md_counts.comments;
+        let sum_blanks = rust_counts.blanks + py_counts.blanks + md_counts.blanks;
+
+        assert_eq!(unified.lines, sum_lines);
+        assert_eq!(unified.code, sum_code);
+        assert_eq!(unified.comments, sum_comments);
+        assert_eq!(unified.blanks, sum_blanks);
+        assert_eq!(
+            unified.lines,
+            unified.code + unified.comments + unified.blanks
         );
     }
 }

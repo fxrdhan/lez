@@ -34,7 +34,7 @@ fn require_generated_fixture(feature: &str) {
             .arg("devtools/dir-generator.sh")
             .arg("tests/test_dir")
             .status();
-        if status.as_ref().map_or(false, |s| s.success()) {
+        if status.as_ref().is_ok_and(|s| s.success()) {
             let _ = std::process::Command::new("bash")
                 .arg("devtools/generate-timestamp-test-dir.sh")
                 .arg("tests/timestamp_test_dir")
