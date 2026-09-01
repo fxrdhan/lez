@@ -156,4 +156,3 @@
 
 # Number of decimal digits to display for percentages (0..=8, default: 1)
 # percent_digits = 1
-
