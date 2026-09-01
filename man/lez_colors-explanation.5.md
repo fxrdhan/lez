@@ -117,14 +117,18 @@ git:
   modified
   deleted
   renamed
+  typechange
   ignored
   conflicted
+  not_modified
 
 git_repo:
   branch_main
   branch_other
+  branch_worktree
   git_clean
   git_dirty
+
 
 security_context:
   none:
@@ -225,6 +229,11 @@ mimetypes:
   application/pdf: { filename: {foreground: Red}, icon: {glyph: 📕} }
   text/x-rust: { filename: {foreground: Yellow} }
 
+git:
+  new: { glyph: "✚", foreground: Green }
+  modified: { glyph: "●", foreground: Yellow }
+  deleted: { glyph: "✖", foreground: Red }
+
 ```
 
 You can customize default fallback icons for unmapped files and directories under the `extensions` section using reserved dot-prefixed keys:
@@ -232,6 +241,9 @@ You can customize default fallback icons for unmapped files and directories unde
 - `.default_file_unknown`: Default glyph and style for extensionless files (falls back to `.default_file` if unset).
 - `.default_directory`: Default glyph and style for non-empty or generic directories.
 - `.default_directory_empty`: Default glyph and style for empty directories (falls back to `.default_directory` if unset).
+
+Git status indicator glyphs under `git` (`new`, `modified`, `deleted`, `renamed`, `typechange`, `ignored`, `conflicted`, `not_modified`) and `git_repo` (`git_clean`, `git_dirty`) can also be customized with arbitrary Unicode characters or glyphs via the `glyph:` property.
+
 
 **NOTES:** 
 

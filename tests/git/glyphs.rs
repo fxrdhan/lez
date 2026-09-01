@@ -378,3 +378,63 @@ fn test_f8_git_glyphs_in_grid_details() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("f1.txt") && stdout.contains("f2.txt"));
 }
+
+#[test]
+fn test_custom_git_glyphs_from_theme_yaml() {
+    let Some(repo) = TempGitRepo::new("custom_glyphs_theme") else {
+        return;
+    };
+
+    // Create untracked file
+    repo.write_file("new_file.txt", b"new content\n");
+
+    // Create and commit a file, then modify it
+    repo.write_file("modified_file.txt", b"initial\n");
+    assert!(repo.git(&["add", "modified_file.txt"]));
+    assert!(repo.git(&["commit", "-m", "initial commit"]));
+    repo.write_file("modified_file.txt", b"changed\n");
+
+    // Create a theme config directory
+    let config_dir = repo.path.join(".lez_config");
+    fs::create_dir_all(&config_dir).unwrap();
+    let theme_file = config_dir.join("theme.yml");
+    fs::write(
+        &theme_file,
+        r#"
+git:
+  new:
+    glyph: "✚"
+  modified:
+    glyph: "●"
+"#,
+    )
+    .unwrap();
+
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let output = Command::new(bin_path)
+        .args(["-l", "--git", "--color=never", repo.path.to_str().unwrap()])
+        .env("LEZ_CONFIG_DIR", &config_dir)
+        .output()
+        .expect("Failed to execute lez binary");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let new_line = stdout
+        .lines()
+        .find(|l| l.contains("new_file.txt"))
+        .expect("new_file.txt in output");
+    assert!(
+        new_line.contains("✚"),
+        "Custom new glyph ✚ should be displayed for new file: {new_line}"
+    );
+
+    let mod_line = stdout
+        .lines()
+        .find(|l| l.contains("modified_file.txt"))
+        .expect("modified_file.txt in output");
+    assert!(
+        mod_line.contains("●"),
+        "Custom modified glyph ● should be displayed for modified file: {mod_line}"
+    );
+}

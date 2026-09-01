@@ -292,7 +292,7 @@ pub struct Links {
 field_accessors!(Links, normal: Option<Style>, multi_link_file: Option<Style>);
 
 #[rustfmt::skip]
-#[derive(Clone, Copy, Debug,Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Git {
     pub new: Option<Style>,         // ga
     pub modified: Option<Style>,    // gm
@@ -301,6 +301,16 @@ pub struct Git {
     pub typechange: Option<Style>,  // gt
     pub ignored: Option<Style>,     // gi
     pub conflicted: Option<Style>,  // gc
+    pub not_modified: Option<Style>,
+
+    pub new_glyph: Option<String>,
+    pub modified_glyph: Option<String>,
+    pub deleted_glyph: Option<String>,
+    pub renamed_glyph: Option<String>,
+    pub typechange_glyph: Option<String>,
+    pub ignored_glyph: Option<String>,
+    pub conflicted_glyph: Option<String>,
+    pub not_modified_glyph: Option<String>,
 }
 
 field_accessors!(
@@ -311,7 +321,8 @@ field_accessors!(
     renamed: Option<Style>,
     typechange: Option<Style>,
     ignored: Option<Style>,
-    conflicted: Option<Style>
+    conflicted: Option<Style>,
+    not_modified: Option<Style>
 );
 impl Default for Git {
     fn default() -> Self {
@@ -323,18 +334,31 @@ impl Default for Git {
             typechange: Some(Purple.normal()),
             ignored: Some(Style::default().dimmed()),
             conflicted: Some(Red.normal()),
+            not_modified: None,
+
+            new_glyph: None,
+            modified_glyph: None,
+            deleted_glyph: None,
+            renamed_glyph: None,
+            typechange_glyph: None,
+            ignored_glyph: None,
+            conflicted_glyph: None,
+            not_modified_glyph: None,
         }
     }
 }
 
 #[rustfmt::skip]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GitRepo {
     pub branch_main: Option<Style>,     //Gm
     pub branch_other: Option<Style>,    //Go
     pub git_clean: Option<Style>,       //Gc
     pub git_dirty: Option<Style>,       //Gd
     pub branch_worktree: Option<Style>, //Gw
+
+    pub git_clean_glyph: Option<String>,
+    pub git_dirty_glyph: Option<String>,
 }
 field_accessors!(
     GitRepo,
@@ -352,6 +376,8 @@ impl Default for GitRepo {
             git_clean: Some(Green.normal()),
             git_dirty: Some(Yellow.bold()),
             branch_worktree: Some(Cyan.normal()),
+            git_clean_glyph: None,
+            git_dirty_glyph: None,
         }
     }
 }
@@ -528,13 +554,22 @@ impl UiStyles {
 
             #[rustfmt::skip]
             git: Some(Git {
-                new:         Some(Style::default()),
-                modified:    Some(Style::default()),
-                deleted:     Some(Style::default()),
-                renamed:     Some(Style::default()),
-                typechange:  Some(Style::default()),
-                ignored:     Some(Style::default()),
-                conflicted:  Some(Style::default()),
+                new:                 Some(Style::default()),
+                modified:            Some(Style::default()),
+                deleted:             Some(Style::default()),
+                renamed:             Some(Style::default()),
+                typechange:          Some(Style::default()),
+                ignored:             Some(Style::default()),
+                conflicted:          Some(Style::default()),
+                not_modified:        Some(Style::default()),
+                new_glyph:           None,
+                modified_glyph:      None,
+                deleted_glyph:       None,
+                renamed_glyph:       None,
+                typechange_glyph:    None,
+                ignored_glyph:       None,
+                conflicted_glyph:    None,
+                not_modified_glyph:  None,
             }),
 
             git_repo: Some(GitRepo {
@@ -543,6 +578,8 @@ impl UiStyles {
                 git_clean: Some(Style::default()),
                 git_dirty: Some(Style::default()),
                 branch_worktree: Some(Style::default()),
+                git_clean_glyph: None,
+                git_dirty_glyph: None,
             }),
 
             security_context: Some(SecurityContext {
@@ -610,8 +647,8 @@ impl UiStyles {
     }
 
     /// Creates a version of these styles with every colour removed while
-    /// preserving themed icon glyphs, so custom icons keep rendering when
-    /// colours are disabled.
+    /// preserving themed icon and Git glyphs, so custom icons and glyphs keep
+    /// rendering when colours are disabled.
     #[must_use]
     pub fn plain_colors(mut self) -> Self {
         let mut entries = Vec::new();
@@ -634,11 +671,34 @@ impl UiStyles {
             }
         }
 
+        let mut git = self.git;
+        if let Some(g) = git.as_mut() {
+            g.new = Some(Style::default());
+            g.modified = Some(Style::default());
+            g.deleted = Some(Style::default());
+            g.renamed = Some(Style::default());
+            g.typechange = Some(Style::default());
+            g.ignored = Some(Style::default());
+            g.conflicted = Some(Style::default());
+            g.not_modified = Some(Style::default());
+        }
+
+        let mut git_repo = self.git_repo;
+        if let Some(r) = git_repo.as_mut() {
+            r.branch_main = Some(Style::default());
+            r.branch_other = Some(Style::default());
+            r.git_clean = Some(Style::default());
+            r.git_dirty = Some(Style::default());
+            r.branch_worktree = Some(Style::default());
+        }
+
         UiStyles {
             filenames: self.filenames,
             extensions: self.extensions,
             directorynames: self.directorynames,
             mimetypes: self.mimetypes,
+            git,
+            git_repo,
             ..UiStyles::plain()
         }
     }

@@ -112,6 +112,48 @@
                 }
             },
             "additionalProperties": false
+        },
+        "git_status": {
+            "type": "object",
+            "properties": {
+                "glyph": {
+                    "type": "string"
+                },
+                "foreground": {
+                    "$ref": "#/$defs/color"
+                },
+                "background": {
+                    "$ref": "#/$defs/color"
+                },
+                "is_bold": {
+                    "type": "boolean"
+                },
+                "is_dimmed": {
+                    "type": "boolean"
+                },
+                "is_italic": {
+                    "type": "boolean"
+                },
+                "is_underline": {
+                    "type": "boolean"
+                },
+                "is_blink": {
+                    "type": "boolean"
+                },
+                "is_reverse": {
+                    "type": "boolean"
+                },
+                "is_hidden": {
+                    "type": "boolean"
+                },
+                "is_strikethrough": {
+                    "type": "boolean"
+                },
+                "prefix_with_reset": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
         }
     },
     "description": "Eza theme config file",
@@ -287,22 +329,28 @@
         "git": {
             "properties": {
                 "new": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 },
                 "modified": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 },
                 "deleted": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 },
                 "renamed": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
+                },
+                "typechange": {
+                    "$ref": "#/$defs/git_status"
                 },
                 "ignored": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 },
                 "conflicted": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
+                },
+                "not_modified": {
+                    "$ref": "#/$defs/git_status"
                 }
             },
             "additionalProperties": false
@@ -310,19 +358,19 @@
         "git_repo": {
             "properties": {
                 "branch_main": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 },
                 "branch_other": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 },
                 "branch_worktree": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 },
                 "git_clean": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 },
                 "git_dirty": {
-                    "$ref": "#/$defs/style"
+                    "$ref": "#/$defs/git_status"
                 }
             },
             "additionalProperties": false

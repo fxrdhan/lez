@@ -534,24 +534,37 @@ impl render::FiletypeColours for Theme {
 
 #[rustfmt::skip]
 impl render::GitColours for Theme {
-    fn not_modified(&self)  -> Style { self.ui.punctuation() }
-    fn added(&self)         -> Style { self.ui.git.unwrap_or_default().new() }
-    fn modified(&self)      -> Style { self.ui.git.unwrap_or_default().modified() }
-    fn deleted(&self)       -> Style { self.ui.git.unwrap_or_default().deleted() }
-    fn renamed(&self)       -> Style { self.ui.git.unwrap_or_default().renamed() }
-    fn type_change(&self)   -> Style { self.ui.git.unwrap_or_default().typechange() }
-    fn ignored(&self)       -> Style { self.ui.git.unwrap_or_default().ignored() }
-    fn conflicted(&self)    -> Style { self.ui.git.unwrap_or_default().conflicted() }
+    fn not_modified(&self)  -> Style { self.ui.git.as_ref().and_then(|g| g.not_modified).unwrap_or_else(|| self.ui.punctuation()) }
+    fn added(&self)         -> Style { self.ui.git.as_ref().map_or_else(|| Git::default().new(), |g| g.new()) }
+    fn modified(&self)      -> Style { self.ui.git.as_ref().map_or_else(|| Git::default().modified(), |g| g.modified()) }
+    fn deleted(&self)       -> Style { self.ui.git.as_ref().map_or_else(|| Git::default().deleted(), |g| g.deleted()) }
+    fn renamed(&self)       -> Style { self.ui.git.as_ref().map_or_else(|| Git::default().renamed(), |g| g.renamed()) }
+    fn type_change(&self)   -> Style { self.ui.git.as_ref().map_or_else(|| Git::default().typechange(), |g| g.typechange()) }
+    fn ignored(&self)       -> Style { self.ui.git.as_ref().map_or_else(|| Git::default().ignored(), |g| g.ignored()) }
+    fn conflicted(&self)    -> Style { self.ui.git.as_ref().map_or_else(|| Git::default().conflicted(), |g| g.conflicted()) }
+
+    fn not_modified_glyph(&self) -> Option<&str> { self.ui.git.as_ref().and_then(|g| g.not_modified_glyph.as_deref()) }
+    fn added_glyph(&self)        -> Option<&str> { self.ui.git.as_ref().and_then(|g| g.new_glyph.as_deref()) }
+    fn modified_glyph(&self)     -> Option<&str> { self.ui.git.as_ref().and_then(|g| g.modified_glyph.as_deref()) }
+    fn deleted_glyph(&self)      -> Option<&str> { self.ui.git.as_ref().and_then(|g| g.deleted_glyph.as_deref()) }
+    fn renamed_glyph(&self)      -> Option<&str> { self.ui.git.as_ref().and_then(|g| g.renamed_glyph.as_deref()) }
+    fn type_change_glyph(&self)  -> Option<&str> { self.ui.git.as_ref().and_then(|g| g.typechange_glyph.as_deref()) }
+    fn ignored_glyph(&self)      -> Option<&str> { self.ui.git.as_ref().and_then(|g| g.ignored_glyph.as_deref()) }
+    fn conflicted_glyph(&self)   -> Option<&str> { self.ui.git.as_ref().and_then(|g| g.conflicted_glyph.as_deref()) }
 }
 
 #[rustfmt::skip]
 impl render::GitRepoColours for Theme {
-    fn branch_main(&self)     -> Style { self.ui.git_repo.unwrap_or_default().branch_main() }
-    fn branch_other(&self)    -> Style { self.ui.git_repo.unwrap_or_default().branch_other() }
-    fn branch_worktree(&self) -> Style { self.ui.git_repo.unwrap_or_default().branch_worktree() }
+    fn branch_main(&self)     -> Style { self.ui.git_repo.as_ref().map_or_else(|| GitRepo::default().branch_main(), |r| r.branch_main()) }
+    fn branch_other(&self)    -> Style { self.ui.git_repo.as_ref().map_or_else(|| GitRepo::default().branch_other(), |r| r.branch_other()) }
+    fn branch_worktree(&self) -> Style { self.ui.git_repo.as_ref().map_or_else(|| GitRepo::default().branch_worktree(), |r| r.branch_worktree()) }
     fn no_repo(&self)         -> Style { self.ui.punctuation() }
-    fn git_clean(&self)       -> Style { self.ui.git_repo.unwrap_or_default().git_clean() }
-    fn git_dirty(&self)       -> Style { self.ui.git_repo.unwrap_or_default().git_dirty() }
+    fn git_clean(&self)       -> Style { self.ui.git_repo.as_ref().map_or_else(|| GitRepo::default().git_clean(), |r| r.git_clean()) }
+    fn git_dirty(&self)       -> Style { self.ui.git_repo.as_ref().map_or_else(|| GitRepo::default().git_dirty(), |r| r.git_dirty()) }
+
+    fn git_clean_glyph(&self) -> Option<&str> { self.ui.git_repo.as_ref().and_then(|r| r.git_clean_glyph.as_deref()) }
+    fn git_dirty_glyph(&self) -> Option<&str> { self.ui.git_repo.as_ref().and_then(|r| r.git_dirty_glyph.as_deref()) }
+    fn no_repo_glyph(&self)   -> Option<&str> { None }
 }
 
 #[rustfmt::skip]

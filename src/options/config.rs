@@ -469,50 +469,152 @@ impl FromOverride<LinksOverride> for Links {
     }
 }
 
-#[rustfmt::skip]
-#[derive(Clone, Copy, Debug,Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
+pub struct GitStatusOverride {
+    pub glyph: Option<String>,
+    #[serde(flatten)]
+    pub style: Option<StyleOverride>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct GitOverride {
-    pub new: Option<StyleOverride>,         // ga
-    pub modified: Option<StyleOverride>,    // gm
-    pub deleted: Option<StyleOverride>,     // gd
-    pub renamed: Option<StyleOverride>,     // gv
-    pub typechange: Option<StyleOverride>,  // gt
-    pub ignored: Option<StyleOverride>,     // gi
-    pub conflicted: Option<StyleOverride>,  // gc
+    pub new: Option<GitStatusOverride>,        // ga
+    pub modified: Option<GitStatusOverride>,   // gm
+    pub deleted: Option<GitStatusOverride>,    // gd
+    pub renamed: Option<GitStatusOverride>,    // gv
+    pub typechange: Option<GitStatusOverride>, // gt
+    pub ignored: Option<GitStatusOverride>,    // gi
+    pub conflicted: Option<GitStatusOverride>, // gc
+    pub not_modified: Option<GitStatusOverride>,
 }
 
 impl FromOverride<GitOverride> for Git {
     fn from(value: GitOverride, default: Self) -> Self {
+        let (new, new_glyph) = match value.new {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.new),
+                gso.glyph.or(default.new_glyph),
+            ),
+            None => (default.new, default.new_glyph),
+        };
+        let (modified, modified_glyph) = match value.modified {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.modified),
+                gso.glyph.or(default.modified_glyph),
+            ),
+            None => (default.modified, default.modified_glyph),
+        };
+        let (deleted, deleted_glyph) = match value.deleted {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.deleted),
+                gso.glyph.or(default.deleted_glyph),
+            ),
+            None => (default.deleted, default.deleted_glyph),
+        };
+        let (renamed, renamed_glyph) = match value.renamed {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.renamed),
+                gso.glyph.or(default.renamed_glyph),
+            ),
+            None => (default.renamed, default.renamed_glyph),
+        };
+        let (typechange, typechange_glyph) = match value.typechange {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.typechange),
+                gso.glyph.or(default.typechange_glyph),
+            ),
+            None => (default.typechange, default.typechange_glyph),
+        };
+        let (ignored, ignored_glyph) = match value.ignored {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.ignored),
+                gso.glyph.or(default.ignored_glyph),
+            ),
+            None => (default.ignored, default.ignored_glyph),
+        };
+        let (conflicted, conflicted_glyph) = match value.conflicted {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.conflicted),
+                gso.glyph.or(default.conflicted_glyph),
+            ),
+            None => (default.conflicted, default.conflicted_glyph),
+        };
+        let (not_modified, not_modified_glyph) = match value.not_modified {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.not_modified),
+                gso.glyph.or(default.not_modified_glyph),
+            ),
+            None => (default.not_modified, default.not_modified_glyph),
+        };
+
         Git {
-            new: FromOverride::from(value.new, default.new),
-            modified: FromOverride::from(value.modified, default.modified),
-            deleted: FromOverride::from(value.deleted, default.deleted),
-            renamed: FromOverride::from(value.renamed, default.renamed),
-            typechange: FromOverride::from(value.typechange, default.typechange),
-            ignored: FromOverride::from(value.ignored, default.ignored),
-            conflicted: FromOverride::from(value.conflicted, default.conflicted),
+            new,
+            modified,
+            deleted,
+            renamed,
+            typechange,
+            ignored,
+            conflicted,
+            not_modified,
+
+            new_glyph,
+            modified_glyph,
+            deleted_glyph,
+            renamed_glyph,
+            typechange_glyph,
+            ignored_glyph,
+            conflicted_glyph,
+            not_modified_glyph,
         }
     }
 }
 
-#[rustfmt::skip]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct GitRepoOverride {
-    pub branch_main: Option<StyleOverride>,     //Gm
-    pub branch_other: Option<StyleOverride>,    //Go
-    pub git_clean: Option<StyleOverride>,       //Gc
-    pub git_dirty: Option<StyleOverride>,       //Gd
-    pub branch_worktree: Option<StyleOverride>, //Gw
+    pub branch_main: Option<GitStatusOverride>,     // Gm
+    pub branch_other: Option<GitStatusOverride>,    // Go
+    pub git_clean: Option<GitStatusOverride>,       // Gc
+    pub git_dirty: Option<GitStatusOverride>,       // Gd
+    pub branch_worktree: Option<GitStatusOverride>, // Gw
 }
 
 impl FromOverride<GitRepoOverride> for GitRepo {
     fn from(value: GitRepoOverride, default: Self) -> Self {
+        let (branch_main, _) = match value.branch_main {
+            Some(gso) => (FromOverride::from(gso.style, default.branch_main), ()),
+            None => (default.branch_main, ()),
+        };
+        let (branch_other, _) = match value.branch_other {
+            Some(gso) => (FromOverride::from(gso.style, default.branch_other), ()),
+            None => (default.branch_other, ()),
+        };
+        let (git_clean, git_clean_glyph) = match value.git_clean {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.git_clean),
+                gso.glyph.or(default.git_clean_glyph),
+            ),
+            None => (default.git_clean, default.git_clean_glyph),
+        };
+        let (git_dirty, git_dirty_glyph) = match value.git_dirty {
+            Some(gso) => (
+                FromOverride::from(gso.style, default.git_dirty),
+                gso.glyph.or(default.git_dirty_glyph),
+            ),
+            None => (default.git_dirty, default.git_dirty_glyph),
+        };
+        let (branch_worktree, _) = match value.branch_worktree {
+            Some(gso) => (FromOverride::from(gso.style, default.branch_worktree), ()),
+            None => (default.branch_worktree, ()),
+        };
+
         GitRepo {
-            branch_main: FromOverride::from(value.branch_main, default.branch_main),
-            branch_other: FromOverride::from(value.branch_other, default.branch_other),
-            git_clean: FromOverride::from(value.git_clean, default.git_clean),
-            git_dirty: FromOverride::from(value.git_dirty, default.git_dirty),
-            branch_worktree: FromOverride::from(value.branch_worktree, default.branch_worktree),
+            branch_main,
+            branch_other,
+            git_clean,
+            git_dirty,
+            branch_worktree,
+            git_clean_glyph,
+            git_dirty_glyph,
         }
     }
 }
@@ -859,14 +961,36 @@ git_repo:
         let config: UiStylesOverride = serde_norway::from_str(yaml).unwrap();
         let repo_override = config.git_repo.unwrap();
         assert!(repo_override.branch_worktree.is_some());
-        let wt = repo_override.branch_worktree.unwrap();
-        assert_eq!(wt.foreground, Some(Color::Purple));
-        assert_eq!(wt.is_underline, Some(true));
+        let wt = repo_override.branch_worktree.as_ref().unwrap();
+        let wt_style = wt.style.as_ref().unwrap();
+        assert_eq!(wt_style.foreground, Some(Color::Purple));
+        assert_eq!(wt_style.is_underline, Some(true));
 
         let default_repo = GitRepo::default();
         let resolved =
             <GitRepo as FromOverride<GitRepoOverride>>::from(repo_override, default_repo);
         assert_eq!(resolved.branch_worktree, Some(Color::Purple.underline()));
+    }
+
+    #[test]
+    fn parse_git_status_glyph_and_style_yaml() {
+        let yaml = r#"
+git:
+  new: { glyph: "✚", foreground: "green", bold: true }
+  modified: { glyph: "●" }
+  deleted: { foreground: "red" }
+"#;
+        let config: UiStylesOverride = serde_norway::from_str(yaml).unwrap();
+        let git_override = config.git.unwrap();
+        let default_git = Git::default();
+        let resolved = <Git as FromOverride<GitOverride>>::from(git_override, default_git);
+
+        assert_eq!(resolved.new_glyph, Some("✚".to_string()));
+        assert_eq!(resolved.new, Some(Color::Green.bold()));
+        assert_eq!(resolved.modified_glyph, Some("●".to_string()));
+        assert_eq!(resolved.modified, Some(Color::Blue.normal()));
+        assert_eq!(resolved.deleted_glyph, None);
+        assert_eq!(resolved.deleted, Some(Color::Red.normal()));
     }
 
     #[test]

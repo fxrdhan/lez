@@ -52,3 +52,8 @@ extensions:
   .default_file_unknown: {icon: {glyph: ❓}}
   .default_directory: {icon: {glyph: 📁}}
   .default_directory_empty: {icon: {glyph: 📂}}
+git:
+  # Customize Git status styling and custom indicator glyphs
+  new: {glyph: "✚", foreground: Green}
+  modified: {glyph: "●", foreground: Yellow}
+  deleted: {glyph: "✖", foreground: Red}

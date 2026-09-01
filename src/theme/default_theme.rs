@@ -82,24 +82,8 @@ impl Default for UiStyles {
                 multi_link_file: Some(Red.on(Yellow)),
             }),
 
-            #[rustfmt::skip]
-            git: Some(Git {
-                new:         Some(Green.normal()),
-                modified:    Some(Blue.normal()),
-                deleted:     Some(Red.normal()),
-                renamed:     Some(Yellow.normal()),
-                typechange:  Some(Purple.normal()),
-                ignored:     Some(Style::default().dimmed()),
-                conflicted:  Some(Red.normal()),
-            }),
-
-            git_repo: Some(GitRepo {
-                branch_main: Some(Green.normal()),
-                branch_other: Some(Yellow.normal()),
-                git_clean: Some(Green.normal()),
-                git_dirty: Some(Yellow.bold()),
-                branch_worktree: Some(Cyan.normal()),
-            }),
+            git: Some(Git::default()),
+            git_repo: Some(GitRepo::default()),
 
             security_context: Some(SecurityContext {
                 none: Some(Style::default()),
