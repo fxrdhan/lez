@@ -31,7 +31,7 @@ impl f::SecurityContext<'_> {
 
                 TextCell {
                     contents: chars.into(),
-                    width: DisplayWidth::from(context.len()),
+                    width: DisplayWidth::from(context.as_ref()),
                 }
             }
         }
@@ -70,6 +70,7 @@ pub trait Colours {
 mod test {
     use super::*;
     use nu_ansi_term::Color;
+    use std::borrow::Cow;
 
     struct TestColours;
 
@@ -111,7 +112,7 @@ mod test {
         let colours = TestColours;
         let raw = "unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023";
         let ctx = f::SecurityContext {
-            context: f::SecurityContextType::SELinux(raw),
+            context: f::SecurityContextType::SELinux(Cow::Borrowed(raw)),
         };
 
         let cell = ctx.render(&colours);
@@ -122,11 +123,26 @@ mod test {
     }
 
     #[test]
+    fn test_selinux_mcs_translated_context() {
+        let colours = TestColours;
+        let trans = "system_u:object_r:user_home_t:CompanyConfidential".to_string();
+        let ctx = f::SecurityContext {
+            context: f::SecurityContextType::SELinux(Cow::Owned(trans.clone())),
+        };
+
+        let cell = ctx.render(&colours);
+        assert_eq!(*cell.width, trans.len());
+
+        let json = ctx.render_json();
+        assert_eq!(json, Some(trans));
+    }
+
+    #[test]
     fn test_selinux_three_part_context() {
         let colours = TestColours;
         let raw = "system_u:object_r:default_t";
         let ctx = f::SecurityContext {
-            context: f::SecurityContextType::SELinux(raw),
+            context: f::SecurityContextType::SELinux(Cow::Borrowed(raw)),
         };
 
         let cell = ctx.render(&colours);
@@ -139,7 +155,7 @@ mod test {
         let colours = TestColours;
         let raw = "unlabeled";
         let ctx = f::SecurityContext {
-            context: f::SecurityContextType::SELinux(raw),
+            context: f::SecurityContextType::SELinux(Cow::Borrowed(raw)),
         };
 
         let cell = ctx.render(&colours);

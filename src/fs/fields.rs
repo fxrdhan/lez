@@ -326,8 +326,10 @@ impl Default for Git {
     }
 }
 
+use std::borrow::Cow;
+
 pub enum SecurityContextType<'a> {
-    SELinux(&'a str),
+    SELinux(Cow<'a, str>),
     None,
 }
 
