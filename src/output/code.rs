@@ -341,17 +341,7 @@ impl Render<'_> {
                 let child_count = children.len();
                 for (idx, (label, child_stat)) in children.iter().enumerate() {
                     let is_last = idx == child_count - 1;
-                    let tree_prefix = if self.show_icons {
-                        if is_last {
-                            "  └── "
-                        } else {
-                            "  ├── "
-                        }
-                    } else if is_last {
-                        " └── "
-                    } else {
-                        " ├── "
-                    };
+                    let tree_prefix = if is_last { "└── " } else { "├── " };
                     let child_label = if self.show_icons {
                         let (rep_name, rep_ext) = &child_stat.rep_file;
                         let icon = icon_for_name_ext(rep_name, rep_ext.as_deref());
@@ -446,8 +436,8 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
             continue;
         }
         let painted = if i == 0 {
-            if let Some(rest) = cell.text.strip_prefix("  ├── ") {
-                let tree = "  ├── ";
+            if let Some(rest) = cell.text.strip_prefix("├── ") {
+                let tree = "├── ";
                 let tree_dim = Style::default().dimmed();
                 if iconify_first && rest.chars().count() > 2 {
                     let split = rest
@@ -464,8 +454,8 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
                 } else {
                     format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
                 }
-            } else if let Some(rest) = cell.text.strip_prefix("  └── ") {
-                let tree = "  └── ";
+            } else if let Some(rest) = cell.text.strip_prefix("└── ") {
+                let tree = "└── ";
                 let tree_dim = Style::default().dimmed();
                 if iconify_first && rest.chars().count() > 2 {
                     let split = rest
@@ -482,14 +472,6 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
                 } else {
                     format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
                 }
-            } else if let Some(rest) = cell.text.strip_prefix(" ├── ") {
-                let tree = " ├── ";
-                let tree_dim = Style::default().dimmed();
-                format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
-            } else if let Some(rest) = cell.text.strip_prefix(" └── ") {
-                let tree = " └── ";
-                let tree_dim = Style::default().dimmed();
-                format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
             } else if iconify_first && cell.width() > 2 {
                 // Paint the icon prefix separately from the name, so underlined
                 // headers don’t drag the underline through the icon column, and

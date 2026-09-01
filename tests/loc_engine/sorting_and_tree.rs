@@ -150,6 +150,4 @@ fn test_code_sub_language_tree_indentation() {
     // Verify Markdown row and tree branches
     assert!(stdout.contains("Markdown"));
     assert!(stdout.contains("├── ") || stdout.contains("└── "));
-    // Verify indentation without icons has 1 space before ├── or └──
-    assert!(stdout.contains(" ├── ") || stdout.contains(" └── "));
 }
