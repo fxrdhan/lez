@@ -190,6 +190,18 @@ Use this twice to also show the ‘`.`’ and ‘`..`’ directories.
 `--show-dotfiles`
 : Show dot-prefixed files without showing other hidden files.
 
+`--no-system`
+: Do not show system files (Windows only).
+Aliases: `--hide-system`, `--no-system-files`.
+
+`--no-hidden-attrib`
+: Do not show entries with the Windows hidden attribute (Windows only).
+Aliases: `--hide-hidden-attrib`, `--no-hidden-attributes`.
+
+`--no-hidden-links`
+: Do not show Windows hidden profile links / junctions (Windows only).
+Alias: `--no-junctions`.
+
 `-d`, `--treat-dirs-as-files`
 : This flag, inherited from `ls`, changes how `lez` handles directory arguments.
 

@@ -62,6 +62,12 @@ pub struct FilterConfig {
     pub reverse: Option<bool>,
     pub level: Option<usize>,
     pub show_dotfiles: Option<bool>,
+    #[serde(alias = "hide_system", alias = "no_system_files")]
+    pub no_system: Option<bool>,
+    #[serde(alias = "hide_hidden_attrib", alias = "no_hidden_attributes")]
+    pub no_hidden_attrib: Option<bool>,
+    #[serde(alias = "no_junctions")]
+    pub no_hidden_links: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
@@ -147,6 +153,9 @@ impl FileConfig {
             reverse,
             level,
             show_dotfiles,
+            no_system,
+            no_hidden_attrib,
+            no_hidden_links,
         );
 
         merge_field!(

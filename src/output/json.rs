@@ -153,6 +153,9 @@ impl<'a> Render<'a> {
                 self.total_size,
                 self.view.mime_read_contents,
                 None,
+                self.file_filter.no_system,
+                self.file_filter.no_hidden_attrib,
+                self.file_filter.no_hidden_links,
             )
             .collect();
 
@@ -202,6 +205,9 @@ impl<'a> Render<'a> {
                     self.total_size,
                     self.view.mime_read_contents,
                     None,
+                    self.file_filter.no_system,
+                    self.file_filter.no_hidden_attrib,
+                    self.file_filter.no_hidden_links,
                 )
                 .collect();
 

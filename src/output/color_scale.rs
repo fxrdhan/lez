@@ -253,6 +253,9 @@ fn update_information_recursively(
                             false,
                             false,
                             None,
+                            filter.no_system,
+                            filter.no_hidden_attrib,
+                            filter.no_hidden_links,
                         )
                         .collect();
 
@@ -414,6 +417,9 @@ mod test {
             since: None,
             no_symlinks: false,
             show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
             collator: None,
         }
     }

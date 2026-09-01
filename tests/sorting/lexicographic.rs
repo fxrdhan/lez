@@ -36,6 +36,9 @@ fn sorted_by(
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator,
     };
 

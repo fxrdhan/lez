@@ -41,6 +41,9 @@ export extern "eza" [
     --all(-a)                  # Show hidden and 'dot' files. Use this twice to also show the '.' and '..' directories
     --almost-all(-A)           # Equivalent to --all; included for compatibility with `ls -A`
     --show-dotfiles            # Show dot-prefixed files without showing other hidden files
+    --no-system                # Do not show system files (Windows only)
+    --no-hidden-attrib         # Do not show entries with the Windows hidden attribute (Windows only)
+    --no-hidden-links          # Do not show Windows hidden profile links / junctions (Windows only)
     --treat-dirs-as-files(-d)  # List directories like regular files
     --level(-L): string        # Limit the depth of recursion
     --width(-w): string        # Limits column output of grid, 0 implies auto-width

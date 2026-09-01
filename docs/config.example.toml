@@ -93,6 +93,15 @@
 # Show dotfiles without showing other hidden entries
 # show_dotfiles = false
 
+# Do not show system files (Windows only)
+# no_system = false
+
+# Do not show entries with the Windows hidden attribute (Windows only)
+# no_hidden_attrib = false
+
+# Do not show Windows hidden profile links / junctions (Windows only)
+# no_hidden_links = false
+
 # List of glob patterns to ignore
 # ignore_globs = ["*.tmp", ".DS_Store", "node_modules"]
 
