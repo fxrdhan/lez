@@ -138,6 +138,7 @@ impl Default for UiStyles {
             flags: Some(Style::default()),
             header: Some(Style::default().underline()),
             hidden_warning: Some(Red.bold()),
+            quote: Some(DarkGray.bold()),
 
             symlink_path: Some(Cyan.normal()),
             control_char: Some(Red.normal()),

@@ -418,6 +418,9 @@
         "flags": {
             "$ref": "#/$defs/style"
         },
+        "quote": {
+            "$ref": "#/$defs/style"
+        },
         "control_char": {
             "$ref": "#/$defs/style"
         },

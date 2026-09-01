@@ -49,6 +49,7 @@ pub struct UiStyles {
     pub octal:        Option<Style>,          // oc
     pub flags:        Option<Style>,          // ff
     pub hidden_warning: Option<Style>,        // hw
+    pub quote:        Option<Style>,          // qu
 
     pub symlink_path:         Option<Style>,  // lp
     pub control_char:         Option<Style>,  // cc
@@ -117,6 +118,7 @@ field_accessors!(
     octal: Option<Style>,
     flags: Option<Style>,
     hidden_warning: Option<Style>,
+    quote: Option<Style>,
     symlink_path: Option<Style>,
     control_char: Option<Style>,
     broken_symlink: Option<Style>,
@@ -591,6 +593,7 @@ impl UiStyles {
             flags: Some(Style::default()),
             header: Some(Style::default()),
             hidden_warning: Some(Style::default()),
+            quote: Some(Style::default()),
 
             symlink_path: Some(Style::default()),
             control_char: Some(Style::default()),
@@ -739,6 +742,7 @@ impl UiStyles {
             "oc" => self.octal                           = Some(pair.to_style()),
             "hw" => self.hidden_warning                  = Some(pair.to_style()),
             "ff" => self.flags                           = Some(pair.to_style()),
+            "qu" => self.quote                           = Some(pair.to_style()),
             "lp" => self.symlink_path                    = Some(pair.to_style()),
             "cc" => self.control_char                    = Some(pair.to_style()),
             "bO" => self.broken_path_overlay             = Some(pair.to_style()),

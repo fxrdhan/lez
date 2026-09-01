@@ -642,6 +642,7 @@ pub struct UiStylesOverride {
     pub octal:        Option<StyleOverride>,          // oc
     pub flags:        Option<StyleOverride>,          // ff
     pub hidden_warning: Option<StyleOverride>,        // hw
+    pub quote:        Option<StyleOverride>,          // qu
 
     pub symlink_path:         Option<StyleOverride>,  // lp
     pub control_char:         Option<StyleOverride>,  // cc
@@ -678,6 +679,7 @@ impl FromOverride<UiStylesOverride> for UiStyles {
             blocks: FromOverride::from(value.blocks, default.blocks),
             header: FromOverride::from(value.header, default.header),
             hidden_warning: FromOverride::from(value.hidden_warning, default.hidden_warning),
+            quote: FromOverride::from(value.quote, default.quote),
             octal: FromOverride::from(value.octal, default.octal),
             flags: FromOverride::from(value.flags, default.flags),
 

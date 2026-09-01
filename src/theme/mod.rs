@@ -652,6 +652,7 @@ impl FileNameColours for Theme {
     fn broken_filename(&self)     -> Style { apply_overlay(self.ui.broken_symlink(), self.ui.broken_path_overlay()) }
     fn control_char(&self)        -> Style { self.ui.control_char() }
     fn broken_control_char(&self) -> Style { apply_overlay(self.ui.control_char(),   self.ui.broken_path_overlay()) }
+    fn quote(&self)               -> Style { self.ui.quote() }
     fn nix_hash(&self)            -> Style { self.ui.punctuation() }
     fn executable_file(&self)     -> Style { self.ui.filekinds.unwrap_or_default().executable() }
     fn mount_point(&self)         -> Style { self.ui.filekinds.unwrap_or_default().mount_point() }
@@ -963,6 +964,7 @@ mod customs_test {
     test!(exa_cc:  ls "", exa "cc=38;5;134"  =>  colours c -> { c.control_char                          = Some(Fixed(134).normal()); });
     test!(exa_oc:  ls "", exa "oc=38;5;135"  =>  colours c -> { c.octal                                 = Some(Fixed(135).normal()); });
     test!(exa_ff:  ls "", exa "ff=38;5;136"  =>  colours c -> { c.flags                                 = Some(Fixed(136).normal()); });
+    test!(exa_qu:  ls "", exa "qu=38;5;137"  =>  colours c -> { c.quote                                 = Some(Fixed(137).normal()); });
     test!(exa_bo:  ls "", exa "bO=4"         =>  colours c -> { c.broken_path_overlay                   = Some(Style::default().underline()); });
 
     test!(exa_mp:  ls "", exa "mp=1;34;4"    =>  colours c -> { c.filekinds().mount_point                 = Some(Blue.bold().underline()); });
