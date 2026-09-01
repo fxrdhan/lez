@@ -238,6 +238,9 @@ pub struct LangStat {
     /// The name and lowercase extension of one counted file, giving the
     /// summary view a representative file to pick the language’s icon from.
     pub rep_file: (String, Option<String>),
+
+    /// Sub-language breakdown for documents containing embedded code blocks.
+    pub embedded: BTreeMap<&'static str, LangStat>,
 }
 
 /// The result of counting a whole tree: a per-language breakdown, ordered by
@@ -245,50 +248,108 @@ pub struct LangStat {
 #[derive(Debug, Default, Clone)]
 pub struct Report {
     languages: BTreeMap<&'static str, LangStat>,
+    total_physical_files: usize,
 }
 
 impl Report {
-    fn add(&mut self, language: &'static Language, counts: LocCounts, path: &Path) {
-        let is_native = language_for_path(path) == Some(language);
-        let stat = self.languages.entry(language.name).or_insert_with(|| {
-            let (name, ext) = if is_native {
-                let name = path
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let ext = path
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .map(str::to_ascii_lowercase);
-                (name, ext)
-            } else {
-                (
-                    language.rep_file.0.to_string(),
-                    language.rep_file.1.map(String::from),
-                )
-            };
-            LangStat {
+    fn add_native(&mut self, language: &'static Language, counts: LocCounts, path: &Path) {
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .to_string();
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(str::to_ascii_lowercase);
+
+        let stat = self
+            .languages
+            .entry(language.name)
+            .or_insert_with(|| LangStat {
                 language,
                 files: 0,
                 counts: LocCounts::default(),
-                rep_file: (name, ext),
-            }
-        });
-        if is_native {
-            let name = path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or_default()
-                .to_string();
-            let ext = path
-                .extension()
-                .and_then(|s| s.to_str())
-                .map(str::to_ascii_lowercase);
-            stat.rep_file = (name, ext);
-        }
+                rep_file: (name.clone(), ext.clone()),
+                embedded: BTreeMap::new(),
+            });
+        stat.rep_file = (name, ext);
         stat.files += 1;
         stat.counts += counts;
+    }
+
+    fn add_markdown(&mut self, breakdown: &[(&'static Language, LocCounts)], path: &Path) {
+        let mut total_counts = LocCounts::default();
+        for (_, c) in breakdown {
+            total_counts += *c;
+        }
+
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .to_string();
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(str::to_ascii_lowercase);
+
+        let md_stat = self
+            .languages
+            .entry(MARKDOWN.name)
+            .or_insert_with(|| LangStat {
+                language: &MARKDOWN,
+                files: 0,
+                counts: LocCounts::default(),
+                rep_file: (name.clone(), ext.clone()),
+                embedded: BTreeMap::new(),
+            });
+        md_stat.rep_file = (name, ext);
+        md_stat.files += 1;
+        md_stat.counts += total_counts;
+
+        let has_embedded = breakdown
+            .iter()
+            .any(|(lang, counts)| !std::ptr::eq(*lang, &MARKDOWN) && counts.lines > 0);
+
+        if has_embedded {
+            for (lang, counts) in breakdown {
+                if counts.lines == 0 {
+                    continue;
+                }
+                if std::ptr::eq(*lang, &MARKDOWN) {
+                    let prose =
+                        md_stat
+                            .embedded
+                            .entry("Text / Markup")
+                            .or_insert_with(|| LangStat {
+                                language: &MARKDOWN,
+                                files: 0,
+                                counts: LocCounts::default(),
+                                rep_file: ("README.md".to_string(), Some("md".to_string())),
+                                embedded: BTreeMap::new(),
+                            });
+                    prose.files += 1;
+                    prose.counts += *counts;
+                } else {
+                    let sub = md_stat
+                        .embedded
+                        .entry(lang.name)
+                        .or_insert_with(|| LangStat {
+                            language: lang,
+                            files: 0,
+                            counts: LocCounts::default(),
+                            rep_file: (
+                                lang.rep_file.0.to_string(),
+                                lang.rep_file.1.map(String::from),
+                            ),
+                            embedded: BTreeMap::new(),
+                        });
+                    sub.files += 1;
+                    sub.counts += *counts;
+                }
+            }
+        }
     }
 
     /// The per-language rows, ordered by language name.
@@ -306,10 +367,14 @@ impl Report {
         total
     }
 
-    /// The total number of counted files.
+    /// The total number of counted physical files.
     #[must_use]
     pub fn total_files(&self) -> usize {
-        self.languages.values().map(|s| s.files).sum()
+        if self.total_physical_files > 0 {
+            self.total_physical_files
+        } else {
+            self.languages.values().map(|s| s.files).sum()
+        }
     }
 
     #[must_use]
@@ -340,19 +405,19 @@ where
         collect_jobs(root, is_ignored, show_hidden, &mut jobs);
     }
 
-    let counted: Vec<Vec<(&'static Language, LocCounts, &PathBuf)>> = jobs
+    enum CountResult<'a> {
+        Native(&'static Language, LocCounts, &'a PathBuf),
+        Markdown(Vec<(&'static Language, LocCounts)>, &'a PathBuf),
+    }
+
+    let counted: Vec<CountResult> = jobs
         .par_iter()
         .filter_map(|(path, lang)| {
             if std::ptr::eq(*lang, &MARKDOWN) {
                 match std::fs::read_to_string(path) {
                     Ok(source) => {
                         let breakdown = count_markdown_source(&source);
-                        let items: Vec<(&'static Language, LocCounts, &PathBuf)> = breakdown
-                            .into_iter()
-                            .filter(|(_, counts)| counts.lines > 0)
-                            .map(|(l, counts)| (l, counts, path))
-                            .collect();
-                        Some(items)
+                        Some(CountResult::Markdown(breakdown, path))
                     }
                     Err(_) => None,
                 }
@@ -360,15 +425,23 @@ where
                 LocCounts::from_path(path, lang)
                     .ok()
                     .flatten()
-                    .map(|counts| vec![(*lang, counts, path)])
+                    .map(|counts| CountResult::Native(lang, counts, path))
             }
         })
         .collect();
 
-    let mut report = Report::default();
-    for items in counted {
-        for (lang, counts, path) in items {
-            report.add(lang, counts, path);
+    let mut report = Report {
+        languages: BTreeMap::new(),
+        total_physical_files: counted.len(),
+    };
+    for res in counted {
+        match res {
+            CountResult::Native(lang, counts, path) => {
+                report.add_native(lang, counts, path);
+            }
+            CountResult::Markdown(breakdown, path) => {
+                report.add_markdown(&breakdown, path);
+            }
         }
     }
     report

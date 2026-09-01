@@ -85,7 +85,12 @@ impl Mode {
         // `--code` is its own standalone tool: it summarises languages rather
         // than listing files, so it takes precedence over the layout flags.
         if let Some(content) = matches.get_one::<CodeContent>("code").copied() {
-            return Ok(Self::Code(code::Options { content }));
+            let sub_files = match config.loc.sub_files.as_deref() {
+                Some("count" | "files" | "number") => code::SubFilesMode::Count,
+                Some("blank" | "empty" | "none") => code::SubFilesMode::Blank,
+                _ => code::SubFilesMode::Symbol,
+            };
+            return Ok(Self::Code(code::Options { content, sub_files }));
         }
 
         let mut long = matches.get_flag("long");
@@ -1960,7 +1965,8 @@ mod tests {
                 &FileConfig::default()
             ),
             Ok(Mode::Code(code::Options {
-                content: CodeContent::Both
+                content: CodeContent::Both,
+                sub_files: code::SubFilesMode::Symbol,
             }))
         );
     }
@@ -1976,7 +1982,8 @@ mod tests {
                 &FileConfig::default()
             ),
             Ok(Mode::Code(code::Options {
-                content: CodeContent::Lines
+                content: CodeContent::Lines,
+                sub_files: code::SubFilesMode::Symbol,
             }))
         );
     }

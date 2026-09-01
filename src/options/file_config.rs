@@ -19,6 +19,7 @@ pub struct FileConfig {
     pub git: GitConfig,
     pub icons: IconsConfig,
     pub theme: ThemeConfigSection,
+    pub loc: LocConfig,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
@@ -85,6 +86,12 @@ pub struct ThemeConfigSection {
     pub color: Option<String>,
     pub color_scale: Option<String>,
     pub color_scale_mode: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "snake_case")]
+pub struct LocConfig {
+    pub sub_files: Option<String>,
 }
 
 impl FileConfig {
@@ -160,6 +167,8 @@ impl FileConfig {
             color_scale,
             color_scale_mode,
         );
+
+        merge_field!(self.loc, other.loc, sub_files);
     }
 
     /// Load and parse a config file from a path (supports TOML or YAML).
