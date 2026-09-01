@@ -38,6 +38,7 @@ tests/tmp
 
 ## Dynamically generated
 tests/test_dir
+tests/timestamp_test_dir
 
 # Miscenallous
 .idea

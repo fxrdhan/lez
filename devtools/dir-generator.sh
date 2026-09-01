@@ -1,149 +1,144 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2024 Christina Sørensen
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+
+set -e
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <output_dir>";
-    exit 1;
+    echo "Usage: $0 <output_dir>"
+    exit 1
 fi
 
-rm "$1" -rf;
-mkdir -p "$1";
-cd "$1" || exit;
+TARGET="$1"
+rm -rf "$TARGET"
+mkdir -p "$TARGET"
+cd "$TARGET" || exit 1
 
-sudo groupadd -f eza_test
+# Portable epoch touch (works on both GNU and BSD/macOS touch)
+touch_epoch() {
+    TZ=UTC touch -t 197001010000.00 "$@"
+}
+
+# Optional groupadd for environments with root / groupadd
+if [ "$(id -u)" -eq 0 ] && command -v groupadd >/dev/null 2>&1; then
+    groupadd -f eza_test 2>/dev/null || true
+fi
 
 # BEGIN grid
 mkdir -p grid
-cd grid || exit
-
-mkdir $(seq -w 001 1000);
-seq 0001 1000 | split -l 1 -a 3 -d - file_
-
-# Set time to unix epoch
-touch --date=@0 ./*;
-
-cd .. || exit
-
+(
+    cd grid || exit 1
+    mkdir $(seq -f '%04g' 1 1000)
+    seq 0001 1000 | split -l 1 -a 3 -d - file_
+    touch_epoch ./*
+)
 # END grid
 
 # BEGIN git
-
 mkdir -p git
-cd git || exit
-
-mkdir $(seq -w 001 10);
-for f in ./*
-do
-    cd "$f" || exit
-    git init
-    seq 01 10 | split -l 1 -a 3 -d - file_
-    cd .. || exit
-done
-
-cd ..
-
+(
+    cd git || exit 1
+    mkdir $(seq -f '%03g' 1 10)
+    for f in ./*; do
+        (
+            cd "$f" || exit 1
+            git init -q -b master 2>/dev/null || git init -q
+            seq 01 10 | split -l 1 -a 3 -d - file_
+            touch_epoch ./*
+        )
+    done
+)
 # END git
 
 # BEGIN test_root
-
-sudo mkdir root
-sudo chmod 777 root
-sudo mkdir root/empty
-
+if [ "$(id -u)" -eq 0 ]; then
+    mkdir -p root/empty
+    chmod 777 root
+fi
 # END test_root
 
 # BEGIN mknod
-
 mkdir -p specials
-
-sudo mknod specials/block-device b  3 60
-sudo mknod specials/char-device  c 14 40
-sudo mknod specials/named-pipe   p
-
-# END test_root
+if [ "$(id -u)" -eq 0 ] && command -v mknod >/dev/null 2>&1; then
+    mknod specials/block-device b 3 60 2>/dev/null || true
+    mknod specials/char-device c 14 40 2>/dev/null || true
+    mknod specials/named-pipe p 2>/dev/null || true
+fi
+# END mknod
 
 # BEGIN test_symlinks
-
 mkdir -p symlinks
-touch symlinks/file --date=@0
-ln -s file symlinks/symlink
-ln -s symlink symlinks/symlink2
+touch symlinks/file
+touch_epoch symlinks/file
+ln -sf file symlinks/symlink
+ln -sf symlink symlinks/symlink2
 mkdir -p symlinks/dir
-ln -s dir symlinks/symlink3
-ln -s pipitek symlinks/symlink4
-touch "symlinks/ lorem ipsum" --date=@0
-ln -s "lorem ipsum" "symlinks/ lorem ipsum"
-
+ln -sf dir symlinks/symlink3
+ln -sf pipitek symlinks/symlink4
+touch "symlinks/ lorem ipsum"
+touch_epoch "symlinks/ lorem ipsum"
 # END test_symlinks
 
 # BEGIN test_perms
-
 mkdir -p perms
-touch perms/file --date=@0
-touch perms/file2 --date=@0
+touch perms/file perms/file2
+touch_epoch perms/file perms/file2
 chmod 777 perms/file
 chmod 001 perms/file2
-
 # END test_perms
 
 # BEGIN test_group
 mkdir -p group
-touch group/file --date=@0
-sudo chgrp eza_test group/file
+touch group/file
+touch_epoch group/file
+if [ "$(id -u)" -eq 0 ] && command -v chgrp >/dev/null 2>&1; then
+    chgrp eza_test group/file 2>/dev/null || true
+fi
 # END test_group
 
 # BEGIN test_size
 mkdir -p size
-touch size/1M --date=@0
-dd if=/dev/zero of=size/1M bs=1 count=0 seek=1M
-touch size/1K --date=@0
-dd if=/dev/zero of=size/1K bs=1 count=0 seek=1K
-touch size/1B --date=@0
-dd if=/dev/zero of=size/1B bs=1 count=0 seek=1
-touch size/1337 --date=@0
-dd if=/dev/zero of=size/1337 bs=1 count=0 seek=1337
+touch size/1M size/1K size/1B size/1337
+touch_epoch size/1M size/1K size/1B size/1337
+dd if=/dev/zero of=size/1M bs=1 count=0 seek=1048576 2>/dev/null || dd if=/dev/zero of=size/1M bs=1 count=0 seek=1M 2>/dev/null
+dd if=/dev/zero of=size/1K bs=1 count=0 seek=1024 2>/dev/null || dd if=/dev/zero of=size/1K bs=1 count=0 seek=1K 2>/dev/null
+dd if=/dev/zero of=size/1B bs=1 count=0 seek=1 2>/dev/null
+dd if=/dev/zero of=size/1337 bs=1 count=0 seek=1337 2>/dev/null
 # END test_size
 
 # BEGIN test_time
 mkdir -p time
-touch time/epoch --date=@0
-touch time/1s --date=@1
-touch time/1m --date=@60
-touch time/1h --date=@3600
-touch time/1d --date=@86400
-touch time/1y --date=@31536000
+TZ=UTC touch -t 197001010000.00 time/epoch
+TZ=UTC touch -t 197001010000.01 time/1s
+TZ=UTC touch -t 197001010001.00 time/1m
+TZ=UTC touch -t 197001010100.00 time/1h
+TZ=UTC touch -t 197001020000.00 time/1d
+TZ=UTC touch -t 197101010000.00 time/1y
 # END test_time
 
 # BEGIN test_icons
 mkdir -p icons
-touch icons/file --date=@0
-touch icons/go.go --date=@0
-touch icons/rust.rs --date=@0
-touch icons/c.c --date=@0
-touch icons/c++.cpp --date=@0
-touch icons/python.py --date=@0
-touch icons/java.java --date=@0
-touch icons/javascript.js --date=@0
-touch icons/html.html --date=@0
-touch icons/css.css --date=@0
-touch icons/php.php --date=@0
-touch icons/ruby.rb --date=@0
-touch icons/shell.sh --date=@0
-touch icons/unknown.unknown --date=@0
-touch icons/man.1 --date=@0
-touch icons/marked.md --date=@0
+touch icons/file icons/go.go icons/rust.rs icons/c.c icons/c++.cpp \
+      icons/python.py icons/java.java icons/javascript.js icons/html.html \
+      icons/css.css icons/php.php icons/ruby.rb icons/shell.sh \
+      icons/unknown.unknown icons/man.1 icons/marked.md
+touch_epoch icons/*
 # END test_icons
 
 # BEGIN test_dirs-ext
 mkdir -p dirs-ext
-mkdir dirs-ext/test
-mkdir dirs-ext/abc
-mkdir dirs-ext/01.city
-mkdir dirs-ext/02.apple
-touch dirs-ext/a.txt --date=@0
-touch dirs-ext/abc.mp3 --date=@0
-touch dirs-ext/ab --date=@0
-# END test_dirs_ext
+mkdir -p dirs-ext/test dirs-ext/abc dirs-ext/01.city dirs-ext/02.apple
+touch dirs-ext/a.txt dirs-ext/abc.mp3 dirs-ext/ab
+touch_epoch dirs-ext/*
+# END test_dirs-ext
 
 # BEGIN set date
-touch --date=@0 ./*;
+touch_epoch ./*
 # END set date
+
+# BEGIN clean xattrs
+if command -v xattr >/dev/null 2>&1; then
+    xattr -rc "$TARGET" 2>/dev/null || true
+fi
+# END clean xattrs
