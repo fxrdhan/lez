@@ -62,6 +62,7 @@ fn test_hungarian_unicode_collation() {
         no_hidden_attrib: false,
         no_hidden_links: false,
         collator: Some(collator),
+        is_explicit_sort: true,
     };
 
     // In Hungarian, 'á' is sorted right after 'a', NOT at the end of the Unicode table after 'z'
@@ -100,6 +101,7 @@ fn test_swedish_unicode_collation() {
         no_hidden_links: false,
         collator: Some(collator),
         ignore_submodule_contents: false,
+        is_explicit_sort: true,
     };
 
     // In Swedish, å, ä, ö are distinct letters at the end of the alphabet (after z)
@@ -137,6 +139,7 @@ fn test_german_unicode_collation() {
         no_hidden_links: false,
         collator: Some(collator),
         ignore_submodule_contents: false,
+        is_explicit_sort: true,
     };
 
     // In German: Äpfel is sorted adjacent to Apfel and before Banane, Über < Uhr
@@ -179,6 +182,7 @@ fn test_spanish_unicode_collation() {
         no_hidden_attrib: false,
         no_hidden_links: false,
         collator: Some(collator),
+        is_explicit_sort: true,
     };
 
     // In Spanish: n < ñ < o => nada < nudo < ñandú < ola
@@ -216,6 +220,7 @@ fn test_natural_numeric_ordering_preserved() {
         no_hidden_links: false,
         collator: Some(collator),
         ignore_submodule_contents: false,
+        is_explicit_sort: true,
     };
 
     let mut files = vec![
@@ -263,6 +268,7 @@ fn test_mixed_accent_and_number_sorting() {
         no_hidden_attrib: false,
         no_hidden_links: false,
         collator: Some(collator),
+        is_explicit_sort: true,
     };
 
     let mut files = vec![
@@ -311,6 +317,7 @@ fn test_case_sensitivity_and_insensitivity() {
         no_hidden_attrib: false,
         no_hidden_links: false,
         collator: Some(collator.clone()),
+        is_explicit_sort: true,
     };
 
     let file_apple_lower = make_file("apple");
@@ -426,6 +433,7 @@ fn test_fallback_to_natord_when_collator_none() {
         no_hidden_attrib: false,
         no_hidden_links: false,
         collator: None,
+        is_explicit_sort: true,
     };
 
     let mut files = vec![

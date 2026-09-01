@@ -357,7 +357,14 @@ impl ValueEnum for SortField {
                 "path-case",
                 "relative-path-case",
             ]),
-            Self::Size => PossibleValue::new("size"),
+            Self::Size => PossibleValue::new("size").aliases([
+                "filesize",
+                "loc",
+                "code",
+                "lines",
+                "percent",
+                "percentage",
+            ]),
             #[cfg(unix)]
             Self::BlockSize => PossibleValue::new("blocks").aliases(vec!["block", "blocksize"]),
             Self::Extension(SortCase::AaBbCc) => PossibleValue::new("ext").alias("extension"),

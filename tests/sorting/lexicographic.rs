@@ -40,6 +40,7 @@ fn sorted_by(
         no_hidden_attrib: false,
         no_hidden_links: false,
         collator,
+        is_explicit_sort: true,
     };
 
     let mut files: Vec<File<'static>> = names.iter().copied().map(make_file).collect();

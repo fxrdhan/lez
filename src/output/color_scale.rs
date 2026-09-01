@@ -421,6 +421,7 @@ mod test {
             no_hidden_attrib: false,
             no_hidden_links: false,
             collator: None,
+            is_explicit_sort: false,
         }
     }
 

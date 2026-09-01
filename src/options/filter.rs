@@ -72,6 +72,9 @@ impl FileFilter {
             } else {
                 *matches.get_one("sort").unwrap()
             };
+        let is_explicit_sort = matches.value_source("sort")
+            == Some(clap::parser::ValueSource::CommandLine)
+            || matches.get_flag("v");
 
         let since = matches.get_one::<std::time::Duration>("since").copied();
         let collator = LocaleCollator::deduce(vars);
@@ -90,6 +93,7 @@ impl FileFilter {
             no_hidden_links,
             flags: filter_flags,
             sort_field,
+            is_explicit_sort,
             dot_filter: DotFilter::deduce(matches, strict, config)?,
             ignore_patterns: IgnorePatterns::deduce(matches, config)?,
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
@@ -828,6 +832,7 @@ mod tests {
                 ignore_submodule_contents: false,
                 flags: vec![],
                 sort_field: SortField::default(),
+                is_explicit_sort: false,
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
@@ -858,6 +863,7 @@ mod tests {
                 ignore_submodule_contents: false,
                 flags: vec![FileFilterFlags::Reverse],
                 sort_field: SortField::default(),
+                is_explicit_sort: false,
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
@@ -888,6 +894,7 @@ mod tests {
                 ignore_submodule_contents: false,
                 flags: vec![FileFilterFlags::OnlyDirs],
                 sort_field: SortField::default(),
+                is_explicit_sort: false,
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_cachedir: IgnoreCacheDir::Off,
@@ -918,6 +925,7 @@ mod tests {
                 ignore_submodule_contents: false,
                 flags: vec![FileFilterFlags::OnlyFiles],
                 sort_field: SortField::default(),
+                is_explicit_sort: false,
                 dot_filter: DotFilter::JustFiles,
                 ignore_cachedir: IgnoreCacheDir::Off,
                 ignore_patterns: IgnorePatterns::empty(),
@@ -953,6 +961,7 @@ mod tests {
                 ignore_submodule_contents: false,
                 flags: vec![],
                 sort_field: SortField::default(),
+                is_explicit_sort: false,
                 ignore_cachedir: IgnoreCacheDir::Off,
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),

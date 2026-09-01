@@ -274,6 +274,9 @@ pub struct FileFilter {
 
     /// Optional locale-aware collator for Unicode sorting.
     pub collator: Option<LocaleCollator>,
+
+    /// Whether sorting was explicitly specified on the command line or config.
+    pub is_explicit_sort: bool,
 }
 
 impl FileFilter {
@@ -443,6 +446,12 @@ impl FileFilter {
                     .is_ignored_path(&f.path, &f.name)
         });
         files.retain(|f| self.matches_file_type_filters(f, is_tree));
+    }
+
+    /// Whether reverse sorting is enabled.
+    #[must_use]
+    pub fn is_reverse(&self) -> bool {
+        self.flags.contains(&FileFilterFlags::Reverse)
     }
 
     /// Sort the files in the given vector based on the sort field option and locale collator.
@@ -1193,6 +1202,7 @@ mod test_ignores {
             no_hidden_attrib: false,
             no_hidden_links: false,
             collator: None,
+            is_explicit_sort: false,
         };
         assert!(filter_default.is_file_included(&file_cargo));
         assert!(filter_default.is_file_included(&dir_src));
@@ -1335,6 +1345,7 @@ mod test_ignores {
             no_hidden_attrib: false,
             no_hidden_links: false,
             collator: None,
+            is_explicit_sort: false,
         };
         assert!(filter_none.matches_since(&file_cargo));
         assert!(filter_none.is_file_included(&file_cargo));
@@ -1404,6 +1415,7 @@ mod test_ignores {
             no_hidden_attrib: false,
             no_hidden_links: false,
             collator: None,
+            is_explicit_sort: false,
         };
 
         // When is_tree is false (e.g. -d -f), directories are filtered out
@@ -1452,6 +1464,7 @@ mod test_ignores {
             no_hidden_attrib: false,
             no_hidden_links: false,
             collator: Some(hu_collator),
+            is_explicit_sort: false,
         };
 
         let file_zene =

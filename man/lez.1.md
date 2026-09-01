@@ -222,6 +222,8 @@ Alias: `--no-junctions`.
 
 Valid sort fields are ‘`name`’, ‘`Name`’, ‘`lexicographic`’, ‘`Lexicographic`’, ‘`extension`’, ‘`Extension`’, ‘`path`’, ‘`Path`’, ‘`size`’, ‘`block`’ [Unix only], ‘`modified`’, ‘`changed`’, ‘`accessed`’, ‘`created`’, ‘`inode`’, ‘`type`’, and ‘`none`’.
 
+The ‘`size`’ sort field has the aliases ‘`filesize`’, ‘`loc`’, ‘`code`’, ‘`lines`’, ‘`percent`’, and ‘`percentage`’. When used with ‘`--code`’, it controls ascending or descending sort order for lines of code and percentages.
+
 The ‘`block`’ sort field has the aliases ‘`blocks`’ and ‘`blocksize`’.
 
 The ‘`lexicographic`’ and ‘`Lexicographic`’ sort fields have the aliases ‘`lex`’ (‘`Lex`’) and ‘`lg`’ (‘`Lg`’). They compare names one code point at a time, without the natural ordering of digit runs that every other name field applies and without locale collation, so ‘`--sort=Lexicographic`’ gives the same order as ‘`ls`’ under the C locale. Use them for names that only look numeric, such as hexadecimal identifiers, where treating digit runs as numbers scatters related files.

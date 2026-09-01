@@ -13,5 +13,7 @@ mod hidden_entries;
 mod markdown_code_blocks;
 #[path = "loc_engine/percent_digits.rs"]
 mod percent_digits;
+#[path = "loc_engine/sorting_and_tree.rs"]
+mod sorting_and_tree;
 #[path = "loc_engine/syntax_edge_cases.rs"]
 mod syntax_edge_cases;
