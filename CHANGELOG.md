@@ -8,6 +8,27 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.28.1] - 2026-09-02
+
+### Features & Flag Updates
+
+- **Lines of Code Sorting**: Add full sorting support for `--code` mode, including default descending by LOC/percentage, ascending (`-r` / `--reverse`), alphabetical (`-s name`), and sort aliases (`percent`, `loc`, `code`, `lines`).
+- **Configurable Percentage Decimal Precision**: Add `--percent-digits=<NUM>` CLI flag, `LEZ_PERCENT_DIGITS` environment variable, and `[code] percent_digits` / `[loc] percent_digits` config options to configure decimal precision (0–6 digits) for `--code` and `--loc` columns.
+- **Sub-Language Tree Indentation**: Perfectly align sub-language tree branches (`├── ` and `└── `) flush left directly beneath parent language rows.
+
+### Performance Optimizations
+
+- **Inner Lexer Hot-Path Filter**: Add fast-path first-byte delimiter candidate filter in `classify_line`, bypassing repetitive comment comparisons on regular code tokens and advancing multi-byte chunks in a single step.
+- **Directory Traversal Syscall Reduction**: Leverage `d_type` directly from `DirEntry::file_type()` in `collect_jobs`, eliminating redundant `symlink_metadata` syscalls per child entry.
+- **In-Memory `.gitignore` Path Resolution**: Canonicalize repository workdir once and resolve relative paths in memory, eliminating thousands of disk syscalls during repository scanning.
+- **LOC Count Memoization**: Add `OnceLock<Option<LocCounts>>` caching to `File` struct, eliminating duplicate disk reads and parsing when `--loc=both` is used in long view.
+- **Zero-Allocation Aggregation**: Streamline representative file extraction in `Report::add_native` / `add_markdown` to run once per language insertion, eliminating tens of thousands of heap allocations per scan.
+
+### Bug Fixes
+
+- Fix `-r` flag deduction in `--code` mode to reverse sort order instead of conflicting with traversal options.
+- Fix tree branch indentation offset in code view.
+
 ## [0.28.0] - 2026-09-01
 
 ### Features & Flag Updates
