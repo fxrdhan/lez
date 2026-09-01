@@ -5,6 +5,8 @@
 
 mod common;
 
+#[path = "os_metadata/bsd_flags_resilience.rs"]
+mod bsd_flags_resilience;
 #[path = "os_metadata/fuse_remote_fs_resilience.rs"]
 mod fuse_remote_fs_resilience;
 #[path = "os_metadata/linux_caps_selinux_resilience.rs"]

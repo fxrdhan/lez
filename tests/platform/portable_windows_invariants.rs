@@ -11,12 +11,61 @@
 //! Note: These tests run portably across macOS, Linux, and Windows runners.
 
 use std::ffi::OsString;
-use std::path::Path;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use lez::fs::File;
 use lez::options::Options;
 use lez::options::parser::get_command;
 use lez::options::vars::Vars;
+
+fn bin_path() -> PathBuf {
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    if path.ends_with("deps") {
+        path.pop();
+    }
+    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
+}
+
+struct WindowsTestDir {
+    path: PathBuf,
+}
+
+impl WindowsTestDir {
+    fn new(prefix: &str) -> Self {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "lez_win_inv_{prefix}_{}_{}",
+            std::process::id(),
+            nanos
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).expect("Failed to create temp dir");
+        Self { path }
+    }
+
+    fn create_file(&self, name: &str, content: &[u8]) -> PathBuf {
+        let p = self.path.join(name);
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        let mut f = std::fs::File::create(&p).unwrap();
+        f.write_all(content).unwrap();
+        p
+    }
+}
+
+impl Drop for WindowsTestDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
 
 #[test]
 fn test_windows_separator_normalization_in_path_arguments() {
@@ -218,4 +267,109 @@ fn test_portable_windows_attribute_flags_invariants() {
         decode_flags(extended_mask | FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_HIDDEN),
         "-H-A"
     );
+}
+
+#[test]
+fn test_windows_cli_unc_and_drive_syntax_error_isolation() {
+    // Validate that passing Windows drive syntax or UNC prefixes does not cause panic or crash
+    for candidate in [
+        r"C:\non_existent_folder_12345",
+        r"\\?\C:\non_existent_folder_67890",
+        r"\\.\PhysicalDrive0",
+    ] {
+        let output = Command::new(bin_path())
+            .arg(candidate)
+            .output()
+            .expect("lez binary should execute without panic");
+
+        // Non-existent paths exit code 2 without panic
+        if !cfg!(windows) {
+            assert_eq!(
+                output.status.code(),
+                Some(2),
+                "Missing Windows path {candidate} should exit with code 2"
+            );
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains("panicked"),
+            "lez must never panic on Windows syntax {candidate}: {stderr}"
+        );
+    }
+}
+
+#[test]
+fn test_case_insensitive_glob_filtering_on_real_filesystem() {
+    let dir = WindowsTestDir::new("ci_glob");
+    dir.create_file("Document.PDF", b"pdf");
+    dir.create_file("DOCUMENT.TXT", b"txt");
+    dir.create_file("document.log", b"log");
+    dir.create_file("image.PNG", b"png");
+    dir.create_file("IMAGE.jpg", b"jpg");
+
+    // 1. Filter out *.pdf and *.png case-insensitively
+    let output = Command::new(bin_path())
+        .arg("--ignore-glob-ci=*.pdf|*.png")
+        .arg(&dir.path)
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Document.PDF and image.PNG must be ignored
+    assert!(
+        !stdout.contains("Document.PDF"),
+        "Document.PDF should be ignored: {stdout}"
+    );
+    assert!(
+        !stdout.contains("image.PNG"),
+        "image.PNG should be ignored: {stdout}"
+    );
+
+    // Other files must remain visible
+    assert!(
+        stdout.contains("DOCUMENT.TXT"),
+        "DOCUMENT.TXT should be visible: {stdout}"
+    );
+    assert!(
+        stdout.contains("document.log"),
+        "document.log should be visible: {stdout}"
+    );
+    assert!(
+        stdout.contains("IMAGE.jpg"),
+        "IMAGE.jpg should be visible: {stdout}"
+    );
+
+    // 2. Filter out document.* case-insensitively
+    let output_doc = Command::new(bin_path())
+        .arg("--ignore-glob-ci=document.*")
+        .arg(&dir.path)
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output_doc.status.success());
+    let stdout_doc = String::from_utf8_lossy(&output_doc.stdout);
+
+    assert!(!stdout_doc.contains("Document.PDF"));
+    assert!(!stdout_doc.contains("DOCUMENT.TXT"));
+    assert!(!stdout_doc.contains("document.log"));
+    assert!(stdout_doc.contains("image.PNG"));
+    assert!(stdout_doc.contains("IMAGE.jpg"));
+}
+
+#[test]
+fn test_ntfs_ads_argument_cli_safe_handling() {
+    for ads_path in ["file.txt:Zone.Identifier", "archive.zip:summary:$DATA"] {
+        let output = Command::new(bin_path())
+            .arg(ads_path)
+            .output()
+            .expect("lez binary should execute without panic");
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains("panicked"),
+            "lez must never panic on ADS path {ads_path}: {stderr}"
+        );
+    }
 }
