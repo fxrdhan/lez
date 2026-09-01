@@ -105,8 +105,9 @@ Work an unread upstream report in this order:
 | [#1768](https://github.com/eza-community/eza/issues/1768), [#1417](https://github.com/eza-community/eza/issues/1417), [#1720](https://github.com/eza-community/eza/issues/1720) | Granular Windows hidden-entry visibility controls: `--show-dotfiles`, `--no-system` (alias `--hide-system`), `--no-hidden-attrib` (alias `--hide-hidden-attrib`), `--no-hidden-links` (alias `--no-junctions`), and `config.toml` filter options. |
 | [#139](https://github.com/eza-community/eza/issues/139), [#766](https://github.com/eza-community/eza/issues/766), [#770](https://github.com/eza-community/eza/pull/770), [#812](https://github.com/eza-community/eza/issues/812), [#1587](https://github.com/eza-community/eza/issues/1587), [#1707](https://github.com/eza-community/eza/issues/1707), [#1875](https://github.com/eza-community/eza/issues/1875) | Configuration file for option defaults (`config.toml`, `.lez.toml`), `--config`, `--no-config`, `LEZ_CONFIG_FILE` |
 | [#1823](https://github.com/eza-community/eza/issues/1823) | Configurable Git indicator status glyphs and repository status glyphs in `theme.yml` under `git` and `git_repo` (`glyph: "..."`) alongside `--git-glyphs`. |
+| [#1466](https://github.com/eza-community/eza/issues/1466) | `--context` / `-Z` SELinux MCS translation support (`selinux_raw_to_trans_context`) on Linux. |
 
-*Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` yes, `-N` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no), [#1466](https://github.com/eza-community/eza/issues/1466) (`--context` yes, MCS translation no).
+*Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` yes, `-N` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no).
 
 ### Reproduced and Fixed in `lez`
 

@@ -84,6 +84,9 @@ impl FileAttributes for Path {
     }
 }
 
+#[cfg(target_os = "linux")]
+pub use extended_attrs::translate_selinux_context;
+
 #[cfg(any(
     target_os = "macos",
     target_os = "linux",
@@ -454,6 +457,81 @@ mod extended_attrs {
                 Vec::new()
             }
         })
+    }
+
+    /// Translates raw SELinux context into human-readable MCS context using libselinux
+    /// (equivalent to `selinux_raw_to_trans_context`), if mcstrans is active.
+    #[cfg(target_os = "linux")]
+    pub fn translate_selinux_context(raw: &str) -> Option<String> {
+        use std::sync::OnceLock;
+
+        type RawToTransFn =
+            unsafe extern "C" fn(*const libc::c_char, *mut *mut libc::c_char) -> libc::c_int;
+        type FreeConFn = unsafe extern "C" fn(*mut libc::c_char);
+
+        struct SelinuxLib {
+            raw_to_trans: RawToTransFn,
+            freecon: Option<FreeConFn>,
+        }
+
+        static LIBSELINUX: OnceLock<Option<SelinuxLib>> = OnceLock::new();
+
+        let lib = LIBSELINUX.get_or_init(|| unsafe {
+            let lib_name = CString::new("libselinux.so.1").ok()?;
+            let handle = libc::dlopen(lib_name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL);
+            if handle.is_null() {
+                return None;
+            }
+
+            let fn_name = CString::new("selinux_raw_to_trans_context").ok()?;
+            let sym = libc::dlsym(handle, fn_name.as_ptr());
+            if sym.is_null() {
+                libc::dlclose(handle);
+                return None;
+            }
+
+            let raw_to_trans: RawToTransFn =
+                std::mem::transmute::<*mut libc::c_void, RawToTransFn>(sym);
+
+            let freecon_name = CString::new("freecon").ok()?;
+            let freecon_sym = libc::dlsym(handle, freecon_name.as_ptr());
+            let freecon: Option<FreeConFn> = if !freecon_sym.is_null() {
+                Some(std::mem::transmute::<*mut libc::c_void, FreeConFn>(
+                    freecon_sym,
+                ))
+            } else {
+                None
+            };
+
+            Some(SelinuxLib {
+                raw_to_trans,
+                freecon,
+            })
+        });
+
+        let selinux = lib.as_ref()?;
+        let c_raw = CString::new(raw).ok()?;
+        let mut trans_ptr: *mut libc::c_char = std::ptr::null_mut();
+
+        let ret = unsafe { (selinux.raw_to_trans)(c_raw.as_ptr(), &mut trans_ptr) };
+        if ret != 0 || trans_ptr.is_null() {
+            return None;
+        }
+
+        let trans_str = unsafe { CStr::from_ptr(trans_ptr) }
+            .to_str()
+            .ok()
+            .map(|s| s.to_owned());
+
+        unsafe {
+            if let Some(freecon_fn) = selinux.freecon {
+                freecon_fn(trans_ptr);
+            } else {
+                libc::free(trans_ptr.cast());
+            }
+        }
+
+        trans_str
     }
 
     // Fast probe to check if any extended attributes exist without fetching their values

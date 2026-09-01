@@ -1280,6 +1280,8 @@ impl<'dir> File<'dir> {
     /// This file’s security context field.
     #[cfg(unix)]
     pub fn security_context(&self) -> f::SecurityContext<'_> {
+        use std::borrow::Cow;
+
         let context = match self
             .extended_attributes()
             .iter()
@@ -1288,7 +1290,24 @@ impl<'dir> File<'dir> {
             Some(attr) => match &attr.value {
                 None => SecurityContextType::None,
                 Some(value) => match str::from_utf8(value) {
-                    Ok(v) => SecurityContextType::SELinux(v.trim_end_matches(char::from(0))),
+                    Ok(v) => {
+                        let raw = v.trim_end_matches(char::from(0));
+                        #[cfg(target_os = "linux")]
+                        {
+                            if let Some(trans) =
+                                crate::fs::feature::xattr::translate_selinux_context(raw)
+                            {
+                                SecurityContextType::SELinux(Cow::Owned(trans))
+                            } else {
+                                SecurityContextType::SELinux(Cow::Borrowed(raw))
+                            }
+                        }
+
+                        #[cfg(not(target_os = "linux"))]
+                        {
+                            SecurityContextType::SELinux(Cow::Borrowed(raw))
+                        }
+                    }
                     Err(_) => SecurityContextType::None,
                 },
             },
