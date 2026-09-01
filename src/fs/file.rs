@@ -145,6 +145,9 @@ pub struct File<'dir> {
 
     /// The MIME type of this file.
     mimetype: OnceLock<Option<&'static str>>,
+
+    /// Cached Lines of Code counts for this file.
+    loc: OnceLock<Option<crate::loc::LocCounts>>,
 }
 
 /// Windows has no `.` or `..` entry on disk: a path ending in one is resolved
@@ -244,6 +247,7 @@ impl<'dir> File<'dir> {
             extended_attributes: OnceLock::new(),
             absolute_path: OnceLock::new(),
             mimetype: OnceLock::new(),
+            loc: OnceLock::new(),
         };
 
         if total_size {
@@ -287,6 +291,7 @@ impl<'dir> File<'dir> {
             extended_attributes: OnceLock::new(),
             filetype: OnceLock::new(),
             mimetype: OnceLock::new(),
+            loc: OnceLock::new(),
         };
 
         if total_size {
@@ -533,13 +538,15 @@ impl<'dir> File<'dir> {
     /// isn’t a readable, regular file in a recognised language — that is,
     /// directories, links, unknown extensions, and binaries.
     pub fn loc(&self) -> Option<crate::loc::LocCounts> {
-        if !self.is_file() {
-            return None;
-        }
-        let lang = self.language()?;
-        crate::loc::LocCounts::from_path(&self.path, lang)
-            .ok()
-            .flatten()
+        *self.loc.get_or_init(|| {
+            if !self.is_file() {
+                return None;
+            }
+            let lang = self.language()?;
+            crate::loc::LocCounts::from_path(&self.path, lang)
+                .ok()
+                .flatten()
+        })
     }
 
     /// Whether this file is both a regular file *and* executable for the
@@ -789,6 +796,7 @@ impl<'dir> File<'dir> {
                     mime_read_contents: self.mime_read_contents,
                     dot_filter: self.dot_filter,
                     mimetype: OnceLock::new(),
+                    loc: OnceLock::new(),
                 };
                 FileTarget::Ok(Box::new(file))
             }

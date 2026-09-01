@@ -128,6 +128,14 @@ impl LocCounts {
     }
 }
 
+#[inline(always)]
+fn is_candidate_comment_or_quote(b: u8) -> bool {
+    matches!(
+        b,
+        b'/' | b'#' | b'-' | b'%' | b';' | b'"' | b'\'' | b'=' | b'<' | b'{' | b'(' | b'!'
+    )
+}
+
 /// Classify a single physical line, updating `block` with any block-comment
 /// state that carries over to the next line. Returns `(has_code, has_comment)`.
 fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) -> (bool, bool) {
@@ -153,6 +161,18 @@ fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) 
         rest = rest.trim_start();
         if rest.is_empty() {
             break;
+        }
+
+        let first_byte = rest.as_bytes()[0];
+        if !is_candidate_comment_or_quote(first_byte) {
+            has_code = true;
+            let advance = rest
+                .bytes()
+                .take_while(|&b| !is_candidate_comment_or_quote(b) && !b.is_ascii_whitespace())
+                .count()
+                .max(1);
+            rest = &rest[advance..];
+            continue 'scan;
         }
 
         // A block comment opener starts a (possibly multi-line) comment.
@@ -253,27 +273,24 @@ pub struct Report {
 
 impl Report {
     fn add_native(&mut self, language: &'static Language, counts: LocCounts, path: &Path) {
-        let name = path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_string();
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(str::to_ascii_lowercase);
-
-        let stat = self
-            .languages
-            .entry(language.name)
-            .or_insert_with(|| LangStat {
+        let stat = self.languages.entry(language.name).or_insert_with(|| {
+            let name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_string();
+            let ext = path
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(str::to_ascii_lowercase);
+            LangStat {
                 language,
                 files: 0,
                 counts: LocCounts::default(),
-                rep_file: (name.clone(), ext.clone()),
+                rep_file: (name, ext),
                 embedded: BTreeMap::new(),
-            });
-        stat.rep_file = (name, ext);
+            }
+        });
         stat.files += 1;
         stat.counts += counts;
     }
@@ -284,27 +301,24 @@ impl Report {
             total_counts += *c;
         }
 
-        let name = path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_string();
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(str::to_ascii_lowercase);
-
-        let md_stat = self
-            .languages
-            .entry(MARKDOWN.name)
-            .or_insert_with(|| LangStat {
+        let md_stat = self.languages.entry(MARKDOWN.name).or_insert_with(|| {
+            let name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_string();
+            let ext = path
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(str::to_ascii_lowercase);
+            LangStat {
                 language: &MARKDOWN,
                 files: 0,
                 counts: LocCounts::default(),
-                rep_file: (name.clone(), ext.clone()),
+                rep_file: (name, ext),
                 embedded: BTreeMap::new(),
-            });
-        md_stat.rep_file = (name, ext);
+            }
+        });
         md_stat.files += 1;
         md_stat.counts += total_counts;
 
@@ -460,8 +474,18 @@ fn collect_jobs<F>(
     let Ok(meta) = std::fs::symlink_metadata(path) else {
         return;
     };
-    let file_type = meta.file_type();
+    collect_entry(path, meta.file_type(), is_ignored, show_hidden, jobs);
+}
 
+fn collect_entry<F>(
+    path: &Path,
+    file_type: std::fs::FileType,
+    is_ignored: &F,
+    show_hidden: bool,
+    jobs: &mut Vec<(PathBuf, &'static Language)>,
+) where
+    F: Fn(&Path) -> bool,
+{
     // Never follow symlinks: it risks cycles and double-counting.
     if file_type.is_symlink() {
         return;
@@ -488,12 +512,12 @@ fn collect_jobs<F>(
         };
         for entry in entries.flatten() {
             let name = entry.file_name();
-            let name = name.to_string_lossy();
+            let name_bytes = name.as_encoded_bytes();
 
             // A repository's own directory is never source, and it holds
             // thousands of files, so it stays out even when hidden entries
             // are wanted.
-            if name == ".git" {
+            if name_bytes == b".git" {
                 continue;
             }
 
@@ -502,7 +526,7 @@ fn collect_jobs<F>(
             // too — and for `--loc` percentages it is not optional: the
             // denominator has to cover the same files as the numerator, or a
             // hidden file reports more than 100% of the tree.
-            if !show_hidden && name.starts_with('.') {
+            if !show_hidden && name_bytes.first() == Some(&b'.') {
                 continue;
             }
 
@@ -510,7 +534,12 @@ fn collect_jobs<F>(
             if is_ignored(&child) {
                 continue;
             }
-            collect_jobs(&child, is_ignored, show_hidden, jobs);
+
+            let Ok(child_ft) = entry.file_type() else {
+                continue;
+            };
+
+            collect_entry(&child, child_ft, is_ignored, show_hidden, jobs);
         }
     }
 }
@@ -525,12 +554,19 @@ pub fn count_roots(roots: &[PathBuf], show_hidden: bool) -> Report {
         if let Some(first) = roots.first()
             && let Ok(repo) = git2::Repository::discover(first)
         {
-            // `is_path_ignored` wants a path it can resolve against the work
-            // tree; a `./`-prefixed relative path (as produced by walking `.`)
-            // confuses it, so canonicalise first, falling back to the raw path.
+            let workdir = repo.workdir().and_then(|w| {
+                std::fs::canonicalize(w)
+                    .ok()
+                    .or_else(|| Some(w.to_path_buf()))
+            });
             let is_ignored = |p: &Path| {
-                let resolved = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
-                repo.is_path_ignored(&resolved).unwrap_or(false)
+                if let Some(ref wd) = workdir
+                    && let Ok(rel) = p.strip_prefix(wd)
+                {
+                    return repo.is_path_ignored(rel).unwrap_or(false);
+                }
+                let clean = p.strip_prefix(".").unwrap_or(p);
+                repo.is_path_ignored(clean).unwrap_or(false)
             };
             return count_tree(roots, &is_ignored, show_hidden);
         }
