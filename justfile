@@ -56,8 +56,22 @@ genDemo:
 # generate code coverage report via cargo-llvm-cov
 [group('testing')]
 @coverage:
-    cargo llvm-cov nextest --features git,inspect-archives --workspace
-    cargo llvm-cov report
+    bash devtools/coverage.sh report
+
+# generate HTML code coverage report
+[group('testing')]
+@coverage-html:
+    bash devtools/coverage.sh html
+
+# generate lcov.info code coverage report
+[group('testing')]
+@coverage-lcov:
+    bash devtools/coverage.sh lcov
+
+# check automated code coverage gate
+[group('testing')]
+@coverage-gate threshold="70":
+    bash devtools/coverage.sh gate {{ threshold }}
 
 #-----------------------#
 # code quality and misc #

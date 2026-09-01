@@ -11,5 +11,6 @@ components = [
   "rust-analyzer",
   "cargo",
   "clippy",
+  "llvm-tools-preview",
 ]
 profile = "minimal"

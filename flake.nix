@@ -143,6 +143,7 @@
               cargo-hack
               cargo-udeps
               cargo-outdated
+              cargo-llvm-cov
             ]
             ++ darwinBuildInputs;
         };

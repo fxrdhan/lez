@@ -3,10 +3,12 @@ A modern, fast, and feature-rich replacement for ls written in Rust
 Usage: lez [OPTIONS] [FILE]...
 
 META OPTIONS:
-      --stdin    read file names from stdin
-  -?, --help     Print help
-      --version  Print version
-  -v             sort numerically within names, as `ls -v` does (the default)
+      --stdin          read file names from stdin
+      --config <PATH>  load custom configuration file
+      --no-config      do not read any configuration file
+  -?, --help           Print help
+      --version        Print version
+  -v                   sort numerically within names, as `ls -v` does (the default)
 
 LAYOUT OPTIONS:
   -1, --oneline           display one entry per line
@@ -86,7 +88,8 @@ LONG VIEW OPTIONS:
   -b, --binary               show file sizes with binary prefixes
   -B, --bytes                show file sizes in bytes, without any prefixes
       --total-size           show the size of a directory as the one of its content (unix only)
-  -S, --blocksize            list size of allocated file system blocks
+  -S, --blocksize            list size of allocated file system blocks in bytes
+      --blocks               list number of allocated file system blocks
   -g, --group                list each file's group
       --smart-group          only show group if it has a different name from owner
   -n, --numeric              show user and group as their numeric IDs
@@ -113,6 +116,7 @@ LONG VIEW OPTIONS:
   -e, --tags                 list each file's color tags stored in extended attributes
       --no-permissions       suppress the permissions field
       --no-filesize          suppress the filesize field
+      --size-digits <NUM>    number of digits to display for file sizes (1..=8, default: 3)
       --no-user              suppress the user field
       --no-time              suppress the time field
       --no-git               suppress Git fields (overrides --git, --git-repos,

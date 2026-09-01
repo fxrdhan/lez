@@ -16,28 +16,22 @@ use std::io::{self, BufWriter, ErrorKind, IsTerminal, Read, Write, stdin};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
+use log::*;
 use nu_ansi_term::{AnsiStrings as ANSIStrings, Style};
-use options::parser::{get_command, normalize_args};
 
-use crate::fs::feature::git::GitCache;
-use crate::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
-use crate::fs::{Dir, File, shell_globs};
-use crate::options::stdin::FilesInput;
-use crate::options::{Options, Vars, vars};
-use crate::output::{
+use lez::fs::feature::git::GitCache;
+use lez::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
+use lez::fs::{Dir, File, shell_globs};
+use lez::logger;
+use lez::options::parser::{get_command, normalize_args};
+use lez::options::stdin::FilesInput;
+use lez::options::{Options, Vars, vars};
+use lez::output::summary::Summary;
+use lez::output::{
     Mode, View, code, details, escape, file_name, grid, grid_details, hidden_count::HiddenCount,
     json, lines,
 };
-use crate::theme::Theme;
-use log::*;
-
-mod fs;
-mod info;
-mod loc;
-mod logger;
-mod options;
-mod output;
-mod theme;
+use lez::theme::Theme;
 
 fn main() {
     #[cfg(unix)]
@@ -563,7 +557,7 @@ impl Lez<'_> {
                                         .as_ref()
                                         .is_some_and(|git| git.is_submodule_path(&f.path)))
                         })
-                        .map(fs::File::to_dir)
+                        .map(File::to_dir)
                         .collect::<Vec<Dir>>();
 
                     self.print_files(Some(dir), children)?;
@@ -622,11 +616,7 @@ impl Lez<'_> {
             }
             if self.options.view.summary {
                 let show_icons = self.options.view.file_style.are_icons_enabled();
-                crate::output::summary::Summary::new().render(
-                    &self.theme,
-                    show_icons,
-                    &mut self.writer,
-                )?;
+                Summary::new().render(&self.theme, show_icons, &mut self.writer)?;
             }
             return Ok(());
         }
@@ -662,7 +652,7 @@ impl Lez<'_> {
                 .recurse_options()
                 .is_none_or(|r| !r.tree)
         {
-            Some(crate::output::summary::Summary::from_files(&files))
+            Some(Summary::from_files(&files))
         } else {
             None
         };
