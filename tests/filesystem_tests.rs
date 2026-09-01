@@ -31,3 +31,5 @@ mod since_duration;
 mod total_size;
 #[path = "filesystem/warn_hidden.rs"]
 mod warn_hidden;
+#[path = "filesystem/windows_visibility.rs"]
+mod windows_visibility;

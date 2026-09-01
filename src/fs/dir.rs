@@ -143,6 +143,9 @@ impl Dir {
         total_size: bool,
         mime_read_contents: bool,
         hidden_count: Option<&'hc mut HiddenCount>,
+        no_system: bool,
+        no_hidden_attrib: bool,
+        no_hidden_links: bool,
     ) -> Files<'dir, 'ig, 'hc> {
         Files {
             inner: self.contents.iter(),
@@ -152,6 +155,12 @@ impl Dir {
             dotfiles: dots.shows_dotfiles(),
             #[cfg(windows)]
             windows_hidden: dots.shows_windows_hidden(),
+            #[cfg(windows)]
+            no_system,
+            #[cfg(windows)]
+            no_hidden_attrib,
+            #[cfg(windows)]
+            no_hidden_links,
             dots: dots.dots(),
             git,
             git_ignoring,
@@ -200,6 +209,9 @@ impl Dir {
             false,
             mime_read_contents,
             None,
+            false,
+            false,
+            false,
         ) {
             if file.is_directory() {
                 #[cfg(unix)]
@@ -257,6 +269,18 @@ pub struct Files<'dir, 'ig, 'hc> {
     #[cfg(windows)]
     /// Whether Windows hidden-attribute entries should be visible.
     windows_hidden: bool,
+
+    #[cfg(windows)]
+    /// Whether Windows system-attribute entries should be suppressed.
+    no_system: bool,
+
+    #[cfg(windows)]
+    /// Whether Windows hidden-attribute entries should be suppressed.
+    no_hidden_attrib: bool,
+
+    #[cfg(windows)]
+    /// Whether Windows hidden profile links / junctions should be suppressed.
+    no_hidden_links: bool,
 
     /// Whether the `.` or `..` directories should be produced first, before
     /// any files have been listed.
@@ -331,14 +355,37 @@ impl<'dir> Files<'dir, '_, '_> {
                     Some(self.dot_filter),
                 );
 
-                // Windows has its own concept of hidden files, when dotfiles are
-                // hidden Windows hidden files should also be filtered out
+                // Windows visibility filters
                 #[cfg(windows)]
-                if !self.windows_hidden && file.attributes().is_some_and(|a| a.hidden) {
-                    if let Some(count) = &mut self.hidden_count {
-                        count.inc_hidden();
+                if let Some(attrs) = file.attributes() {
+                    if self.no_system && attrs.system {
+                        if let Some(count) = &mut self.hidden_count {
+                            count.inc_hidden();
+                        }
+                        continue;
                     }
-                    continue;
+
+                    if self.no_hidden_attrib && attrs.hidden {
+                        if let Some(count) = &mut self.hidden_count {
+                            count.inc_hidden();
+                        }
+                        continue;
+                    }
+
+                    if self.no_hidden_links && attrs.reparse_point && (attrs.hidden || attrs.system)
+                    {
+                        if let Some(count) = &mut self.hidden_count {
+                            count.inc_hidden();
+                        }
+                        continue;
+                    }
+
+                    if !self.windows_hidden && attrs.hidden {
+                        if let Some(count) = &mut self.hidden_count {
+                            count.inc_hidden();
+                        }
+                        continue;
+                    }
                 }
 
                 return Some(file);
@@ -457,7 +504,7 @@ mod windows_tests {
     use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_ATTRIBUTE_HIDDEN, GetFileAttributesW, SetFileAttributesW,
+        FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_SYSTEM, GetFileAttributesW, SetFileAttributesW,
     };
 
     fn unique_temp_dir() -> std::path::PathBuf {
@@ -486,6 +533,25 @@ mod windows_tests {
         }
     }
 
+    fn set_system_and_hidden(path: &Path) {
+        let wide = path
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        unsafe {
+            let attrs = GetFileAttributesW(wide.as_ptr());
+            assert_ne!(attrs, u32::MAX);
+            assert_ne!(
+                SetFileAttributesW(
+                    wide.as_ptr(),
+                    attrs | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN
+                ),
+                0
+            );
+        }
+    }
+
     #[test]
     fn show_dotfiles_does_not_show_windows_hidden_attributes() {
         let path = unique_temp_dir();
@@ -503,12 +569,46 @@ mod windows_tests {
                 false,
                 false,
                 None,
+                false,
+                false,
+                false,
             )
             .map(|file| file.name)
             .collect();
         assert!(names.contains(&".dotfile".to_string()));
         assert!(names.contains(&"_underscore".to_string()));
         assert!(!names.contains(&"hidden.txt".to_string()));
+        let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn test_no_system_filters_system_attribute_files() {
+        let path = unique_temp_dir();
+        fs::write(path.join(".dotfile"), "").unwrap();
+        fs::write(path.join("regular.txt"), "").unwrap();
+        fs::write(path.join("NTUSER.DAT"), "").unwrap();
+        set_system_and_hidden(&path.join("NTUSER.DAT"));
+        let dir = Dir::read_dir(path.clone()).unwrap();
+
+        // When all files are shown (-a / Dotfiles), but no_system=true:
+        let names: Vec<_> = dir
+            .files(
+                DotFilter::Dotfiles,
+                None,
+                false,
+                false,
+                false,
+                false,
+                None,
+                true,
+                false,
+                false,
+            )
+            .map(|file| file.name)
+            .collect();
+        assert!(names.contains(&".dotfile".to_string()));
+        assert!(names.contains(&"regular.txt".to_string()));
+        assert!(!names.contains(&"NTUSER.DAT".to_string()));
         let _ = fs::remove_dir_all(path);
     }
 }
@@ -643,7 +743,18 @@ mod tests {
 
         let dir = Dir::read_dir(test_dir.path.clone()).unwrap();
         let files: Vec<_> = dir
-            .files(DotFilter::JustFiles, None, false, false, false, false, None)
+            .files(
+                DotFilter::JustFiles,
+                None,
+                false,
+                false,
+                false,
+                false,
+                None,
+                false,
+                false,
+                false,
+            )
             .collect();
 
         let pipe = files.iter().find(|f| f.name == "pipe").expect("the FIFO");

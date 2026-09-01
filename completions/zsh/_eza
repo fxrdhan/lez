@@ -48,6 +48,9 @@ __eza() {
         \*{-a,--all}"[Show hidden and 'dot' files. Use this twice to also show the '.' and '..' directories]" \
         \*{-A,--almost-all}"[Equivalent to --all; included for compatibility with \'ls -A\']" \
         \*--show-dotfiles"[Show dot-prefixed files without showing other hidden files]" \
+        \*--no-system"[Do not show system files (Windows only)]" \
+        \*--no-hidden-attrib"[Do not show entries with the Windows hidden attribute (Windows only)]" \
+        \*--no-hidden-links"[Do not show Windows hidden profile links / junctions (Windows only)]" \
         \*{-d,--treat-dirs-as-files}"[List directories like regular files]" \
         \*{-D,--only-dirs}"[List only directories]" \
         \*--no-symlinks"[Do not show symbolic links]" \

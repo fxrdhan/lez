@@ -454,6 +454,9 @@ impl<'a> Render<'a> {
                     egg.file.is_recursive_size(),
                     egg.file.mime_read_contents,
                     hidden_count.as_deref_mut(),
+                    self.filter.no_system,
+                    self.filter.no_hidden_attrib,
+                    self.filter.no_hidden_links,
                 ) {
                     files.push(file_to_add);
                 }

@@ -263,6 +263,15 @@ pub struct FileFilter {
     /// Whether to explicitly show symlinks
     pub show_symlinks: bool,
 
+    /// Whether to suppress Windows system-attribute entries.
+    pub no_system: bool,
+
+    /// Whether to suppress Windows hidden-attribute entries.
+    pub no_hidden_attrib: bool,
+
+    /// Whether to suppress Windows hidden profile links / junctions.
+    pub no_hidden_links: bool,
+
     /// Optional locale-aware collator for Unicode sorting.
     pub collator: Option<LocaleCollator>,
 }
@@ -298,6 +307,19 @@ impl FileFilter {
     #[must_use]
     pub fn is_file_included(&self, file: &File<'_>) -> bool {
         use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
+
+        #[cfg(windows)]
+        if let Some(attrs) = file.attributes() {
+            if self.no_system && attrs.system {
+                return false;
+            }
+            if self.no_hidden_attrib && attrs.hidden {
+                return false;
+            }
+            if self.no_hidden_links && attrs.reparse_point && (attrs.hidden || attrs.system) {
+                return false;
+            }
+        }
 
         if !self.matches_since(file) {
             return false;
@@ -1167,6 +1189,9 @@ mod test_ignores {
             since: None,
             no_symlinks: false,
             show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
             collator: None,
         };
         assert!(filter_default.is_file_included(&file_cargo));
@@ -1306,6 +1331,9 @@ mod test_ignores {
             since: None,
             no_symlinks: false,
             show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
             collator: None,
         };
         assert!(filter_none.matches_since(&file_cargo));
@@ -1372,6 +1400,9 @@ mod test_ignores {
             since: None,
             no_symlinks: false,
             show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
             collator: None,
         };
 
@@ -1417,6 +1448,9 @@ mod test_ignores {
             since: None,
             no_symlinks: false,
             show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
             collator: Some(hu_collator),
         };
 

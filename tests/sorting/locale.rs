@@ -58,6 +58,9 @@ fn test_hungarian_unicode_collation() {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator: Some(collator),
     };
 
@@ -92,6 +95,9 @@ fn test_swedish_unicode_collation() {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator: Some(collator),
         ignore_submodule_contents: false,
     };
@@ -126,6 +132,9 @@ fn test_german_unicode_collation() {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator: Some(collator),
         ignore_submodule_contents: false,
     };
@@ -166,6 +175,9 @@ fn test_spanish_unicode_collation() {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator: Some(collator),
     };
 
@@ -199,6 +211,9 @@ fn test_natural_numeric_ordering_preserved() {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator: Some(collator),
         ignore_submodule_contents: false,
     };
@@ -244,6 +259,9 @@ fn test_mixed_accent_and_number_sorting() {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator: Some(collator),
     };
 
@@ -289,6 +307,9 @@ fn test_case_sensitivity_and_insensitivity() {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator: Some(collator.clone()),
     };
 
@@ -401,6 +422,9 @@ fn test_fallback_to_natord_when_collator_none() {
         since: None,
         no_symlinks: false,
         show_symlinks: false,
+        no_system: false,
+        no_hidden_attrib: false,
+        no_hidden_links: false,
         collator: None,
     };
 

@@ -529,6 +529,9 @@ impl Lez<'_> {
                 self.options.view.total_size,
                 self.options.view.mime_read_contents,
                 hidden_count.as_mut(),
+                self.options.filter.no_system,
+                self.options.filter.no_hidden_attrib,
+                self.options.filter.no_hidden_links,
             ) {
                 children.push(file);
             }

@@ -76,9 +76,18 @@ impl FileFilter {
         let since = matches.get_one::<std::time::Duration>("since").copied();
         let collator = LocaleCollator::deduce(vars);
 
+        let no_system = matches.get_flag("no-system") || config.filter.no_system.unwrap_or(false);
+        let no_hidden_attrib =
+            matches.get_flag("no-hidden-attrib") || config.filter.no_hidden_attrib.unwrap_or(false);
+        let no_hidden_links =
+            matches.get_flag("no-hidden-links") || config.filter.no_hidden_links.unwrap_or(false);
+
         Ok(Self {
             no_symlinks,
             show_symlinks,
+            no_system,
+            no_hidden_attrib,
+            no_hidden_links,
             flags: filter_flags,
             sort_field,
             dot_filter: DotFilter::deduce(matches, strict, config)?,
@@ -510,6 +519,60 @@ mod tests {
     }
 
     #[test]
+    fn deduce_windows_visibility_flags() {
+        let matches = mock_cli(vec![
+            "--no-system",
+            "--no-hidden-attrib",
+            "--no-hidden-links",
+        ]);
+        let filter = FileFilter::deduce(
+            &matches,
+            false,
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
+        assert!(filter.no_system);
+        assert!(filter.no_hidden_attrib);
+        assert!(filter.no_hidden_links);
+    }
+
+    #[test]
+    fn deduce_windows_visibility_aliases() {
+        let matches = mock_cli(vec![
+            "--hide-system",
+            "--hide-hidden-attrib",
+            "--no-junctions",
+        ]);
+        let filter = FileFilter::deduce(
+            &matches,
+            false,
+            &MockVars::default(),
+            &FileConfig::default(),
+        )
+        .unwrap();
+        assert!(filter.no_system);
+        assert!(filter.no_hidden_attrib);
+        assert!(filter.no_hidden_links);
+    }
+
+    #[test]
+    fn deduce_windows_visibility_from_config() {
+        let toml_str = r#"
+            [filter]
+            no_system = true
+            no_hidden_attrib = true
+            no_hidden_links = true
+        "#;
+        let config: FileConfig = toml::from_str(toml_str).unwrap();
+        let matches = mock_cli(vec![""]);
+        let filter = FileFilter::deduce(&matches, false, &MockVars::default(), &config).unwrap();
+        assert!(filter.no_system);
+        assert!(filter.no_hidden_attrib);
+        assert!(filter.no_hidden_links);
+    }
+
+    #[test]
     fn deduce_sort_field_default() {
         assert_eq!(
             mock_cli(vec![""]).get_one::<SortField>("sort"),
@@ -773,6 +836,9 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                no_system: false,
+                no_hidden_attrib: false,
+                no_hidden_links: false,
                 collator: None,
             })
         );
@@ -800,6 +866,9 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                no_system: false,
+                no_hidden_attrib: false,
+                no_hidden_links: false,
                 collator: None,
             })
         );
@@ -827,6 +896,9 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                no_system: false,
+                no_hidden_attrib: false,
+                no_hidden_links: false,
                 collator: None,
             })
         );
@@ -854,6 +926,9 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                no_system: false,
+                no_hidden_attrib: false,
+                no_hidden_links: false,
                 collator: None,
             })
         );
@@ -886,6 +961,9 @@ mod tests {
                 since: None,
                 no_symlinks: false,
                 show_symlinks: false,
+                no_system: false,
+                no_hidden_attrib: false,
+                no_hidden_links: false,
                 collator: None,
             })
         );
