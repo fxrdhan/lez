@@ -398,24 +398,22 @@ impl<C: Colours> FileName<'_, '_, C> {
             bits.push(ANSIString::from(start_tag.clone()));
         }
 
-        if self.file.parent_dir.is_none()
-            && self.options.absolute == Absolute::Off
-            && let Some(parent) = self.file.path.parent()
-        {
-            self.add_parent_bits(&mut bits, parent);
-        }
+        let parent = if self.file.parent_dir.is_none() && self.options.absolute == Absolute::Off {
+            self.file.path.parent()
+        } else {
+            None
+        };
 
-        if !self.file.name.is_empty() {
-            // The “missing file” colour seems like it should be used here,
-            // but it’s not! In a grid view, where there’s no space to display
-            // link targets, the filename has to have a different style to
-            // indicate this fact. But when showing targets, we can just
-            // colour the path instead (see below), and leave the broken
-            // link’s filename as the link colour.
-            for bit in self.escaped_file_name(filename_style_override) {
-                bits.push(bit);
-            }
-        }
+        let display_name = self.display_name();
+        let file_style = filename_style_override.unwrap_or_else(|| self.style());
+
+        self.append_path_and_name_bits(
+            &mut bits,
+            parent,
+            &display_name,
+            file_style,
+            self.options.quote_style,
+        );
 
         if hyperlink_start_tag.is_some() {
             bits.push(ANSIString::from(escape::HYPERLINK_CLOSING));
@@ -428,41 +426,20 @@ impl<C: Colours> FileName<'_, '_, C> {
                     bits.push(self.colours.normal_arrow().paint("->"));
                     bits.push(Style::default().paint(" "));
 
-                    if let Some(parent) = target.path.parent() {
-                        self.add_parent_bits(&mut bits, parent);
-                    }
+                    let target_style = self.colours.colour_file(target);
+                    let target_parent = target.path.parent();
+                    let target_display_name = target.name.clone();
 
-                    if !target.name.is_empty() {
-                        let target_options = Options {
-                            classify: Classify::JustFilenames,
-                            quote_style: QuoteStyle::Auto,
-                            show_icons: ShowIcons::Never,
-                            embed_hyperlinks: EmbedHyperlinks::Never,
-                            is_a_tty: self.options.is_a_tty,
-                            absolute: Absolute::Off,
-                            short_nix: self.options.short_nix,
-                            show_symlink_targets: self.options.show_symlink_targets,
-                            empty_dir_icon: self.options.empty_dir_icon,
-                        };
+                    self.append_path_and_name_bits(
+                        &mut bits,
+                        target_parent,
+                        &target_display_name,
+                        target_style,
+                        QuoteStyle::Auto,
+                    );
 
-                        let target_name = FileName {
-                            file: target,
-                            colours: self.colours,
-                            target: None,
-                            link_style: LinkStyle::FullLinkPaths,
-                            options: target_options,
-                            mount_style: MountStyle::JustDirectoryNames,
-                            tags: Tags::Off,
-                        };
-
-                        for bit in target_name.escaped_file_name(filename_style_override) {
-                            bits.push(bit);
-                        }
-
-                        if should_add_classify_char && let Some(class) = self.classify_char(target)
-                        {
-                            bits.push(self.colours.classify_char().paint(class));
-                        }
+                    if should_add_classify_char && let Some(class) = self.classify_char(target) {
+                        bits.push(self.colours.classify_char().paint(class));
                     }
                 }
 
@@ -471,11 +448,12 @@ impl<C: Colours> FileName<'_, '_, C> {
                     bits.push(self.colours.broken_symlink().paint("->"));
                     bits.push(Style::default().paint(" "));
 
-                    escape(
+                    escape::escape_with_quote_style(
                         broken_path.display().to_string(),
                         &mut bits,
                         self.colours.broken_filename(),
                         self.colours.broken_control_char(),
+                        self.colours.quote(),
                         self.options.quote_style,
                     );
                 }
@@ -520,41 +498,104 @@ impl<C: Colours> FileName<'_, '_, C> {
         bits.into()
     }
 
-    /// Adds the bits of the parent path to the given bits vector.
-    /// The path gets its characters escaped based on the colours.
-    fn add_parent_bits(&self, bits: &mut Vec<ANSIString<'_>>, parent: &Path) {
-        let coconut = parent.components().count();
-
-        if coconut == 1 && parent.has_root() {
-            bits.push(
-                self.colours
-                    .symlink_path()
-                    .paint(std::path::MAIN_SEPARATOR.to_string()),
-            );
-        } else if coconut >= 1 {
-            let mut parent_str = parent.to_string_lossy().to_string();
-            if self.options.short_nix {
-                // Parent paths are painted in one dim style already, so the
-                // hashes just get abbreviated in place.
-                parent_str = shorten_nix_segments(&parent_str)
-                    .into_iter()
-                    .map(|segment| match segment {
-                        NameSegment::Hash(s) | NameSegment::Text(s) => s,
-                    })
-                    .collect();
+    /// Appends the parent path components and file name to the bits vector,
+    /// escaping control characters and wrapping the entire composite path
+    /// in a single set of quotes if required.
+    fn append_path_and_name_bits<'unused>(
+        &self,
+        bits: &mut Vec<ANSIString<'unused>>,
+        parent_opt: Option<&Path>,
+        display_name: &str,
+        file_style: Style,
+        quote_style: QuoteStyle,
+    ) {
+        let parent_info = if let Some(parent) = parent_opt {
+            let coconut = parent.components().count();
+            if coconut == 1 && parent.has_root() {
+                Some((std::path::MAIN_SEPARATOR.to_string(), true))
+            } else if coconut >= 1 {
+                let mut parent_str = parent.to_string_lossy().to_string();
+                if self.options.short_nix {
+                    parent_str = shorten_nix_segments(&parent_str)
+                        .into_iter()
+                        .map(|segment| match segment {
+                            NameSegment::Hash(s) | NameSegment::Text(s) => s,
+                        })
+                        .collect();
+                }
+                Some((parent_str, false))
+            } else {
+                None
             }
-            escape(
-                parent_str,
-                bits,
-                self.colours.symlink_path(),
-                self.colours.control_char(),
-                self.options.quote_style,
-            );
-            bits.push(
-                self.colours
-                    .symlink_path()
-                    .paint(std::path::MAIN_SEPARATOR.to_string()),
-            );
+        } else {
+            None
+        };
+
+        let full_path_for_quoting = match &parent_info {
+            Some((parent_str, is_root)) => {
+                if *is_root {
+                    format!("{parent_str}{display_name}")
+                } else {
+                    format!("{parent_str}{}{display_name}", std::path::MAIN_SEPARATOR)
+                }
+            }
+            None => display_name.to_string(),
+        };
+
+        let quoting = escape::Quoting::for_string(&full_path_for_quoting, quote_style);
+
+        if let Some(quote_bit) = quoting.quote_bit(self.colours.quote()) {
+            bits.push(quote_bit);
+        }
+
+        if let Some((parent_str, is_root)) = parent_info {
+            if is_root {
+                bits.push(self.colours.symlink_path().paint(parent_str));
+            } else {
+                escape::escape_inner_chars(
+                    &parent_str,
+                    bits,
+                    self.colours.symlink_path(),
+                    self.colours.control_char(),
+                    quoting,
+                );
+                bits.push(
+                    self.colours
+                        .symlink_path()
+                        .paint(std::path::MAIN_SEPARATOR.to_string()),
+                );
+            }
+        }
+
+        if !display_name.is_empty() {
+            if self.options.short_nix {
+                for segment in shorten_nix_segments(display_name) {
+                    match segment {
+                        NameSegment::Hash(hash) => {
+                            bits.push(self.colours.nix_hash().paint(hash));
+                        }
+                        NameSegment::Text(text) => escape::escape_inner_chars(
+                            &text,
+                            bits,
+                            file_style,
+                            self.colours.control_char(),
+                            quoting,
+                        ),
+                    }
+                }
+            } else {
+                escape::escape_inner_chars(
+                    display_name,
+                    bits,
+                    file_style,
+                    self.colours.control_char(),
+                    quoting,
+                );
+            }
+        }
+
+        if let Some(quote_bit) = quoting.quote_bit(self.colours.quote()) {
+            bits.push(quote_bit);
         }
     }
 
@@ -586,54 +627,6 @@ impl<C: Colours> FileName<'_, '_, C> {
         } else {
             None
         }
-    }
-
-    /// Returns at least one ANSI-highlighted string representing this file’s
-    /// name using the given set of colours.
-    ///
-    /// Ordinarily, this will be just one string: the file’s complete name,
-    /// coloured according to its file type. If the name contains control
-    /// characters such as newlines or escapes, though, we can’t just print them
-    /// to the screen directly, because then there’ll be newlines in weird places.
-    ///
-    /// So in that situation, those characters will be escaped and highlighted in
-    /// a different colour.
-    fn escaped_file_name<'unused>(
-        &self,
-        style_override: Option<Style>,
-    ) -> Vec<ANSIString<'unused>> {
-        let file_style = style_override.unwrap_or(self.style());
-        let mut bits = Vec::new();
-
-        let display_name = self.display_name();
-        if self.options.short_nix {
-            // Abbreviated store hashes get painted dim, so the part of the
-            // name that a human actually reads is the part that stands out.
-            for segment in shorten_nix_segments(&display_name) {
-                match segment {
-                    NameSegment::Hash(hash) => {
-                        bits.push(self.colours.nix_hash().paint(hash));
-                    }
-                    NameSegment::Text(text) => escape(
-                        text,
-                        &mut bits,
-                        file_style,
-                        self.colours.control_char(),
-                        self.options.quote_style,
-                    ),
-                }
-            }
-        } else {
-            escape(
-                display_name,
-                &mut bits,
-                file_style,
-                self.colours.control_char(),
-                self.options.quote_style,
-            );
-        }
-
-        bits
     }
 
     /// Returns the string that should be displayed as the file's name.
@@ -765,6 +758,9 @@ pub trait Colours: FiletypeColours {
     /// The style to paint a non-displayable control character in a filename,
     /// when the filename is being displayed as a broken link target.
     fn broken_control_char(&self) -> Style;
+
+    /// The style to paint quotation marks around filenames with spaces or special characters.
+    fn quote(&self) -> Style;
 
     /// The style to paint a file that has its executable bit set.
     fn executable_file(&self) -> Style;
@@ -936,6 +932,9 @@ mod test {
             Style::default()
         }
         fn broken_control_char(&self) -> Style {
+            Style::default()
+        }
+        fn quote(&self) -> Style {
             Style::default()
         }
         fn nix_hash(&self) -> Style {
@@ -1352,6 +1351,9 @@ mod test {
             Style::default()
         }
         fn broken_control_char(&self) -> Style {
+            Style::default()
+        }
+        fn quote(&self) -> Style {
             Style::default()
         }
         fn nix_hash(&self) -> Style {

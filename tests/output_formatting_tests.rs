@@ -15,6 +15,8 @@ mod grid_details;
 mod grid_packing;
 #[path = "output_formatting/palette.rs"]
 mod palette;
+#[path = "output_formatting/path_quoting.rs"]
+mod path_quoting;
 #[cfg(unix)]
 #[path = "output_formatting/pty_terminal.rs"]
 mod pty_terminal;

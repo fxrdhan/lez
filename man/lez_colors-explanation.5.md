@@ -161,6 +161,8 @@ octal:
 
 flags:
 
+quote:
+
 control_char:
 
 broken_symlink:

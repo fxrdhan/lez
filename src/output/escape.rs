@@ -10,7 +10,7 @@ use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 
 /// How a name has to be wrapped for a shell to read it back as one word.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Quoting {
+pub enum Quoting {
     /// Print the name as it is.
     None,
 
@@ -29,41 +29,54 @@ enum Quoting {
     SingleEscaped,
 }
 
-fn is_printable(c: char) -> bool {
+impl Quoting {
+    /// Determines the quoting strategy required for the given string.
+    #[must_use]
+    pub fn for_string(string: &str, quote_style: QuoteStyle) -> Self {
+        let has_apostrophe = string.contains('\'');
+        let has_double_quote = string.contains('"');
+        let needs_quotes = string.contains(' ') || has_apostrophe || has_double_quote;
+
+        if quote_style.quotes_needed(needs_quotes) {
+            match (has_apostrophe, has_double_quote) {
+                (true, true) => Self::SingleEscaped,
+                (true, false) => Self::Double,
+                _ => Self::Single,
+            }
+        } else {
+            Self::None
+        }
+    }
+
+    /// Returns the ANSI quote token for this quoting mode, styled with `quote_style`.
+    #[must_use]
+    pub fn quote_bit<'a>(self, quote_style: Style) -> Option<ANSIString<'a>> {
+        match self {
+            Self::None => None,
+            Self::Double => Some(quote_style.paint("\"")),
+            Self::Single | Self::SingleEscaped => Some(quote_style.paint("'")),
+        }
+    }
+}
+
+pub fn is_printable(c: char) -> bool {
     c >= 0x20 as char && c != 0x7f as char
 }
 
-pub fn escape(
-    string: String,
+/// Escapes characters inside a string without adding outer quotation marks.
+pub fn escape_inner_chars(
+    string: &str,
     bits: &mut Vec<ANSIString<'_>>,
     good: Style,
     bad: Style,
-    quote_style: QuoteStyle,
+    quoting: Quoting,
 ) {
-    let bits_starting_length = bits.len();
-    let has_apostrophe = string.contains('\'');
-    let has_double_quote = string.contains('"');
-    let needs_quotes = string.contains(' ') || has_apostrophe || has_double_quote;
-
-    let quoting = if quote_style.quotes_needed(needs_quotes) {
-        match (has_apostrophe, has_double_quote) {
-            (true, true) => Quoting::SingleEscaped,
-            (true, false) => Quoting::Double,
-            _ => Quoting::Single,
-        }
-    } else {
-        Quoting::None
-    };
-
     if quoting != Quoting::SingleEscaped && string.chars().all(is_printable) {
-        bits.push(good.paint(string));
+        bits.push(good.paint(string.to_string()));
     } else {
         for c in string.chars() {
             // The `escape_default` method on `char` is *almost* what we want here, but
             // it still escapes non-ASCII UTF-8 characters, which are still printable.
-
-            // TODO: This allocates way too much,
-            // hence the `all` check above.
             if quoting == Quoting::SingleEscaped && c == '\'' {
                 bits.push(good.paint("'\\''"));
             } else if is_printable(c) {
@@ -73,14 +86,35 @@ pub fn escape(
             }
         }
     }
+}
 
-    let quote_bit = match quoting {
-        Quoting::None => return,
-        Quoting::Double => good.paint("\""),
-        Quoting::Single | Quoting::SingleEscaped => good.paint("'"),
-    };
-    bits.insert(bits_starting_length, quote_bit.clone());
-    bits.push(quote_bit);
+pub fn escape_with_quote_style(
+    string: String,
+    bits: &mut Vec<ANSIString<'_>>,
+    good: Style,
+    bad: Style,
+    quote_colour: Style,
+    quote_style: QuoteStyle,
+) {
+    let bits_starting_length = bits.len();
+    let quoting = Quoting::for_string(&string, quote_style);
+
+    escape_inner_chars(&string, bits, good, bad, quoting);
+
+    if let Some(quote_bit) = quoting.quote_bit(quote_colour) {
+        bits.insert(bits_starting_length, quote_bit.clone());
+        bits.push(quote_bit);
+    }
+}
+
+pub fn escape(
+    string: String,
+    bits: &mut Vec<ANSIString<'_>>,
+    good: Style,
+    bad: Style,
+    quote_style: QuoteStyle,
+) {
+    escape_with_quote_style(string, bits, good, bad, good, quote_style);
 }
 
 const HYPERLINK_ESCAPE_CHARS: &AsciiSet = &CONTROLS

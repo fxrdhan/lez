@@ -117,12 +117,12 @@ Work an unread upstream report in this order:
 | [#765](https://github.com/eza-community/eza/issues/765) | `mh` accepted and properly parsed. |
 | [#1002](https://github.com/eza-community/eza/issues/1002), [#745](https://github.com/eza-community/eza/issues/745) | High stat overhead on empty directory glyph probing over FUSE/NFS. `LEZ_NO_EMPTY_DIR_ICON` avoids probing. |
 | [#1732](https://github.com/eza-community/eza/issues/1732) | `--size-digits=<NUM>` (alias `--digits`) and `LEZ_SIZE_DIGITS` added to customize size column precision/digit count. |
+| [#728](https://github.com/eza-community/eza/issues/728), [#730](https://github.com/eza-community/eza/pull/730), [#1791](https://github.com/eza-community/eza/pull/1791) | Cohesive full-path quoting (`'/path/with spaces/file.txt'`) and configurable quote styling via `qu` code in `LEZ_COLORS` & `theme.yml`. |
 
 ### Reproduced but Still Open / By Design
 
 | Upstream ID | Description & Status |
 |---|---|
-| [#728](https://github.com/eza-community/eza/issues/728) | `lez -1 '/p/a b/c d.txt'` prints `'/p/a b'/'c d.txt'` (each component quoted separately). Pastes back correctly; cosmetic. |
 | [#1498](https://github.com/eza-community/eza/issues/1498) | `--total-size` walks hidden directories regardless of `--all`. Arguably expected since directory total size includes hidden files. |
 | [#1919](https://github.com/eza-community/eza/issues/1919) | `.m` renders as C icon (shared with Objective-C / MATLAB; no MATLAB glyph in Nerd Fonts). |
 

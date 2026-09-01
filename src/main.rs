@@ -507,11 +507,12 @@ impl Lez<'_> {
 
             if !is_only_dir {
                 let mut bits = Vec::new();
-                escape(
+                escape::escape_with_quote_style(
                     dir.path.display().to_string(),
                     &mut bits,
                     Style::default(),
                     Style::default(),
+                    self.theme.ui.quote(),
                     quote_style,
                 );
                 writeln!(&mut self.writer, "{}:", ANSIStrings(&bits))?;

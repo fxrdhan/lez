@@ -253,6 +253,9 @@ Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are 
 `lp`
 : the path of a symlink
 
+`qu`
+: quotation marks around filenames with spaces or special characters
+
 `cc`
 : an escaped character in a filename
 
