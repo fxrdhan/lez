@@ -72,3 +72,35 @@ fn test_nt_native_junction_prefix_normalization() {
         );
     }
 }
+
+#[test]
+fn test_ntfs_alternate_data_stream_decomposition() {
+    let ads_cases = [
+        ("file.txt:stream:$DATA", "file.txt", "stream", "$DATA"),
+        ("document.pdf:summary", "document.pdf", "summary", ""),
+        (
+            "archive.tar.gz:Zone.Identifier:$DATA",
+            "archive.tar.gz",
+            "Zone.Identifier",
+            "$DATA",
+        ),
+    ];
+
+    for (full, expected_file, expected_stream, expected_type) in ads_cases {
+        let parts: Vec<&str> = full.split(':').collect();
+        assert_eq!(parts[0], expected_file);
+        assert_eq!(parts[1], expected_stream);
+        if !expected_type.is_empty() {
+            assert_eq!(parts.get(2).copied().unwrap_or(""), expected_type);
+        }
+    }
+}
+
+#[test]
+fn test_volume_guid_syntax_invariants() {
+    let volume_path = r"\\?\Volume{26a21bda-a627-11d7-9931-806e6f6e6963}\Program Files";
+    assert!(volume_path.starts_with(r"\\?\Volume{"));
+    let guid_part = &volume_path[11..47];
+    assert_eq!(guid_part.len(), 36);
+    assert_eq!(guid_part.chars().filter(|&c| c == '-').count(), 4);
+}

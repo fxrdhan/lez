@@ -26,3 +26,26 @@ impl Render for Option<&Language> {
         self.map(|lang| lang.name.to_string())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::loc;
+
+    #[test]
+    fn test_render_language_some() {
+        let lang = loc::language_for("main.rs", Some("rs"));
+        assert!(lang.is_some());
+        let cell = lang.render(Style::default());
+        assert_eq!(cell.strings().to_string(), "Rust");
+        assert_eq!(lang.render_json(), Some("Rust".to_string()));
+    }
+
+    #[test]
+    fn test_render_language_none() {
+        let lang: Option<&Language> = None;
+        let cell = lang.render(Style::default());
+        assert_eq!(cell.strings().to_string(), "-");
+        assert_eq!(lang.render_json(), None);
+    }
+}
