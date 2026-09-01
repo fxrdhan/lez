@@ -83,3 +83,30 @@ fn example_theme_references_the_schema() {
         "schema reference must point at theme-schema.json"
     );
 }
+
+#[test]
+fn schema_file_type_covers_all_variants() {
+    let schema: serde_json::Value = serde_json::from_str(&docs_file("theme-schema.json")).unwrap();
+    let ft_props = schema["properties"]["file_type"]["properties"]
+        .as_object()
+        .unwrap();
+    for ft in [
+        "image",
+        "video",
+        "music",
+        "lossless",
+        "crypto",
+        "document",
+        "compressed",
+        "temp",
+        "compiled",
+        "build",
+        "source",
+        "data",
+    ] {
+        assert!(
+            ft_props.contains_key(ft),
+            "file_type schema missing variant {ft}"
+        );
+    }
+}

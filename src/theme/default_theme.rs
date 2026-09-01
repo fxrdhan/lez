@@ -126,6 +126,7 @@ impl Default for UiStyles {
                 compiled:   Some(Yellow.normal()),
                 build:      Some(Yellow.bold().underline()),
                 source:     Some(Yellow.bold()), // Need to discuss color
+                data:       Some(Green.normal()),
             }),
 
             tags: Some(Tags::default()),

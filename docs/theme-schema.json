@@ -367,6 +367,9 @@
                 "music": {
                     "$ref": "#/$defs/style"
                 },
+                "lossless": {
+                    "$ref": "#/$defs/style"
+                },
                 "crypto": {
                     "$ref": "#/$defs/style"
                 },
@@ -386,6 +389,9 @@
                     "$ref": "#/$defs/style"
                 },
                 "source": {
+                    "$ref": "#/$defs/style"
+                },
+                "data": {
                     "$ref": "#/$defs/style"
                 }
             },
