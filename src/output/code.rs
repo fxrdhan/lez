@@ -21,6 +21,7 @@ use std::path::PathBuf;
 
 use nu_ansi_term::Style;
 
+use crate::fs::filter::SortField;
 use crate::loc::{LangStat, LocCounts};
 use crate::options::parser::CodeContent;
 use crate::output::icons::{icon_for_name_ext, iconify_style};
@@ -67,6 +68,15 @@ pub struct Render<'a> {
     /// Whether the listing asked for hidden entries, so the walk should
     /// descend into dot-prefixed directories and count dot-prefixed files.
     pub show_hidden: bool,
+
+    /// How languages and sub-languages should be sorted.
+    pub sort_field: SortField,
+
+    /// Whether sorting was explicitly specified by the user.
+    pub is_explicit_sort: bool,
+
+    /// Whether to reverse the sort order (ascending vs descending).
+    pub reverse: bool,
 }
 
 /// How a summary column lines its contents up.
@@ -137,17 +147,62 @@ impl Render<'_> {
         let with_lines = matches!(self.opts.content, CodeContent::Lines | CodeContent::Both);
         let with_percent = matches!(self.opts.content, CodeContent::Percent | CodeContent::Both);
 
-        // Languages sorted by most code first, then by name for stability.
+        // Languages sorted by sort_field:
+        // - By default (no explicit sort): sorted by most code first (or least code first if reverse)
+        // - Explicit sort: Name (A-Z / Z-A), Size/code/percent (desc / asc), Unsorted (natural order)
         let mut langs: Vec<&LangStat> = report.languages().collect();
-        langs.sort_by(|a, b| {
-            b.counts
-                .code
-                .cmp(&a.counts.code)
-                .then_with(|| a.language.name.cmp(b.language.name))
-        });
+        if self.is_explicit_sort {
+            match self.sort_field {
+                SortField::Name(_)
+                | SortField::NameLexicographic(_)
+                | SortField::NameMixHidden(_) => {
+                    if self.reverse {
+                        langs.sort_by(|a, b| b.language.name.cmp(a.language.name));
+                    } else {
+                        langs.sort_by(|a, b| a.language.name.cmp(b.language.name));
+                    }
+                }
+                SortField::Unsorted => {
+                    if self.reverse {
+                        langs.reverse();
+                    }
+                }
+                _ => {
+                    if self.reverse {
+                        langs.sort_by(|a, b| {
+                            a.counts
+                                .code
+                                .cmp(&b.counts.code)
+                                .then_with(|| a.language.name.cmp(b.language.name))
+                        });
+                    } else {
+                        langs.sort_by(|a, b| {
+                            b.counts
+                                .code
+                                .cmp(&a.counts.code)
+                                .then_with(|| a.language.name.cmp(b.language.name))
+                        });
+                    }
+                }
+            }
+        } else if self.reverse {
+            langs.sort_by(|a, b| {
+                a.counts
+                    .code
+                    .cmp(&b.counts.code)
+                    .then_with(|| a.language.name.cmp(b.language.name))
+            });
+        } else {
+            langs.sort_by(|a, b| {
+                b.counts
+                    .code
+                    .cmp(&a.counts.code)
+                    .then_with(|| a.language.name.cmp(b.language.name))
+            });
+        }
 
         let total = report.total();
-        let max_code = langs.first().map_or(0, |s| s.counts.code);
+        let max_code = langs.iter().map(|s| s.counts.code).max().unwrap_or(0);
 
         // The icon column prefix: icons get two cells (glyph + space), and
         // every icon-less row gets two spaces so the names stay aligned.
@@ -234,19 +289,68 @@ impl Render<'_> {
             );
             if !stat.embedded.is_empty() {
                 let mut children: Vec<(&&str, &LangStat)> = stat.embedded.iter().collect();
-                children.sort_by(|a, b| {
-                    b.1.counts
-                        .code
-                        .cmp(&a.1.counts.code)
-                        .then_with(|| a.0.cmp(b.0))
-                });
+                if self.is_explicit_sort {
+                    match self.sort_field {
+                        SortField::Name(_)
+                        | SortField::NameLexicographic(_)
+                        | SortField::NameMixHidden(_) => {
+                            if self.reverse {
+                                children.sort_by(|a, b| b.0.cmp(a.0));
+                            } else {
+                                children.sort_by(|a, b| a.0.cmp(b.0));
+                            }
+                        }
+                        SortField::Unsorted => {
+                            if self.reverse {
+                                children.reverse();
+                            }
+                        }
+                        _ => {
+                            if self.reverse {
+                                children.sort_by(|a, b| {
+                                    a.1.counts
+                                        .code
+                                        .cmp(&b.1.counts.code)
+                                        .then_with(|| a.0.cmp(b.0))
+                                });
+                            } else {
+                                children.sort_by(|a, b| {
+                                    b.1.counts
+                                        .code
+                                        .cmp(&a.1.counts.code)
+                                        .then_with(|| a.0.cmp(b.0))
+                                });
+                            }
+                        }
+                    }
+                } else if self.reverse {
+                    children.sort_by(|a, b| {
+                        a.1.counts
+                            .code
+                            .cmp(&b.1.counts.code)
+                            .then_with(|| a.0.cmp(b.0))
+                    });
+                } else {
+                    children.sort_by(|a, b| {
+                        b.1.counts
+                            .code
+                            .cmp(&a.1.counts.code)
+                            .then_with(|| a.0.cmp(b.0))
+                    });
+                }
                 let child_count = children.len();
                 for (idx, (label, child_stat)) in children.iter().enumerate() {
                     let is_last = idx == child_count - 1;
-                    let tree_prefix = if is_last {
-                        "   └── "
+                    let tree_prefix = if self.show_icons {
+                        if is_last {
+                            "  └── "
+                        } else {
+                            "  ├── "
+                        }
+                    } else if is_last {
+                        " └── "
                     } else {
-                        "   ├── "
+                        " ├── "
                     };
                     let child_label = if self.show_icons {
                         let (rep_name, rep_ext) = &child_stat.rep_file;
@@ -342,8 +446,8 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
             continue;
         }
         let painted = if i == 0 {
-            if let Some(rest) = cell.text.strip_prefix("   ├── ") {
-                let tree = "   ├── ";
+            if let Some(rest) = cell.text.strip_prefix("  ├── ") {
+                let tree = "  ├── ";
                 let tree_dim = Style::default().dimmed();
                 if iconify_first && rest.chars().count() > 2 {
                     let split = rest
@@ -360,8 +464,8 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
                 } else {
                     format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
                 }
-            } else if let Some(rest) = cell.text.strip_prefix("   └── ") {
-                let tree = "   └── ";
+            } else if let Some(rest) = cell.text.strip_prefix("  └── ") {
+                let tree = "  └── ";
                 let tree_dim = Style::default().dimmed();
                 if iconify_first && rest.chars().count() > 2 {
                     let split = rest
@@ -378,6 +482,14 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
                 } else {
                     format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
                 }
+            } else if let Some(rest) = cell.text.strip_prefix(" ├── ") {
+                let tree = " ├── ";
+                let tree_dim = Style::default().dimmed();
+                format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
+            } else if let Some(rest) = cell.text.strip_prefix(" └── ") {
+                let tree = " └── ";
+                let tree_dim = Style::default().dimmed();
+                format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
             } else if iconify_first && cell.width() > 2 {
                 // Paint the icon prefix separately from the name, so underlined
                 // headers don’t drag the underline through the icon column, and

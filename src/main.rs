@@ -367,6 +367,9 @@ impl Lez<'_> {
                 roots,
                 show_icons,
                 show_hidden: self.options.filter.dot_filter.shows_dotfiles(),
+                sort_field: self.options.filter.sort_field,
+                is_explicit_sort: self.options.filter.is_explicit_sort,
+                reverse: self.options.filter.is_reverse(),
             };
             r.render(&mut self.writer)?;
             return Ok(exit_status);
