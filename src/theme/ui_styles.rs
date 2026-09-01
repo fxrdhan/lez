@@ -413,6 +413,7 @@ pub struct FileType {
     pub compiled: Option<Style>,    // cm - compilation artifact
     pub build: Option<Style>,       // bu - file that is used to build a project
     pub source: Option<Style>,      // sc - source code
+    pub data: Option<Style>,        // dt - data file
 }
 
 #[rustfmt::skip]
@@ -567,6 +568,7 @@ impl UiStyles {
                 compiled:   Some(Style::default()),
                 build:      Some(Style::default()),
                 source:     Some(Style::default()), // Need to discuss color
+                data:       Some(Style::default()),
             }),
 
             #[rustfmt::skip]
@@ -756,6 +758,7 @@ impl UiStyles {
             "cm" => self.file_type().compiled             = Some(pair.to_style()),
             "bu" => self.file_type().build                = Some(pair.to_style()),
             "sc" => self.file_type().source               = Some(pair.to_style()),
+            "dt" => self.file_type().data                 = Some(pair.to_style()),
 
             "Sn" => self.security_context().none          = Some(pair.to_style()),
             "Su" => self.security_context().selinux().user  = Some(pair.to_style()),

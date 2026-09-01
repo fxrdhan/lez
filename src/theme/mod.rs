@@ -436,6 +436,7 @@ impl FileTypes {
             Some(FileType::Compiled)   => theme.ui.file_type.unwrap_or_default().compiled,
             Some(FileType::Build)      => theme.ui.file_type.unwrap_or_default().build,
             Some(FileType::Source)     => theme.ui.file_type.unwrap_or_default().source,
+            Some(FileType::Data)       => theme.ui.file_type.unwrap_or_default().data,
             None                       => None,
         }
     }
@@ -979,6 +980,7 @@ mod customs_test {
     test!(exa_ie:  ls "", exa "bu=38;5;137"  =>  colours c -> { c.file_type().build                       = Some(Fixed(137).normal()); });
     test!(exa_bu:  ls "", exa "bu=38;5;137"  =>  colours c -> { c.file_type().build                       = Some(Fixed(137).normal()); });
     test!(exa_sc:  ls "", exa "sc=38;5;138"  =>  colours c -> { c.file_type().source                      = Some(Fixed(138).normal()); });
+    test!(exa_dt:  ls "", exa "dt=38;5;139"  =>  colours c -> { c.file_type().data                        = Some(Fixed(139).normal()); });
 
     test!(exa_Sn:  ls "", exa "Sn=38;5;128"  =>  colours c -> { c.security_context().none                   = Some(Fixed(128).normal()); });
     test!(exa_Su:  ls "", exa "Su=38;5;129"  =>  colours c -> { c.security_context().selinux().user         = Some(Fixed(129).normal()); });

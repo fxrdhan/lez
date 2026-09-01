@@ -32,6 +32,7 @@ pub enum FileType {
     // kick off the build of a project. It’s usually only present in directories full of
     // source code.
     Source,
+    Data,
 }
 
 impl FileType {
@@ -49,6 +50,7 @@ impl FileType {
                 | Self::Document
                 | Self::Compressed
                 | Self::Temp
+                | Self::Data
         )
     }
 }
@@ -220,10 +222,39 @@ const EXTENSION_TYPES: Map<&'static str, FileType> = phf_map! {
     "sha512"     => FileType::Crypto, // SHA-512 hash
     "sig"        => FileType::Crypto, // GnuPG signed file
     "signature"  => FileType::Crypto, // e-Filing Digital Signature File (India)
+    /* Data files */
+    "arrow"      => FileType::Data,
+    "asdf"       => FileType::Data,
+    "cdf"        => FileType::Data,
+    "csv"        => FileType::Data,
+    "dat"        => FileType::Data,
+    "db"         => FileType::Data,
+    "db3"        => FileType::Data,
+    "dbf"        => FileType::Data,
+    "fit"        => FileType::Data,
+    "fits"       => FileType::Data,
+    "fts"        => FileType::Data,
+    "geojson"    => FileType::Data,
+    "h5"         => FileType::Data,
+    "hdf"        => FileType::Data,
+    "hdf5"       => FileType::Data,
+    "nc"         => FileType::Data,
+    "npy"        => FileType::Data,
+    "npz"        => FileType::Data,
+    "parquet"    => FileType::Data,
+    "pickle"     => FileType::Data,
+    "pkl"        => FileType::Data,
+    "prj"        => FileType::Data,
+    "s3db"       => FileType::Data,
+    "shp"        => FileType::Data,
+    "shx"        => FileType::Data,
+    "sl3"        => FileType::Data,
+    "sqlite"     => FileType::Data,
+    "sqlite3"    => FileType::Data,
+    "tsv"        => FileType::Data,
     /* Document files */
     "conf"       => FileType::Document,
     "config"     => FileType::Document,
-    "csv"        => FileType::Document,
     "djvu"       => FileType::Document,
     "doc"        => FileType::Document,
     "docx"       => FileType::Document,
@@ -253,7 +284,6 @@ const EXTENSION_TYPES: Map<&'static str, FileType> = phf_map! {
     "rtf"        => FileType::Document, // Rich Text Format
     "text"       => FileType::Document,
     "toml"       => FileType::Document,
-    "tsv"        => FileType::Document,
     "txt"        => FileType::Document,
     "xls"        => FileType::Document,
     "xlsm"       => FileType::Document,
@@ -499,7 +529,12 @@ const MIME_TYPES: Map<&'static str, FileType> = phf_map! {
     "application/x-rpm"            => FileType::Compressed,
     "application/x-apple-diskimage"=> FileType::Compressed,
     "application/x-deb"            => FileType::Compressed,
+    "application/x-hdf5"           => FileType::Data,
+    "application/x-parquet"        => FileType::Data,
+    "application/x-sqlite3"        => FileType::Data,
     "application/zstd"             => FileType::Compressed,
+    "text/csv"                     => FileType::Data,
+    "text/tab-separated-values"    => FileType::Data,
     "text/x-rust"                  => FileType::Source,
     "text/x-c"                     => FileType::Source,
     "text/x-csrc"                  => FileType::Source,
@@ -633,5 +668,20 @@ mod test {
         assert_eq!(MIME_WILDCARD_TYPES.get("image"), Some(&FileType::Image));
         assert_eq!(MIME_WILDCARD_TYPES.get("video"), Some(&FileType::Video));
         assert_eq!(MIME_WILDCARD_TYPES.get("audio"), Some(&FileType::Music));
+    }
+
+    #[test]
+    fn test_data_file_types() {
+        for data_ext in [
+            "arrow", "asdf", "cdf", "csv", "dat", "db", "db3", "dbf", "fit", "fits", "fts",
+            "geojson", "h5", "hdf", "hdf5", "nc", "npy", "npz", "parquet", "pickle", "pkl", "prj",
+            "s3db", "shp", "shx", "sl3", "sqlite", "sqlite3", "tsv",
+        ] {
+            assert_eq!(
+                EXTENSION_TYPES.get(data_ext),
+                Some(&FileType::Data),
+                "{data_ext}"
+            );
+        }
     }
 }

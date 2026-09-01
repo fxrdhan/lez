@@ -301,6 +301,9 @@ Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are 
 `sc`
 : a regular file that is source code
 
+`dt`
+: a regular file that is data (ex: CSV, Parquet, HDF5, SQLite, or NumPy array)
+
 `ic`
 : the icon (this is optional, if not set the icon color matches the file name's)
 

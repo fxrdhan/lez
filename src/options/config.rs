@@ -568,6 +568,7 @@ pub struct FileTypeOverride {
     pub compiled: Option<StyleOverride>,    // cm - compilation artifact
     pub build: Option<StyleOverride>,       // bu - file that is used to build a project
     pub source: Option<StyleOverride>,      // sc - source code
+    pub data: Option<StyleOverride>,        // dt - data file
 }
 
 impl FromOverride<FileTypeOverride> for FileType {
@@ -584,6 +585,7 @@ impl FromOverride<FileTypeOverride> for FileType {
             compiled: FromOverride::from(value.compiled, default.compiled),
             build: FromOverride::from(value.build, default.build),
             source: FromOverride::from(value.source, default.source),
+            data: FromOverride::from(value.data, default.data),
         }
     }
 }

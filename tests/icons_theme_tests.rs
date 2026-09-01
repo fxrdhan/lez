@@ -9,6 +9,8 @@ mod common;
 mod auto_terminal;
 #[path = "icons_theme/bicep_slnx.rs"]
 mod bicep_slnx;
+#[path = "icons_theme/data_files.rs"]
+mod data_files;
 #[path = "icons_theme/default_overrides.rs"]
 mod default_overrides;
 #[path = "icons_theme/dev_eclass_astro.rs"]
