@@ -77,6 +77,7 @@ Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
 | Run CLI snapshot tests | `cargo nextest run --test cli_tests` | `just test` |
 | Run benchmarks | `cargo bench` | — |
 | Lint & Format | `cargo clippy` & `cargo fmt` | `just clippy` & `nix fmt` |
+| Code Coverage | `cargo llvm-cov nextest --workspace` | `just coverage` / `just coverage-html` |
 | Build man pages | `pandoc ...` | `just man` |
 | Dump / Regen Snapshots | — | `just idump` / `just regen` |
 

@@ -192,10 +192,10 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov,cargo-nextest@0.9.128
-      - name: Generate Code Coverage Report
+      - name: Generate Code Coverage Report & Summary
         run: |
           cargo llvm-cov nextest --features git,inspect-archives --workspace --lcov --output-path lcov.info
-          cargo llvm-cov report
+          bash devtools/coverage.sh summary
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:

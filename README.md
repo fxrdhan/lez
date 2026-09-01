@@ -16,6 +16,7 @@ SPDX-License-Identifier: EUPL-1.2
 [![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.txt)
 [![Rust](https://img.shields.io/badge/Rust-1.90%2B-orange.svg)](https://www.rust-lang.org/)
 [![binary cache](https://img.shields.io/endpoint?url=https%3A%2F%2Flez.cachix.org%2Fapi%2Fv1%2Fcache%2Fbadges%2Fshield.svg)](https://app.cachix.org/cache/lez)
+[![Coverage](https://img.shields.io/badge/coverage-llvm--cov-brightgreen.svg)](https://github.com/fxrdhan/lez/actions/workflows/ci.yml)
 
 </div>
 

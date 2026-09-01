@@ -4,21 +4,23 @@ SPDX-FileContributor: Christina Sørensen
 
 SPDX-License-Identifier: EUPL-1.2
 -->
-# Testing eza
+# Testing `lez`
 
-## Running tests
+## Running Tests
 
-In order to run the tests in eza you need:
-- [just](https://github.com/casey/just)
-- [nix](https://nixos.org)
+To run the complete test suite:
+- **Full test suite (recommended)**: `just test` or `cargo nextest run --workspace && cargo test --doc`
+- **Powertests**: `cargo test --test cli_tests --features powertest`
+- **Snapshots / trycmd**: `just itest`
+- **Code Coverage**:
+  - `just coverage` — Generate and print code coverage report via `cargo-llvm-cov`.
+  - `just coverage-html` — Generate browsable HTML report in `target/llvm-cov/html/index.html`.
+  - `just coverage-lcov` — Generate `lcov.info` for CI/Codecov integration.
+  - `just coverage-gate 70` — Enforce quality gate (fails if line coverage is below specified threshold).
 
-then either run:
-- `just itest`
-- `nix build -L trycmd-local`
+## Modifying Tests
 
-## Modifying tests
-
-In order to test your changes on eza, you will need to do one or multiple things in different cases.
+In order to test your changes on `lez`, you will need to do one or multiple things in different cases.
 You will need the additional tool
 - [powertest](https://github.com/eza-community/powertest)
 
@@ -52,7 +54,7 @@ at once. If a regeneration ever produces a full set of new names with unchanged
 contents, this is why — the `.stdout` and `.stderr` files have to be renamed
 alongside them.
 
-### You changed the output of eza
+### You changed the output of lez
 
 Please run `nix build -L trydump` or `just idump`
 And lookout for any test no longer passing
