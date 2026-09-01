@@ -8,6 +8,34 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.28.0] - 2026-09-01
+
+### Features & Flag Updates
+
+- **Configuration File Support**: Add support for global (`~/.config/lez/config.toml`), repository-level (`.lez.toml`), and custom `--config=<PATH>` configuration files to customize default options without shell aliases.
+- **Polyglot Markdown LOC Counting**: `--code` and `--loc` detect fenced code blocks in Markdown files and attribute embedded lines to their respective languages (Rust, Python, Shell, SQL, etc.) using zero-allocation streaming FSM.
+- **`--blocks` Flag**: Add `--blocks` CLI flag and block count column for integer filesystem block counts, alongside `bl` styling support in `LS_COLORS`.
+- **`--size-digits` / `--digits` Flag**: Add `--size-digits=<NUM>` CLI flag and `LEZ_SIZE_DIGITS` environment variable to configure size column digit precision (1–8 digits).
+- **Linux File Attributes & Flags**: Extend `-O` / `--flags` to Linux to decode inode flags (`FS_IOC_GETFLAGS` / `lsattr`) in long and short view formats.
+- **Filter Composition**: Support composed `-D` (directories only) and `-f` (files only) filters.
+
+### Performance Optimizations
+
+- **Syscall Amplification Prevention**: Bypass redundant `statx` probing on styled regular files, reducing filesystem metadata syscalls by up to 99.7% on FUSE and network storage.
+- **Sorting & Rendering Fast Paths**: Eliminate redundant pre-rendering sort passes and parallelize multi-directory pre-reading with Rayon.
+- **Zero-Allocation Traversals**: Streamline internal slice scans and eliminate unnecessary heap allocations in path sorting loops.
+
+### Bug Fixes
+
+- Fix option deduction precedence and strict-mode conflict edge cases with default configurations.
+- Fix shell completion arguments and option repetition in zsh completions.
+- Normalize timestamp and sorting behaviors across Windows and non-UTF-8 locales.
+
+### Testing & Quality Assurance
+
+- Achieve comprehensive test resilience with 1,593 passing tests across 11 consolidated domain modules.
+- Establish automated LLVM code coverage gates and continuous LibFuzzer targets.
+
 ## [0.27.0] - 2026-08-26
 
 ### Breaking Changes

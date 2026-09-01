@@ -34,7 +34,7 @@ readme = "README.md"
 homepage = "https://github.com/fxrdhan/lez"
 license = "EUPL-1.2"
 repository = "https://github.com/fxrdhan/lez"
-version = "0.27.0"
+version = "0.28.0"
 
 
 [package.metadata.deb]
