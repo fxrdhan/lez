@@ -51,3 +51,33 @@ impl Render for Option<NaiveDateTime> {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_render_time_none() {
+        let none_time: Option<NaiveDateTime> = None;
+        let time_format = TimeFormat::DefaultFormat;
+        let cell = none_time.render(Style::default(), &time_format, true);
+        assert_eq!(cell.strings().to_string(), "-");
+        assert_eq!(none_time.render_json(&time_format, true), None);
+    }
+
+    #[test]
+    fn test_render_time_utc() {
+        let dt = NaiveDate::from_ymd_opt(2026, 9, 1)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        let time = Some(dt);
+        let time_format = TimeFormat::LongISO;
+        let cell = time.render(Style::default(), &time_format, true);
+        assert_eq!(cell.strings().to_string(), "2026-09-01 12:00");
+        assert_eq!(
+            time.render_json(&time_format, true),
+            Some("2026-09-01 12:00".to_string())
+        );
+    }
+}

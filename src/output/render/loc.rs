@@ -72,3 +72,80 @@ impl Render for Option<LocCounts> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::loc::LocCounts;
+
+    #[test]
+    fn test_render_loc_none() {
+        let none_counts: Option<LocCounts> = None;
+        let locale = NumericLocale::english();
+        let cell = none_counts.render(
+            Style::default(),
+            Style::default(),
+            CodeContent::Lines,
+            None,
+            &locale,
+        );
+        assert_eq!(cell.strings().to_string(), "-");
+        assert_eq!(
+            none_counts.render_json(CodeContent::Lines, None, &locale),
+            None
+        );
+    }
+
+    #[test]
+    fn test_render_loc_lines_and_percent() {
+        let counts = Some(LocCounts {
+            lines: 100,
+            code: 75,
+            comments: 15,
+            blanks: 10,
+        });
+        let locale = NumericLocale::english();
+
+        // Lines mode
+        let cell_lines = counts.render(
+            Style::default(),
+            Style::default(),
+            CodeContent::Lines,
+            Some(150),
+            &locale,
+        );
+        assert_eq!(cell_lines.strings().to_string(), "75");
+        assert_eq!(
+            counts.render_json(CodeContent::Lines, Some(150), &locale),
+            Some("75".to_string())
+        );
+
+        // Percent mode with valid total
+        let cell_pct = counts.render(
+            Style::default(),
+            Style::default(),
+            CodeContent::Percent,
+            Some(150),
+            &locale,
+        );
+        assert_eq!(cell_pct.strings().to_string(), "50.0%");
+        assert_eq!(
+            counts.render_json(CodeContent::Percent, Some(150), &locale),
+            Some("50.0%".to_string())
+        );
+
+        // Percent mode without total
+        let cell_pct_none = counts.render(
+            Style::default(),
+            Style::default(),
+            CodeContent::Percent,
+            None,
+            &locale,
+        );
+        assert_eq!(cell_pct_none.strings().to_string(), "-");
+        assert_eq!(
+            counts.render_json(CodeContent::Percent, None, &locale),
+            None
+        );
+    }
+}
