@@ -159,17 +159,31 @@ fn test_markdown_tree_report_aggregation() {
     );
 
     let report = count_roots(std::slice::from_ref(&temp.path), false);
-    let py_lang = language_for("app.py", Some("py")).expect("Python language");
     let md_lang = language_for("DOCS.md", Some("md")).expect("Markdown language");
 
+    assert_eq!(
+        report.total_files(),
+        1,
+        "Total files should match physical files count (1)"
+    );
+
     let langs: Vec<_> = report.languages().collect();
-    let py_stat = langs.iter().find(|s| std::ptr::eq(s.language, py_lang));
     let md_stat = langs.iter().find(|s| std::ptr::eq(s.language, md_lang));
 
-    assert!(py_stat.is_some(), "Python should be detected in Report");
     assert!(md_stat.is_some(), "Markdown should be detected in Report");
+    let md_stat = md_stat.unwrap();
+    assert_eq!(md_stat.files, 1);
 
-    let py_stat = py_stat.unwrap();
-    assert_eq!(py_stat.counts.code, 2);
-    assert_eq!(py_stat.counts.comments, 1);
+    assert!(
+        md_stat.embedded.contains_key("Python"),
+        "Python should be in embedded map of Markdown"
+    );
+    let py_sub = &md_stat.embedded["Python"];
+    assert_eq!(py_sub.counts.code, 2);
+    assert_eq!(py_sub.counts.comments, 1);
+
+    assert!(
+        md_stat.embedded.contains_key("Text / Markup"),
+        "Text / Markup should be in embedded map of Markdown"
+    );
 }

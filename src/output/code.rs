@@ -21,7 +21,7 @@ use std::path::PathBuf;
 
 use nu_ansi_term::Style;
 
-use crate::loc::LangStat;
+use crate::loc::{LangStat, LocCounts};
 use crate::options::parser::CodeContent;
 use crate::output::icons::{icon_for_name_ext, iconify_style};
 use crate::theme::Theme;
@@ -168,56 +168,98 @@ impl Render<'_> {
 
         // Build every row up front so each column can be sized to fit.
         let mut header_row = vec![Cell::new(plain_lang("Language"), header, Align::Left)];
-        let mut body: Vec<Vec<Cell>> = langs
-            .iter()
-            .map(|s| vec![Cell::new(lang_cell(s), lang_style, Align::Left)])
-            .collect();
+        let mut body: Vec<Vec<Cell>> = Vec::new();
         let mut total_row = vec![Cell::new(plain_lang("Total"), total_style, Align::Left)];
 
         header_row.push(Cell::new("Files".into(), header, Align::Right));
-        for (row, s) in body.iter_mut().zip(&langs) {
-            row.push(num(s.files, count_style));
-        }
-        total_row.push(num(report.total_files(), total_style));
 
         if with_lines {
-            type Get = fn(&LangStat) -> usize;
-            let metrics: [(&str, Get); 4] = [
-                ("Lines", |s| s.counts.lines),
-                ("Code", |s| s.counts.code),
-                ("Comments", |s| s.counts.comments),
-                ("Blanks", |s| s.counts.blanks),
-            ];
-            for (title, get) in metrics {
-                header_row.push(Cell::new(title.into(), header, Align::Right));
-                let style = if title == "Code" { count_style } else { dim };
-                for (row, s) in body.iter_mut().zip(&langs) {
-                    row.push(num(get(s), style));
+            header_row.push(Cell::new("Lines".into(), header, Align::Right));
+            header_row.push(Cell::new("Code".into(), header, Align::Right));
+            header_row.push(Cell::new("Comments".into(), header, Align::Right));
+            header_row.push(Cell::new("Blanks".into(), header, Align::Right));
+        }
+
+        if with_percent {
+            header_row.push(Cell::new("Code %".into(), header, Align::Right));
+            header_row.push(Cell::new(String::new(), header, Align::Left));
+        }
+
+        let push_row = |body: &mut Vec<Vec<Cell>>,
+                        label: String,
+                        files: usize,
+                        counts: LocCounts,
+                        style: Style| {
+            let mut row = vec![Cell::new(label, style, Align::Left)];
+            row.push(num(files, count_style));
+            if with_lines {
+                row.push(num(counts.lines, count_style));
+                row.push(num(counts.code, count_style));
+                row.push(num(counts.comments, dim));
+                row.push(num(counts.blanks, dim));
+            }
+            if with_percent {
+                row.push(pct(counts.code, count_style));
+                row.push(Cell::new(
+                    bar(counts.code, max_code),
+                    bar_style,
+                    Align::Left,
+                ));
+            }
+            body.push(row);
+        };
+
+        for stat in &langs {
+            push_row(
+                &mut body,
+                lang_cell(stat),
+                stat.files,
+                stat.counts,
+                lang_style,
+            );
+            if !stat.embedded.is_empty() {
+                let mut children: Vec<(&&str, &LangStat)> = stat.embedded.iter().collect();
+                children.sort_by(|a, b| {
+                    b.1.counts
+                        .code
+                        .cmp(&a.1.counts.code)
+                        .then_with(|| a.0.cmp(b.0))
+                });
+                let child_count = children.len();
+                for (idx, (label, child_stat)) in children.iter().enumerate() {
+                    let is_last = idx == child_count - 1;
+                    let tree_prefix = if is_last {
+                        "   └── "
+                    } else {
+                        "   ├── "
+                    };
+                    let child_label = if self.show_icons {
+                        let (rep_name, rep_ext) = &child_stat.rep_file;
+                        let icon = icon_for_name_ext(rep_name, rep_ext.as_deref());
+                        format!("{tree_prefix}{icon} {label}")
+                    } else {
+                        format!("{tree_prefix}{label}")
+                    };
+                    push_row(
+                        &mut body,
+                        child_label,
+                        child_stat.files,
+                        child_stat.counts,
+                        lang_style,
+                    );
                 }
             }
+        }
+
+        total_row.push(num(report.total_files(), total_style));
+        if with_lines {
             total_row.push(num(total.lines, total_style));
             total_row.push(num(total.code, total_style));
             total_row.push(num(total.comments, total_style));
             total_row.push(num(total.blanks, total_style));
         }
-
         if with_percent {
-            header_row.push(Cell::new("Code %".into(), header, Align::Right));
-            for (row, s) in body.iter_mut().zip(&langs) {
-                row.push(pct(s.counts.code, count_style));
-            }
             total_row.push(pct(total.code, total_style));
-
-            // The share bar: scaled against the largest language, so the top
-            // row always spans the full bar width.
-            header_row.push(Cell::new(String::new(), header, Align::Left));
-            for (row, s) in body.iter_mut().zip(&langs) {
-                row.push(Cell::new(
-                    bar(s.counts.code, max_code),
-                    bar_style,
-                    Align::Left,
-                ));
-            }
             total_row.push(Cell::new(String::new(), total_style, Align::Left));
         }
 
@@ -279,21 +321,61 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
             out.push_str(&padding);
             continue;
         }
-        let painted = if i == 0 && iconify_first && cell.width() > 2 {
-            // Paint the icon prefix separately from the name, so underlined
-            // headers don’t drag the underline through the icon column, and
-            // icons keep only the colour of the style they accompany.
-            let split = cell
-                .text
-                .char_indices()
-                .nth(2)
-                .map_or(cell.text.len(), |(pos, _)| pos);
-            let (prefix, name) = cell.text.split_at(split);
-            format!(
-                "{}{}",
-                iconify_style(cell.style).paint(prefix),
-                cell.style.paint(name)
-            )
+        let painted = if i == 0 {
+            if let Some(rest) = cell.text.strip_prefix("   ├── ") {
+                let tree = "   ├── ";
+                let tree_dim = Style::default().dimmed();
+                if iconify_first && rest.chars().count() > 2 {
+                    let split = rest
+                        .char_indices()
+                        .nth(2)
+                        .map_or(rest.len(), |(pos, _)| pos);
+                    let (prefix, name) = rest.split_at(split);
+                    format!(
+                        "{}{}{}",
+                        tree_dim.paint(tree),
+                        iconify_style(cell.style).paint(prefix),
+                        cell.style.paint(name)
+                    )
+                } else {
+                    format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
+                }
+            } else if let Some(rest) = cell.text.strip_prefix("   └── ") {
+                let tree = "   └── ";
+                let tree_dim = Style::default().dimmed();
+                if iconify_first && rest.chars().count() > 2 {
+                    let split = rest
+                        .char_indices()
+                        .nth(2)
+                        .map_or(rest.len(), |(pos, _)| pos);
+                    let (prefix, name) = rest.split_at(split);
+                    format!(
+                        "{}{}{}",
+                        tree_dim.paint(tree),
+                        iconify_style(cell.style).paint(prefix),
+                        cell.style.paint(name)
+                    )
+                } else {
+                    format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
+                }
+            } else if iconify_first && cell.width() > 2 {
+                // Paint the icon prefix separately from the name, so underlined
+                // headers don’t drag the underline through the icon column, and
+                // icons keep only the colour of the style they accompany.
+                let split = cell
+                    .text
+                    .char_indices()
+                    .nth(2)
+                    .map_or(cell.text.len(), |(pos, _)| pos);
+                let (prefix, name) = cell.text.split_at(split);
+                format!(
+                    "{}{}",
+                    iconify_style(cell.style).paint(prefix),
+                    cell.style.paint(name)
+                )
+            } else {
+                cell.style.paint(cell.text.as_str()).to_string()
+            }
         } else {
             cell.style.paint(cell.text.as_str()).to_string()
         };
