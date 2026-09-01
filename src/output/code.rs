@@ -33,11 +33,22 @@ const BAR_WIDTH: usize = 16;
 /// the share bar sub-cell resolution.
 const EIGHTHS: [char; 8] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
 
+/// Format for displaying the Files column on sub-language rows.
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
+pub enum SubFilesMode {
+    #[default]
+    Symbol,
+    Count,
+    Blank,
+}
+
 /// Options for the code-summary view.
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub struct Options {
     /// Whether to show line counts, percentages, or both.
     pub content: CodeContent,
+    /// Format for displaying the Files column on sub-language rows.
+    pub sub_files: SubFilesMode,
 }
 
 /// Everything needed to render a code summary.
@@ -187,11 +198,11 @@ impl Render<'_> {
 
         let push_row = |body: &mut Vec<Vec<Cell>>,
                         label: String,
-                        files: usize,
+                        files_cell: Cell,
                         counts: LocCounts,
                         style: Style| {
             let mut row = vec![Cell::new(label, style, Align::Left)];
-            row.push(num(files, count_style));
+            row.push(files_cell);
             if with_lines {
                 row.push(num(counts.lines, count_style));
                 row.push(num(counts.code, count_style));
@@ -213,7 +224,7 @@ impl Render<'_> {
             push_row(
                 &mut body,
                 lang_cell(stat),
-                stat.files,
+                num(stat.files, count_style),
                 stat.counts,
                 lang_style,
             );
@@ -240,10 +251,15 @@ impl Render<'_> {
                     } else {
                         format!("{tree_prefix}{label}")
                     };
+                    let files_cell = match self.opts.sub_files {
+                        SubFilesMode::Count => num(child_stat.files, count_style),
+                        SubFilesMode::Blank => Cell::new(String::new(), dim, Align::Right),
+                        SubFilesMode::Symbol => Cell::new("*".into(), dim, Align::Right),
+                    };
                     push_row(
                         &mut body,
                         child_label,
-                        child_stat.files,
+                        files_cell,
                         child_stat.counts,
                         lang_style,
                     );
