@@ -84,6 +84,8 @@ __eza() {
         \*--no-filesize"[Suppress the filesize field]" \
         \*--size-digits"[Number of digits to display for file sizes (1..=8)]" \
         \*--digits"[Number of digits to display for file sizes (1..=8)]" \
+        \*--percent-digits"[Number of decimal digits to display for percentages (0..=8)]" \
+        \*--precision-percent"[Number of decimal digits to display for percentages (0..=8)]" \
         \*--no-user"[Suppress the user field]" \
         \*--no-time"[Suppress the time field]" \
         \*{-u,--accessed}"[Use the accessed timestamp field]" \

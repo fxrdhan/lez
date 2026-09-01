@@ -149,3 +149,11 @@
 
 # Colour scale gradient mode: "fixed" or "gradient"
 # color_scale_mode = "gradient"
+
+[loc]
+# Format for sub-language files column: "symbol" (default '*'), "count" (file count), or "blank"
+# sub_files = "symbol"
+
+# Number of decimal digits to display for percentages (0..=8, default: 1)
+# percent_digits = 1
+

@@ -98,6 +98,7 @@ pub struct ThemeConfigSection {
 #[serde(default, rename_all = "snake_case")]
 pub struct LocConfig {
     pub sub_files: Option<String>,
+    pub percent_digits: Option<u8>,
 }
 
 impl FileConfig {
@@ -177,7 +178,7 @@ impl FileConfig {
             color_scale_mode,
         );
 
-        merge_field!(self.loc, other.loc, sub_files);
+        merge_field!(self.loc, other.loc, sub_files, percent_digits);
     }
 
     /// Load and parse a config file from a path (supports TOML or YAML).

@@ -49,6 +49,8 @@ pub struct Options {
     pub content: CodeContent,
     /// Format for displaying the Files column on sub-language rows.
     pub sub_files: SubFilesMode,
+    /// Number of decimal digits to display for percentages (0..=8).
+    pub percent_digits: u8,
 }
 
 /// Everything needed to render a code summary.
@@ -172,7 +174,9 @@ impl Render<'_> {
             let text = if total.code == 0 {
                 "-".to_string()
             } else {
-                format!("{:.1}%", (part as f64) * 100.0 / (total.code as f64))
+                let val = (part as f64) * 100.0 / (total.code as f64);
+                let digits = self.opts.percent_digits as usize;
+                format!("{val:.digits$}%")
             };
             Cell::new(text, style, Align::Right)
         };

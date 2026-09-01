@@ -44,6 +44,7 @@ pub enum AllocatedSizeMode {
 pub struct Options {
     pub size_format: SizeFormat,
     pub size_digits: u8,
+    pub percent_digits: u8,
     pub time_format: TimeFormat,
     pub user_format: UserFormat,
     pub group_format: GroupFormat,
@@ -472,6 +473,7 @@ pub struct Table<'a> {
     /// The grand total of code lines used as the denominator for `--loc`
     /// percentage columns. `None` until computed by the details renderer.
     loc_total: Option<usize>,
+    percent_digits: u8,
     spaces: usize,
 }
 
@@ -507,6 +509,7 @@ impl<'a> Table<'a> {
             time_format: options.time_format.clone(),
             size_format: options.size_format,
             size_digits: options.size_digits,
+            percent_digits: options.percent_digits,
             #[cfg(unix)]
             user_format: options.user_format,
             #[cfg(unix)]
@@ -619,6 +622,7 @@ impl<'a> Table<'a> {
                 content,
                 self.loc_total,
                 &self.env.numeric,
+                self.percent_digits,
             ),
             #[cfg(unix)]
             Column::HardLinks => file.links().render(self.theme, &self.env.numeric),

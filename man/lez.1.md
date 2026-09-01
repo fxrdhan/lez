@@ -292,6 +292,9 @@ These options are available when running with `--long` (`-l`):
 `--size-digits=(NUM)`, `--digits=(NUM)`
 : Number of digits to display for file sizes (1..=8, default: 3). Can also be set via the `LEZ_SIZE_DIGITS` environment variable.
 
+`--percent-digits=(NUM)`, `--precision-percent=(NUM)`
+: Number of decimal digits to display for percentages (0..=8, default: 1). Can also be set via the `LEZ_PERCENT_DIGITS` environment variable or `[loc] percent_digits` in configuration.
+
 `--changed`
 : Use the changed timestamp field.
 
@@ -465,6 +468,12 @@ Telling the two apart means asking the filesystem about each directory listed: i
 Specifies the default number of digits (from 1 to 8) to display for formatted file sizes (default: `3`).
 
 For example, setting `LEZ_SIZE_DIGITS=4` causes sizes like `2.3Gi` to be formatted with higher precision as `2.34Gi`.
+
+## `LEZ_PERCENT_DIGITS`, `EZA_PERCENT_DIGITS`
+
+Specifies the default number of decimal digits (from 0 to 8) to display for code percentages in `--code` and `--loc=percent` (default: `1`).
+
+For example, setting `LEZ_PERCENT_DIGITS=0` yields integer percentages (`68%`), while `LEZ_PERCENT_DIGITS=3` gives high precision (`68.317%`).
 
 ## `NO_COLOR`
 

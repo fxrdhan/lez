@@ -430,10 +430,12 @@ impl<'a> JsonFileObject<'a> {
             Column::SecurityContext => f.security_context().render_json(),
 
             Column::Language => f.language().render_json(),
-            Column::Loc(code_content) => {
-                f.loc()
-                    .render_json(*code_content, self.code_loc, &env.numeric)
-            }
+            Column::Loc(code_content) => f.loc().render_json(
+                *code_content,
+                self.code_loc,
+                &env.numeric,
+                self.options.percent_digits,
+            ),
             Column::SubdirGitRepo(status) => self.subdir_git_repo(f, *status).render_json(),
         }
     }

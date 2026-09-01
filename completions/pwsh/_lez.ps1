@@ -127,6 +127,8 @@ Register-ArgumentCompleter -Native -CommandName 'lez' -ScriptBlock {
             [CompletionResult]::new('--no-filesize'              ,'no-filesize'         , [CompletionResultType]::ParameterName, 'suppress the filesize field')
             [CompletionResult]::new('--size-digits'              ,'size-digits'         , [CompletionResultType]::ParameterName, 'number of digits to display for file sizes (1..=8, default: 3)')
             [CompletionResult]::new('--digits'                   ,'digits'              , [CompletionResultType]::ParameterName, 'number of digits to display for file sizes (1..=8, default: 3)')
+            [CompletionResult]::new('--percent-digits'           ,'percent-digits'      , [CompletionResultType]::ParameterName, 'number of decimal digits to display for percentages (0..=8, default: 1)')
+            [CompletionResult]::new('--precision-percent'        ,'precision-percent'   , [CompletionResultType]::ParameterName, 'number of decimal digits to display for percentages (0..=8, default: 1)')
             [CompletionResult]::new('--no-user'                  ,'no-user'             , [CompletionResultType]::ParameterName, 'suppress the user field')
             [CompletionResult]::new('--no-time'                  ,'no-time'             , [CompletionResultType]::ParameterName, 'suppress the time field')
             [CompletionResult]::new('--stdin'                    ,'stdin'               , [CompletionResultType]::ParameterName, 'read file names from stdin, one per line or other separator specified in environment')

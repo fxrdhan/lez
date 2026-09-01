@@ -77,6 +77,8 @@ export extern "eza" [
     --no-filesize              # Suppress the filesize field
     --size-digits: int         # Number of digits to display for file sizes (1..=8)
     --digits: int              # Number of digits to display for file sizes (1..=8)
+    --percent-digits: int      # Number of decimal digits to display for percentages (0..=8)
+    --precision-percent: int   # Number of decimal digits to display for percentages (0..=8)
     --no-user                  # Suppress the user field
     --no-time                  # Suppress the time field
     --mounts(-M)               # Show mount details

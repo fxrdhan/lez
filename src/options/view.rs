@@ -90,7 +90,12 @@ impl Mode {
                 Some("blank" | "empty" | "none") => code::SubFilesMode::Blank,
                 _ => code::SubFilesMode::Symbol,
             };
-            return Ok(Self::Code(code::Options { content, sub_files }));
+            let percent_digits = PercentDigits::deduce(matches, vars, config)?;
+            return Ok(Self::Code(code::Options {
+                content,
+                sub_files,
+                percent_digits,
+            }));
         }
 
         let mut long = matches.get_flag("long");
@@ -386,6 +391,7 @@ impl TableOptions {
         let allocated_size_mode = AllocatedSizeMode::deduce(matches, &config.display);
         let size_format = SizeFormat::deduce(matches);
         let size_digits = SizeDigits::deduce(matches, vars, config)?;
+        let percent_digits = PercentDigits::deduce(matches, vars, config)?;
         let user_format = UserFormat::deduce(matches, config);
         let group_format = GroupFormat::deduce(matches, config);
         let columns = Columns::deduce(matches, vars, config)?;
@@ -393,6 +399,7 @@ impl TableOptions {
         Ok(Self {
             size_format,
             size_digits,
+            percent_digits,
             time_format,
             user_format,
             group_format,
@@ -457,6 +464,49 @@ impl SizeDigits {
             Ok(digits.clamp(1, 8))
         } else {
             Ok(3)
+        }
+    }
+}
+
+pub struct PercentDigits;
+
+impl PercentDigits {
+    pub fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<u8, OptionsError> {
+        if let Some(digits) = matches.get_one::<u8>("percent-digits") {
+            return Ok(*digits);
+        }
+
+        if let Some(val) = vars
+            .get(vars::LEZ_PERCENT_DIGITS)
+            .or_else(|| vars.get(vars::EZA_PERCENT_DIGITS))
+            .or_else(|| vars.get(vars::EXA_PERCENT_DIGITS))
+            .map(|s| s.to_string_lossy().to_string())
+        {
+            match val.parse::<u8>() {
+                Ok(digits) if digits <= 8 => Ok(digits),
+                Ok(_) | Err(_) => {
+                    let source =
+                        NumberSource::Env(if vars.get(vars::LEZ_PERCENT_DIGITS).is_some() {
+                            vars::LEZ_PERCENT_DIGITS
+                        } else {
+                            vars.source(vars::EZA_PERCENT_DIGITS, vars::EXA_PERCENT_DIGITS)
+                                .unwrap_or(vars::LEZ_PERCENT_DIGITS)
+                        });
+                    let err = match val.parse::<u8>() {
+                        Err(e) => e,
+                        Ok(_) => "invalid digit range".parse::<u8>().unwrap_err(),
+                    };
+                    Err(OptionsError::FailedParse(val, source, err))
+                }
+            }
+        } else if let Some(digits) = config.loc.percent_digits {
+            Ok(digits.min(8))
+        } else {
+            Ok(1)
         }
     }
 }
@@ -1967,6 +2017,7 @@ mod tests {
             Ok(Mode::Code(code::Options {
                 content: CodeContent::Both,
                 sub_files: code::SubFilesMode::Symbol,
+                percent_digits: 1,
             }))
         );
     }
@@ -1984,6 +2035,7 @@ mod tests {
             Ok(Mode::Code(code::Options {
                 content: CodeContent::Lines,
                 sub_files: code::SubFilesMode::Symbol,
+                percent_digits: 1,
             }))
         );
     }
@@ -2482,5 +2534,58 @@ mod tests {
         );
         assert!(view.file_style.is_a_tty);
         assert!(view.file_style.are_icons_enabled());
+    }
+
+    #[test]
+    fn deduce_percent_digits_cli_and_env() {
+        let config = FileConfig::default();
+        let vars = MockVars::default();
+
+        // Default is 1
+        assert_eq!(
+            PercentDigits::deduce(&mock_cli(Vec::<&str>::new()), &vars, &config).unwrap(),
+            1
+        );
+
+        // CLI flag
+        assert_eq!(
+            PercentDigits::deduce(&mock_cli(vec!["--percent-digits=3"]), &vars, &config).unwrap(),
+            3
+        );
+
+        // CLI alias
+        assert_eq!(
+            PercentDigits::deduce(&mock_cli(vec!["--precision-percent=0"]), &vars, &config)
+                .unwrap(),
+            0
+        );
+
+        // Env var LEZ_PERCENT_DIGITS
+        let lez_vars = MockVars {
+            lez_percent_digits: OsString::from("4"),
+            ..MockVars::default()
+        };
+        assert_eq!(
+            PercentDigits::deduce(&mock_cli(Vec::<&str>::new()), &lez_vars, &config).unwrap(),
+            4
+        );
+
+        // Env var EZA_PERCENT_DIGITS fallback
+        let eza_vars = MockVars {
+            eza_percent_digits: OsString::from("2"),
+            ..MockVars::default()
+        };
+        assert_eq!(
+            PercentDigits::deduce(&mock_cli(Vec::<&str>::new()), &eza_vars, &config).unwrap(),
+            2
+        );
+
+        // Config file [loc] percent_digits
+        let mut custom_cfg = FileConfig::default();
+        custom_cfg.loc.percent_digits = Some(5);
+        assert_eq!(
+            PercentDigits::deduce(&mock_cli(Vec::<&str>::new()), &vars, &custom_cfg).unwrap(),
+            5
+        );
     }
 }

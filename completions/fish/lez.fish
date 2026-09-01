@@ -201,6 +201,8 @@ complete -c lez -s o -l octal-permissions -d "List each file's permission in oct
 complete -c lez -l no-filesize -d "Suppress the filesize field"
 complete -c lez -l size-digits -d "Number of digits to display for file sizes (1..=8)"
 complete -c lez -l digits -d "Number of digits to display for file sizes (1..=8)"
+complete -c lez -l percent-digits -d "Number of decimal digits to display for percentages (0..=8)"
+complete -c lez -l precision-percent -d "Number of decimal digits to display for percentages (0..=8)"
 complete -c lez -l no-user -d "Suppress the user field"
 complete -c lez -l no-time -d "Suppress the time field"
 complete -c lez -s M -l mounts -d "Show mount details"

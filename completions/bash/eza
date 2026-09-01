@@ -96,8 +96,8 @@ _eza() {
             return
             ;;
 
-        -L|--level|--size-digits|--digits)
-            mapfile -t COMPREPLY < <(compgen -W '{1..8}' -- "$cur")
+        -L|--level|--size-digits|--digits|--percent-digits|--precision-percent)
+            mapfile -t COMPREPLY < <(compgen -W '{0..8}' -- "$cur")
             return
             ;;
 

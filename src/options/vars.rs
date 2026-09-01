@@ -146,6 +146,11 @@ pub static LEZ_SIZE_DIGITS: &str = "LEZ_SIZE_DIGITS";
 pub static EZA_SIZE_DIGITS: &str = "EZA_SIZE_DIGITS";
 pub static EXA_SIZE_DIGITS: &str = "EXA_SIZE_DIGITS";
 
+/// Environment variable used to specify the number of decimal digits to display for percentages.
+pub static LEZ_PERCENT_DIGITS: &str = "LEZ_PERCENT_DIGITS";
+pub static EZA_PERCENT_DIGITS: &str = "EZA_PERCENT_DIGITS";
+pub static EXA_PERCENT_DIGITS: &str = "EXA_PERCENT_DIGITS";
+
 /// Mockable wrapper for `std::env::var_os`.
 pub trait Vars {
     fn get(&self, name: &'static str) -> Option<OsString>;
@@ -235,6 +240,10 @@ pub mod test {
         pub eza_size_digits: OsString,
         pub exa_size_digits: OsString,
         pub size_digits: OsString,
+        pub lez_percent_digits: OsString,
+        pub eza_percent_digits: OsString,
+        pub exa_percent_digits: OsString,
+        pub percent_digits: OsString,
         pub lc_all: OsString,
         pub lc_collate: OsString,
         pub lang: OsString,
@@ -370,6 +379,20 @@ pub mod test {
                 {
                     Some(self.size_digits.clone())
                 }
+                "LEZ_PERCENT_DIGITS" if !self.lez_percent_digits.is_empty() => {
+                    Some(self.lez_percent_digits.clone())
+                }
+                "EZA_PERCENT_DIGITS" if !self.eza_percent_digits.is_empty() => {
+                    Some(self.eza_percent_digits.clone())
+                }
+                "EXA_PERCENT_DIGITS" if !self.exa_percent_digits.is_empty() => {
+                    Some(self.exa_percent_digits.clone())
+                }
+                "LEZ_PERCENT_DIGITS" | "EZA_PERCENT_DIGITS" | "EXA_PERCENT_DIGITS"
+                    if !self.percent_digits.is_empty() =>
+                {
+                    Some(self.percent_digits.clone())
+                }
                 "LEZ_FLAGS_FORMAT" if !self.lez_flags_format.is_empty() => {
                     Some(self.lez_flags_format.clone())
                 }
@@ -438,6 +461,9 @@ pub mod test {
                 "LEZ_SIZE_DIGITS" => self.lez_size_digits = value.clone(),
                 "EZA_SIZE_DIGITS" => self.eza_size_digits = value.clone(),
                 "EXA_SIZE_DIGITS" => self.exa_size_digits = value.clone(),
+                "LEZ_PERCENT_DIGITS" => self.lez_percent_digits = value.clone(),
+                "EZA_PERCENT_DIGITS" => self.eza_percent_digits = value.clone(),
+                "EXA_PERCENT_DIGITS" => self.exa_percent_digits = value.clone(),
                 "LEZ_FLAGS_FORMAT" => self.lez_flags_format = value.clone(),
                 "EZA_FLAGS_FORMAT" => self.eza_flags_format = value.clone(),
                 "LEZ_WINDOWS_ATTRIBUTES" => self.lez_windows_attributes = value.clone(),
@@ -546,6 +572,15 @@ pub mod test {
 
         vars.set(EXA_SIZE_DIGITS, &OsString::from("4"));
         assert_eq!(vars.get(EXA_SIZE_DIGITS), Some(OsString::from("4")));
+
+        vars.set(LEZ_PERCENT_DIGITS, &OsString::from("2"));
+        assert_eq!(vars.get(LEZ_PERCENT_DIGITS), Some(OsString::from("2")));
+
+        vars.set(EZA_PERCENT_DIGITS, &OsString::from("2"));
+        assert_eq!(vars.get(EZA_PERCENT_DIGITS), Some(OsString::from("2")));
+
+        vars.set(EXA_PERCENT_DIGITS, &OsString::from("2"));
+        assert_eq!(vars.get(EXA_PERCENT_DIGITS), Some(OsString::from("2")));
 
         vars.set(LEZ_FLAGS_FORMAT, &OsString::from("short"));
         assert_eq!(vars.get(LEZ_FLAGS_FORMAT), Some(OsString::from("short")));

@@ -201,6 +201,8 @@ complete -c eza -s o -l octal-permissions -d "List each file's permission in oct
 complete -c eza -l no-filesize -d "Suppress the filesize field"
 complete -c eza -l size-digits -d "Number of digits to display for file sizes (1..=8)"
 complete -c eza -l digits -d "Number of digits to display for file sizes (1..=8)"
+complete -c eza -l percent-digits -d "Number of decimal digits to display for percentages (0..=8)"
+complete -c eza -l precision-percent -d "Number of decimal digits to display for percentages (0..=8)"
 complete -c eza -l no-user -d "Suppress the user field"
 complete -c eza -l no-time -d "Suppress the time field"
 complete -c eza -s M -l mounts -d "Show mount details"
