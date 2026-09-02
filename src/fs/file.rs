@@ -59,6 +59,13 @@ const POINTS_TO_DIR_NO: u8 = 1;
 /// `points_to_dir` was worked out and the answer was yes.
 const POINTS_TO_DIR_YES: u8 = 2;
 
+/// `is_empty_dir` has not been worked out yet.
+const EMPTY_DIR_UNKNOWN: u8 = 0;
+/// `is_empty_dir` was worked out and the answer was no.
+const EMPTY_DIR_NO: u8 = 1;
+/// `is_empty_dir` was worked out and the answer was yes.
+const EMPTY_DIR_YES: u8 = 2;
+
 pub struct File<'dir> {
     /// The filename portion of this file’s path, including the extension.
     ///
@@ -136,6 +143,16 @@ pub struct File<'dir> {
     /// threads racing here both compute the same answer, so the store needs no
     /// ordering beyond `Relaxed`.
     points_to_dir: AtomicU8,
+
+    /// Whether this directory is empty.
+    ///
+    /// Answering this requires querying `read_dir` when nlink <= 2, which
+    /// is expensive on network and FUSE filesystems. Icons, details, and
+    /// theme styling engines all query directory emptiness.
+    /// Caching turns that into at most one lookup per directory.
+    ///
+    /// An atomic tri-state byte (EMPTY_DIR_UNKNOWN, EMPTY_DIR_NO, EMPTY_DIR_YES).
+    is_empty_dir: AtomicU8,
 
     /// The extended attributes of this file.
     extended_attributes: OnceLock<Vec<Attribute>>,
@@ -229,8 +246,6 @@ impl<'dir> File<'dir> {
             None => OnceLock::new(),
         };
 
-        debug!("deref_links {deref_links}");
-
         let mut file = File {
             name,
             ext,
@@ -244,6 +259,7 @@ impl<'dir> File<'dir> {
             dot_filter,
             metadata: OnceLock::new(),
             points_to_dir: AtomicU8::new(POINTS_TO_DIR_UNKNOWN),
+            is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
             extended_attributes: OnceLock::new(),
             absolute_path: OnceLock::new(),
             mimetype: OnceLock::new(),
@@ -287,6 +303,7 @@ impl<'dir> File<'dir> {
             dot_filter,
             metadata: OnceLock::new(),
             points_to_dir: AtomicU8::new(POINTS_TO_DIR_UNKNOWN),
+            is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
             absolute_path: OnceLock::new(),
             extended_attributes: OnceLock::new(),
             filetype: OnceLock::new(),
@@ -790,6 +807,7 @@ impl<'dir> File<'dir> {
                     is_all_all: false,
                     deref_links: self.deref_links,
                     points_to_dir: AtomicU8::new(POINTS_TO_DIR_UNKNOWN),
+                    is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
                     extended_attributes,
                     absolute_path: absolute_path_cell,
                     recursive_size: RecursiveSize::None,
@@ -959,9 +977,7 @@ impl<'dir> File<'dir> {
             #[allow(trivial_numeric_casts, unused_unsafe)]
             #[allow(clippy::unnecessary_cast, clippy::useless_conversion)]
             {
-                let device_id = device_id
-                    .try_into()
-                    .expect("Malformed device major ID when getting filesize");
+                let device_id = device_id.try_into().unwrap_or(0);
                 return f::Size::DeviceIDs(f::DeviceIDs {
                     major: unsafe { libc::major(device_id) as u32 },
                     minor: unsafe { libc::minor(device_id) as u32 },
@@ -989,7 +1005,11 @@ impl<'dir> File<'dir> {
         let handle = same_file::Handle::from_path(&self.path).ok();
         let cache_key = (handle, shows_dotfiles);
 
-        if let Some(size) = DIRECTORY_SIZE_CACHE.lock().unwrap().get(&cache_key) {
+        if let Some(size) = DIRECTORY_SIZE_CACHE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&cache_key)
+        {
             return RecursiveSize::Some(size.0, size.1);
         }
 
@@ -1012,7 +1032,7 @@ impl<'dir> File<'dir> {
 
         DIRECTORY_SIZE_CACHE
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(cache_key, (size, blocks));
         RecursiveSize::Some(size, blocks)
     }
@@ -1048,36 +1068,49 @@ impl<'dir> File<'dir> {
     /// it's truly empty. The naive approach used here checks the contents
     /// directly, as certain filesystems make it difficult to infer emptiness
     /// based on directory size alone.
-    #[cfg(unix)]
-    pub fn is_empty_dir(&self) -> bool {
-        if self.is_directory() {
-            if self.metadata().map_or(0, MetadataExt::nlink) > 2 {
-                // Directories will have a link count of two if they do not have any subdirectories.
-                // The '.' entry is a link to itself and the '..' is a link to the parent directory.
-                // A subdirectory will have a link to its parent directory increasing the link count
-                // above two.  This will avoid the expensive read_dir call below when a directory
-                // has subdirectories.
-                false
-            } else {
-                self.is_empty_directory()
-            }
-        } else {
-            false
-        }
-    }
-
-    /// Determines if the directory is empty or not.
     ///
     /// For Windows platforms, this function checks the directory contents directly
     /// to determine if it's empty. Since certain filesystems on Windows make it
     /// challenging to infer emptiness based on directory size, this approach is used.
-    #[cfg(windows)]
+    ///
+    /// Results are cached atomically in `self.is_empty_dir` to eliminate
+    /// redundant `read_dir` syscalls when icons, details, or themes query
+    /// directory emptiness.
     pub fn is_empty_dir(&self) -> bool {
-        if self.is_directory() {
-            self.is_empty_directory()
-        } else {
-            false
+        match self.is_empty_dir.load(atomic::Ordering::Acquire) {
+            EMPTY_DIR_NO => return false,
+            EMPTY_DIR_YES => return true,
+            _ => {}
         }
+
+        if !self.is_directory() {
+            self.is_empty_dir
+                .store(EMPTY_DIR_NO, atomic::Ordering::Release);
+            return false;
+        }
+
+        #[cfg(unix)]
+        let is_empty = if self.metadata().map_or(0, MetadataExt::nlink) > 2 {
+            // Directories will have a link count of two if they do not have any subdirectories.
+            // The '.' entry is a link to itself and the '..' is a link to the parent directory.
+            // A subdirectory will have a link to its parent directory increasing the link count
+            // above two.  This will avoid the expensive read_dir call below when a directory
+            // has subdirectories.
+            false
+        } else {
+            self.is_empty_directory()
+        };
+
+        #[cfg(not(unix))]
+        let is_empty = self.is_empty_directory();
+
+        let state = if is_empty {
+            EMPTY_DIR_YES
+        } else {
+            EMPTY_DIR_NO
+        };
+        self.is_empty_dir.store(state, atomic::Ordering::Release);
+        is_empty
     }
 
     /// Checks the contents of the directory to determine if it's empty.
@@ -2108,6 +2141,62 @@ mod is_empty_dir_test {
         let dir = TempDir::new("not_a_dir").file("a");
         let file = File::from_args(dir.0.join("a"), None, None, false, false, false, None);
         assert!(!file.is_empty_dir());
+    }
+
+    #[test]
+    fn is_empty_dir_caches_result_atomically() {
+        use super::{EMPTY_DIR_NO, EMPTY_DIR_UNKNOWN, EMPTY_DIR_YES};
+        use std::sync::atomic::Ordering;
+
+        let empty_dir = TempDir::new("caching_empty");
+        let file = File::from_args(empty_dir.0.clone(), None, None, false, false, false, None);
+        assert_eq!(file.is_empty_dir.load(Ordering::Acquire), EMPTY_DIR_UNKNOWN);
+        assert!(file.is_empty_dir());
+        assert_eq!(file.is_empty_dir.load(Ordering::Acquire), EMPTY_DIR_YES);
+        // Second call must return cached true
+        assert!(file.is_empty_dir());
+
+        let non_empty_dir = TempDir::new("caching_non_empty").file("test.txt");
+        let file_non_empty = File::from_args(
+            non_empty_dir.0.clone(),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        assert_eq!(
+            file_non_empty.is_empty_dir.load(Ordering::Acquire),
+            EMPTY_DIR_UNKNOWN
+        );
+        assert!(!file_non_empty.is_empty_dir());
+        assert_eq!(
+            file_non_empty.is_empty_dir.load(Ordering::Acquire),
+            EMPTY_DIR_NO
+        );
+        // Second call must return cached false
+        assert!(!file_non_empty.is_empty_dir());
+    }
+
+    #[test]
+    fn directory_size_cache_survives_mutex_poisoning() {
+        use super::DIRECTORY_SIZE_CACHE;
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        // Intentionally poison DIRECTORY_SIZE_CACHE
+        let _ = catch_unwind(AssertUnwindSafe(|| {
+            let _guard = DIRECTORY_SIZE_CACHE.lock().unwrap();
+            panic!("forcing poison for test");
+        }));
+
+        assert!(DIRECTORY_SIZE_CACHE.is_poisoned());
+
+        // Accessing cache with unwrap_or_else(PoisonError::into_inner) must succeed
+        let cache = DIRECTORY_SIZE_CACHE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _ = cache.len();
     }
 }
 
