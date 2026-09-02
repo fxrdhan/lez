@@ -107,6 +107,9 @@ Work an unread upstream report in this order:
 | [#1823](https://github.com/eza-community/eza/issues/1823) | Configurable Git indicator status glyphs and repository status glyphs in `theme.yml` under `git` and `git_repo` (`glyph: "..."`) alongside `--git-glyphs`. |
 | [#1466](https://github.com/eza-community/eza/issues/1466) | `--context` / `-Z` SELinux MCS translation support (`selinux_raw_to_trans_context`) on Linux. |
 | [#1933](https://github.com/eza-community/eza/issues/1933) | `--no-language` flag and `[loc] language = false` configuration to suppress Language column when `--loc` is enabled. |
+| [#1927](https://github.com/eza-community/eza/issues/1927), [#1930](https://github.com/eza-community/eza/pull/1930) | Independent composable file type filters (`--only-files`, `--only-dirs`, `--no-symlinks`, `--show-symlinks`), resolving filter cancellation when combining flags (PR #93). |
+| [#1846](https://github.com/eza-community/eza/issues/1846), [#1931](https://github.com/eza-community/eza/pull/1931) | Repeatable options in Zsh completions (`completions/zsh/_lez` and `_eza`) via `*` prefix for all options (PR #93). |
+| [#1498](https://github.com/eza-community/eza/issues/1498), [#1291](https://github.com/eza-community/eza/issues/1291) | Recursive size calculation (`--total-size`) respects `--all` / `dot_filter`, skipping hidden directories when dotfiles are not shown (PR #38). |
 
 *Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` yes, `-N` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no).
 
@@ -128,8 +131,8 @@ Work an unread upstream report in this order:
 
 | Upstream ID | Description & Status |
 |---|---|
-| [#1498](https://github.com/eza-community/eza/issues/1498) | `--total-size` walks hidden directories regardless of `--all`. Arguably expected since directory total size includes hidden files. |
 | [#1919](https://github.com/eza-community/eza/issues/1919) | `.m` renders as C icon (shared with Objective-C / MATLAB; no MATLAB glyph in Nerd Fonts). |
+
 
 ### Specifically Audited & Declined Issues (Detailed Rationale)
 

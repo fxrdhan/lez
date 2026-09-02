@@ -336,21 +336,7 @@ impl FileFilter {
             return false;
         }
 
-        match (
-            self.flags.contains(&OnlyDirs),
-            self.flags.contains(&OnlyFiles),
-            self.flags.contains(&NoSymlinks),
-            self.flags.contains(&ShowSymlinks),
-        ) {
-            (true, false, false, false) | (true, false, true, false) => file.is_directory(),
-            (true, false, false, true) => file.is_directory() || file.points_to_directory(),
-            (false, true, false, false) => file.is_file(),
-            (false, true, false, true) => {
-                file.is_file() || (file.is_link() && !file.points_to_directory())
-            }
-            (false, false, true, false) => !file.is_link(),
-            _ => true,
-        }
+        self.matches_file_type_filters(file, false)
     }
 
     /// Removes directories that contain a `CACHEDIR.TAG` file carrying the
