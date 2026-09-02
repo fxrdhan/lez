@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+# Maintainer: fxrdhan <https://github.com/fxrdhan>
+pkgname=lez-bin
+pkgver=0.28.1
+pkgrel=1
+pkgdesc="A modern, fast, and feature-rich replacement for ls written in Rust"
+arch=('x86_64' 'aarch64')
+url="https://github.com/fxrdhan/lez"
+license=('EUPL-1.2')
+provides=('lez')
+conflicts=('lez')
+
+source_x86_64=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/fxrdhan/lez/releases/download/v${pkgver}/lez_x86_64-unknown-linux-gnu.tar.gz")
+source_aarch64=("${pkgname}-${pkgver}-aarch64.tar.gz::https://github.com/fxrdhan/lez/releases/download/v${pkgver}/lez_aarch64-unknown-linux-gnu.tar.gz")
+source_docs=("man-v${pkgver}.tar.gz::https://github.com/fxrdhan/lez/releases/download/v${pkgver}/man-v${pkgver}.tar.gz"
+             "completions-v${pkgver}.tar.gz::https://github.com/fxrdhan/lez/releases/download/v${pkgver}/completions-v${pkgver}.tar.gz")
+
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+sha256sums_docs=('SKIP' 'SKIP')
+
+package() {
+    install -Dm755 "${srcdir}/lez" "${pkgdir}/usr/bin/lez"
+
+    # Man pages
+    if [ -d "${srcdir}/man-v${pkgver}" ]; then
+        install -Dm644 "${srcdir}/man-v${pkgver}/lez.1" "${pkgdir}/usr/share/man/man1/lez.1"
+        install -Dm644 "${srcdir}/man-v${pkgver}/lez_colors.5" "${pkgdir}/usr/share/man/man5/lez_colors.5"
+        install -Dm644 "${srcdir}/man-v${pkgver}/lez_colors-explanation.5" "${pkgdir}/usr/share/man/man5/lez_colors-explanation.5"
+    fi
+
+    # Completions
+    if [ -d "${srcdir}/completions-v${pkgver}" ]; then
+        install -Dm644 "${srcdir}/completions-v${pkgver}/lez" "${pkgdir}/usr/share/bash-completion/completions/lez"
+        install -Dm644 "${srcdir}/completions-v${pkgver}/_lez" "${pkgdir}/usr/share/zsh/site-functions/_lez"
+        install -Dm644 "${srcdir}/completions-v${pkgver}/lez.fish" "${pkgdir}/usr/share/fish/vendor_completions.d/lez.fish"
+    fi
+}
