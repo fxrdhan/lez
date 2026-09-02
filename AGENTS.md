@@ -35,7 +35,7 @@ CLI Input (Args & Env)
 ### Mode Deduction Priority
 Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
 `--code` ➔ `--json` ➔ Strict-mode checks ➔ TTY default (Grid on TTY, Lines otherwise) ➔ `--long` (`+ --grid` = GridDetails) ➔ `--tree` ➔ `--oneline`.
-*(Note: Only `--binary`/`--bytes` use last-argument-wins semantics via clap `overrides_with`).*
+*(Note: Reciprocal flags like `--binary`/`--bytes` and `--blocks`/`--blocksize` use last-argument-wins semantics via clap `overrides_with`).*
 
 ---
 
@@ -49,20 +49,21 @@ Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
 | [`justfile`](justfile) | Task runner recipes for build, test, lint, package, and docs. |
 | [`flake.nix`](flake.nix) | Nix dev environment and CI build definitions. |
 | [`man/`](man/) | Pandoc markdown sources for man pages (`lez.1.md`, `lez_colors.5.md`, `lez_colors-explanation.5.md`). |
-| [`completions/`](completions/) | Shell completions (`bash`, `zsh`, `fish`, `nushell`, `powershell`). |
+| [`completions/`](completions/) | Shell completions (`bash`, `zsh`, `fish`, `nush`, `pwsh`). |
 | [`docs/`](docs/) | Documentation and upstream triage log ([`docs/UPSTREAM_TRIAGE.md`](docs/UPSTREAM_TRIAGE.md)). |
-| [`tests/`](tests/) | Unit tests, integration tests (`tests/*.rs`), trycmd snapshots (`tests/cmd/`), and powertests (`tests/ptests/`). |
+| [`tests/`](tests/) | Unit tests, 11 domain runners (`tests/*.rs`), domain modules (`tests/<domain>/`), test fixtures (`tests/common/`, `tests/itest/`), snapshots (`tests/cmd/`, `tests/gen/`), and powertests (`tests/ptests/`). |
 
 ### `src/` Subsystems
 | Subsystem | Key Modules | Responsibility |
 |---|---|---|
-| **Entry & Orchestration** | [`src/main.rs`](src/main.rs), [`src/lib.rs`](src/lib.rs), [`src/logger.rs`](src/logger.rs) | CLI execution, logging (`LEZ_DEBUG`), signal handling, exit codes. |
-| **Options & Config** | [`src/options/`](src/options/) (`parser.rs`, `vars.rs`, `theme.rs`, `config.rs`, `filter.rs`, `view.rs`, `error.rs`) | Clap parsing, env vars, config directory (`$LEZ_CONFIG_DIR`), theme YAML, option error formatting. |
-| **Filesystem & Cache** | [`src/fs/`](src/fs/) (`file.rs`, `dir.rs`, `dir_action.rs`, `filter.rs`, `fields.rs`, `archives.rs`) | Metadata caching with `OnceLock`, traversal, sorting (`natord-plus-plus`), filtering, `.tar` inspection. |
-| **Features & OS** | [`src/fs/feature/`](src/fs/feature/) (`git.rs`, `xattr.rs`), [`src/fs/mounts/`](src/fs/mounts/) | `git2` status caching, extended attributes, Linux/macOS mount points, Linux `capctl` capabilities. |
-| **Rendering & Output** | [`src/output/`](src/output/) (`grid.rs`, `details.rs`, `lines.rs`, `tree.rs`, `json.rs`, `icons.rs`, `summary.rs`, `render/`) | Renderers, Nerd Font icons (`phf_map`), symlink targets, hyperlinks (OSC 8), column formatters. |
-| **LOC Engine** | [`src/loc/`](src/loc/), [`src/output/code.rs`](src/output/code.rs) | Parallelized source code line counter for 100+ languages (comments, blanks, code). |
-| **Theme & Color** | [`src/theme/`](src/theme/) (`lsc.rs`, `mod.rs`) | ANSI styles, `LS_COLORS`/`LEZ_COLORS` parsing, color palette. |
+| **Entry & Orchestration** | [`src/main.rs`](src/main.rs), [`src/lib.rs`](src/lib.rs), [`src/logger.rs`](src/logger.rs) | CLI execution, logging (`LEZ_DEBUG`), signal handling, standardized exit codes (`exits`). |
+| **Options & Config** | [`src/options/`](src/options/) (`parser.rs`, `vars.rs`, `theme.rs`, `config.rs`, `file_config.rs`, `stdin.rs`, `filter.rs`, `view.rs`, `error.rs`) | Clap parsing, env vars, config discovery (`$LEZ_CONFIG_DIR`, `.lez.toml`), theme YAML, stdin streaming, option error formatting. |
+| **Filesystem & Cache** | [`src/fs/`](src/fs/) (`file.rs`, `dir.rs`, `dir_action.rs`, `filter.rs`, `fields.rs`, `archives.rs`, `recursive_size.rs`) | Metadata caching with `OnceLock`, traversal, sorting (`natord-plus-plus`), filtering, `.tar` inspection. |
+| **File Metadata & Info** | [`src/info/`](src/info/) (`filetype.rs`, `sources.rs`, `mod.rs`) | Internal business logic routines on file metadata, classification (`FileType::Data`, `FileType::Image`, etc.). |
+| **Features & OS** | [`src/fs/feature/`](src/fs/feature/) (`git.rs`, `xattr.rs`), [`src/fs/mounts/`](src/fs/mounts/) | `git2` status caching, extended attributes, Linux/macOS mount points, Linux `capctl` capabilities, Linux file flags (`FS_IOC_GETFLAGS`), SELinux MCS translation. |
+| **Rendering & Output** | [`src/output/`](src/output/) (`grid.rs`, `details.rs`, `grid_details.rs`, `lines.rs`, `tree.rs`, `json.rs`, `icons.rs`, `summary.rs`, `table.rs`, `render/`) | Renderers, Nerd Font icons (`phf_map`), symlink targets, hyperlinks (OSC 8), column formatters. |
+| **LOC Engine** | [`src/loc/`](src/loc/), [`src/output/code.rs`](src/output/code.rs) | Parallelized source code line counter for 100+ languages (comments, blanks, code, markdown code blocks). |
+| **Theme & Color** | [`src/theme/`](src/theme/) (`lsc.rs`, `default_theme.rs`, `ui_styles.rs`, `mod.rs`) | ANSI styles, `LS_COLORS`/`LEZ_COLORS` parsing, color palette, custom git glyphs, and quote styling. |
 
 ---
 
@@ -80,19 +81,23 @@ Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
 | Code Coverage | `cargo llvm-cov nextest --workspace` | `just coverage` / `just coverage-html` |
 | Build man pages | `pandoc ...` | `just man` |
 | Dump / Regen Snapshots | — | `just idump` / `just regen` |
+| Watch CI run | `gh run watch <run-id> --exit-status` | — |
+
+### CI & Remote Monitoring Rules
+- **Always Use `watch` Over Polling**: When monitoring GitHub Actions CI runners, workflows, or release jobs, **never** execute repetitive polling loops with timers (`gh run view` in sleep intervals). Always use `gh run watch <run-id> --exit-status` (or `gh pr checks <pr> --watch`) as a background task. This streams status directly, avoids GitHub API rate limits (`403 API rate limit exceeded`), prevents context token churn, and triggers an immediate reactive wakeup upon completion.
 
 ### Test Suite Rules & Performance
-- **Run with Nextest**: Always use `cargo nextest run` instead of `cargo test` (parallelizes across 91 binaries; 49s vs 256s).
+- **Run with Nextest**: Always use `cargo nextest run` instead of `cargo test` (parallelizes across 11 domain runner binaries; eliminates redundant compilation and linking overhead).
 - **Pinned Version**: Use `cargo-nextest` version `0.9.128` (versions 0.9.129+ require rustc 1.91, above MSRV 1.90).
 - **Doc Tests**: Nextest does not run doc tests; run `cargo test --doc` separately.
-- **macOS Gatekeeper Exemption**: Exempt your terminal under *System Settings ➔ Privacy & Security ➔ Developer Tools* to avoid `syspolicyd` stalling the 91 relinked test binaries (reduces runtime from 21m to ~4m).
+- **macOS Gatekeeper Exemption**: Exempt your terminal under *System Settings ➔ Privacy & Security ➔ Developer Tools* to avoid `syspolicyd` stalling the relinked test binaries.
 
 ### Test Layers
 | Layer | Location | Purpose & Execution |
 |---|---|---|
 | **Unit tests** | `src/**` (`#[cfg(test)]`) | Module-level unit tests (`cargo test --lib`). |
-| **Integration tests** | `tests/*.rs` | Full feature behavior & CLI flags (`cargo nextest run`). |
-| **CLI snapshots** | `tests/cmd/*.toml` + `tests/itest/` | Snapshot output assertions (`trycmd`). Dumps refreshed via `just idump`. |
+| **Integration tests** | `tests/*.rs` (11 domain runners) + `tests/<domain>/*.rs` | Domain-driven integration suites (`adversarial`, `cli_options`, `filesystem`, `git`, `icons_theme`, `loc_engine`, `os_metadata`, `output_formatting`, `platform`, `sorting`, `cli`). Shared harness in `tests/common/mod.rs` (`cargo nextest run`). |
+| **CLI snapshots** | `tests/cmd/*.toml`, `tests/gen/*.toml` + `tests/itest/` | Snapshot output assertions (`trycmd`). Dumps refreshed via `just idump`. |
 | **LOC tests** | `tests/itest-loc/` | Verification for language line-counting fixtures. |
 | **Powertest corpus** | `tests/ptests/` + `powertest.yaml` | Permutation tests generated by `powertest` tool (`just regen`). |
 
@@ -103,15 +108,16 @@ Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
 ### 1. Adding a New CLI Flag or Option
 1. **Define Argument** in [`src/options/parser.rs`](src/options/parser.rs) using `clap`.
 2. **Handle Option Deduction** in [`src/options/mod.rs`](src/options/mod.rs) or sub-options (`view.rs`, `filter.rs`, `dir_action.rs`).
-3. **Propagate into Runtime** in [`src/main.rs`](src/main.rs) and the corresponding [`src/fs/`](src/fs/) or [`src/output/`](src/output/) renderer.
-4. **Update Documentation**: [README.md](README.md) and [`man/lez.1.md`](man/lez.1.md).
-5. **Update Shell Completions**:
+3. **Handle Config File Setting** (if applicable) in [`src/options/file_config.rs`](src/options/file_config.rs) and update [`docs/config.example.toml`](docs/config.example.toml).
+4. **Propagate into Runtime** in [`src/main.rs`](src/main.rs) and the corresponding [`src/fs/`](src/fs/) or [`src/output/`](src/output/) renderer.
+5. **Update Documentation**: [README.md](README.md) and [`man/lez.1.md`](man/lez.1.md).
+6. **Update Shell Completions**:
    - Update `completions/{bash/lez, zsh/_lez, fish/lez.fish, nush/lez.nu, pwsh/_lez.ps1}`.
-   - Sync `eza` mirror files with `sed 's/lez/eza/g'` (validated by [`tests/completion_equals_tests.rs`](tests/completion_equals_tests.rs)).
+   - Sync `eza` mirror files with `sed 's/lez/eza/g'` (validated by [`tests/cli_options/shell_completions.rs`](tests/cli_options/shell_completions.rs)).
    - If flag uses `require_equals`, ensure all 5 shells complete after `=` rather than space.
-6. **Powertest & Tests**:
+7. **Powertest & Tests**:
    - If flag uses `require_equals`, add to [`powertest.yaml`](powertest.yaml) as a key without `values:` (e.g. `--color=always`).
-   - Add integration tests in [`tests/`](tests/).
+   - Add integration tests in [`tests/`](tests/) under the appropriate domain module (e.g. `tests/cli_options/`).
 
 ### 2. Adding an Environment Variable
 1. **Declare Static Variable** in [`src/options/vars.rs`](src/options/vars.rs).
@@ -153,7 +159,7 @@ Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
   - `vendored-openssl` / `vendored-libgit2`: Static build helpers.
   - Build without git/tar via `--no-default-features`.
 - **Platform Guards**:
-  - Linux: `capctl` (capabilities decoding), `proc-mounts`.
+  - Linux: `capctl` (capabilities decoding), `proc-mounts`, Linux file flags (`FS_IOC_GETFLAGS`), SELinux MCS translation.
   - macOS: `uzers`, macOS xattrs (`com.apple.*`), BSD file flags.
   - Windows: `windows-sys` (console, file attributes).
   - Use `Path` / `PathBuf` methods rather than hardcoded `/` or `\` separators.
