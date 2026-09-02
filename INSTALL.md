@@ -8,19 +8,42 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Installation
 
-`lez` is available for macOS, Linux, and Windows.
+`lez` is available for macOS, Linux, and Windows across several installation channels.
 
-> **Note**
-> `lez` is not in any distribution package repository yet, so there is no
-> `pacman`/`apt`/`brew`/`winget` package to install. Until there is, use Cargo,
-> the Nix flake, or a source build — all three are covered below.
+### Homebrew (macOS & Linux)
 
-### Cargo (git)
+Install from the official [fxrdhan tap](https://github.com/fxrdhan/homebrew-tap):
+
+```bash
+brew install fxrdhan/tap/lez
+```
+
+Or install the latest development build from `main`:
+
+```bash
+brew install --HEAD fxrdhan/tap/lez
+```
+
+### Standalone Shell Installer (Linux & macOS)
+
+Download and install the latest prebuilt binary to `~/.local/bin` in one step:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fxrdhan/lez/main/packaging/install.sh | bash
+```
+
+### Cargo / crates.io
 
 Install `lez` from crates.io:
 
 ```bash
 cargo install lez
+```
+
+Or install the precompiled binary instantly via `cargo-binstall`:
+
+```bash
+cargo binstall lez
 ```
 
 To track the latest commit on `main` instead:
