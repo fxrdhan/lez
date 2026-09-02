@@ -46,6 +46,7 @@ pub struct DisplayConfig {
     pub absolute: Option<String>,
     pub hyperlink: Option<String>,
     pub quotes: Option<String>,
+    pub language: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
@@ -99,6 +100,7 @@ pub struct ThemeConfigSection {
 pub struct LocConfig {
     pub sub_files: Option<String>,
     pub percent_digits: Option<u8>,
+    pub language: Option<bool>,
 }
 
 impl FileConfig {
@@ -138,6 +140,7 @@ impl FileConfig {
             absolute,
             hyperlink,
             quotes,
+            language,
         );
 
         merge_field!(
@@ -178,7 +181,7 @@ impl FileConfig {
             color_scale_mode,
         );
 
-        merge_field!(self.loc, other.loc, sub_files, percent_digits);
+        merge_field!(self.loc, other.loc, sub_files, percent_digits, language);
     }
 
     /// Load and parse a config file from a path (supports TOML or YAML).

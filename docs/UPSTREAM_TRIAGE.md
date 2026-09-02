@@ -106,6 +106,7 @@ Work an unread upstream report in this order:
 | [#139](https://github.com/eza-community/eza/issues/139), [#766](https://github.com/eza-community/eza/issues/766), [#770](https://github.com/eza-community/eza/pull/770), [#812](https://github.com/eza-community/eza/issues/812), [#1587](https://github.com/eza-community/eza/issues/1587), [#1707](https://github.com/eza-community/eza/issues/1707), [#1875](https://github.com/eza-community/eza/issues/1875) | Configuration file for option defaults (`config.toml`, `.lez.toml`), `--config`, `--no-config`, `LEZ_CONFIG_FILE` |
 | [#1823](https://github.com/eza-community/eza/issues/1823) | Configurable Git indicator status glyphs and repository status glyphs in `theme.yml` under `git` and `git_repo` (`glyph: "..."`) alongside `--git-glyphs`. |
 | [#1466](https://github.com/eza-community/eza/issues/1466) | `--context` / `-Z` SELinux MCS translation support (`selinux_raw_to_trans_context`) on Linux. |
+| [#1933](https://github.com/eza-community/eza/issues/1933) | `--no-language` flag and `[loc] language = false` configuration to suppress Language column when `--loc` is enabled. |
 
 *Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` yes, `-N` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no).
 

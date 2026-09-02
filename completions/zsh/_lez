@@ -88,6 +88,7 @@ __lez() {
         \*--precision-percent"[Number of decimal digits to display for percentages (0..=8)]" \
         \*--no-user"[Suppress the user field]" \
         \*--no-time"[Suppress the time field]" \
+        \*--no-language"[Suppress the language field in --loc]" \
         \*{-u,--accessed}"[Use the accessed timestamp field]" \
         \*{-U,--created}"[Use the created timestamp field]" \
         \*--utc="[Show the time in the UTC timezone]" \

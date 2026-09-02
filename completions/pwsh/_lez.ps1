@@ -131,6 +131,7 @@ Register-ArgumentCompleter -Native -CommandName 'lez' -ScriptBlock {
             [CompletionResult]::new('--precision-percent'        ,'precision-percent'   , [CompletionResultType]::ParameterName, 'number of decimal digits to display for percentages (0..=8, default: 1)')
             [CompletionResult]::new('--no-user'                  ,'no-user'             , [CompletionResultType]::ParameterName, 'suppress the user field')
             [CompletionResult]::new('--no-time'                  ,'no-time'             , [CompletionResultType]::ParameterName, 'suppress the time field')
+            [CompletionResult]::new('--no-language'              ,'no-language'         , [CompletionResultType]::ParameterName, 'suppress the language field in --loc')
             [CompletionResult]::new('--stdin'                    ,'stdin'               , [CompletionResultType]::ParameterName, 'read file names from stdin, one per line or other separator specified in environment')
             [CompletionResult]::new('--git'                      ,'git'                 , [CompletionResultType]::ParameterName, 'list each file''s Git status, if tracked or ignored')
             [CompletionResult]::new('--git-glyphs'               ,'git-glyphs'          , [CompletionResultType]::ParameterName, 'display Git status with Nerd Font glyphs / icons')

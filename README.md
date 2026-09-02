@@ -271,6 +271,7 @@ These options are available when running with `--long` (`-l`):
 - **--no-filesize**: suppress the filesize field
 - **--no-user**: suppress the user field
 - **--no-time**: suppress the time field
+- **--no-language**: suppress the language field when `--loc` is enabled
 - **--stdin**: read file names from stdin
 - **--config**: load default options from specified configuration file (`.toml`, `.yaml`, or `.yml`)
 - **--no-config**: do not load any global or per-directory configuration files

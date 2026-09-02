@@ -87,7 +87,7 @@ _eza() {
     esac
 
     case "$prev" in
-        --help|--version|-v|--smart-group|--show-dotfiles|--no-system|--no-hidden-attrib|--no-hidden-links|--mime-types|--no-config)
+        --help|--version|-v|--smart-group|--show-dotfiles|--no-system|--no-hidden-attrib|--no-hidden-links|--mime-types|--no-config|--no-language)
             return
             ;;
 
