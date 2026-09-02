@@ -39,6 +39,7 @@
 - Platforms verified:
 
 ## Contributor Checklist
+- [ ] Base branch is set to `dev` (unless this is a release PR targeting `main`)
 - [ ] My commits follow [Conventional Commits](https://www.conventionalcommits.org/) format
 - [ ] Tests covering the changes have been added/updated
 - [ ] `cargo clippy --all-targets` passes with no warnings

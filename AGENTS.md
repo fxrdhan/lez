@@ -164,8 +164,13 @@ Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
   - Windows: `windows-sys` (console, file attributes).
   - Use `Path` / `PathBuf` methods rather than hardcoded `/` or `\` separators.
 
+### Branching Model & Development Workflow
+- **`dev` branch (Default for development)**: All ongoing development, new features, refactors, bug fixes, and documentation updates must branch off and merge into `dev`. Agents and contributors should target `dev` for all active work and PRs.
+- **`main` branch (Release-only / Production)**: Reserved strictly for production releases and version bumps. `main` only receives merges from release PRs (`release-v*` or `dev`) with clean changelogs and version tags.
+
 ### Commit & PR Standards
 - **Conventional Commits**: Format titles following conventional commit specifications (e.g. `feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`).
+- **Target Branch**: Default PR target must be `dev` (unless opening a release PR to `main`).
 - **Granular Atomic Commits**: Never bundle multiple independent tasks or changes into a single monolithic commit. Each feature or fix must have its own separate, atomic commit with tests.
 - **Clean PR History & CI Failures**: Do not pollute commit history with "fix CI" or typo commits. Fix locally, amend the commit (`git commit --amend`), and update via `git push --force-with-lease` to keep PR history clean and green.
 - **Strict PR Template**: All PRs must strictly adhere to [`.github/PULL_REQUEST_TEMPLATE/pull_request_template.md`](.github/PULL_REQUEST_TEMPLATE/pull_request_template.md).
