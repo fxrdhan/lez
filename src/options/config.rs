@@ -85,45 +85,31 @@ fn color_from_str(s: &str) -> Option<Color> {
         "lightgray"    | "LightGray"    => Some(LightGray),
 
         // some other string
-        s => match s.chars().collect::<Vec<_>>()[..] {
-            // #rrggbb hex color
-            ['#', r1, r2, g1, g2, b1, b2] => {
-                let Ok(r) = u8::from_str_radix(&format!("{r1}{r2}"), 16)
-                    else { return None };
-                let Ok(g) = u8::from_str_radix(&format!("{g1}{g2}"), 16)
-                    else { return None };
-                let Ok(b) = u8::from_str_radix(&format!("{b1}{b2}"), 16)
-                    else { return None };
-                Some(Rgb(r, g, b))
-            },
-            // #rgb shorthand hex color
-            ['#', r, g, b] => {
-                let Ok(r) = u8::from_str_radix(&format!("{r}{r}"), 16)
-                    else { return None };
-                let Ok(g) = u8::from_str_radix(&format!("{g}{g}"), 16)
-                    else { return None };
-                let Ok(b) = u8::from_str_radix(&format!("{b}{b}"), 16)
-                    else { return None };
-                Some(Rgb(r, g, b))
-            },
-            // 0-255 color code (1-3 digits)
-            [c1] => {
-                let Ok(c) = str::parse::<u8>(&format!("{c1}"))
-                    else { return None };
-                Some(Fixed(c))
-            },
-            [c1, c2] => {
-                let Ok(c) = str::parse::<u8>(&format!("{c1}{c2}"))
-                    else { return None };
-                Some(Fixed(c))
-            },
-            [c1, c2, c3] => {
-                let Ok(c) = str::parse::<u8>(&format!("{c1}{c2}{c3}"))
-                    else { return None };
-                Some(Fixed(c))
-            },
-            // unknown format
-            _ => None,
+        s => {
+            if let Some(hex) = s.strip_prefix('#') {
+                let bytes = hex.as_bytes();
+                if bytes.len() == 6 {
+                    let r = u8::from_str_radix(std::str::from_utf8(&bytes[0..2]).ok()?, 16).ok()?;
+                    let g = u8::from_str_radix(std::str::from_utf8(&bytes[2..4]).ok()?, 16).ok()?;
+                    let b = u8::from_str_radix(std::str::from_utf8(&bytes[4..6]).ok()?, 16).ok()?;
+                    return Some(Rgb(r, g, b));
+                } else if bytes.len() == 3 {
+                    let r_digit = (bytes[0] as char).to_digit(16)? as u8;
+                    let g_digit = (bytes[1] as char).to_digit(16)? as u8;
+                    let b_digit = (bytes[2] as char).to_digit(16)? as u8;
+                    let r = (r_digit << 4) | r_digit;
+                    let g = (g_digit << 4) | g_digit;
+                    let b = (b_digit << 4) | b_digit;
+                    return Some(Rgb(r, g, b));
+                }
+                return None;
+            }
+
+            if let Ok(c) = s.parse::<u8>() {
+                return Some(Fixed(c));
+            }
+
+            None
         }
     }
 }

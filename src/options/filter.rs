@@ -70,7 +70,7 @@ impl FileFilter {
             if matches.get_flag("v") && matches.index_of("v") > matches.index_of("sort") {
                 SortField::Name(SortCase::AaBbCc)
             } else {
-                *matches.get_one("sort").unwrap()
+                matches.get_one("sort").copied().unwrap_or_default()
             };
         let is_explicit_sort = matches.value_source("sort")
             == Some(clap::parser::ValueSource::CommandLine)

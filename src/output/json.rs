@@ -213,27 +213,32 @@ impl<'a> Render<'a> {
 
             self.file_filter.filter_child_files(true, &mut files);
             self.file_filter.sort_files(&mut files);
-            let recurse_opts = self.dir_action.recurse_options().unwrap();
+            let recurse_opts = self.dir_action.recurse_options();
             let child_depth = depth + 1;
 
             let follow_links = self.view.follow_links;
-            if !recurse_opts.tree && !recurse_opts.is_too_deep(child_depth) {
-                let mut child_dirs = files
-                    .iter()
-                    .filter(|f| {
-                        (if follow_links {
-                            f.points_to_directory()
-                        } else {
-                            f.is_directory()
-                        }) && !f.is_all_all
-                    })
-                    .map(fs::File::to_dir)
-                    .collect::<Vec<Dir>>();
+            if let Some(recurse_opts) = recurse_opts {
+                if !recurse_opts.tree && !recurse_opts.is_too_deep(child_depth) {
+                    let mut child_dirs = files
+                        .iter()
+                        .filter(|f| {
+                            (if follow_links {
+                                f.points_to_directory()
+                            } else {
+                                f.is_directory()
+                            }) && !f.is_all_all
+                        })
+                        .map(fs::File::to_dir)
+                        .collect::<Vec<Dir>>();
 
-                write!(w, "\"files\":")?;
-                self.render_files(files, w)?;
-                write!(w, ", \"directories\":")?;
-                self.render_recursive_directories(&mut child_dirs, false, w, child_depth)?;
+                    write!(w, "\"files\":")?;
+                    self.render_files(files, w)?;
+                    write!(w, ", \"directories\":")?;
+                    self.render_recursive_directories(&mut child_dirs, false, w, child_depth)?;
+                } else {
+                    write!(w, "\"files\":")?;
+                    self.render_files(files, w)?;
+                }
             } else {
                 write!(w, "\"files\":")?;
                 self.render_files(files, w)?;

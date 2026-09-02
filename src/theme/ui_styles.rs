@@ -76,17 +76,12 @@ macro_rules! field_accessors {
         }
     };
 }
-// Macro to generate method that returns a mut ref to each field or creates a default one if it's None
 macro_rules! update_field_accessors {
     ($struct_name:ident, $($field_name:ident: Option<$type:ty>),*) => {
         impl $struct_name {
             $(
                 pub fn $field_name(&mut self) -> &mut $type {
-                    if self.$field_name.is_none() {
-                        self.$field_name = Some(Default::default());
-                    }
-                    // It is safe to unwrap here because we just ensured it's not None
-                    self.$field_name.as_mut().unwrap()
+                    self.$field_name.get_or_insert_with(Default::default)
                 }
             )*
         }

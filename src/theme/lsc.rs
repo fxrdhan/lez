@@ -49,13 +49,11 @@ impl<'var> LSColors<'var> {
         C: FnMut(Pair<'var>),
     {
         for next in self.0.split(':') {
-            let bits = next.split('=').take(3).collect::<Vec<_>>();
-
-            if bits.len() == 2 && !bits[0].is_empty() && !bits[1].is_empty() {
-                callback(Pair {
-                    key: bits[0],
-                    value: bits[1],
-                });
+            if let Some((key, value)) = next.split_once('=')
+                && !key.is_empty()
+                && !value.is_empty()
+            {
+                callback(Pair { key, value });
             }
         }
     }

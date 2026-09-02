@@ -175,8 +175,11 @@ pub trait Vars {
     /// `Some(fallback)` else `None`.
     fn source(&self, name: &'static str, fallback: &'static str) -> Option<&'static str> {
         match self.get(name) {
-            Some(_) if !name.is_empty() => Some(name),
-            _ => self.get(fallback).and(Some(fallback)),
+            Some(v) if !v.is_empty() => Some(name),
+            _ => match self.get(fallback) {
+                Some(v) if !v.is_empty() => Some(fallback),
+                _ => None,
+            },
         }
     }
 }
@@ -598,6 +601,24 @@ pub mod test {
         assert_eq!(
             vars.get(EZA_WINDOWS_ATTRIBUTES),
             Some(OsString::from("long"))
+        );
+    }
+
+    #[test]
+    fn test_vars_source_fallback_logic() {
+        let mut vars = MockVars::default();
+        assert_eq!(vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING), None);
+
+        vars.set(EZA_ICON_SPACING, &OsString::from("2"));
+        assert_eq!(
+            vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING),
+            Some(EZA_ICON_SPACING)
+        );
+
+        vars.set(LEZ_ICON_SPACING, &OsString::from("4"));
+        assert_eq!(
+            vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING),
+            Some(LEZ_ICON_SPACING)
         );
     }
 }
