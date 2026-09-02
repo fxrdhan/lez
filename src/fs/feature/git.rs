@@ -236,57 +236,97 @@ impl GitRepo {
     fn search(&self, index: &Path, prefix_lookup: bool) -> f::Git {
         use std::mem::replace;
 
-        let mut contents = self.contents.lock().unwrap();
-        if let GitContents::After {
-            ref repo,
-            ref statuses,
-        } = *contents
-        {
-            debug!("Git repo {:?} has been found in cache", self.workdir);
-            let result = statuses.status(index, prefix_lookup);
-            return self.rescue_unreported_ignore(repo, result, prefix_lookup, index);
+        let (status_res, needs_ignore_check) = {
+            let mut contents = self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match *contents {
+                GitContents::After { ref statuses, .. } => {
+                    debug!("Git repo {:?} has been found in cache", self.workdir);
+                    let res = statuses.status(index, prefix_lookup);
+                    let needs_check = !prefix_lookup && is_unreported(res);
+                    (res, needs_check)
+                }
+                _ => {
+                    debug!("Querying Git repo {:?} for the first time", self.workdir);
+                    let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
+                    let statuses = repo_to_statuses(
+                        &repo,
+                        &self.workdir,
+                        &self.listing_roots(),
+                        self.deep_untracked,
+                    );
+                    let res = statuses.status(index, prefix_lookup);
+                    let needs_check = !prefix_lookup && is_unreported(res);
+                    let _processing =
+                        replace(&mut *contents, GitContents::After { repo, statuses });
+                    (res, needs_check)
+                }
+            }
+        };
+
+        if !needs_ignore_check {
+            return status_res;
         }
 
-        debug!("Querying Git repo {:?} for the first time", self.workdir);
-        let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
-        let statuses = repo_to_statuses(
-            &repo,
-            &self.workdir,
-            &self.listing_roots(),
-            self.deep_untracked,
-        );
-        let result = statuses.status(index, prefix_lookup);
-        let result = self.rescue_unreported_ignore(&repo, result, prefix_lookup, index);
-        let _processing = replace(&mut *contents, GitContents::After { repo, statuses });
-        result
+        let contents = self
+            .contents
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let GitContents::After { ref repo, .. } = *contents {
+            self.rescue_unreported_ignore(repo, status_res, prefix_lookup, index)
+        } else {
+            status_res
+        }
     }
 
     fn search_child(&self, dir: &Path, file: &Path, prefix_lookup: bool) -> f::Git {
         use std::mem::replace;
 
-        let mut contents = self.contents.lock().unwrap();
-        if let GitContents::After {
-            ref repo,
-            ref statuses,
-        } = *contents
-        {
-            debug!("Git repo {:?} has been found in cache", self.workdir);
-            let result = statuses.child_status(dir, file, prefix_lookup);
-            return self.rescue_unreported_child_ignore(repo, result, prefix_lookup, dir, file);
+        let (status_res, needs_ignore_check) = {
+            let mut contents = self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match *contents {
+                GitContents::After { ref statuses, .. } => {
+                    debug!("Git repo {:?} has been found in cache", self.workdir);
+                    let res = statuses.child_status(dir, file, prefix_lookup);
+                    let needs_check = !prefix_lookup && is_unreported(res);
+                    (res, needs_check)
+                }
+                _ => {
+                    debug!("Querying Git repo {:?} for the first time", self.workdir);
+                    let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
+                    let statuses = repo_to_statuses(
+                        &repo,
+                        &self.workdir,
+                        &self.listing_roots(),
+                        self.deep_untracked,
+                    );
+                    let res = statuses.child_status(dir, file, prefix_lookup);
+                    let needs_check = !prefix_lookup && is_unreported(res);
+                    let _processing =
+                        replace(&mut *contents, GitContents::After { repo, statuses });
+                    (res, needs_check)
+                }
+            }
+        };
+
+        if !needs_ignore_check {
+            return status_res;
         }
 
-        debug!("Querying Git repo {:?} for the first time", self.workdir);
-        let repo = replace(&mut *contents, GitContents::Processing).inner_repo();
-        let statuses = repo_to_statuses(
-            &repo,
-            &self.workdir,
-            &self.listing_roots(),
-            self.deep_untracked,
-        );
-        let result = statuses.child_status(dir, file, prefix_lookup);
-        let result = self.rescue_unreported_child_ignore(&repo, result, prefix_lookup, dir, file);
-        let _processing = replace(&mut *contents, GitContents::After { repo, statuses });
-        result
+        let contents = self
+            .contents
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let GitContents::After { ref repo, .. } = *contents {
+            self.rescue_unreported_child_ignore(repo, status_res, prefix_lookup, dir, file)
+        } else {
+            status_res
+        }
     }
 
     /// libgit2 leaves an ignored file out of the status walk altogether when
@@ -1419,5 +1459,33 @@ mod tests {
         assert!(src_rs_stat.unstaged != f::GitStatus::Ignored);
         let src_log_stat = git_status.child_status(&src_path, &src_log, false);
         assert!(src_log_stat.unstaged == f::GitStatus::Ignored);
+    }
+
+    #[test]
+    fn test_git_repo_search_poison_resilience() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        let test_repo = TestGitRepo::new("poison_resilience");
+        test_repo.create_file("tracked.txt", b"tracked content");
+        test_repo.commit_all("initial");
+
+        let repo = GitRepo::discover(
+            test_repo.path.clone(),
+            git2::RepositoryOpenFlags::empty(),
+            false,
+        )
+        .expect("should discover repo");
+
+        // Force poison the contents mutex
+        let _ = catch_unwind(AssertUnwindSafe(|| {
+            let _guard = repo.contents.lock().unwrap();
+            panic!("forcing mutex poison in test");
+        }));
+
+        assert!(repo.contents.is_poisoned());
+
+        // Calling search on poisoned mutex must succeed without panicking
+        let status = repo.search(&test_repo.path.join("tracked.txt"), false);
+        assert!(status.staged == f::GitStatus::NotModified);
     }
 }
