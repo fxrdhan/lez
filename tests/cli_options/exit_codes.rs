@@ -116,9 +116,28 @@ fn test_exit_code_on_missing_input_path() {
         .output()
         .expect("run lez on missing path");
 
-    assert!(
-        !output.status.success(),
-        "Expected non-zero exit code on missing path"
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "Expected exit code 2 (MISSING_INPUT_PATH) on missing path"
+    );
+}
+
+#[test]
+fn test_exit_code_on_code_mode_missing_input_path() {
+    let temp = TempTestDir::new("code_missing_path");
+    let non_existent = temp.path.join("definitely_missing_code_subdir_12345");
+
+    let output = Command::new(bin_path())
+        .arg("--code")
+        .arg(&non_existent)
+        .output()
+        .expect("run lez --code on missing path");
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "Expected exit code 2 (MISSING_INPUT_PATH) on missing path in --code mode"
     );
 }
 

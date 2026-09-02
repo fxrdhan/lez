@@ -63,16 +63,12 @@ fn main() {
         Ok(options) => {
             match &options.stdin {
                 FilesInput::Stdin(separator) => {
-                    stdin()
-                        .read_to_string(&mut input)
-                        .expect("Failed to read from stdin");
-                    input_paths.extend(
-                        input
-                            .split(&separator.clone().into_string().unwrap_or("\n".to_string()))
-                            .map(OsStr::new)
-                            .filter(|s| !s.is_empty())
-                            .collect::<Vec<_>>(),
-                    );
+                    if let Err(e) = stdin().read_to_string(&mut input) {
+                        let _ = writeln!(io::stderr(), "lez: Failed to read from stdin: {e}");
+                        exit(exits::RUNTIME_ERROR);
+                    }
+                    let sep = separator.to_str().unwrap_or("\n");
+                    input_paths.extend(input.split(sep).map(OsStr::new).filter(|s| !s.is_empty()));
                 }
                 FilesInput::Args => {
                     if input_paths.is_empty() {
@@ -337,7 +333,7 @@ impl Lez<'_> {
         // prints a per-language lines-of-code breakdown, so handle it up front.
         if let Mode::Code(opts) = &self.options.view.mode {
             let opts = *opts;
-            let mut exit_status = 0;
+            let mut exit_status = exits::SUCCESS;
             let mut roots = Vec::new();
 
             // Report paths that don’t exist, like the normal listing does,
@@ -345,7 +341,7 @@ impl Lez<'_> {
             for file_path in &self.input_paths {
                 let path = PathBuf::from(file_path);
                 if let Err(e) = std::fs::symlink_metadata(&path) {
-                    exit_status = 2;
+                    exit_status = exits::MISSING_INPUT_PATH;
                     writeln!(io::stderr(), "{file_path:?}: {e}")?;
                 } else {
                     roots.push(path);
@@ -377,7 +373,7 @@ impl Lez<'_> {
 
         let mut files = Vec::new();
         let mut dir_files = Vec::new();
-        let mut exit_status = 0;
+        let mut exit_status = exits::SUCCESS;
 
         for file_path in &self.input_paths {
             let f = File::from_args_with_filter(
@@ -394,7 +390,7 @@ impl Lez<'_> {
             // We don't know whether this file exists, so we have to try to get
             // the metadata to verify.
             if let Err(e) = f.metadata() {
-                exit_status = 2;
+                exit_status = exits::MISSING_INPUT_PATH;
                 writeln!(io::stderr(), "{file_path:?}: {e}")?;
                 continue;
             }
@@ -793,11 +789,14 @@ impl Lez<'_> {
 
 mod exits {
 
-    /// Exit code for when exa runs OK.
+    /// Exit code for when lez runs OK.
     pub const SUCCESS: i32 = 0;
 
     /// Exit code for when there was at least one I/O error during execution.
     pub const RUNTIME_ERROR: i32 = 1;
+
+    /// Exit code for when a specified input path does not exist.
+    pub const MISSING_INPUT_PATH: i32 = 2;
 
     /// Exit code for when the command-line options are invalid.
     pub const OPTIONS_ERROR: i32 = 3;
