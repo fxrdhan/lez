@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 # Maintainer: fxrdhan <https://github.com/fxrdhan>
 pkgname=lez-bin
-pkgver=0.28.1
+pkgver=0.28.2
 pkgrel=1
 pkgdesc="A modern, fast, and feature-rich replacement for ls written in Rust"
 arch=('x86_64' 'aarch64')

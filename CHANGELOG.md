@@ -8,6 +8,33 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.28.2] - 2026-09-02
+
+### Features & Flag Updates
+
+- **`--no-language` Flag & Configuration Options**: Add `--no-language` CLI flag and `[loc] language = false` / `[display] language = false` configuration options in `config.toml` to suppress the `Language` column when `--loc` is enabled, allowing users to display lines of code metrics (`Code`) without also rendering the detected programming language name in long view and JSON formats ([#120](https://github.com/fxrdhan/lez/pull/120)).
+- **Comprehensive Shell Completions**: Provide full autocompletions for `--no-language` across Bash, Zsh, Fish, Nu, and PowerShell, accompanied by updated man pages and documentation ([#120](https://github.com/fxrdhan/lez/pull/120)).
+
+### Distribution & Packaging Infrastructure
+
+- **Universal Shell Installer**: Add standalone universal installation script (`packaging/install.sh`) supporting Linux and macOS with automatic architecture detection ([#121](https://github.com/fxrdhan/lez/pull/121)).
+- **Homebrew Formula**: Add Homebrew formula reference (`packaging/homebrew/lez.rb`) corresponding to `fxrdhan/homebrew-tap` ([#121](https://github.com/fxrdhan/lez/pull/121)).
+- **Arch Linux AUR Package**: Provide official AUR package recipes (`packaging/aur/PKGBUILD` and `packaging/aur/.SRCINFO`) ([#121](https://github.com/fxrdhan/lez/pull/121)).
+- **`cargo-binstall` Support**: Configure `[package.metadata.binstall]` metadata in `Cargo.toml` for pre-compiled binary installations ([#121](https://github.com/fxrdhan/lez/pull/121)).
+- **Multi-Target CI / CD Pipelines**: Enhance release workflows with Intel macOS (`x86_64-apple-darwin`), Apple Silicon (`aarch64-apple-darwin`), Linux x86_64, Windows, and `.deb` packaging via `cargo-deb` ([#121](https://github.com/fxrdhan/lez/pull/121)).
+
+### Performance Optimizations
+
+- **Zero-Allocation Stdin Streaming**: Stream file paths directly from standard input (`--stdin`) using reference borrowing, eliminating redundant string clones, heap conversions, and intermediate `Vec` allocations during massive input piping ([#122](https://github.com/fxrdhan/lez/pull/122)).
+- **Filesystem Syscall Reduction**: Eliminate redundant `.exists()` file probes before attempting configuration loads in `file_config.rs`, reducing startup metadata syscalls by 50% ([#122](https://github.com/fxrdhan/lez/pull/122)).
+
+### Robustness & Safety Invariants
+
+- **Panic-Free Rendering**: Replace unchecked `unwrap()` calls in color gradient rendering (`size.rs`), LOC character parsing (`loc/mod.rs`), JSON recursive traversal (`json.rs`), and UTC timezone calculation (`times.rs`) with safe pattern matching and fallbacks ([#122](https://github.com/fxrdhan/lez/pull/122)).
+- **Poison-Safe Mutex Caching**: Implement poison-resilient locking on `UsersCache` (`unwrap_or_else(PoisonError::into_inner)`) to prevent cascading thread panics during multi-threaded Rayon execution ([#122](https://github.com/fxrdhan/lez/pull/122)).
+- **Idiomatic Rust 2024 Macros**: Modernize UI style accessors using standard `Option::get_or_insert_with(Default::default)` ([#122](https://github.com/fxrdhan/lez/pull/122)).
+- **Standardized Exit Codes**: Ensure robust and predictable process exit codes (`MISSING_INPUT_PATH = 2`, `RUNTIME_ERROR = 1`, `OPTIONS_ERROR = 3`) with dedicated integration tests ([#122](https://github.com/fxrdhan/lez/pull/122)).
+
 ## [0.28.1] - 2026-09-02
 
 ### Features & Flag Updates

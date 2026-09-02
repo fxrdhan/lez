@@ -4,7 +4,7 @@
 class Lez < Formula
   desc "A modern, fast, and feature-rich replacement for ls written in Rust"
   homepage "https://github.com/fxrdhan/lez"
-  url "https://github.com/fxrdhan/lez/archive/refs/tags/v0.28.1.tar.gz"
+  url "https://github.com/fxrdhan/lez/archive/refs/tags/v0.28.2.tar.gz"
   license "EUPL-1.2"
   head "https://github.com/fxrdhan/lez.git", branch: "main"
 

@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "lez"
-version = "0.28.1"
+version = "0.28.2"
 dependencies = [
  "ansi-width",
  "backtrace",

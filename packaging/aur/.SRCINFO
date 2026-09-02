@@ -1,6 +1,6 @@
 pkgbase = lez-bin
 	pkgdesc = A modern, fast, and feature-rich replacement for ls written in Rust
-	pkgver = 0.28.1
+	pkgver = 0.28.2
 	pkgrel = 1
 	url = https://github.com/fxrdhan/lez
 	arch = x86_64
@@ -8,12 +8,12 @@ pkgbase = lez-bin
 	license = EUPL-1.2
 	provides = lez
 	conflicts = lez
-	source_x86_64 = lez-bin-0.28.1-x86_64.tar.gz::https://github.com/fxrdhan/lez/releases/download/v0.28.1/lez_x86_64-unknown-linux-gnu.tar.gz
+	source_x86_64 = lez-bin-0.28.2-x86_64.tar.gz::https://github.com/fxrdhan/lez/releases/download/v0.28.2/lez_x86_64-unknown-linux-gnu.tar.gz
 	sha256sums_x86_64 = SKIP
-	source_aarch64 = lez-bin-0.28.1-aarch64.tar.gz::https://github.com/fxrdhan/lez/releases/download/v0.28.1/lez_aarch64-unknown-linux-gnu.tar.gz
+	source_aarch64 = lez-bin-0.28.2-aarch64.tar.gz::https://github.com/fxrdhan/lez/releases/download/v0.28.2/lez_aarch64-unknown-linux-gnu.tar.gz
 	sha256sums_aarch64 = SKIP
-	source = man-v0.28.1.tar.gz::https://github.com/fxrdhan/lez/releases/download/v0.28.1/man-v0.28.1.tar.gz
-	source = completions-v0.28.1.tar.gz::https://github.com/fxrdhan/lez/releases/download/v0.28.1/completions-v0.28.1.tar.gz
+	source = man-v0.28.2.tar.gz::https://github.com/fxrdhan/lez/releases/download/v0.28.2/man-v0.28.2.tar.gz
+	source = completions-v0.28.2.tar.gz::https://github.com/fxrdhan/lez/releases/download/v0.28.2/completions-v0.28.2.tar.gz
 	sha256sums = SKIP
 	sha256sums = SKIP
 
