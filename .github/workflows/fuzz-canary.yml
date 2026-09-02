@@ -6,8 +6,12 @@ name: Fuzz Canary
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
   schedule:
     # Weekly run on Sundays at 04:00 UTC
     - cron: "0 4 * * 0"
