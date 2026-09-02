@@ -40,7 +40,6 @@
 
 ## Contributor Checklist
 - [ ] My commits follow [Conventional Commits](https://www.conventionalcommits.org/) format
-- [ ] Upstream references are included in this PR body only, not in commit titles
 - [ ] Tests covering the changes have been added/updated
 - [ ] `cargo clippy --all-targets` passes with no warnings
 - [ ] `cargo nextest run` (or `cargo test`) passes
