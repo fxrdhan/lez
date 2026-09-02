@@ -83,6 +83,16 @@ assets = [
   ],
 ]
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }_{ target }.{ archive-format }"
+bin-dir = "lez"
+pkg-fmt = "tar.gz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
+[package.metadata.binstall.overrides.aarch64-pc-windows-msvc]
+pkg-fmt = "zip"
 
 [[bin]]
 name = "lez"

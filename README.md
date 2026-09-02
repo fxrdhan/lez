@@ -95,15 +95,37 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 ---
 
 <a id="try-it">
-<h1>Try it!</h1>
+<h1>Installation</h1>
 </a>
 
-### Cargo / Build from Source
+### Homebrew (macOS & Linux)
+
+Install from the official [fxrdhan tap](https://github.com/fxrdhan/homebrew-tap):
+
+```bash
+brew install fxrdhan/tap/lez
+```
+
+### Standalone Shell Installer (Linux & macOS)
+
+Download and install the prebuilt binary to `~/.local/bin` in one step:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fxrdhan/lez/main/packaging/install.sh | bash
+```
+
+### Cargo / crates.io
 
 Install `lez` from crates.io:
 
 ```bash
 cargo install lez
+```
+
+Or install precompiled binary quickly with `cargo-binstall`:
+
+```bash
+cargo binstall lez
 ```
 
 Or track the latest commit on `main`:

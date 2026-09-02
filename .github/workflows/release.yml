@@ -32,6 +32,9 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            archive: tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: zip
@@ -58,6 +61,11 @@ jobs:
         run: |
           mkdir -p dist
           tar czf "dist/lez_${{ matrix.target }}.tar.gz" -C "target/${{ matrix.target }}/release" lez
+      - name: Package (.deb)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo install cargo-deb --locked
+          cargo deb --no-build --target ${{ matrix.target }} -o dist/
       - name: Package (zip)
         if: matrix.archive == 'zip'
         shell: pwsh
