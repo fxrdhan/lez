@@ -436,7 +436,9 @@ pub struct Environment {
 impl Environment {
     #[cfg(unix)]
     pub fn lock_users(&self) -> MutexGuard<'_, UsersCache> {
-        self.users.lock().unwrap()
+        self.users
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn load_all() -> Self {

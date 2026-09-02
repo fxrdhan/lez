@@ -198,7 +198,9 @@ fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) 
         // Anything else is code. Consume one unit, skipping over string
         // literals so their contents can’t be mistaken for comments.
         has_code = true;
-        let c = rest.chars().next().unwrap();
+        let Some(c) = rest.chars().next() else {
+            break;
+        };
         if c == '"' {
             rest = consume_string(&rest[c.len_utf8()..], '"');
         } else {

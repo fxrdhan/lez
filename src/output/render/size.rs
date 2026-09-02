@@ -47,30 +47,28 @@ impl f::Size {
                 // But format the number directly using the locale.
                 let string = numerics.format_int(size);
 
-                return if is_gradient_mode {
-                    let csi = color_scale_info.unwrap();
+                return if let (true, Some(csi)) = (is_gradient_mode, color_scale_info) {
                     TextCell::paint(
                         csi.adjust_style(colours.size(prefix), size as f32, csi.size, Scale::Logarithmic),
                         string,
                     )
                 } else {
                     TextCell::paint(colours.size(prefix), string)
-                }
+                };
             }
         };
 
         #[rustfmt::skip]
         let (prefix, n) = match result {
             NumberPrefix::Standalone(b) => {
-                return if is_gradient_mode {
-                    let csi = color_scale_info.unwrap();
+                return if let (true, Some(csi)) = (is_gradient_mode, color_scale_info) {
                     TextCell::paint(
                         csi.adjust_style(colours.size(None), size as f32, csi.size, Scale::Logarithmic),
                         numerics.format_int(b),
                     )
                 } else {
                     TextCell::paint(colours.size(None), numerics.format_int(b))
-                }
+                };
             }
             NumberPrefix::Prefixed(p, n)  => (p, n),
         };
@@ -83,8 +81,7 @@ impl f::Size {
         TextCell {
             // symbol is guaranteed to be ASCII since unit prefixes are hardcoded.
             width: DisplayWidth::from(&*number) + symbol.len(),
-            contents: if is_gradient_mode {
-                let csi = color_scale_info.unwrap();
+            contents: if let (true, Some(csi)) = (is_gradient_mode, color_scale_info) {
                 vec![
                     csi.adjust_style(
                         colours.size(Some(prefix)),

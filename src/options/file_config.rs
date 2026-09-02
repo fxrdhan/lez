@@ -213,9 +213,7 @@ impl FileConfig {
             .or_else(|| vars.get(vars::EXA_CONFIG_FILE))
         {
             let path = PathBuf::from(env_file);
-            if path.exists() {
-                return Self::from_file(&path).unwrap_or_default();
-            }
+            return Self::from_file(&path).unwrap_or_default();
         }
 
         let mut config = Self::default();
@@ -237,9 +235,7 @@ impl FileConfig {
                 config_dir.join("config.yml"),
             ];
             for candidate in &candidates {
-                if candidate.exists()
-                    && let Some(global_cfg) = Self::from_file(candidate)
-                {
+                if let Some(global_cfg) = Self::from_file(candidate) {
                     config.merge_with(global_cfg);
                     break;
                 }
@@ -257,9 +253,7 @@ impl FileConfig {
         ];
 
         for candidate in &local_candidates {
-            if candidate.exists()
-                && let Some(local_cfg) = Self::from_file(candidate)
-            {
+            if let Some(local_cfg) = Self::from_file(candidate) {
                 config.merge_with(local_cfg);
                 break;
             }

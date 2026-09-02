@@ -20,7 +20,7 @@ pub trait Render {
 /// whatever offset "now" happens to have.
 fn local_offset_for(time: chrono::NaiveDateTime, use_utc: bool) -> FixedOffset {
     if use_utc {
-        FixedOffset::east_opt(0).unwrap()
+        FixedOffset::east_opt(0).unwrap_or_else(|| Utc.fix())
     } else {
         *Local.from_utc_datetime(&time).offset()
     }

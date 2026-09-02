@@ -368,7 +368,7 @@ impl RowThreshold {
                         vars::LEZ_GRID_ROWS
                     } else {
                         vars.source(vars::EZA_GRID_ROWS, vars::EXA_GRID_ROWS)
-                            .unwrap()
+                            .unwrap_or(vars::LEZ_GRID_ROWS)
                     });
                     Err(OptionsError::FailedParse(columns, source, e))
                 }
@@ -857,7 +857,11 @@ impl ColorScaleOptions {
             None => 100,
         };
 
-        let mode = match matches.get_one("color-scale-mode").unwrap() {
+        let mode = match matches
+            .get_one("color-scale-mode")
+            .copied()
+            .unwrap_or(ColorScaleModeArgs::Gradient)
+        {
             ColorScaleModeArgs::Fixed => ColorScaleMode::Fixed,
             ColorScaleModeArgs::Gradient => ColorScaleMode::Gradient,
         };

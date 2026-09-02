@@ -9,7 +9,7 @@ use crate::options::vars::{self, Vars};
 use crate::options::{NumberSource, OptionsError};
 
 use crate::output::file_name::{
-    Classify, EmbedHyperlinks, Options, QuoteStyle, ShowIcons, ShowSymlinkTargets,
+    Absolute, Classify, EmbedHyperlinks, Options, QuoteStyle, ShowIcons, ShowSymlinkTargets,
 };
 
 use clap::ArgMatches;
@@ -29,7 +29,10 @@ impl Options {
         let quote_style = QuoteStyle::deduce(matches, vars);
         let embed_hyperlinks = EmbedHyperlinks::deduce(matches);
 
-        let absolute = *matches.get_one("absolute").unwrap();
+        let absolute = matches
+            .get_one("absolute")
+            .copied()
+            .unwrap_or(Absolute::Off);
         let short_nix = matches.get_flag("short-nix");
         let show_symlink_targets = ShowSymlinkTargets::deduce(matches);
 
@@ -114,7 +117,7 @@ impl ShowIcons {
                         vars::LEZ_ICON_SPACING
                     } else {
                         vars.source(vars::EZA_ICON_SPACING, vars::EXA_ICON_SPACING)
-                            .unwrap_or("1")
+                            .unwrap_or(vars::LEZ_ICON_SPACING)
                     });
                     Err(OptionsError::FailedParse(columns.clone(), source, e))
                 }

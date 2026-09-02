@@ -250,7 +250,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"print-total" "display total number of entries"))
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShowWhen {
     // icons, colors, quotes, headers ? eventually
     Always,
@@ -281,14 +281,14 @@ impl ValueEnum for ShowWhen {
     }
 }
 
-#[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 pub enum ColorScaleArgs {
     All,
     Age,
     Size,
 }
 
-#[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 pub enum ColorScaleModeArgs {
     Fixed,
     Gradient,

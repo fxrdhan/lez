@@ -712,8 +712,8 @@ impl FileNameColours for Theme {
             }
 
             if let Some(ref ext_overrides) = self.ui.extensions
-                && let Some(ext) = file.ext.clone()
-                && let Some(file_override) = ext_overrides.get(&ext)
+                && let Some(ext) = file.ext.as_deref()
+                && let Some(file_override) = ext_overrides.get(ext)
             {
                 return Some(file_override.clone());
             }

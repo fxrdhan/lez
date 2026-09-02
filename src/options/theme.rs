@@ -72,7 +72,7 @@ impl UseColours {
         };
 
         if matches.value_source("color") == Some(clap::parser::ValueSource::CommandLine) {
-            match matches.get_one("color").unwrap() {
+            match matches.get_one("color").copied().unwrap_or(ShowWhen::Auto) {
                 ShowWhen::Auto => default_value,
                 ShowWhen::Always => Self::Always,
                 ShowWhen::Never => Self::Never,
