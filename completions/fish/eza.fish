@@ -211,6 +211,7 @@ complete -c eza -l percent-digits -d "Number of decimal digits to display for pe
 complete -c eza -l precision-percent -d "Number of decimal digits to display for percentages (0..=8)"
 complete -c eza -l no-user -d "Suppress the user field"
 complete -c eza -l no-time -d "Suppress the time field"
+complete -c eza -l no-language -d "Suppress the language field in --loc"
 complete -c eza -s M -l mounts -d "Show mount details"
 complete -c eza -l stdin -d "When piping to eza. Read file names from stdin"
 complete -c eza -l print-total -d "Display total number of entries"

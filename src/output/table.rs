@@ -79,6 +79,7 @@ pub struct Columns {
     pub permissions: bool,
     pub filesize: bool,
     pub user: bool,
+    pub language: bool,
 
     /// If set, add a language column and a lines-of-code column (in the
     /// requested style) to the long view.
@@ -119,7 +120,9 @@ impl Columns {
         }
 
         if let Some(content) = self.loc {
-            columns.push(Column::Language);
+            if self.language {
+                columns.push(Column::Language);
+            }
             match content {
                 CodeContent::Lines => columns.push(Column::Loc(CodeContent::Lines)),
                 CodeContent::Percent => columns.push(Column::Loc(CodeContent::Percent)),

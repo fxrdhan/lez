@@ -562,6 +562,9 @@ impl Columns {
         let permissions = !matches.get_flag("no-permissions");
         let filesize = !matches.get_flag("no-filesize");
         let user = !matches.get_flag("no-user");
+        let language = !matches.get_flag("no-language")
+            && config.loc.language.unwrap_or(true)
+            && config.display.language.unwrap_or(true);
 
         let loc = matches.get_one::<CodeContent>("loc").copied();
 
@@ -581,6 +584,7 @@ impl Columns {
             permissions,
             filesize,
             user,
+            language,
             loc,
         })
     }
@@ -2079,6 +2083,54 @@ mod tests {
             .unwrap()
             .loc,
             None
+        );
+    }
+
+    #[test]
+    fn deduce_columns_language_default_true() {
+        assert!(
+            Columns::deduce(
+                &mock_cli(vec!["--loc"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            )
+            .unwrap()
+            .language
+        );
+    }
+
+    #[test]
+    fn deduce_columns_no_language_cli() {
+        assert!(
+            !Columns::deduce(
+                &mock_cli(vec!["--loc", "--no-language"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            )
+            .unwrap()
+            .language
+        );
+    }
+
+    #[test]
+    fn deduce_columns_language_config_loc_false() {
+        let mut config = FileConfig::default();
+        config.loc.language = Some(false);
+        assert!(
+            !Columns::deduce(&mock_cli(vec!["--loc"]), &MockVars::default(), &config)
+                .unwrap()
+                .language
+        );
+    }
+
+    #[test]
+    fn deduce_columns_language_config_display_false() {
+        let mut config = FileConfig::default();
+        config.display.language = Some(false);
+        assert!(
+            !Columns::deduce(&mock_cli(vec!["--loc"]), &MockVars::default(), &config)
+                .unwrap()
+                .language
         );
     }
 

@@ -156,3 +156,6 @@
 
 # Number of decimal digits to display for percentages (0..=8, default: 1)
 # percent_digits = 1
+
+# Whether to display the Language column alongside lines-of-code
+# language = true

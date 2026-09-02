@@ -381,6 +381,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `--no-time`
 : Suppress the time field.
 
+`--no-language`
+: Suppress the programming language field when `--loc` is enabled.
+
 `--stdin`
 : When you wish to pipe directories to lez/read from stdin. Separate one per line or define custom separation char in `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
 

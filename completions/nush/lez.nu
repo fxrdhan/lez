@@ -81,6 +81,7 @@ export extern "lez" [
     --precision-percent: int   # Number of decimal digits to display for percentages (0..=8)
     --no-user                  # Suppress the user field
     --no-time                  # Suppress the time field
+    --no-language              # Suppress the language field in --loc
     --mounts(-M)               # Show mount details
     --git                      # List each file's Git status, if tracked
     --git-glyphs               # Display Git status with Nerd Font glyphs / icons
