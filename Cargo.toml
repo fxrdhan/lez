@@ -52,17 +52,17 @@ assets = [
     "0755",
   ],
   [
-    "target/release/../man/lez.1",
+    "man/lez.1",
     "/usr/share/man/man1/lez.1",
     "0644",
   ],
   [
-    "target/release/../man/lez_colors.5",
+    "man/lez_colors.5",
     "/usr/share/man/man5/lez_colors.5",
     "0644",
   ],
   [
-    "target/release/../man/lez_colors-explanation.5",
+    "man/lez_colors-explanation.5",
     "/usr/share/man/man5/lez_colors-explanation.5",
     "0644",
   ],
