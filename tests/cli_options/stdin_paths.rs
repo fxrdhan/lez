@@ -285,3 +285,36 @@ fn test_stdin_combined_positional_and_stdin() {
     assert!(stdout.contains("pipe.txt"));
     assert!(!stdout.contains("other.txt"));
 }
+
+#[test]
+fn test_stdin_invalid_utf8_returns_exit_code_1_without_panic() {
+    let temp = TempTestDir::new("invalid_utf8_stdin");
+
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .arg("--stdin")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        // Write invalid UTF-8 bytes to stdin
+        let _ = stdin.write_all(&[0xFF, 0xFE, 0xFD]);
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "Expected exit code 1 (RUNTIME_ERROR) on stdin read error, got: {:?}",
+        output.status.code()
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("lez: Failed to read from stdin"),
+        "Expected graceful error message in stderr, got: {stderr}"
+    );
+}
