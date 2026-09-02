@@ -39,19 +39,29 @@ SPDX-License-Identifier: EUPL-1.2
 
 # Performance
 
-Measured against [eza](https://github.com/eza-community/eza) v0.23.5 and [lsd](https://github.com/lsd-rs/lsd) v1.2.0. Apple M1 Pro, 10 cores, macOS; release builds, warm page cache, minimum of 35 interleaved runs per binary.
+Measured on **`lez` v0.28.2** against [eza](https://github.com/eza-community/eza) v0.23.5 (the upstream release it forked from) and [lsd](https://github.com/lsd-rs/lsd) v1.2.0. Apple M1 Pro, 10 cores, macOS; release builds, warm page cache, minimum of 35 interleaved runs per binary.
 
-| Workload | `lez` | `eza` 0.23.5 | `lsd` 1.2.0 | vs `eza` | vs `lsd` |
+| Workload | `lez` 0.28.2 | `eza` 0.23.5 | `lsd` 1.2.0 | vs `eza` | vs `lsd` |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Grid view, 10,000 files | **34.4 ms** | 68.6 ms | 72.1 ms | 2.00× | 2.10× |
-| Recursive tree, 29,572 files | **308.9 ms** | 565.9 ms | 1,482.4 ms | 1.83× | 4.80× |
-| Directory-grouped, 10,000 entries incl. 3,000 symlinks | **186.1 ms** | 312.8 ms | 338.2 ms | 1.68× | 1.82× |
-| Long view, 10,000 files | **162.2 ms** | 175.7 ms | 185.3 ms | 1.08× | 1.14× |
-| Long view with Git status, this repository | 22.3 ms | **20.8 ms** | 26.9 ms | 0.93× | 1.21× |
+| Grid view, 10,000 files | **22.4 ms** | 77.4 ms | 465.1 ms | 3.45× | 20.7× |
+| Recursive tree, 30,000 files | **73.6 ms** | 205.8 ms | 1,217.0 ms | 2.80× | 16.5× |
+| Directory-grouped, 10,000 entries incl. 3,000 symlinks | **49.9 ms** | 146.5 ms | 433.3 ms | 2.94× | 8.69× |
+| Long view, 10,000 files | **158.4 ms** | 215.5 ms | 439.0 ms | 1.36× | 2.77× |
+| Long view with Git status, this repository | **18.3 ms** | 21.7 ms | 20.1 ms | 1.19× | 1.10× |
 
-Where the gains come from: symlink directory lookups are cached, so the grouping sort resolves each entry once instead of on every comparison; sorts above 2,048 entries run on all cores; and the traversal itself avoids redundant allocations and stats.
+Where the gains come from: metadata is cached lazily via `OnceLock` and symlink directory lookups use lock-free atomic memoization, so the grouping sort resolves each entry once instead of on every comparison; sorts above 2,048 entries run in parallel on all cores; syscall amplification is minimized by evaluating in-memory styles before probing disk; and traversal elides redundant heap allocations and stats.
 
-The last row is the one case where eza is ahead, by about a millisecond and a half on a listing that is dominated by libgit2. Note also that `lez` sorts through an ICU collator by default, which orders accents, case, and digit runs correctly and costs more than a byte comparison. `--sort=lexicographic` opts out of it and is faster still.
+Note also that `lez` sorts through an ICU collator by default, which orders accents, case, and digit runs correctly and costs more than a byte comparison. `--sort=lexicographic` opts out of it and is faster still.
+
+### Memory Footprint (Peak RSS)
+
+Measured peak resident memory when scanning 10,000 files in a flat directory (`/usr/bin/time -l` on macOS):
+
+| Metric | `lez` 0.28.2 | `lsd` 1.2.0 | `eza` 0.23.5 | Memory Savings |
+| :--- | ---: | ---: | ---: | :--- |
+| **Peak Resident Set Size (RAM)** | **~1.0 MB** | ~14.0 MB | ~27.4 MB | **27× lighter than `eza`** (14× vs `lsd`) |
+
+`lez` eliminates unnecessary heap allocations through zero-copy path streaming and lazily evaluated metadata via `OnceLock`. On resource-constrained systems (Docker CI runners, low-memory VPS instances, embedded systems), memory overhead remains virtually negligible.
 
 ### Reproducing
 

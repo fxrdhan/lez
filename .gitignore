@@ -42,3 +42,4 @@ tests/timestamp_test_dir
 
 # Miscenallous
 .idea
+.DS_Store
