@@ -14,8 +14,10 @@ use std::os::unix::fs::MetadataExt;
 use std::sync::Arc;
 
 use chrono::Utc;
-use icu_collator::{Collator, CollatorOptions, Numeric, Strength};
-use icu_locid::Locale;
+use icu_collator::options::{CollatorOptions, Strength};
+use icu_collator::preferences::CollationNumericOrdering;
+use icu_collator::{Collator, CollatorBorrowed, CollatorPreferences};
+use icu_locale::Locale;
 
 use crate::fs::DotFilter;
 use crate::fs::File;
@@ -25,8 +27,8 @@ use crate::fs::File;
 #[derive(Debug, Clone)]
 pub struct LocaleCollator {
     locale_tag: String,
-    sensitive: Arc<Collator>,
-    insensitive: Arc<Collator>,
+    sensitive: Arc<CollatorBorrowed<'static>>,
+    insensitive: Arc<CollatorBorrowed<'static>>,
 }
 
 impl PartialEq for LocaleCollator {
@@ -56,16 +58,20 @@ impl LocaleCollator {
         let clean = Self::clean_locale_str(locale_str)?;
         let locale: Locale = clean.replace('_', "-").parse().ok()?;
 
-        let mut sens_opt = CollatorOptions::new();
-        sens_opt.numeric = Some(Numeric::On);
+        let mut sens_opt = CollatorOptions::default();
         sens_opt.strength = Some(Strength::Tertiary);
 
-        let mut insens_opt = CollatorOptions::new();
-        insens_opt.numeric = Some(Numeric::On);
+        let mut insens_opt = CollatorOptions::default();
         insens_opt.strength = Some(Strength::Secondary);
 
-        let sensitive = Collator::try_new(&locale.clone().into(), sens_opt).ok()?;
-        let insensitive = Collator::try_new(&locale.into(), insens_opt).ok()?;
+        let mut sens_prefs: CollatorPreferences = locale.clone().into();
+        sens_prefs.numeric_ordering = Some(CollationNumericOrdering::True);
+
+        let mut insens_prefs: CollatorPreferences = locale.into();
+        insens_prefs.numeric_ordering = Some(CollationNumericOrdering::True);
+
+        let sensitive = Collator::try_new(sens_prefs, sens_opt).ok()?;
+        let insensitive = Collator::try_new(insens_prefs, insens_opt).ok()?;
 
         Some(Self {
             locale_tag: clean,
@@ -1024,22 +1030,28 @@ const CACHEDIR_MAGIC: &[u8; 43] = b"Signature: 8a477f597d28d172789f06886806bc55"
 
 #[cfg(test)]
 mod test_collation_traits {
-    use icu_collator::{Collator, CollatorOptions, Numeric, Strength};
-    use icu_locid::Locale;
+    use icu_collator::options::{CollatorOptions, Strength};
+    use icu_collator::preferences::CollationNumericOrdering;
+    use icu_collator::{Collator, CollatorPreferences};
+    use icu_locale::Locale;
 
     #[test]
     fn test_case_collation() {
-        let mut sens_opt = CollatorOptions::new();
-        sens_opt.numeric = Some(Numeric::On);
+        let mut sens_opt = CollatorOptions::default();
         sens_opt.strength = Some(Strength::Tertiary);
 
-        let mut insens_opt = CollatorOptions::new();
-        insens_opt.numeric = Some(Numeric::On);
+        let mut insens_opt = CollatorOptions::default();
         insens_opt.strength = Some(Strength::Secondary);
 
         let loc: Locale = "en".parse().unwrap();
-        let sens = Collator::try_new(&loc.clone().into(), sens_opt).unwrap();
-        let insens = Collator::try_new(&loc.into(), insens_opt).unwrap();
+        let mut sens_prefs: CollatorPreferences = loc.clone().into();
+        sens_prefs.numeric_ordering = Some(CollationNumericOrdering::True);
+
+        let mut insens_prefs: CollatorPreferences = loc.into();
+        insens_prefs.numeric_ordering = Some(CollationNumericOrdering::True);
+
+        let sens = Collator::try_new(sens_prefs, sens_opt).unwrap();
+        let insens = Collator::try_new(insens_prefs, insens_opt).unwrap();
 
         // Case-sensitive distinguishes "apple" and "Apple"
         assert_ne!(sens.compare("apple", "Apple"), std::cmp::Ordering::Equal);

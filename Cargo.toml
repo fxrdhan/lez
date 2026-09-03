@@ -135,9 +135,9 @@ serde_norway = "0.9"
 toml = "1.1"
 backtrace = "0.3"
 clap = { version = "4.5.38", features = ["cargo", "derive", "wrap_help"] }
-icu_collator = "1.5"
-icu_locid = "1.5"
-icu_provider = { version = "1.5", features = ["sync"] }
+icu_collator = "2.3"
+icu_locale = "2.3"
+icu_provider = { version = "2.3", features = ["sync"] }
 sys-locale = "0.3"
 tree_magic_mini = { version = "3.2.0", features = ["with-gpl-data"] }
 tar = { version = "0.4", optional = true }
