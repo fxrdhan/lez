@@ -11,7 +11,7 @@ SPDX-License-Identifier: EUPL-1.2
     
 # lez
 
-**An alternative for `ls` written in Rust.**
+**A modern alternative to ls. Oh, and ofc it's faster than eza tbh.**
 
 [![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.txt)
 [![Rust](https://img.shields.io/badge/Rust-1.90%2B-orange.svg)](https://www.rust-lang.org/)
