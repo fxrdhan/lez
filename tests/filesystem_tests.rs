@@ -23,6 +23,8 @@ mod no_symlink_targets;
 mod only_files_wildcards;
 #[path = "filesystem/recsize_hardlinks.rs"]
 mod recsize_hardlinks;
+#[path = "filesystem/recursive_open_files.rs"]
+mod recursive_open_files;
 #[path = "filesystem/show_dotfiles.rs"]
 mod show_dotfiles;
 #[path = "filesystem/since_duration.rs"]
