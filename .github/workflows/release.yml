@@ -147,3 +147,15 @@ jobs:
             --title "lez ${GITHUB_REF_NAME}" \
             --notes-file NOTES.md \
             dist/*
+      - name: Update Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v4
+        if: "!contains(github.ref_name, '-') && env.COMMITTER_TOKEN != ''"
+        with:
+          formula-name: lez
+          homebrew-tap: fxrdhan/homebrew-tap
+          base-branch: main
+          download-url: https://github.com/fxrdhan/lez/archive/refs/tags/${{ github.ref_name }}.tar.gz
+          commit-message: "bump lez to ${{ github.ref_name }}"
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
