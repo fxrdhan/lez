@@ -101,10 +101,11 @@ impl LocCounts {
         // The block-comment terminator we’re currently hunting for, if any.
         // This is threaded across lines so multi-line block comments work.
         let mut block: Option<&'static str> = None;
+        let mut quote: Option<char> = None;
 
         for line in source.lines() {
             counts.lines += 1;
-            let (has_code, has_comment) = classify_line(line, lang, &mut block);
+            let (has_code, has_comment) = classify_line(line, lang, &mut block, &mut quote);
             if has_code {
                 counts.code += 1;
             } else if has_comment {
@@ -132,13 +133,19 @@ impl LocCounts {
 fn is_candidate_comment_or_quote(b: u8) -> bool {
     matches!(
         b,
-        b'/' | b'#' | b'-' | b'%' | b';' | b'"' | b'\'' | b'=' | b'<' | b'{' | b'(' | b'!'
+        b'/' | b'#' | b'-' | b'%' | b';' | b'"' | b'\'' | b'`' | b'=' | b'<' | b'{' | b'(' | b'!'
     )
 }
 
 /// Classify a single physical line, updating `block` with any block-comment
-/// state that carries over to the next line. Returns `(has_code, has_comment)`.
-fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) -> (bool, bool) {
+/// state and `quote` with any multiline template-literal state that carries over
+/// to the next line. Returns `(has_code, has_comment)`.
+fn classify_line(
+    line: &str,
+    lang: &Language,
+    block: &mut Option<&'static str>,
+    quote: &mut Option<char>,
+) -> (bool, bool) {
     let mut has_code = false;
     let mut has_comment = false;
     let mut rest = line;
@@ -155,6 +162,29 @@ fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) 
                     continue;
                 }
                 None => break,
+            }
+        }
+
+        // Inside a multiline template literal / string: everything up to
+        // the closing quote is code.
+        if let Some(q) = *quote {
+            has_code = true;
+            let mut chars = rest.char_indices();
+            let mut found = None;
+            while let Some((i, c)) = chars.next() {
+                if c == '\\' {
+                    chars.next();
+                } else if c == q {
+                    found = Some(i + c.len_utf8());
+                    break;
+                }
+            }
+            if let Some(end) = found {
+                *quote = None;
+                rest = &rest[end..];
+                continue 'scan;
+            } else {
+                break 'scan;
             }
         }
 
@@ -201,8 +231,34 @@ fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) 
         let Some(c) = rest.chars().next() else {
             break;
         };
-        if c == '"' {
-            rest = consume_string(&rest[c.len_utf8()..], '"');
+        if std::ptr::eq(lang, &RUST) && c == '\'' {
+            let rem = &rest[c.len_utf8()..];
+            if let Some(after_slash) = rem.strip_prefix('\\') {
+                if let Some(pos) = after_slash.find('\'') {
+                    rest = &after_slash[pos + 1..];
+                } else {
+                    rest = rem;
+                }
+            } else if rem.as_bytes().get(1) == Some(&b'\'') {
+                rest = &rem[2..];
+            } else if let Some(first) = rem.chars().next()
+                && (first.is_alphabetic() || first == '_')
+            {
+                let advance = rem
+                    .chars()
+                    .take_while(|ch| ch.is_alphanumeric() || *ch == '_')
+                    .map(char::len_utf8)
+                    .sum::<usize>();
+                rest = &rem[advance..];
+            } else {
+                rest = rem;
+            }
+        } else if c == '"' || c == '\'' || c == '`' {
+            let (after, closed) = consume_string(&rest[c.len_utf8()..], c);
+            if !closed && c == '`' {
+                *quote = Some('`');
+            }
+            rest = after;
         } else {
             rest = &rest[c.len_utf8()..];
         }
@@ -212,18 +268,18 @@ fn classify_line(line: &str, lang: &Language, block: &mut Option<&'static str>) 
 }
 
 /// Consume a string literal body, returning the slice after the closing
-/// `quote`. Backslash escapes are honoured; an unterminated string consumes
-/// the rest of the line.
-fn consume_string(s: &str, quote: char) -> &str {
+/// `quote` and whether the quote was closed on this line. Backslash escapes
+/// are honoured; an unterminated string consumes the rest of the line.
+fn consume_string(s: &str, quote: char) -> (&str, bool) {
     let mut chars = s.char_indices();
     while let Some((i, c)) = chars.next() {
         if c == '\\' {
             chars.next();
         } else if c == quote {
-            return &s[i + c.len_utf8()..];
+            return (&s[i + c.len_utf8()..], true);
         }
     }
-    ""
+    ("", false)
 }
 
 /// Work out the language of a file from its whole name (for files like
@@ -246,6 +302,13 @@ fn consume_string(s: &str, quote: char) -> &str {
 pub fn language_for(name: &str, ext: Option<&str>) -> Option<&'static Language> {
     if let Some(lang) = BY_FILENAME.get(name) {
         return Some(lang);
+    }
+    let lower = name.to_ascii_lowercase();
+    if let Some(lang) = BY_FILENAME.get(lower.as_str()) {
+        return Some(lang);
+    }
+    if lower.starts_with("dockerfile.") || lower.starts_with("containerfile.") {
+        return Some(&DOCKER);
     }
     ext.and_then(|e| BY_EXTENSION.get(e)).copied()
 }
@@ -324,46 +387,39 @@ impl Report {
         md_stat.files += 1;
         md_stat.counts += total_counts;
 
-        let has_embedded = breakdown
-            .iter()
-            .any(|(lang, counts)| !std::ptr::eq(*lang, &MARKDOWN) && counts.lines > 0);
-
-        if has_embedded {
-            for (lang, counts) in breakdown {
-                if counts.lines == 0 {
-                    continue;
-                }
-                if std::ptr::eq(*lang, &MARKDOWN) {
-                    let prose =
-                        md_stat
-                            .embedded
-                            .entry("Text / Markup")
-                            .or_insert_with(|| LangStat {
-                                language: &MARKDOWN,
-                                files: 0,
-                                counts: LocCounts::default(),
-                                rep_file: ("README.md".to_string(), Some("md".to_string())),
-                                embedded: BTreeMap::new(),
-                            });
-                    prose.files += 1;
-                    prose.counts += *counts;
-                } else {
-                    let sub = md_stat
-                        .embedded
-                        .entry(lang.name)
-                        .or_insert_with(|| LangStat {
-                            language: lang,
-                            files: 0,
-                            counts: LocCounts::default(),
-                            rep_file: (
-                                lang.rep_file.0.to_string(),
-                                lang.rep_file.1.map(String::from),
-                            ),
-                            embedded: BTreeMap::new(),
-                        });
-                    sub.files += 1;
-                    sub.counts += *counts;
-                }
+        for (lang, counts) in breakdown {
+            if counts.lines == 0 {
+                continue;
+            }
+            if std::ptr::eq(*lang, &MARKDOWN) {
+                let prose = md_stat
+                    .embedded
+                    .entry("Text / Markup")
+                    .or_insert_with(|| LangStat {
+                        language: &MARKDOWN,
+                        files: 0,
+                        counts: LocCounts::default(),
+                        rep_file: ("README.md".to_string(), Some("md".to_string())),
+                        embedded: BTreeMap::new(),
+                    });
+                prose.files += 1;
+                prose.counts += *counts;
+            } else {
+                let sub = md_stat
+                    .embedded
+                    .entry(lang.name)
+                    .or_insert_with(|| LangStat {
+                        language: lang,
+                        files: 0,
+                        counts: LocCounts::default(),
+                        rep_file: (
+                            lang.rep_file.0.to_string(),
+                            lang.rep_file.1.map(String::from),
+                        ),
+                        embedded: BTreeMap::new(),
+                    });
+                sub.files += 1;
+                sub.counts += *counts;
             }
         }
     }
@@ -408,19 +464,7 @@ fn language_for_path(path: &Path) -> Option<&'static Language> {
     language_for(name, ext.as_deref())
 }
 
-/// Recursively count every recognised source file under `roots`, using
-/// `is_ignored` to skip files (e.g. those matched by `.gitignore`). Hidden
-/// entries and symbolic links are always skipped, so `.git` and friends never
-/// get walked. Counting itself is parallelised across a thread pool.
-pub fn count_tree<F>(roots: &[PathBuf], is_ignored: &F, show_hidden: bool) -> Report
-where
-    F: Fn(&Path) -> bool,
-{
-    let mut jobs: Vec<(PathBuf, &'static Language)> = Vec::new();
-    for root in roots {
-        collect_jobs(root, is_ignored, show_hidden, &mut jobs);
-    }
-
+fn count_jobs(jobs: Vec<(PathBuf, &'static Language)>) -> Report {
     enum CountResult<'a> {
         Native(&'static Language, LocCounts, &'a PathBuf),
         Markdown(Vec<(&'static Language, LocCounts)>, &'a PathBuf),
@@ -463,6 +507,21 @@ where
     report
 }
 
+/// Recursively count every recognised source file under `roots`, using
+/// `is_ignored` to skip files (e.g. those matched by `.gitignore`). Hidden
+/// entries and symbolic links are always skipped, so `.git` and friends never
+/// get walked. Counting itself is parallelised across a thread pool.
+pub fn count_tree<F>(roots: &[PathBuf], is_ignored: &F, show_hidden: bool) -> Report
+where
+    F: Fn(&Path) -> bool,
+{
+    let mut jobs: Vec<(PathBuf, &'static Language)> = Vec::new();
+    for root in roots {
+        collect_jobs(root, is_ignored, show_hidden, &mut jobs);
+    }
+    count_jobs(jobs)
+}
+
 /// Walk one path, gathering `(file, language)` jobs for every recognised
 /// source file beneath it.
 fn collect_jobs<F>(
@@ -473,7 +532,7 @@ fn collect_jobs<F>(
 ) where
     F: Fn(&Path) -> bool,
 {
-    let Ok(meta) = std::fs::symlink_metadata(path) else {
+    let Ok(meta) = std::fs::metadata(path) else {
         return;
     };
     collect_entry(path, meta.file_type(), is_ignored, show_hidden, jobs);
@@ -488,21 +547,23 @@ fn collect_entry<F>(
 ) where
     F: Fn(&Path) -> bool,
 {
-    // Never follow symlinks: it risks cycles and double-counting.
     if file_type.is_symlink() {
+        if let Ok(meta) = std::fs::metadata(path)
+            && meta.is_file()
+            && let Some(lang) = language_for_path(path).or_else(|| {
+                std::fs::canonicalize(path)
+                    .ok()
+                    .as_deref()
+                    .and_then(language_for_path)
+            })
+        {
+            jobs.push((path.to_path_buf(), lang));
+        }
         return;
     }
 
     if file_type.is_file() {
-        let name = path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default();
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(str::to_ascii_lowercase);
-        if let Some(lang) = language_for(name, ext.as_deref()) {
+        if let Some(lang) = language_for_path(path) {
             jobs.push((path.to_path_buf(), lang));
         }
         return;
@@ -551,29 +612,61 @@ fn collect_entry<F>(
 /// point used by both the `--loc` percentage columns and the `--code` summary.
 #[must_use]
 pub fn count_roots(roots: &[PathBuf], show_hidden: bool) -> Report {
+    let mut jobs: Vec<(PathBuf, &'static Language)> = Vec::new();
     #[cfg(feature = "git")]
-    {
-        if let Some(first) = roots.first()
-            && let Ok(repo) = git2::Repository::discover(first)
+    let cwd = std::env::current_dir()
+        .ok()
+        .and_then(|c| std::fs::canonicalize(c).ok());
+
+    for root in roots {
+        #[cfg(feature = "git")]
         {
-            let workdir = repo.workdir().and_then(|w| {
-                std::fs::canonicalize(w)
-                    .ok()
-                    .or_else(|| Some(w.to_path_buf()))
-            });
-            let is_ignored = |p: &Path| {
-                if let Some(ref wd) = workdir
-                    && let Ok(rel) = p.strip_prefix(wd)
-                {
-                    return repo.is_path_ignored(rel).unwrap_or(false);
+            if let Ok(repo) = git2::Repository::discover(root) {
+                let workdir = repo.workdir().map(Path::to_path_buf);
+                let canon_wd = workdir
+                    .as_deref()
+                    .and_then(|w| std::fs::canonicalize(w).ok());
+                if workdir.is_some() || canon_wd.is_some() {
+                    let rel_prefix = if let Some(ref c) = cwd {
+                        canon_wd
+                            .as_ref()
+                            .and_then(|wd| c.strip_prefix(wd).ok().map(|p| p.to_path_buf()))
+                    } else {
+                        None
+                    };
+                    let is_ignored = |p: &Path| {
+                        if let Some(ref wd) = workdir
+                            && let Ok(rel) = p.strip_prefix(wd)
+                        {
+                            return repo.is_path_ignored(rel).unwrap_or(false);
+                        }
+                        if let Some(ref cwd_wd) = canon_wd {
+                            if let Ok(rel) = p.strip_prefix(cwd_wd) {
+                                return repo.is_path_ignored(rel).unwrap_or(false);
+                            }
+                            if let Ok(canon) = std::fs::canonicalize(p)
+                                && let Ok(rel) = canon.strip_prefix(cwd_wd)
+                            {
+                                return repo.is_path_ignored(rel).unwrap_or(false);
+                            }
+                        }
+                        if let Some(ref prefix) = rel_prefix
+                            && p.is_relative()
+                        {
+                            let clean = p.strip_prefix(".").unwrap_or(p);
+                            let target = prefix.join(clean);
+                            return repo.is_path_ignored(&target).unwrap_or(false);
+                        }
+                        false
+                    };
+                    collect_jobs(root, &is_ignored, show_hidden, &mut jobs);
+                    continue;
                 }
-                let clean = p.strip_prefix(".").unwrap_or(p);
-                repo.is_path_ignored(clean).unwrap_or(false)
-            };
-            return count_tree(roots, &is_ignored, show_hidden);
+            }
         }
+        collect_jobs(root, &|_: &Path| false, show_hidden, &mut jobs);
     }
-    count_tree(roots, &|_: &Path| false, show_hidden)
+    count_jobs(jobs)
 }
 
 // Comment-syntax building blocks, shared between the many languages that use
@@ -661,11 +754,17 @@ static BY_FILENAME: Map<&'static str, &'static Language> = phf_map! {
     "Makefile"       => &MAKE,
     "makefile"       => &MAKE,
     "GNUmakefile"    => &MAKE,
+    "gnumakefile"    => &MAKE,
     "Dockerfile"     => &DOCKER,
+    "dockerfile"     => &DOCKER,
     "Containerfile"  => &DOCKER,
+    "containerfile"  => &DOCKER,
     "Rakefile"       => &RUBY,
+    "rakefile"       => &RUBY,
     "Gemfile"        => &RUBY,
+    "gemfile"        => &RUBY,
     "CMakeLists.txt" => &MAKE,
+    "cmakelists.txt" => &MAKE,
 };
 
 /// Look-up from a (lowercase) extension to its language.
@@ -826,11 +925,21 @@ pub fn language_for_code_fence(tag: &str) -> Option<&'static Language> {
 /// Extract the primary language identifier from a Markdown fence's info string.
 fn extract_fence_tag(info: &str) -> &str {
     let s = info.trim();
+    if let Some(inside) = s.strip_prefix('{') {
+        let inside = inside.trim_end_matches('}').trim();
+        let first = inside
+            .split(|c: char| c.is_whitespace() || c == ',' || c == ';')
+            .next()
+            .unwrap_or("")
+            .trim();
+        return first.strip_prefix('.').unwrap_or(first);
+    }
     let first = s
         .split(|c: char| c.is_whitespace() || c == ',' || c == '{' || c == ':' || c == ';')
         .next()
         .unwrap_or("");
-    first.trim()
+    let tag = first.trim();
+    tag.strip_prefix('.').unwrap_or(tag)
 }
 
 struct CodeFenceState {
@@ -838,6 +947,7 @@ struct CodeFenceState {
     fence_len: usize,
     lang: &'static Language,
     block_comment: Option<&'static str>,
+    quote: Option<char>,
 }
 
 /// Count lines across Markdown prose and embedded fenced code blocks.
@@ -893,7 +1003,7 @@ pub fn count_markdown_source(source: &str) -> Vec<(&'static Language, LocCounts)
                 add_line(&mut counts_by_lang, fence.lang, false, false, true);
             } else {
                 let (has_code, has_comment) =
-                    classify_line(line, fence.lang, &mut fence.block_comment);
+                    classify_line(line, fence.lang, &mut fence.block_comment, &mut fence.quote);
                 if has_code {
                     add_line(&mut counts_by_lang, fence.lang, true, false, false);
                 } else if has_comment {
@@ -924,11 +1034,13 @@ pub fn count_markdown_source(source: &str) -> Vec<(&'static Language, LocCounts)
                     fence_len,
                     lang,
                     block_comment: None,
+                    quote: None,
                 });
             } else if line.trim().is_empty() {
                 add_line(&mut counts_by_lang, &MARKDOWN, false, false, true);
             } else {
-                let (has_code, has_comment) = classify_line(line, &MARKDOWN, &mut md_html_block);
+                let (has_code, has_comment) =
+                    classify_line(line, &MARKDOWN, &mut md_html_block, &mut None);
                 if has_code {
                     add_line(&mut counts_by_lang, &MARKDOWN, true, false, false);
                 } else if has_comment {

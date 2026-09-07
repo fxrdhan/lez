@@ -230,3 +230,105 @@ fn test_html_xml_markdown_comment_structures() {
     assert!(html_counts.comments >= 2);
     assert!(html_counts.code >= 8);
 }
+
+#[test]
+fn test_js_template_literals_block_comment_poisoning() {
+    let js = loc::language_for("test.js", Some("js")).expect("JavaScript language");
+    let source = r#"
+const a = `/* this is in a backtick template literal */`;
+const b = '/* this is in a single quote string */';
+const c = 42;
+const d = `
+multiline backtick containing
+/* not a comment
+still in template literal */
+end of template`;
+const e = 100;
+"#;
+    let counts = LocCounts::from_source(source, js);
+    assert_eq!(
+        counts.code + counts.comments + counts.blanks,
+        counts.lines,
+        "Invariant violated"
+    );
+    assert_eq!(
+        counts.comments, 0,
+        "No comment lines should be detected inside template literals or single quotes"
+    );
+    assert_eq!(counts.code, 9, "All non-blank lines should be code");
+}
+
+#[test]
+fn test_dockerfile_variants_and_case_sensitivity() {
+    assert_eq!(
+        loc::language_for("dockerfile", None).map(|l| l.name),
+        Some("Dockerfile")
+    );
+    assert_eq!(
+        loc::language_for("Dockerfile", None).map(|l| l.name),
+        Some("Dockerfile")
+    );
+    assert_eq!(
+        loc::language_for("DOCKERFILE", None).map(|l| l.name),
+        Some("Dockerfile")
+    );
+    assert_eq!(
+        loc::language_for("Dockerfile.dev", Some("dev")).map(|l| l.name),
+        Some("Dockerfile")
+    );
+    assert_eq!(
+        loc::language_for("dockerfile.prod", Some("prod")).map(|l| l.name),
+        Some("Dockerfile")
+    );
+    assert_eq!(
+        loc::language_for("Containerfile", None).map(|l| l.name),
+        Some("Dockerfile")
+    );
+    assert_eq!(
+        loc::language_for("containerfile", None).map(|l| l.name),
+        Some("Dockerfile")
+    );
+    assert_eq!(
+        loc::language_for("Containerfile.ci", Some("ci")).map(|l| l.name),
+        Some("Dockerfile")
+    );
+    assert_eq!(
+        loc::language_for("rakefile", None).map(|l| l.name),
+        Some("Ruby")
+    );
+    assert_eq!(
+        loc::language_for("gemfile", None).map(|l| l.name),
+        Some("Ruby")
+    );
+    assert_eq!(
+        loc::language_for("makefile", None).map(|l| l.name),
+        Some("Makefile")
+    );
+    assert_eq!(
+        loc::language_for("gnumakefile", None).map(|l| l.name),
+        Some("Makefile")
+    );
+    assert_eq!(
+        loc::language_for("cmakelists.txt", Some("txt")).map(|l| l.name),
+        Some("Makefile")
+    );
+}
+
+#[test]
+fn test_rust_lifetime_does_not_swallow_comments() {
+    let rust = loc::language_for("test.rs", Some("rs")).expect("Rust language");
+    let source = r#"
+fn foo<'a>(x: i32) {
+    // pure comment 1
+    /* pure comment 2 */
+    let y = 'c';
+    // pure comment 3
+}
+"#;
+    let counts = LocCounts::from_source(source, rust);
+    assert_eq!(
+        counts.comments, 3,
+        "All 3 pure comment lines must be detected"
+    );
+    assert_eq!(counts.code, 3, "All 3 code lines must be detected");
+}

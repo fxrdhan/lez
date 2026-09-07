@@ -287,7 +287,8 @@ impl Render<'_> {
                 stat.counts,
                 lang_style,
             );
-            if !stat.embedded.is_empty() {
+            let has_embedded = stat.embedded.iter().any(|(&k, _)| k != "Text / Markup");
+            if has_embedded {
                 let mut children: Vec<(&&str, &LangStat)> = stat.embedded.iter().collect();
                 if self.is_explicit_sort {
                     match self.sort_field {
