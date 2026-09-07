@@ -8,6 +8,22 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.28.3] - 2026-09-07
+
+### Bug Fixes
+
+- **Prevent File Descriptor Exhaustion in Recursive Traversal**: Bound open file descriptors to the worker thread count during recursive directory traversal (`-R` / `--recurse`). By deferring `fs::read_dir` calls to Rayon task execution instead of eagerly opening directory handles during breadth/depth collection, `lez` eliminates `EMFILE` ("Too many open files") errors, directory entry drop storms, and terminal freezes when scanning massive directory trees (such as deeply nested build caches and large monorepos) ([#123](https://github.com/fxrdhan/lez/issues/123), [#124](https://github.com/fxrdhan/lez/pull/124)).
+
+### Performance & Memory Optimizations
+
+- **Deferred Traversal Memory Footprint**: Eliminate pre-emptive allocations and eager iteration over child directory contents during job collection, achieving up to 3x faster wall-clock execution and minimal peak memory usage during deep recursive listings ([#124](https://github.com/fxrdhan/lez/pull/124)).
+
+### Dependencies & Infrastructure
+
+- **Migrate ICU4X to v2.3**: Upgrade datetime and calendar formatting dependencies from `icu` v1.5 to `icu` v2.3, adopting modern zero-copy locale and calendar providers (`icu_calendar`, `icu_datetime`, `icu_locale_core`).
+- **Dependency Updates**: Bump `toml` from 0.8 to 1.1, `phf` / `phf_codegen` from 0.13.1 to 0.14.0, and update lockfile micro dependencies.
+- **Documentation & Benchmarks**: Update README links, document release engineering rules in `AGENTS.md`, and record recursive traversal benchmarks.
+
 ## [0.28.2] - 2026-09-02
 
 ### Features & Flag Updates
