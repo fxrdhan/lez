@@ -271,3 +271,41 @@ fn test_malformed_config_file_handled_gracefully() {
         "lez should exit 0 even if config syntax is invalid"
     );
 }
+
+#[test]
+fn test_config_file_sort_and_quotes_and_absolute() {
+    let temp = TempTestDir::new("cfg_sort_quotes_abs");
+    let test_file = temp.path.join("spaced file.txt");
+    fs::write(&test_file, b"content").unwrap();
+    let test_b = temp.path.join("a_file.txt");
+    fs::write(&test_b, b"content").unwrap();
+
+    let config_path = temp.path.join("config.toml");
+    fs::write(
+        &config_path,
+        r#"
+[filter]
+sort = "extension"
+
+[display]
+quotes = "always"
+absolute = "on"
+"#,
+    )
+    .unwrap();
+
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
+    let output = Command::new(lez_bin)
+        .arg("--config")
+        .arg(&config_path)
+        .arg(&temp.path)
+        .output()
+        .expect("run lez with config");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains('\''),
+        "Quotes should be enabled via display.quotes = 'always': {stdout}"
+    );
+}

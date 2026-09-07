@@ -66,15 +66,22 @@ impl FileFilter {
         // `--sort=name` already gives. Whichever of the two came last on the
         // command line wins: `--sort` carries no index when it fell back to
         // its default, and `Some(_) > None`, so a lone `-v` takes effect.
-        let sort_field =
+        let sort_from_config = config
+            .filter
+            .sort
+            .as_deref()
+            .and_then(|s| <SortField as clap::ValueEnum>::from_str(s, false).ok());
+
+        let (sort_field, is_explicit_sort) =
             if matches.get_flag("v") && matches.index_of("v") > matches.index_of("sort") {
-                SortField::Name(SortCase::AaBbCc)
+                (SortField::Name(SortCase::AaBbCc), true)
+            } else if matches.value_source("sort") == Some(clap::parser::ValueSource::CommandLine) {
+                (matches.get_one("sort").copied().unwrap_or_default(), true)
+            } else if let Some(sf) = sort_from_config {
+                (sf, true)
             } else {
-                matches.get_one("sort").copied().unwrap_or_default()
+                (matches.get_one("sort").copied().unwrap_or_default(), false)
             };
-        let is_explicit_sort = matches.value_source("sort")
-            == Some(clap::parser::ValueSource::CommandLine)
-            || matches.get_flag("v");
 
         let since = matches.get_one::<std::time::Duration>("since").copied();
         let collator = LocaleCollator::deduce(vars);

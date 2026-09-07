@@ -264,7 +264,7 @@ impl details::Options {
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
             mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
-            color_scale: ColorScaleOptions::deduce(matches, vars),
+            color_scale: ColorScaleOptions::deduce(matches, vars, config),
             follow_links: matches.get_flag("follow-symlinks"),
         }
     }
@@ -319,7 +319,7 @@ impl details::Options {
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
             mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
-            color_scale: ColorScaleOptions::deduce(matches, vars),
+            color_scale: ColorScaleOptions::deduce(matches, vars, config),
             follow_links: matches.get_flag("follow-symlinks"),
         })
     }
@@ -834,7 +834,7 @@ impl TimeTypes {
 }
 
 impl ColorScaleOptions {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
+    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
         let min_luminance = match vars
             .get(vars::LEZ_MIN_LUMINANCE)
             .or_else(|| vars.get_with_fallback(vars::EZA_MIN_LUMINANCE, vars::EXA_MIN_LUMINANCE))
@@ -857,13 +857,20 @@ impl ColorScaleOptions {
             None => 100,
         };
 
-        let mode = match matches
-            .get_one("color-scale-mode")
-            .copied()
-            .unwrap_or(ColorScaleModeArgs::Gradient)
+        let mode = if matches.value_source("color-scale-mode")
+            == Some(clap::parser::ValueSource::CommandLine)
         {
-            ColorScaleModeArgs::Fixed => ColorScaleMode::Fixed,
-            ColorScaleModeArgs::Gradient => ColorScaleMode::Gradient,
+            match matches.get_one("color-scale-mode").copied() {
+                Some(ColorScaleModeArgs::Fixed) => ColorScaleMode::Fixed,
+                Some(ColorScaleModeArgs::Gradient) | None => ColorScaleMode::Gradient,
+            }
+        } else if let Some(ref s) = config.theme.color_scale_mode {
+            match s.to_ascii_lowercase().as_str() {
+                "fixed" => ColorScaleMode::Fixed,
+                _ => ColorScaleMode::Gradient,
+            }
+        } else {
+            ColorScaleMode::Gradient
         };
 
         let mut options = ColorScaleOptions {
@@ -874,21 +881,35 @@ impl ColorScaleOptions {
             age: false,
         };
 
-        let Some(words) = matches.get_many("color-scale") else {
-            return options;
-        };
-
-        for word in words {
-            match word {
-                ColorScaleArgs::All => {
-                    options.size = true;
-                    options.age = true;
+        if let Some(words) = matches.get_many("color-scale") {
+            for word in words {
+                match word {
+                    ColorScaleArgs::All => {
+                        options.size = true;
+                        options.age = true;
+                    }
+                    ColorScaleArgs::Age => {
+                        options.age = true;
+                    }
+                    ColorScaleArgs::Size => {
+                        options.size = true;
+                    }
                 }
-                ColorScaleArgs::Age => {
-                    options.age = true;
-                }
-                ColorScaleArgs::Size => {
-                    options.size = true;
+            }
+        } else if let Some(ref s) = config.theme.color_scale {
+            for part in s.split(',').map(str::trim) {
+                match part.to_ascii_lowercase().as_str() {
+                    "all" => {
+                        options.size = true;
+                        options.age = true;
+                    }
+                    "age" => {
+                        options.age = true;
+                    }
+                    "size" => {
+                        options.size = true;
+                    }
+                    _ => {}
                 }
             }
         }
@@ -1593,7 +1614,8 @@ mod tests {
         assert_eq!(
             ColorScaleOptions::deduce(
                 &mock_cli(vec!["--color-scale=size,age"]),
-                &MockVars::default()
+                &MockVars::default(),
+                &FileConfig::default()
             ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
@@ -1610,7 +1632,11 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_MIN_LUMINANCE, &OsString::from("60"));
         assert_eq!(
-            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=size"]),
+                &vars,
+                &FileConfig::default()
+            ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 60,
@@ -1628,7 +1654,8 @@ mod tests {
         assert_eq!(
             ColorScaleOptions::deduce(
                 &mock_cli(vec!["--color-scale=age", "--color-scale-mode", "fixed"]),
-                &vars
+                &vars,
+                &FileConfig::default()
             ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
@@ -1652,7 +1679,8 @@ mod tests {
                     "--color-scale-mode",
                     "fixed"
                 ]),
-                &vars
+                &vars,
+                &FileConfig::default()
             ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
@@ -1669,7 +1697,11 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_MAX_LUMINANCE, &OsString::from("80"));
         assert_eq!(
-            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=size"]),
+                &vars,
+                &FileConfig::default()
+            ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
@@ -1686,7 +1718,11 @@ mod tests {
         vars.set(vars::EZA_MAX_LUMINANCE, &OsString::from("50"));
         vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("75"));
         assert_eq!(
-            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=size"]),
+                &vars,
+                &FileConfig::default()
+            ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
@@ -1703,7 +1739,11 @@ mod tests {
         vars.set(vars::EZA_MIN_LUMINANCE, &OsString::from("20"));
         vars.set(vars::LEZ_MIN_LUMINANCE, &OsString::from("35"));
         assert_eq!(
-            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=size"]),
+                &vars,
+                &FileConfig::default()
+            ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 35,
@@ -1720,7 +1760,11 @@ mod tests {
         vars.set(vars::LEZ_MIN_LUMINANCE, &OsString::from("30"));
         vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("70"));
         assert_eq!(
-            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=all"]), &vars),
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=all"]),
+                &vars,
+                &FileConfig::default()
+            ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 30,
@@ -1736,7 +1780,11 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("invalid_number"));
         assert_eq!(
-            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=size"]),
+                &vars,
+                &FileConfig::default()
+            ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
@@ -1748,7 +1796,11 @@ mod tests {
 
         vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("150")); // out of range
         assert_eq!(
-            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=size"]),
+                &vars,
+                &FileConfig::default()
+            ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
@@ -1760,13 +1812,34 @@ mod tests {
 
         vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("-150")); // out of range
         assert_eq!(
-            ColorScaleOptions::deduce(&mock_cli(vec!["--color-scale=size"]), &vars),
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=size"]),
+                &vars,
+                &FileConfig::default()
+            ),
             ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
                 max_luminance: 100,
                 size: true,
                 age: false,
+            }
+        );
+    }
+
+    #[test]
+    fn deduce_color_scale_config() {
+        let mut config = FileConfig::default();
+        config.theme.color_scale = Some("all".to_string());
+        config.theme.color_scale_mode = Some("fixed".to_string());
+        assert_eq!(
+            ColorScaleOptions::deduce(&mock_cli(vec![""]), &MockVars::default(), &config),
+            ColorScaleOptions {
+                mode: ColorScaleMode::Fixed,
+                min_luminance: 40,
+                max_luminance: 100,
+                size: true,
+                age: true,
             }
         );
     }
@@ -1818,7 +1891,11 @@ mod tests {
                 indicate_xattr: xattr::ENABLED,
                 inspect_archives: false,
                 mounts: false,
-                color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
+                color_scale: ColorScaleOptions::deduce(
+                    &cli,
+                    &MockVars::default(),
+                    &FileConfig::default()
+                ),
                 follow_links: false,
             }
         );
@@ -1838,7 +1915,11 @@ mod tests {
                 indicate_xattr: xattr::ENABLED,
                 inspect_archives: false,
                 mounts: true,
-                color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
+                color_scale: ColorScaleOptions::deduce(
+                    &cli,
+                    &MockVars::default(),
+                    &FileConfig::default()
+                ),
                 follow_links: false,
             }
         );
@@ -1858,7 +1939,11 @@ mod tests {
                 indicate_xattr: xattr::ENABLED,
                 inspect_archives: false,
                 mounts: false,
-                color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
+                color_scale: ColorScaleOptions::deduce(
+                    &cli,
+                    &MockVars::default(),
+                    &FileConfig::default()
+                ),
                 follow_links: false,
             }
         );
@@ -1878,7 +1963,11 @@ mod tests {
                 indicate_xattr: xattr::ENABLED,
                 inspect_archives: false,
                 mounts: false,
-                color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
+                color_scale: ColorScaleOptions::deduce(
+                    &cli,
+                    &MockVars::default(),
+                    &FileConfig::default()
+                ),
                 follow_links: false,
             }
         );
@@ -1898,7 +1987,11 @@ mod tests {
                 indicate_xattr: xattr::ENABLED,
                 inspect_archives: false,
                 mounts: false,
-                color_scale: ColorScaleOptions::deduce(&cli, &MockVars::default()),
+                color_scale: ColorScaleOptions::deduce(
+                    &cli,
+                    &MockVars::default(),
+                    &FileConfig::default()
+                ),
                 follow_links: false,
             }
         );
