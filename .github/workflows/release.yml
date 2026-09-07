@@ -158,4 +158,3 @@ jobs:
           commit-message: "bump lez to ${{ github.ref_name }}"
         env:
           COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-

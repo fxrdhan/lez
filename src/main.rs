@@ -68,7 +68,19 @@ fn main() {
                         exit(exits::RUNTIME_ERROR);
                     }
                     let sep = separator.to_str().unwrap_or("\n");
-                    input_paths.extend(input.split(sep).map(OsStr::new).filter(|s| !s.is_empty()));
+                    input_paths.extend(
+                        input
+                            .split(sep)
+                            .map(|s| {
+                                if sep == "\n" {
+                                    s.strip_suffix('\r').unwrap_or(s)
+                                } else {
+                                    s
+                                }
+                            })
+                            .filter(|s| !s.is_empty())
+                            .map(OsStr::new),
+                    );
                 }
                 FilesInput::Args => {
                     if input_paths.is_empty() {
@@ -702,6 +714,7 @@ impl Lez<'_> {
                     git,
                     git_repos,
                     summary,
+                    total_entries: *total_entries,
                 };
                 r.render(&mut self.writer)
             }
@@ -753,6 +766,7 @@ impl Lez<'_> {
                     git,
                     git_repos,
                     summary,
+                    total_entries: *total_entries,
                 };
                 r.render(&mut self.writer)
             }
@@ -765,7 +779,12 @@ impl Lez<'_> {
         };
         result?;
 
-        if *total_entries {
+        let is_tree = self
+            .options
+            .dir_action
+            .recurse_options()
+            .is_some_and(|r| r.tree);
+        if *total_entries && !is_tree {
             writeln!(&mut self.writer, "total: {files_count}")?;
         }
 

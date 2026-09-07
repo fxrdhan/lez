@@ -303,9 +303,9 @@ impl FileFilter {
         };
 
         if let Some(mtime) = file.modified_time() {
-            mtime >= cutoff
+            mtime >= cutoff && mtime <= now
         } else if let Some(ctime) = file.created_time() {
-            ctime >= cutoff
+            ctime >= cutoff && ctime <= now
         } else {
             false
         }
@@ -490,11 +490,10 @@ impl FileFilter {
                     return dir_order;
                 }
 
-                let sort_order = self.sort_field.compare_files_with_collator(
-                    file_a,
-                    file_b,
-                    self.collator.as_ref(),
-                );
+                let sort_order = self
+                    .sort_field
+                    .compare_files_with_collator(file_a, file_b, self.collator.as_ref())
+                    .then_with(|| file_a.path.cmp(&file_b.path));
 
                 if reverse {
                     sort_order.reverse()
@@ -510,11 +509,9 @@ impl FileFilter {
             }
         } else {
             let compare = |a: &F, b: &F| {
-                self.sort_field.compare_files_with_collator(
-                    a.as_ref(),
-                    b.as_ref(),
-                    self.collator.as_ref(),
-                )
+                self.sort_field
+                    .compare_files_with_collator(a.as_ref(), b.as_ref(), self.collator.as_ref())
+                    .then_with(|| a.as_ref().path.cmp(&b.as_ref().path))
             };
 
             if parallel {
@@ -1375,6 +1372,49 @@ mod test_ignores {
         let mut arg_files = vec![file_cargo];
         filter_zero.filter_argument_files(false, &mut arg_files);
         assert!(arg_files.is_empty());
+    }
+
+    #[test]
+    fn test_sort_files_case_insensitive_deterministic_tie_breaker() {
+        use std::path::PathBuf;
+
+        let collator = LocaleCollator::try_from_locale_str("en_US.UTF-8");
+        let filter = FileFilter {
+            sort_field: SortField::Name(SortCase::AaBbCc),
+            flags: vec![],
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+            ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
+            git_ignore: GitIgnore::Off,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
+            collator,
+            is_explicit_sort: true,
+        };
+
+        // Two files that compare equal under case-insensitive sorting must be deterministically tie-broken
+        let make_file = |name: &str| {
+            File::from_args(PathBuf::from(name), None, None, false, false, false, None)
+        };
+
+        let mut list1 = vec![make_file("apple"), make_file("Apple")];
+        let mut list2 = vec![make_file("Apple"), make_file("apple")];
+
+        filter.sort_files(&mut list1);
+        filter.sort_files(&mut list2);
+
+        // Both lists must produce the exact same deterministic ordering
+        assert_eq!(list1[0].name, list2[0].name);
+        assert_eq!(list1[1].name, list2[1].name);
+        assert_eq!(list1[0].name, "Apple");
+        assert_eq!(list1[1].name, "apple");
     }
 
     #[test]

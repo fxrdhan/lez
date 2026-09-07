@@ -248,26 +248,34 @@ fn test_future_timestamps_and_boundary_conditions() {
     fixture.create_file("past_file.txt", b"past");
     fixture.set_mtime("past_file.txt", now - Duration::from_secs(2 * 3600));
 
-    // For any positive duration (e.g. 10m), future file has mtime >= cutoff and is included
+    // Recent file (mtime = now - 1 minute)
+    fixture.create_file("recent_file.txt", b"recent");
+    fixture.set_mtime("recent_file.txt", now - Duration::from_secs(60));
+
+    // For 10m duration: recent file is included, future and past files are excluded
     let out_10m = run_lez(&["-1", "--since", "10m", fixture.path.to_str().unwrap()]);
     assert!(out_10m.status.success());
     let s_10m = String::from_utf8_lossy(&out_10m.stdout);
     assert!(
-        s_10m.contains("future_file.txt"),
-        "Future file must be included in --since 10m"
+        s_10m.contains("recent_file.txt"),
+        "Recent file must be included in --since 10m"
+    );
+    assert!(
+        !s_10m.contains("future_file.txt"),
+        "Future file must be excluded from --since 10m"
     );
     assert!(
         !s_10m.contains("past_file.txt"),
         "Past file must be excluded from --since 10m"
     );
 
-    // For zero duration: --since 0s (cutoff is now; past file excluded, future file included)
+    // For zero duration: --since 0s (cutoff is now; past and future files excluded)
     let out_0s = run_lez(&["-1", "--since", "0s", fixture.path.to_str().unwrap()]);
     assert!(out_0s.status.success());
     let s_0s = String::from_utf8_lossy(&out_0s.stdout);
     assert!(
-        s_0s.contains("future_file.txt"),
-        "Future file must be included in --since 0s"
+        !s_0s.contains("future_file.txt"),
+        "Future file must be excluded from --since 0s"
     );
     assert!(
         !s_0s.contains("past_file.txt"),

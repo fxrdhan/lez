@@ -18,7 +18,7 @@ use crate::options::file_config::FileConfig;
 impl Options {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
         let use_colours = UseColours::deduce(matches, vars, config);
-        let colour_scale = ColorScaleOptions::deduce(matches, vars);
+        let colour_scale = ColorScaleOptions::deduce(matches, vars, config);
         let theme_config = ThemeConfig::deduce(vars);
 
         let definitions = if use_colours == UseColours::Never {

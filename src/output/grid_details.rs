@@ -209,6 +209,7 @@ impl<'a> Render<'a> {
                 git,
                 git_repos,
                 summary: false,
+                total_entries: false,
             };
             return r.render(w);
         }

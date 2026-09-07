@@ -26,12 +26,22 @@ impl Options {
         let classify = Classify::deduce(matches);
         let show_icons = ShowIcons::deduce(matches, vars, config)?;
 
-        let quote_style = QuoteStyle::deduce(matches, vars);
-        let embed_hyperlinks = EmbedHyperlinks::deduce(matches);
+        let quote_style = QuoteStyle::deduce(matches, vars, config);
+        let embed_hyperlinks = EmbedHyperlinks::deduce(matches, config);
 
         let absolute = matches
             .get_one("absolute")
             .copied()
+            .or_else(|| {
+                config.display.absolute.as_deref().and_then(|s| {
+                    match s.to_ascii_lowercase().as_str() {
+                        "on" | "always" | "true" | "yes" => Some(Absolute::On),
+                        "off" | "never" | "false" | "no" => Some(Absolute::Off),
+                        "follow" => Some(Absolute::Follow),
+                        _ => None,
+                    }
+                })
+            })
             .unwrap_or(Absolute::Off);
         let short_nix = matches.get_flag("short-nix");
         let show_symlink_targets = ShowSymlinkTargets::deduce(matches);
@@ -131,20 +141,7 @@ impl ShowIcons {
 }
 
 impl QuoteStyle {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
-        // Environment default; `LEZ_QUOTING_STYLE` wins over `EZA_QUOTING_STYLE`.
-        let from_env = vars
-            .get_with_fallback(vars::LEZ_QUOTING_STYLE, vars::EZA_QUOTING_STYLE)
-            .and_then(
-                |value| match value.to_string_lossy().to_ascii_lowercase().as_str() {
-                    "always" => Some(Self::Always),
-                    "never" => Some(Self::Never),
-                    "auto" | "automatic" => Some(Self::Auto),
-                    _ => None,
-                },
-            )
-            .unwrap_or_default();
-
+    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
         if let Some(when) = matches.get_one::<ShowWhen>("quotes") {
             return match when {
                 ShowWhen::Always => Self::Always,
@@ -157,17 +154,60 @@ impl QuoteStyle {
             return Self::Never;
         }
 
-        from_env
+        // Environment default; `LEZ_QUOTING_STYLE` wins over `EZA_QUOTING_STYLE`.
+        if let Some(from_env) = vars
+            .get_with_fallback(vars::LEZ_QUOTING_STYLE, vars::EZA_QUOTING_STYLE)
+            .and_then(
+                |value| match value.to_string_lossy().to_ascii_lowercase().as_str() {
+                    "always" => Some(Self::Always),
+                    "never" => Some(Self::Never),
+                    "auto" | "automatic" => Some(Self::Auto),
+                    _ => None,
+                },
+            )
+        {
+            return from_env;
+        }
+
+        if let Some(from_config) =
+            config
+                .display
+                .quotes
+                .as_deref()
+                .and_then(|s| match s.to_ascii_lowercase().as_str() {
+                    "always" => Some(Self::Always),
+                    "never" => Some(Self::Never),
+                    "auto" | "automatic" => Some(Self::Auto),
+                    _ => None,
+                })
+        {
+            return from_config;
+        }
+
+        Self::default()
     }
 }
 
 impl EmbedHyperlinks {
-    fn deduce(matches: &ArgMatches) -> Self {
-        match matches.get_one("hyperlink") {
-            Some(ShowWhen::Never) | None => Self::Never,
-            Some(ShowWhen::Always) => Self::Always,
-            Some(ShowWhen::Auto) => Self::Automatic,
+    fn deduce(matches: &ArgMatches, config: &FileConfig) -> Self {
+        if let Some(when) = matches.get_one("hyperlink") {
+            return match when {
+                ShowWhen::Never => Self::Never,
+                ShowWhen::Always => Self::Always,
+                ShowWhen::Auto => Self::Automatic,
+            };
         }
+
+        if let Some(ref s) = config.display.hyperlink {
+            match s.to_ascii_lowercase().as_str() {
+                "always" => return Self::Always,
+                "auto" | "automatic" => return Self::Automatic,
+                "never" => return Self::Never,
+                _ => {}
+            }
+        }
+
+        Self::Never
     }
 }
 
@@ -341,7 +381,11 @@ mod tests {
     #[test]
     fn deduce_quote_style_no_quotes() {
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec!["--no-quotes"]), &MockVars::default()),
+            QuoteStyle::deduce(
+                &mock_cli(vec!["--no-quotes"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             QuoteStyle::Never
         );
     }
@@ -349,7 +393,11 @@ mod tests {
     #[test]
     fn deduce_quote_style_quote_spaces() {
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec![""]), &MockVars::default()),
+            QuoteStyle::deduce(
+                &mock_cli(vec![""]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             QuoteStyle::Auto
         );
     }
@@ -365,7 +413,8 @@ mod tests {
             assert_eq!(
                 QuoteStyle::deduce(
                     &mock_cli(vec![&format!("--quotes={word}")]),
-                    &MockVars::default()
+                    &MockVars::default(),
+                    &FileConfig::default()
                 ),
                 expected,
                 "--quotes={word}"
@@ -373,7 +422,11 @@ mod tests {
         }
         // Bare --quotes defaults to auto.
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec!["--quotes"]), &MockVars::default()),
+            QuoteStyle::deduce(
+                &mock_cli(vec!["--quotes"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
             QuoteStyle::Auto
         );
     }
@@ -383,14 +436,14 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_QUOTING_STYLE, &OsString::from("always"));
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec![""]), &vars),
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             QuoteStyle::Always
         );
 
         let mut vars = MockVars::default();
         vars.set(vars::LEZ_QUOTING_STYLE, &OsString::from("never"));
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec![""]), &vars),
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             QuoteStyle::Never
         );
 
@@ -398,7 +451,7 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_QUOTING_STYLE, &OsString::from("bogus"));
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec![""]), &vars),
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             QuoteStyle::Auto
         );
     }
@@ -408,24 +461,42 @@ mod tests {
         let mut vars = MockVars::default();
         vars.set(vars::EZA_QUOTING_STYLE, &OsString::from("never"));
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec!["--quotes=always"]), &vars),
+            QuoteStyle::deduce(
+                &mock_cli(vec!["--quotes=always"]),
+                &vars,
+                &FileConfig::default()
+            ),
             QuoteStyle::Always
         );
         // The legacy flag still wins over the environment too.
         assert_eq!(
-            QuoteStyle::deduce(&mock_cli(vec!["--no-quotes"]), &vars),
+            QuoteStyle::deduce(
+                &mock_cli(vec!["--no-quotes"]),
+                &vars,
+                &FileConfig::default()
+            ),
             QuoteStyle::Never
+        );
+    }
+
+    #[test]
+    fn deduce_quote_style_config() {
+        let mut config = FileConfig::default();
+        config.display.quotes = Some("always".to_string());
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec![""]), &MockVars::default(), &config),
+            QuoteStyle::Always
         );
     }
 
     #[test]
     fn deduce_embed_hyperlinks_auto() {
         assert_eq!(
-            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink"])),
+            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink"]), &FileConfig::default()),
             EmbedHyperlinks::Automatic
         );
         assert_eq!(
-            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink=auto"])),
+            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink=auto"]), &FileConfig::default()),
             EmbedHyperlinks::Automatic
         );
     }
@@ -433,7 +504,10 @@ mod tests {
     #[test]
     fn deduce_embed_hyperlinks_always() {
         assert_eq!(
-            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink=always"])),
+            EmbedHyperlinks::deduce(
+                &mock_cli(vec!["--hyperlink=always"]),
+                &FileConfig::default()
+            ),
             EmbedHyperlinks::Always
         );
     }
@@ -441,12 +515,22 @@ mod tests {
     #[test]
     fn deduce_embed_hyperlinks_never() {
         assert_eq!(
-            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink=never"])),
+            EmbedHyperlinks::deduce(&mock_cli(vec!["--hyperlink=never"]), &FileConfig::default()),
             EmbedHyperlinks::Never
         );
         assert_eq!(
-            EmbedHyperlinks::deduce(&mock_cli(vec![""])),
+            EmbedHyperlinks::deduce(&mock_cli(vec![""]), &FileConfig::default()),
             EmbedHyperlinks::Never
+        );
+    }
+
+    #[test]
+    fn deduce_embed_hyperlinks_config() {
+        let mut config = FileConfig::default();
+        config.display.hyperlink = Some("always".to_string());
+        assert_eq!(
+            EmbedHyperlinks::deduce(&mock_cli(vec![""]), &config),
+            EmbedHyperlinks::Always
         );
     }
 
