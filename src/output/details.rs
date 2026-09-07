@@ -161,6 +161,8 @@ pub struct Render<'a> {
     pub git_repos: bool,
 
     pub summary: bool,
+
+    pub total_entries: bool,
 }
 
 #[rustfmt::skip]
@@ -184,7 +186,7 @@ impl<'a> Render<'a> {
             crate::output::hidden_count::HiddenCount::new(self.filter.warn_hidden);
         let mut rows = Vec::new();
         let is_tree = self.recurse.is_some_and(|r| r.tree);
-        let mut summary = if self.summary && is_tree {
+        let mut summary = if (self.summary || self.total_entries) && is_tree {
             Some(crate::output::summary::Summary::new())
         } else {
             None
@@ -265,7 +267,14 @@ impl<'a> Render<'a> {
             }
         }
 
-        if let Some(summary) = summary {
+        if is_tree && self.total_entries {
+            let total = summary.as_ref().map_or(0, |s| s.total);
+            writeln!(w, "total: {total}")?;
+        }
+
+        if let Some(summary) = summary
+            && self.summary
+        {
             let show_icons = self.file_style.are_icons_enabled();
             summary.render(self.theme, show_icons, w)?;
         }

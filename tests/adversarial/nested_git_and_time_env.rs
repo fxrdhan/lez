@@ -472,6 +472,28 @@ fn test_m3_print_total_with_hidden_files() {
 }
 
 #[test]
+fn test_m3_print_total_tree_mode() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempTestDir::new("total_tree");
+
+    temp.create_file("root_file.txt", b"root");
+    temp.create_file("subdir/child1.txt", b"c1");
+    temp.create_file("subdir/child2.txt", b"c2");
+
+    // -T --print-total: root dir + 1 root file + 1 subdir + 2 files in subdir = 5 total entries
+    let output = Command::new(bin_path)
+        .args(["-T", "--print-total", temp.path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("total: 5"),
+        "Expected 'total: 5' on tree mode, got: {stdout}"
+    );
+}
+
+#[test]
 fn test_m3_view_deduce_print_total() {
     let matches_on = parse_cli_args(&["--print-total"]);
     let opts_on = Options::deduce(&matches_on, &MockVars::new()).unwrap();

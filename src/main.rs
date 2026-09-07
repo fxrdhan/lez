@@ -714,6 +714,7 @@ impl Lez<'_> {
                     git,
                     git_repos,
                     summary,
+                    total_entries: *total_entries,
                 };
                 r.render(&mut self.writer)
             }
@@ -765,6 +766,7 @@ impl Lez<'_> {
                     git,
                     git_repos,
                     summary,
+                    total_entries: *total_entries,
                 };
                 r.render(&mut self.writer)
             }
@@ -777,7 +779,12 @@ impl Lez<'_> {
         };
         result?;
 
-        if *total_entries {
+        let is_tree = self
+            .options
+            .dir_action
+            .recurse_options()
+            .is_some_and(|r| r.tree);
+        if *total_entries && !is_tree {
             writeln!(&mut self.writer, "total: {files_count}")?;
         }
 
