@@ -566,3 +566,26 @@ fn test_m5_icons_apple_and_configs() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("hyprland.conf"));
 }
+
+#[test]
+fn test_json_long_duplicate_filenames_across_paths() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempTestDir::new("json_collisions");
+    let f1 = temp.create_file("sub1/target.txt", b"content1");
+    let f2 = temp.create_file("sub2/target.txt", b"content2");
+
+    let output = Command::new(bin_path)
+        .args(["--json", "-l", f1.to_str().unwrap(), f2.to_str().unwrap()])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).expect("Valid JSON");
+    let obj = v.as_object().expect("Top-level JSON object");
+    assert_eq!(
+        obj.len(),
+        2,
+        "Both files must have distinct keys in JSON map: {stdout}"
+    );
+}

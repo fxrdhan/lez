@@ -128,14 +128,28 @@ impl<'a> Render<'a> {
                     None => None,
                 };
 
-                let fnames: Vec<String> = files
-                    .iter()
-                    .map(|f| {
-                        let fname_json = serde_json::to_string(&f.name)
-                            .unwrap_or_else(|_| format!("\"{}\"", f.name));
-                        format!("{fname_json}:{{{}}}", self.render_file(f, code_loc))
-                    })
-                    .collect();
+                let has_name_collision = {
+                    let mut set = std::collections::HashSet::new();
+                    files.iter().any(|f| !set.insert(&f.name))
+                };
+                let mut seen_keys = std::collections::HashSet::new();
+                let mut fnames = Vec::new();
+                for f in &files {
+                    let key_str = if has_name_collision {
+                        f.path.display().to_string()
+                    } else {
+                        f.name.clone()
+                    };
+                    if !seen_keys.insert(key_str.clone()) {
+                        continue;
+                    }
+                    let fname_json = serde_json::to_string(&key_str)
+                        .unwrap_or_else(|_| format!("\"{}\"", key_str));
+                    fnames.push(format!(
+                        "{fname_json}:{{{}}}",
+                        self.render_file(f, code_loc)
+                    ));
+                }
                 write!(w, "{{{}}}", fnames.join(","))?;
             }
         }
