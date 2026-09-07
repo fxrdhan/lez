@@ -68,7 +68,19 @@ fn main() {
                         exit(exits::RUNTIME_ERROR);
                     }
                     let sep = separator.to_str().unwrap_or("\n");
-                    input_paths.extend(input.split(sep).map(OsStr::new).filter(|s| !s.is_empty()));
+                    input_paths.extend(
+                        input
+                            .split(sep)
+                            .map(|s| {
+                                if sep == "\n" {
+                                    s.strip_suffix('\r').unwrap_or(s)
+                                } else {
+                                    s
+                                }
+                            })
+                            .filter(|s| !s.is_empty())
+                            .map(OsStr::new),
+                    );
                 }
                 FilesInput::Args => {
                     if input_paths.is_empty() {

@@ -318,3 +318,34 @@ fn test_stdin_invalid_utf8_returns_exit_code_1_without_panic() {
         "Expected graceful error message in stderr, got: {stderr}"
     );
 }
+
+#[test]
+fn test_stdin_crlf_line_endings() {
+    let temp = TempTestDir::new("crlf_stdin");
+    temp.create_file("hello.txt", b"content");
+    temp.create_file("world.rs", b"content");
+
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .arg("--stdin")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        let _ = stdin.write_all(b"hello.txt\r\nworld.rs\r\n");
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(
+        output.status.success(),
+        "lez failed on CRLF stdin: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("hello.txt"));
+    assert!(stdout.contains("world.rs"));
+}
