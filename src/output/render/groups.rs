@@ -65,10 +65,16 @@ impl Render for Option<f::Group> {
 
         if let GroupFormat::Smart = group_format
             && let Some(file_uid) = file_user
-            && let Some(file_user) = users.get_user_by_uid(file_uid.0)
-            && file_user.name().to_string_lossy() == group.name().to_string_lossy()
         {
-            group_name = ":".to_string();
+            let is_match = match user_format {
+                UserFormat::Name => users.get_user_by_uid(file_uid.0).is_some_and(|file_user| {
+                    file_user.name().to_string_lossy() == group.name().to_string_lossy()
+                }),
+                UserFormat::Numeric => file_uid.0 == group.gid(),
+            };
+            if is_match {
+                group_name = ":".to_string();
+            }
         }
 
         TextCell::paint(style, group_name)
@@ -262,7 +268,7 @@ pub mod test {
             )
         );
 
-        let expected = TextCell::paint_str(TestColours.yours(), ":");
+        let expected = TextCell::paint_str(TestColours.yours(), "100");
         assert_eq!(
             expected,
             user_group.render(
@@ -271,6 +277,19 @@ pub mod test {
                 UserFormat::Numeric,
                 GroupFormat::Smart,
                 user_file
+            )
+        );
+
+        let same_id_file = Some(f::User(100));
+        let expected = TextCell::paint_str(TestColours.yours(), ":");
+        assert_eq!(
+            expected,
+            user_group.render(
+                &TestColours,
+                &users,
+                UserFormat::Numeric,
+                GroupFormat::Smart,
+                same_id_file
             )
         );
 
