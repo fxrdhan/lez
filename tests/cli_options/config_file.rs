@@ -376,3 +376,39 @@ mode = "code"
     );
 }
 
+#[test]
+fn test_cli_color_auto_overrides_config_color_always() {
+    let temp = TempTestDir::new("color_precedence");
+    let test_file = temp.path.join("file.txt");
+    fs::write(&test_file, b"content").unwrap();
+
+    let config_path = temp.path.join("config.toml");
+    fs::write(
+        &config_path,
+        r#"
+[theme]
+color = "always"
+"#,
+    )
+    .unwrap();
+
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
+    // Under Command::output(), stdout is a pipe (non-TTY).
+    // With --color=auto, colors must be suppressed because stdout is not a TTY,
+    // overriding the config file's color = "always".
+    let output = Command::new(lez_bin)
+        .arg("--config")
+        .arg(&config_path)
+        .arg("-l")
+        .arg("--color=auto")
+        .arg(&temp.path)
+        .output()
+        .expect("run lez with --color=auto");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("\x1b["),
+        "--color=auto on non-TTY should not emit ANSI colors, even if config has color='always': {stdout:?}"
+    );
+}
