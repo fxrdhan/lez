@@ -315,8 +315,6 @@ impl FileFilter {
     /// (not considering directory recursion container status).
     #[must_use]
     pub fn is_file_included(&self, file: &File<'_>) -> bool {
-        use FileFilterFlags::{NoSymlinks, OnlyDirs, OnlyFiles, ShowSymlinks};
-
         #[cfg(windows)]
         if let Some(attrs) = file.attributes() {
             if self.no_system && attrs.system {

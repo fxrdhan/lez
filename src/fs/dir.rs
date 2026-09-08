@@ -109,9 +109,9 @@ impl Dir {
         total_size: bool,
         mime_read_contents: bool,
         hidden_count: Option<&'hc mut HiddenCount>,
-        no_system: bool,
-        no_hidden_attrib: bool,
-        no_hidden_links: bool,
+        #[allow(unused_variables)] no_system: bool,
+        #[allow(unused_variables)] no_hidden_attrib: bool,
+        #[allow(unused_variables)] no_hidden_links: bool,
     ) -> Files<'dir, 'ig, 'hc> {
         Files {
             inner: self.contents.iter(),
