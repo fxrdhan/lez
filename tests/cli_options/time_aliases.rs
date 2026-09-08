@@ -82,3 +82,88 @@ fn test_time_field_aliases_modified_cli() {
 
     let _ = fs::remove_dir_all(&temp_dir);
 }
+
+#[test]
+fn test_target_files_named_like_time_values_not_swallowed() {
+    let temp_dir = std::env::temp_dir().join("lez_test_time_swallow");
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    fs::write(temp_dir.join("mod"), b"mod content").unwrap();
+    fs::write(temp_dir.join("modified"), b"modified content").unwrap();
+    fs::write(temp_dir.join("other_file.txt"), b"other content").unwrap();
+
+    let output = Command::new(bin_path())
+        .current_dir(&temp_dir)
+        .args(["-1", "-t", "mod"])
+        .output()
+        .expect("Failed to execute lez -1 -t mod");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines,
+        vec!["mod"],
+        "Expected only 'mod' to be listed, got: {stdout}"
+    );
+
+    let output_mod = Command::new(bin_path())
+        .current_dir(&temp_dir)
+        .args(["-1", "-t", "modified"])
+        .output()
+        .expect("Failed to execute lez -1 -t modified");
+
+    assert!(output_mod.status.success());
+    let stdout_mod = String::from_utf8_lossy(&output_mod.stdout);
+    let lines_mod: Vec<&str> = stdout_mod.lines().collect();
+    assert_eq!(
+        lines_mod,
+        vec!["modified"],
+        "Expected only 'modified' to be listed, got: {stdout_mod}"
+    );
+
+    let output_bare_t = Command::new(bin_path())
+        .current_dir(&temp_dir)
+        .args(["-t", "mod"])
+        .output()
+        .expect("Failed to execute lez -t mod");
+
+    assert!(output_bare_t.status.success());
+    let stdout_bare = String::from_utf8_lossy(&output_bare_t.stdout);
+    assert_eq!(
+        stdout_bare.trim(),
+        "mod",
+        "Expected bare 'lez -t mod' to list only 'mod', got: {stdout_bare}"
+    );
+
+    // When 'modified' file exists on disk, 'lez -l -t modified other_file.txt' must
+    // still treat 'modified' as the --time argument, listing ONLY other_file.txt
+    let output_l_t = Command::new(bin_path())
+        .current_dir(&temp_dir)
+        .args(["-l", "-t", "modified", "other_file.txt"])
+        .output()
+        .expect("Failed to execute lez -l -t modified other_file.txt");
+
+    assert!(output_l_t.status.success());
+    let stdout_l_t = String::from_utf8_lossy(&output_l_t.stdout);
+    assert!(
+        stdout_l_t.contains("other_file.txt"),
+        "Expected other_file.txt to be listed: {stdout_l_t}"
+    );
+    assert!(
+        !stdout_l_t.contains("modified"),
+        "Expected modified not to be listed as a file when used as time arg with -l: {stdout_l_t}"
+    );
+
+    // Non-existent target file named like a time value must error out, NOT swallow and list '.'
+    let output_missing = Command::new(bin_path())
+        .current_dir(&temp_dir)
+        .args(["-1", "-t", "does_not_exist_mod"])
+        .output()
+        .expect("Failed to execute lez -1 -t does_not_exist_mod");
+
+    assert_eq!(output_missing.status.code(), Some(2));
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}

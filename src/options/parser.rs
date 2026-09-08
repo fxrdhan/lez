@@ -471,10 +471,17 @@ fn is_time_value(value: &OsString) -> bool {
         .is_some_and(|value| TimeArgs::from_str(value, false).is_ok())
 }
 
+fn is_canonical_time_value(value: &OsString) -> bool {
+    value
+        .to_str()
+        .is_some_and(|s| matches!(s, "modified" | "accessed" | "changed" | "created"))
+}
+
 fn normalize_short_time_arg(
     arg: &OsString,
     next: Option<&OsString>,
     command: &clap::Command,
+    has_non_long_view: bool,
 ) -> Option<Vec<OsString>> {
     let arg_str = arg.to_str()?;
     if !arg_str.starts_with('-') || arg_str.starts_with("--") || arg_str == "-" {
@@ -488,8 +495,10 @@ fn normalize_short_time_arg(
     }
 
     if after_t.is_empty() {
-        if let Some(next) = next
-            && is_time_value(next)
+        if !has_non_long_view
+            && before_t.is_empty()
+            && let Some(next) = next
+            && is_canonical_time_value(next)
         {
             return None;
         }
@@ -520,6 +529,27 @@ where
     T: Into<OsString>,
 {
     let args: Vec<OsString> = itr.into_iter().map(Into::into).collect();
+    let has_long = args.iter().any(|a| {
+        let s = a.to_string_lossy();
+        if s == "--long" {
+            true
+        } else if s.starts_with('-') && !s.starts_with("--") {
+            s[1..].contains('l')
+        } else {
+            false
+        }
+    });
+    let has_non_long_view = args.iter().any(|a| {
+        let s = a.to_string_lossy();
+        if s == "--oneline" {
+            true
+        } else if s.starts_with('-') && !s.starts_with("--") {
+            s[1..].contains('1')
+        } else {
+            false
+        }
+    }) && !has_long;
+
     let mut normalized = Vec::with_capacity(args.len());
     let mut iter = args.into_iter().peekable();
 
@@ -530,7 +560,9 @@ where
             break;
         }
 
-        if let Some(mut expanded) = normalize_short_time_arg(&arg, iter.peek(), command) {
+        if let Some(mut expanded) =
+            normalize_short_time_arg(&arg, iter.peek(), command, has_non_long_view)
+        {
             normalized.append(&mut expanded);
         } else {
             normalized.push(arg);
