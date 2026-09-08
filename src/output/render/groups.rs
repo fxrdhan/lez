@@ -22,13 +22,7 @@ pub trait Render {
         file_user: Option<User>,
     ) -> TextCell;
 
-    fn render_json<U: Users + Groups>(
-        self,
-        users: &U,
-        user_format: UserFormat,
-        group_format: GroupFormat,
-        file_user: Option<User>,
-    ) -> Option<String>;
+    fn render_json<U: Groups>(self, users: &U, user_format: UserFormat) -> Option<String>;
 }
 
 impl Render for Option<f::Group> {
@@ -80,33 +74,16 @@ impl Render for Option<f::Group> {
         TextCell::paint(style, group_name)
     }
 
-    fn render_json<U: Users + Groups>(
-        self,
-        users: &U,
-        user_format: UserFormat,
-        group_format: GroupFormat,
-        file_user: Option<User>,
-    ) -> Option<String> {
-        let g = self?;
-        let group = match users.get_group_by_gid(g.0) {
-            Some(g) => (*g).clone(),
-            None => return Some(g.0.to_string()),
-        };
+    fn render_json<U: Groups>(self, users: &U, user_format: UserFormat) -> Option<String> {
+        let gid = self?.0;
 
-        let mut group_name = match user_format {
-            UserFormat::Name => group.name().to_string_lossy().into(),
-            UserFormat::Numeric => group.gid().to_string(),
-        };
-
-        if let GroupFormat::Smart = group_format
-            && let Some(file_uid) = file_user
-            && let Some(file_user) = users.get_user_by_uid(file_uid.0)
-            && file_user.name().to_string_lossy() == group.name().to_string_lossy()
-        {
-            group_name = ":".to_string();
-        }
-
-        Some(group_name)
+        Some(match user_format {
+            UserFormat::Numeric => gid.to_string(),
+            UserFormat::Name => match users.get_group_by_gid(gid) {
+                Some(group) => group.name().to_string_lossy().into(),
+                None => gid.to_string(),
+            },
+        })
     }
 }
 
@@ -330,18 +307,11 @@ pub mod test {
         users.add_group(Group::new(100, "folk"));
 
         let group = Some(f::Group(100));
-        let file_user = Some(f::User(1000));
         let expected = Some("folk".to_string());
-        assert_eq!(
-            expected,
-            group.render_json(&users, UserFormat::Name, GroupFormat::Regular, file_user)
-        );
+        assert_eq!(expected, group.render_json(&users, UserFormat::Name));
 
         let expected = Some("100".to_string());
-        assert_eq!(
-            expected,
-            group.render_json(&users, UserFormat::Numeric, GroupFormat::Regular, file_user)
-        );
+        assert_eq!(expected, group.render_json(&users, UserFormat::Numeric));
     }
 
     #[test]
@@ -349,16 +319,9 @@ pub mod test {
         let users = MockUsers::with_current_uid(1000);
 
         let group = Some(f::Group(100));
-        let file_user = Some(f::User(1000));
         let expected = Some("100".to_string());
-        assert_eq!(
-            expected,
-            group.render_json(&users, UserFormat::Name, GroupFormat::Regular, file_user)
-        );
-        assert_eq!(
-            expected,
-            group.render_json(&users, UserFormat::Numeric, GroupFormat::Regular, file_user)
-        );
+        assert_eq!(expected, group.render_json(&users, UserFormat::Name));
+        assert_eq!(expected, group.render_json(&users, UserFormat::Numeric));
     }
 
     #[test]
@@ -368,12 +331,8 @@ pub mod test {
         users.add_group(Group::new(100, "folk"));
 
         let group = Some(f::Group(100));
-        let file_user = Some(f::User(2));
         let expected = Some("folk".to_string());
-        assert_eq!(
-            expected,
-            group.render_json(&users, UserFormat::Name, GroupFormat::Regular, file_user)
-        );
+        assert_eq!(expected, group.render_json(&users, UserFormat::Name));
     }
 
     #[test]
@@ -385,27 +344,17 @@ pub mod test {
         users.add_group(test_group);
 
         let group = Some(f::Group(100));
-        let file_user = Some(f::User(2));
         let expected = Some("folk".to_string());
-        assert_eq!(
-            expected,
-            group.render_json(&users, UserFormat::Name, GroupFormat::Regular, file_user)
-        );
+        assert_eq!(expected, group.render_json(&users, UserFormat::Name));
     }
 
     #[test]
     fn overflow_json() {
         let group = Some(f::Group(2_147_483_648));
-        let file_user = Some(f::User(1000));
         let expected = Some("2147483648".to_string());
         assert_eq!(
             expected,
-            group.render_json(
-                &MockUsers::with_current_uid(0),
-                UserFormat::Numeric,
-                GroupFormat::Regular,
-                file_user
-            )
+            group.render_json(&MockUsers::with_current_uid(0), UserFormat::Numeric)
         );
     }
 
@@ -418,31 +367,34 @@ pub mod test {
         users.add_group(Group::new(101, "http"));
 
         let user_group = Some(f::Group(100));
-        let user_file = Some(f::User(1000));
-        let expected = Some(":".to_string());
+        // Structured JSON output must always emit the true group name or numeric GID, never ":"
         assert_eq!(
-            expected,
-            user_group.render_json(&users, UserFormat::Name, GroupFormat::Smart, user_file)
+            Some("user".to_string()),
+            user_group.render_json(&users, UserFormat::Name)
         );
 
-        let expected = Some(":".to_string());
         assert_eq!(
-            expected,
-            user_group.render_json(&users, UserFormat::Numeric, GroupFormat::Smart, user_file)
+            Some("100".to_string()),
+            user_group.render_json(&users, UserFormat::Numeric)
         );
 
         let http_group = Some(f::Group(101));
-        let expected = Some("http".to_string());
         assert_eq!(
-            expected,
-            http_group.render_json(&users, UserFormat::Name, GroupFormat::Smart, user_file)
+            Some("http".to_string()),
+            http_group.render_json(&users, UserFormat::Name)
         );
 
-        let http_file = Some(f::User(1001));
-        let expected = Some(":".to_string());
         assert_eq!(
-            expected,
-            http_group.render_json(&users, UserFormat::Name, GroupFormat::Smart, http_file)
+            Some("101".to_string()),
+            http_group.render_json(&users, UserFormat::Numeric)
         );
+    }
+
+    #[test]
+    fn none_group_json() {
+        let users = MockUsers::with_current_uid(1000);
+        let none_group: Option<f::Group> = None;
+        assert_eq!(None, none_group.render_json(&users, UserFormat::Name));
+        assert_eq!(None, none_group.render_json(&users, UserFormat::Numeric));
     }
 }

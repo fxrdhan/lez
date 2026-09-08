@@ -430,12 +430,9 @@ impl<'a> JsonFileObject<'a> {
             ),
             Column::FileFlags => f.flags().render_json(self.options.flags_format),
             #[cfg(unix)]
-            Column::Group => f.group().render_json(
-                &*env.lock_users(),
-                self.options.user_format,
-                self.options.group_format,
-                f.user(),
-            ),
+            Column::Group => f
+                .group()
+                .render_json(&*env.lock_users(), self.options.user_format),
             #[cfg(unix)]
             Column::Inode => Some(f.inode().render_json()),
             #[cfg(unix)]

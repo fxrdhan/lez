@@ -145,6 +145,15 @@ fn test_m3_cli_smart_group_json_mode() {
             _meta_obj.contains_key("Group"),
             "Group key must be present when --smart-group is active"
         );
+        let group_val = _meta_obj.get("Group").unwrap().as_str().unwrap();
+        assert_ne!(
+            group_val, ":",
+            "Group in JSON output must not be ':' under --smart-group"
+        );
+        assert!(
+            !group_val.is_empty(),
+            "Group in JSON output must not be empty"
+        );
     }
 }
 

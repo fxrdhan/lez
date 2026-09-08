@@ -391,6 +391,37 @@ fn test_smart_group_json_consistency() {
                 meta.contains_key("Group"),
                 "File {filename} missing 'Group' field under --smart-group --json"
             );
+            let group_val = meta.get("Group").unwrap().as_str().unwrap();
+            assert_ne!(
+                group_val, ":",
+                "File {filename} group must not be formatted as ':' in JSON under --smart-group"
+            );
+            assert!(
+                !group_val.is_empty(),
+                "File {filename} group must not be empty in JSON under --smart-group"
+            );
+        }
+
+        let num_out = Command::new(bin_path())
+            .args(["-l", "--smart-group", "--numeric", "--json"])
+            .arg(&temp.path)
+            .output()
+            .expect("Failed numeric lez invocation");
+        assert!(num_out.status.success());
+        let num_stdout = String::from_utf8_lossy(&num_out.stdout);
+        let num_parsed: serde_json::Value = serde_json::from_str(&num_stdout).expect("Valid JSON");
+        let num_map = num_parsed.as_object().expect("JSON object map");
+        for (filename, val) in num_map {
+            let meta = val.as_object().expect("File metadata object");
+            let group_val = meta.get("Group").unwrap().as_str().unwrap();
+            assert_ne!(
+                group_val, ":",
+                "File {filename} numeric group must not be ':' under --smart-group"
+            );
+            assert!(
+                group_val.chars().all(|c| c.is_ascii_digit()),
+                "File {filename} numeric group must consist of digits, got: {group_val}"
+            );
         }
     }
 }
