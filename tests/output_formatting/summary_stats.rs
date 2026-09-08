@@ -797,3 +797,49 @@ fn test_summary_tree_mode_with_level_and_multi_dirs() {
     let total_multi = stdout_multi_tot.lines().last().expect("last line is total");
     assert_eq!(total_multi.trim(), "total: 5");
 }
+
+#[test]
+#[cfg(unix)]
+fn test_summary_dereference_symlinks() {
+    let temp = TempTestDir::new("summary_deref");
+    temp.create_dir("actual_dir");
+    temp.create_file("actual_file.txt", b"content");
+    temp.create_symlink("actual_dir", "dir_link");
+    temp.create_symlink("actual_file.txt", "file_link");
+    temp.create_symlink("nonexistent", "broken_link");
+
+    // Without -X: 1 directory, 1 file, 3 symlinks (5 total)
+    let output_no_deref = Command::new(bin_path())
+        .args([
+            "-l",
+            "--summary",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_no_deref.status.success());
+    let stdout_no = String::from_utf8_lossy(&output_no_deref.stdout);
+    let summary_no = stdout_no.lines().last().unwrap().trim();
+    assert_eq!(summary_no, "1 directory, 1 file, 3 symlinks (5 total)");
+
+    // With -X (--dereference):
+    // dir_link -> directory (so 2 directories)
+    // file_link -> file (so 2 files)
+    // broken_link -> symlink (1 symlink)
+    // Total: 2 directories, 2 files, 1 symlink (5 total)
+    let output_deref = Command::new(bin_path())
+        .args([
+            "-l",
+            "-X",
+            "--summary",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_deref.status.success());
+    let stdout_deref = String::from_utf8_lossy(&output_deref.stdout);
+    let summary_deref = stdout_deref.lines().last().unwrap().trim();
+    assert_eq!(summary_deref, "2 directories, 2 files, 1 symlink (5 total)");
+}
