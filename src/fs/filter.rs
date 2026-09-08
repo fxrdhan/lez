@@ -451,11 +451,41 @@ impl FileFilter {
     where
         F: AsRef<File<'a>> + Send,
     {
-        if self.sort_field == SortField::Unsorted
-            && !self.flags.contains(&FileFilterFlags::Reverse)
-            && !self.flags.contains(&FileFilterFlags::ListDirsFirst)
-            && !self.flags.contains(&FileFilterFlags::ListDirsLast)
-        {
+        const PARALLEL_SORT_THRESHOLD: usize = 2048;
+
+        if self.sort_field == SortField::Unsorted {
+            let reverse = self.flags.contains(&FileFilterFlags::Reverse);
+            let list_dirs_first = self.flags.contains(&FileFilterFlags::ListDirsFirst);
+            let list_dirs_last = self.flags.contains(&FileFilterFlags::ListDirsLast);
+
+            if !reverse && !list_dirs_first && !list_dirs_last {
+                return;
+            }
+
+            if reverse {
+                files.reverse();
+            }
+
+            if list_dirs_first || list_dirs_last {
+                let dir_compare = |a: &F, b: &F| {
+                    if list_dirs_first {
+                        b.as_ref()
+                            .points_to_directory()
+                            .cmp(&a.as_ref().points_to_directory())
+                    } else {
+                        a.as_ref()
+                            .points_to_directory()
+                            .cmp(&b.as_ref().points_to_directory())
+                    }
+                };
+
+                if files.len() >= PARALLEL_SORT_THRESHOLD {
+                    files.par_sort_by(dir_compare);
+                } else {
+                    files.sort_by(dir_compare);
+                }
+            }
+
             return;
         }
 
@@ -464,7 +494,6 @@ impl FileFilter {
         // O(n log n) of them. Above a few thousand entries that dominates the
         // whole listing, and it parallelises perfectly. `par_sort_by` is
         // stable, exactly like `sort_by`, so the resulting order is identical.
-        const PARALLEL_SORT_THRESHOLD: usize = 2048;
         let parallel = files.len() >= PARALLEL_SORT_THRESHOLD;
 
         let reverse = self.flags.contains(&FileFilterFlags::Reverse);
@@ -1415,6 +1444,239 @@ mod test_ignores {
         assert_eq!(list1[1].name, list2[1].name);
         assert_eq!(list1[0].name, "Apple");
         assert_eq!(list1[1].name, "apple");
+    }
+
+    #[test]
+    fn test_sort_files_unsorted_preserves_order() {
+        use std::path::PathBuf;
+
+        let filter = FileFilter {
+            sort_field: SortField::Unsorted,
+            flags: vec![],
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+            ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
+            git_ignore: GitIgnore::Off,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
+            collator: None,
+            is_explicit_sort: true,
+        };
+
+        let make_file = |name: &str| {
+            File::from_args(PathBuf::from(name), None, None, false, false, false, None)
+        };
+
+        let mut list = vec![
+            make_file("z_file"),
+            make_file("a_file"),
+            make_file("m_file"),
+            make_file("b_file"),
+        ];
+
+        filter.sort_files(&mut list);
+
+        let names: Vec<_> = list.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["z_file", "a_file", "m_file", "b_file"]);
+    }
+
+    #[test]
+    fn test_sort_files_unsorted_reverse_preserves_traversal_order_not_alphabetical() {
+        use std::path::PathBuf;
+
+        let filter = FileFilter {
+            sort_field: SortField::Unsorted,
+            flags: vec![FileFilterFlags::Reverse],
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+            ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
+            git_ignore: GitIgnore::Off,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
+            collator: None,
+            is_explicit_sort: true,
+        };
+
+        let make_file = |name: &str| {
+            File::from_args(PathBuf::from(name), None, None, false, false, false, None)
+        };
+
+        let mut list = vec![
+            make_file("z_file"),
+            make_file("a_file"),
+            make_file("m_file"),
+            make_file("b_file"),
+        ];
+
+        filter.sort_files(&mut list);
+
+        let names: Vec<_> = list.iter().map(|f| f.name.as_str()).collect();
+        // Crucial: Must be exact reversal of input traversal order, NOT alphabetical reverse ["z_file", "m_file", "b_file", "a_file"]
+        assert_eq!(names, vec!["b_file", "m_file", "a_file", "z_file"]);
+    }
+
+    #[test]
+    fn test_sort_files_unsorted_group_directories_first_and_last() {
+        use std::path::PathBuf;
+
+        let dir_ft = std::fs::metadata("src").unwrap().file_type();
+        let file_ft = std::fs::metadata("Cargo.toml").unwrap().file_type();
+
+        let make_entry = |name: &str, is_dir: bool| {
+            File::from_args(
+                PathBuf::from(name),
+                None,
+                None,
+                false,
+                false,
+                false,
+                Some(if is_dir { dir_ft } else { file_ft }),
+            )
+        };
+
+        let create_list = || {
+            vec![
+                make_entry("dir_z", true),
+                make_entry("file_m", false),
+                make_entry("dir_a", true),
+                make_entry("file_b", false),
+            ]
+        };
+
+        // 1. group-directories-first without reverse: dirs in original order, then files in original order
+        let filter_first = FileFilter {
+            sort_field: SortField::Unsorted,
+            flags: vec![FileFilterFlags::ListDirsFirst],
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+            ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
+            git_ignore: GitIgnore::Off,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
+            collator: None,
+            is_explicit_sort: true,
+        };
+        let mut list_first = create_list();
+        filter_first.sort_files(&mut list_first);
+        let names_first: Vec<_> = list_first.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names_first, vec!["dir_z", "dir_a", "file_m", "file_b"]);
+
+        // 2. group-directories-first with reverse: dirs in reverse traversal order, then files in reverse traversal order
+        let filter_first_rev = FileFilter {
+            flags: vec![FileFilterFlags::ListDirsFirst, FileFilterFlags::Reverse],
+            ..filter_first.clone()
+        };
+        let mut list_first_rev = create_list();
+        filter_first_rev.sort_files(&mut list_first_rev);
+        let names_first_rev: Vec<_> = list_first_rev.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names_first_rev, vec!["dir_a", "dir_z", "file_b", "file_m"]);
+
+        // 3. group-directories-last without reverse: files in original order, then dirs in original order
+        let filter_last = FileFilter {
+            flags: vec![FileFilterFlags::ListDirsLast],
+            ..filter_first.clone()
+        };
+        let mut list_last = create_list();
+        filter_last.sort_files(&mut list_last);
+        let names_last: Vec<_> = list_last.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names_last, vec!["file_m", "file_b", "dir_z", "dir_a"]);
+
+        // 4. group-directories-last with reverse: files in reverse traversal order, then dirs in reverse traversal order
+        let filter_last_rev = FileFilter {
+            flags: vec![FileFilterFlags::ListDirsLast, FileFilterFlags::Reverse],
+            ..filter_first
+        };
+        let mut list_last_rev = create_list();
+        filter_last_rev.sort_files(&mut list_last_rev);
+        let names_last_rev: Vec<_> = list_last_rev.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names_last_rev, vec!["file_b", "file_m", "dir_a", "dir_z"]);
+    }
+
+    #[test]
+    fn test_sort_files_unsorted_parallel_threshold() {
+        use std::path::PathBuf;
+
+        let dir_ft = std::fs::metadata("src").unwrap().file_type();
+        let file_ft = std::fs::metadata("Cargo.toml").unwrap().file_type();
+
+        let mut large_list: Vec<File<'static>> = (0..2500)
+            .map(|i| {
+                let is_dir = i % 2 == 0;
+                let name = format!("item_{i:04}");
+                File::from_args(
+                    PathBuf::from(name),
+                    None,
+                    None,
+                    false,
+                    false,
+                    false,
+                    Some(if is_dir { dir_ft } else { file_ft }),
+                )
+            })
+            .collect();
+
+        let filter = FileFilter {
+            sort_field: SortField::Unsorted,
+            flags: vec![FileFilterFlags::ListDirsFirst, FileFilterFlags::Reverse],
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+            ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::default(),
+            ignore_submodule_contents: false,
+            git_ignore: GitIgnore::Off,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
+            collator: None,
+            is_explicit_sort: true,
+        };
+
+        filter.sort_files(&mut large_list);
+
+        let expected_dirs: Vec<String> = (0..2500)
+            .filter(|i| i % 2 == 0)
+            .rev()
+            .map(|i| format!("item_{i:04}"))
+            .collect();
+        let expected_files: Vec<String> = (0..2500)
+            .filter(|i| i % 2 != 0)
+            .rev()
+            .map(|i| format!("item_{i:04}"))
+            .collect();
+
+        let actual_dirs: Vec<String> = large_list[0..1250].iter().map(|f| f.name.clone()).collect();
+        let actual_files: Vec<String> = large_list[1250..2500]
+            .iter()
+            .map(|f| f.name.clone())
+            .collect();
+
+        assert_eq!(actual_dirs, expected_dirs);
+        assert_eq!(actual_files, expected_files);
     }
 
     #[test]
