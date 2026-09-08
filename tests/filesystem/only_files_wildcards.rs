@@ -429,3 +429,44 @@ fn test_composed_only_dirs_and_no_symlinks() {
         );
     }
 }
+
+#[test]
+fn test_only_dirs_and_only_files_reciprocal_override() {
+    let temp = TempTestDir::new("only_dirs_files_override");
+    temp.create_file("regular.txt");
+    temp.create_dir("subdir");
+
+    // 1. -D followed by -f: -f wins (only files listed)
+    let output_files_win = Command::new(bin_path())
+        .args(["-D", "-f", "--color=never"])
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_files_win.status.success());
+    let stdout1 = String::from_utf8_lossy(&output_files_win.stdout);
+    assert!(
+        stdout1.contains("regular.txt"),
+        "regular.txt must be listed when -f overrides -D: {stdout1}"
+    );
+    assert!(
+        !stdout1.contains("subdir"),
+        "subdir must be filtered out when -f overrides -D: {stdout1}"
+    );
+
+    // 2. -f followed by -D: -D wins (only dirs listed)
+    let output_dirs_win = Command::new(bin_path())
+        .args(["-f", "-D", "--color=never"])
+        .arg(&temp.path)
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_dirs_win.status.success());
+    let stdout2 = String::from_utf8_lossy(&output_dirs_win.stdout);
+    assert!(
+        stdout2.contains("subdir"),
+        "subdir must be listed when -D overrides -f: {stdout2}"
+    );
+    assert!(
+        !stdout2.contains("regular.txt"),
+        "regular.txt must be filtered out when -D overrides -f: {stdout2}"
+    );
+}
