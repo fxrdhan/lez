@@ -68,6 +68,7 @@ fn main() {
                         exit(exits::RUNTIME_ERROR);
                     }
                     let sep = separator.to_str().unwrap_or("\n");
+                    let sep = if sep.is_empty() { "\n" } else { sep };
                     input_paths.extend(
                         input
                             .split(sep)
