@@ -308,10 +308,11 @@ pub enum ColorScaleModeArgs {
 
 /// What the `--loc` columns and `--code` summary should display: raw line
 /// counts, each language’s share as a percentage, or both side by side.
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
 pub enum CodeContent {
     Lines,
     Percent,
+    #[default]
     Both,
 }
 

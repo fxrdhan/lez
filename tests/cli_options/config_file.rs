@@ -309,3 +309,70 @@ absolute = "on"
         "Quotes should be enabled via display.quotes = 'always': {stdout}"
     );
 }
+
+#[test]
+fn test_config_display_mode_tree_recurses() {
+    let temp = TempTestDir::new("mode_tree");
+    let sub = temp.path.join("sub");
+    fs::create_dir_all(&sub).unwrap();
+    let nested = sub.join("nested.txt");
+    fs::write(&nested, b"nested content").unwrap();
+
+    let config_path = temp.path.join("config.toml");
+    fs::write(
+        &config_path,
+        r#"
+[display]
+mode = "tree"
+"#,
+    )
+    .unwrap();
+
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
+    let output = Command::new(lez_bin)
+        .arg("--config")
+        .arg(&config_path)
+        .arg(&temp.path)
+        .output()
+        .expect("run lez with config mode=tree");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("nested.txt"),
+        "mode = 'tree' in config must recurse into subdirectories: {stdout}"
+    );
+}
+
+#[test]
+fn test_config_display_mode_code_activates() {
+    let temp = TempTestDir::new("mode_code");
+    let test_rs = temp.path.join("main.rs");
+    fs::write(&test_rs, b"fn main() {}\n").unwrap();
+
+    let config_path = temp.path.join("config.toml");
+    fs::write(
+        &config_path,
+        r#"
+[display]
+mode = "code"
+"#,
+    )
+    .unwrap();
+
+    let lez_bin = env!("CARGO_BIN_EXE_lez");
+    let output = Command::new(lez_bin)
+        .arg("--config")
+        .arg(&config_path)
+        .arg(&temp.path)
+        .output()
+        .expect("run lez with config mode=code");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Rust") && stdout.contains("Code %"),
+        "mode = 'code' in config must produce language code statistics table: {stdout}"
+    );
+}
+
