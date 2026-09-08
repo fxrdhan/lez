@@ -84,7 +84,25 @@ impl Mode {
     ) -> Result<Self, OptionsError> {
         // `--code` is its own standalone tool: it summarises languages rather
         // than listing files, so it takes precedence over the layout flags.
-        if let Some(content) = matches.get_one::<CodeContent>("code").copied() {
+        let code_from_cli = matches.get_one::<CodeContent>("code").copied();
+        let any_cli_layout = matches.get_flag("long")
+            || matches.get_flag("oneline")
+            || matches.get_flag("grid")
+            || matches.get_flag("tree")
+            || matches.get_flag("json");
+        let code_from_config = if !any_cli_layout
+            && config
+                .display
+                .mode
+                .as_deref()
+                .is_some_and(|m| m.eq_ignore_ascii_case("code"))
+        {
+            Some(CodeContent::default())
+        } else {
+            None
+        };
+
+        if let Some(content) = code_from_cli.or(code_from_config) {
             let sub_files = match config.loc.sub_files.as_deref() {
                 Some("count" | "files" | "number") => code::SubFilesMode::Count,
                 Some("blank" | "empty" | "none") => code::SubFilesMode::Blank,

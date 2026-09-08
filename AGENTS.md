@@ -83,7 +83,8 @@ Evaluated in `Mode::deduce` ([`src/options/view.rs`](src/options/view.rs)):
 | Dump / Regen Snapshots | — | `just idump` / `just regen` |
 | Watch CI run | `gh run watch <run-id> --exit-status` | — |
 
-### CI & Remote Monitoring Rules
+### Execution, CI & Output Monitoring Rules
+- **No Polling for Terminal Output / Background Commands**: **Strictly forbidden to poll** when waiting for command outputs, builds, test suites, or background processes (e.g. running `manage_task(Action='status')` in loops, sleep loops, or aggressive recurring timer checks). Either execute with an adequate synchronous timeout (`WaitMsBeforeAsync`), or launch as a background task, stop calling tools, and rely entirely on the system's reactive wakeup notification upon process termination. Polling burns context window tokens, creates visual noise, and degrades agent performance.
 - **Always Use `watch` Over Polling**: When monitoring GitHub Actions CI runners, workflows, or release jobs, **never** execute repetitive polling loops with timers (`gh run view` in sleep intervals). Always use `gh run watch <run-id> --exit-status` (or `gh pr checks <pr> --watch`) as a background task. This streams status directly, avoids GitHub API rate limits (`403 API rate limit exceeded`), prevents context token churn, and triggers an immediate reactive wakeup upon completion.
 
 ### Test Suite Rules & Performance

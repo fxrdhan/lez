@@ -73,7 +73,13 @@ impl UseColours {
 
         if matches.value_source("color") == Some(clap::parser::ValueSource::CommandLine) {
             match matches.get_one("color").copied().unwrap_or(ShowWhen::Auto) {
-                ShowWhen::Auto => default_value,
+                ShowWhen::Auto => {
+                    if vars.get(vars::NO_COLOR).is_some() {
+                        Self::Never
+                    } else {
+                        Self::Automatic
+                    }
+                }
                 ShowWhen::Always => Self::Always,
                 ShowWhen::Never => Self::Never,
             }

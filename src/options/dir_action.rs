@@ -28,7 +28,12 @@ impl DirAction {
     ) -> Result<Self, OptionsError> {
         let recurse = matches.get_flag("recurse");
         let as_file = matches.get_flag("treat-dirs-as-files");
-        let tree = matches.get_flag("tree");
+        let tree_from_config = config
+            .display
+            .mode
+            .as_deref()
+            .is_some_and(|m| m.eq_ignore_ascii_case("tree"));
+        let tree = matches.get_flag("tree") || tree_from_config;
 
         if strict {
             // Early check for --level when it wouldn’t do anything
