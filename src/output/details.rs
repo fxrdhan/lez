@@ -313,7 +313,7 @@ impl<'a> Render<'a> {
     ) {
         use crate::fs::feature::xattr;
 
-        let mut file_eggs: Vec<_> = src
+        let file_eggs: Vec<_> = src
             .par_iter()
             .map(|file| {
                 let mut errors = Vec::new();
@@ -392,14 +392,7 @@ impl<'a> Render<'a> {
             })
             .collect();
 
-        // this is safe because all entries have been initialized above
-        self.filter.sort_files(&mut file_eggs);
-
         for (tree_params, egg) in depth.iterate_over(file_eggs.into_iter()) {
-            if let Some(s) = summary {
-                s.record_file(egg.file);
-            }
-
             let mut files = Vec::new();
             let errors = egg.errors;
 
@@ -407,6 +400,10 @@ impl<'a> Render<'a> {
             // not listed themselves; skipping before add_widths keeps the
             // table columns and tree edges aligned.
             if !(egg.file.is_directory() && self.filter.flags.contains(&OnlyFiles)) {
+                if let Some(s) = summary {
+                    s.record_file(egg.file);
+                }
+
                 if let (Some(ref mut t), Some(row)) = (table.as_mut(), egg.table_row.as_ref()) {
                     t.add_widths(row);
                 }
@@ -473,6 +470,7 @@ impl<'a> Render<'a> {
                 self.filter
                     .filter_child_files(self.recurse.is_some(), &mut files);
                 self.filter.filter_cachedirs(&mut files);
+                self.filter.sort_files(&mut files);
 
                 if !files.is_empty() {
                     for xattr in egg.xattrs {

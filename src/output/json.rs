@@ -232,7 +232,7 @@ impl<'a> Render<'a> {
 
             let follow_links = self.view.follow_links;
             if let Some(recurse_opts) = recurse_opts {
-                if !recurse_opts.tree && !recurse_opts.is_too_deep(child_depth) {
+                if !recurse_opts.is_too_deep(child_depth) {
                     let mut child_dirs = files
                         .iter()
                         .filter(|f| {
@@ -430,12 +430,9 @@ impl<'a> JsonFileObject<'a> {
             ),
             Column::FileFlags => f.flags().render_json(self.options.flags_format),
             #[cfg(unix)]
-            Column::Group => f.group().render_json(
-                &*env.lock_users(),
-                self.options.user_format,
-                self.options.group_format,
-                f.user(),
-            ),
+            Column::Group => f
+                .group()
+                .render_json(&*env.lock_users(), self.options.user_format),
             #[cfg(unix)]
             Column::Inode => Some(f.inode().render_json()),
             #[cfg(unix)]

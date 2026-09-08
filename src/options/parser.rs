@@ -161,10 +161,14 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(-d --"treat-dirs-as-files" "treat directories as files; don't list their contents")
             .alias("list-dirs") // TODO: compat alias to remove (above flag published in v0.23.4 / 2025-10-03)
             .conflicts_with_all(["recurse", "tree"]))
-        .arg(arg!(-D --"only-dirs" "list only directories"))
-        .arg(arg!(-f --"only-files" "list only files"))
-        .arg(arg!(--"show-symlinks" "explicitly show symbolic links (with --only-dirs and --only-files)"))
-        .arg(arg!(--"no-symlinks" "do not show symbolic links"))
+        .arg(arg!(-D --"only-dirs" "list only directories")
+            .overrides_with("only-files"))
+        .arg(arg!(-f --"only-files" "list only files")
+            .overrides_with("only-dirs"))
+        .arg(arg!(--"show-symlinks" "explicitly show symbolic links (with --only-dirs and --only-files)")
+            .overrides_with("no-symlinks"))
+        .arg(arg!(--"no-symlinks" "do not show symbolic links")
+            .overrides_with("show-symlinks"))
         .arg(arg!(-I --"ignore-glob" <GLOBS> "glob patterns (pipe-separated) of files to ignore")
             .action(clap::ArgAction::Append))
         .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)")
@@ -178,8 +182,12 @@ pub fn get_command() -> clap::Command {
             .value_parser(humantime::parse_duration))
 
         .next_help_heading("SORTING OPTIONS")
-        .arg(arg!(--"group-directories-first" "list directories before other files").id("dirs-first"))
-        .arg(arg!(--"group-directories-last" "list directories after other files").id("dirs-last"))
+        .arg(arg!(--"group-directories-first" "list directories before other files")
+            .id("dirs-first")
+            .overrides_with("dirs-last"))
+        .arg(arg!(--"group-directories-last" "list directories after other files")
+            .id("dirs-last")
+            .overrides_with("dirs-first"))
         .arg(arg!(-s --sort <FIELD>)
             .help(format!("which field to sort by {SORT_FIELDS_HELP}"))
             .value_parser(value_parser!(SortField))
@@ -226,10 +234,13 @@ pub fn get_command() -> clap::Command {
             .hide_possible_values(false))
         .arg(arg!(-O --flags "list file flags (Mac, BSD, and Windows only)").id("file-flags"))
         .arg(arg!(-Z --context "list each file's security context").id("security-context"))
-        .arg(arg!(--git "list each file's Git status, if tracked or ignored"))
+        .arg(arg!(--git "list each file's Git status, if tracked or ignored")
+            .overrides_with("no-git"))
         .arg(arg!(--"git-glyphs" "display Git status with Nerd Font glyphs / icons"))
-        .arg(arg!(--"git-repos" "list root of git-tree status"))
-        .arg(arg!(--"git-repos-no-status" "list each git-repos branch name (much faster)"))
+        .arg(arg!(--"git-repos" "list root of git-tree status")
+            .overrides_with("git-repos-no-status"))
+        .arg(arg!(--"git-repos-no-status" "list each git-repos branch name (much faster)")
+            .overrides_with("git-repos"))
         .arg(arg!(-M --mounts "show mount details (Linux and macOS only)"))
         .arg(arg!(-'@' --extended "list each file's extended attributes and sizes"))
         .arg(arg!(--"no-extended" "don't show the marker that a file has extended attributes"))
@@ -246,7 +257,8 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"no-user" "suppress the user field"))
         .arg(arg!(--"no-time" "suppress the time field"))
         .arg(arg!(--"no-language" "suppress the language field in --loc"))
-        .arg(arg!(--"no-git" "suppress Git fields (overrides --git, --git-repos, --git-repos-no-status, --git-ignore)"))
+        .arg(arg!(--"no-git" "suppress Git fields (overrides --git, --git-repos, --git-repos-no-status, --git-ignore)")
+            .overrides_with("git"))
         .arg(arg!(--"print-total" "display total number of entries"))
 }
 
@@ -471,10 +483,17 @@ fn is_time_value(value: &OsString) -> bool {
         .is_some_and(|value| TimeArgs::from_str(value, false).is_ok())
 }
 
+fn is_canonical_time_value(value: &OsString) -> bool {
+    value
+        .to_str()
+        .is_some_and(|s| matches!(s, "modified" | "accessed" | "changed" | "created"))
+}
+
 fn normalize_short_time_arg(
     arg: &OsString,
     next: Option<&OsString>,
     command: &clap::Command,
+    has_non_long_view: bool,
 ) -> Option<Vec<OsString>> {
     let arg_str = arg.to_str()?;
     if !arg_str.starts_with('-') || arg_str.starts_with("--") || arg_str == "-" {
@@ -488,8 +507,10 @@ fn normalize_short_time_arg(
     }
 
     if after_t.is_empty() {
-        if let Some(next) = next
-            && is_time_value(next)
+        if !has_non_long_view
+            && before_t.is_empty()
+            && let Some(next) = next
+            && is_canonical_time_value(next)
         {
             return None;
         }
@@ -520,6 +541,27 @@ where
     T: Into<OsString>,
 {
     let args: Vec<OsString> = itr.into_iter().map(Into::into).collect();
+    let has_long = args.iter().any(|a| {
+        let s = a.to_string_lossy();
+        if s == "--long" {
+            true
+        } else if s.starts_with('-') && !s.starts_with("--") {
+            s[1..].contains('l')
+        } else {
+            false
+        }
+    });
+    let has_non_long_view = args.iter().any(|a| {
+        let s = a.to_string_lossy();
+        if s == "--oneline" {
+            true
+        } else if s.starts_with('-') && !s.starts_with("--") {
+            s[1..].contains('1')
+        } else {
+            false
+        }
+    }) && !has_long;
+
     let mut normalized = Vec::with_capacity(args.len());
     let mut iter = args.into_iter().peekable();
 
@@ -530,7 +572,9 @@ where
             break;
         }
 
-        if let Some(mut expanded) = normalize_short_time_arg(&arg, iter.peek(), command) {
+        if let Some(mut expanded) =
+            normalize_short_time_arg(&arg, iter.peek(), command, has_non_long_view)
+        {
             normalized.append(&mut expanded);
         } else {
             normalized.push(arg);
@@ -1233,5 +1277,50 @@ pub mod test {
             ["always"],
             "the word becomes a path"
         );
+    }
+
+    #[test]
+    fn reciprocal_flags_overrides_with() {
+        // --group-directories-first / --group-directories-last
+        let cli1 = mock_cli(vec![
+            "--group-directories-first",
+            "--group-directories-last",
+        ]);
+        assert!(!cli1.get_flag("dirs-first"));
+        assert!(cli1.get_flag("dirs-last"));
+
+        let cli2 = mock_cli(vec![
+            "--group-directories-last",
+            "--group-directories-first",
+        ]);
+        assert!(cli2.get_flag("dirs-first"));
+        assert!(!cli2.get_flag("dirs-last"));
+
+        // --show-symlinks / --no-symlinks
+        let cli3 = mock_cli(vec!["--show-symlinks", "--no-symlinks"]);
+        assert!(!cli3.get_flag("show-symlinks"));
+        assert!(cli3.get_flag("no-symlinks"));
+
+        let cli4 = mock_cli(vec!["--no-symlinks", "--show-symlinks"]);
+        assert!(cli4.get_flag("show-symlinks"));
+        assert!(!cli4.get_flag("no-symlinks"));
+
+        // --git / --no-git
+        let cli5 = mock_cli(vec!["--git", "--no-git"]);
+        assert!(!cli5.get_flag("git"));
+        assert!(cli5.get_flag("no-git"));
+
+        let cli6 = mock_cli(vec!["--no-git", "--git"]);
+        assert!(cli6.get_flag("git"));
+        assert!(!cli6.get_flag("no-git"));
+
+        // --git-repos / --git-repos-no-status
+        let cli7 = mock_cli(vec!["--git-repos", "--git-repos-no-status"]);
+        assert!(!cli7.get_flag("git-repos"));
+        assert!(cli7.get_flag("git-repos-no-status"));
+
+        let cli8 = mock_cli(vec!["--git-repos-no-status", "--git-repos"]);
+        assert!(cli8.get_flag("git-repos"));
+        assert!(!cli8.get_flag("git-repos-no-status"));
     }
 }

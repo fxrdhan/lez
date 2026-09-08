@@ -512,7 +512,7 @@ Any explicit use of the `--icons=WHEN` flag overrides this behavior.
 
 ## `LEZ_STDIN_SEPARATOR`, `EZA_STDIN_SEPARATOR`
 
-Specifies the separator to use when file names are piped from stdin. Defaults to newline.
+Specifies the separator to use when file names are piped from stdin. Defaults to newline. Supports escape sequences such as `\0` or `\x00` for null delimiter, `\n`, `\t`, `\r`, `\\`, and keywords `null`/`nul`.
 
 ## `LEZ_CONFIG_FILE`, `EZA_CONFIG_FILE`
 

@@ -25,3 +25,5 @@ mod recursive;
 mod size_deref_lazy;
 #[path = "sorting/tree_dotfiles.rs"]
 mod tree_dotfiles;
+#[path = "sorting/unsorted.rs"]
+mod unsorted;

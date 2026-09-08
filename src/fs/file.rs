@@ -545,10 +545,32 @@ impl<'dir> File<'dir> {
         self.filetype().is_some_and(std::fs::FileType::is_file)
     }
 
+    fn language_for_target(&self, target: &File) -> Option<&'static crate::loc::Language> {
+        let path = target.absolute_path().unwrap_or(&self.path);
+        let target_lang = std::fs::canonicalize(path)
+            .ok()
+            .as_deref()
+            .and_then(|p| {
+                let name = p.file_name()?.to_str()?;
+                let ext = p.extension()?.to_str();
+                crate::loc::language_for(name, ext)
+            })
+            .or_else(|| crate::loc::language_for(&target.name, target.ext.as_deref()));
+
+        target_lang.or_else(|| crate::loc::language_for(&self.name, self.ext.as_deref()))
+    }
+
     /// The programming language this file is written in, worked out from its
     /// name or extension, if eza recognises it.
     pub fn language(&self) -> Option<&'static crate::loc::Language> {
-        crate::loc::language_for(&self.name, self.ext.as_deref())
+        if !self.deref_links || !self.is_link() {
+            return crate::loc::language_for(&self.name, self.ext.as_deref());
+        }
+
+        match self.link_target_recurse() {
+            FileTarget::Ok(target) if target.is_file() => self.language_for_target(&target),
+            _ => None,
+        }
     }
 
     /// Count this file’s lines of code. Returns `None` for anything that
@@ -556,13 +578,25 @@ impl<'dir> File<'dir> {
     /// directories, links, unknown extensions, and binaries.
     pub fn loc(&self) -> Option<crate::loc::LocCounts> {
         *self.loc.get_or_init(|| {
-            if !self.is_file() {
-                return None;
+            if self.is_file() {
+                let lang = self.language()?;
+                return crate::loc::LocCounts::from_path(&self.path, lang)
+                    .ok()
+                    .flatten();
             }
-            let lang = self.language()?;
-            crate::loc::LocCounts::from_path(&self.path, lang)
-                .ok()
-                .flatten()
+
+            if self.deref_links && self.is_link() {
+                match self.link_target_recurse() {
+                    FileTarget::Ok(target) if target.is_file() => {
+                        let lang = self.language_for_target(&target)?;
+                        let path = target.absolute_path().unwrap_or(&self.path);
+                        crate::loc::LocCounts::from_path(path, lang).ok().flatten()
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
         })
     }
 

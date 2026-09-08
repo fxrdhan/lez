@@ -9,7 +9,7 @@ use std::io::{self, Write};
 
 use nu_ansi_term::Style;
 
-use crate::fs::File;
+use crate::fs::{File, FileTarget};
 use crate::theme::Theme;
 
 /// Aggregate summary counts of listed directory entries.
@@ -47,7 +47,20 @@ impl Summary {
 
     /// Record a single file into the aggregate summary counts.
     pub fn record_file(&mut self, file: &File<'_>) {
-        if file.is_link() {
+        if file.deref_links && file.is_link() {
+            match file.link_target_recurse() {
+                FileTarget::Ok(target) => {
+                    if target.is_directory() {
+                        self.directories += 1;
+                    } else {
+                        self.files += 1;
+                    }
+                }
+                _ => {
+                    self.symlinks += 1;
+                }
+            }
+        } else if file.is_link() {
             self.symlinks += 1;
         } else if file.is_directory() {
             self.directories += 1;

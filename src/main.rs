@@ -19,6 +19,7 @@ use std::process::exit;
 use log::*;
 use nu_ansi_term::{AnsiStrings as ANSIStrings, Style};
 
+use lez::fs::dir_action::DirAction;
 use lez::fs::feature::git::GitCache;
 use lez::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
 use lez::fs::{Dir, File, shell_globs};
@@ -68,6 +69,7 @@ fn main() {
                         exit(exits::RUNTIME_ERROR);
                     }
                     let sep = separator.to_str().unwrap_or("\n");
+                    let sep = if sep.is_empty() { "\n" } else { sep };
                     input_paths.extend(
                         input
                             .split(sep)
@@ -260,23 +262,6 @@ fn git_repos(_options: &Options, _args: &[&OsStr]) -> bool {
 }
 
 #[cfg(feature = "git")]
-fn get_files_in_dir(paths: &mut Vec<PathBuf>, path: PathBuf) {
-    let temp_paths = if path.is_dir() {
-        match path.read_dir() {
-            Err(_) => {
-                vec![path]
-            }
-            Ok(d) => d
-                .filter_map(|entry| entry.ok().map(|e| e.path()))
-                .collect::<Vec<PathBuf>>(),
-        }
-    } else {
-        vec![path]
-    };
-    paths.extend(temp_paths);
-}
-
-#[cfg(feature = "git")]
 fn git_repos(options: &Options, args: &[&OsStr]) -> bool {
     let option_enabled = match options.view.mode {
         Mode::Details(details::Options {
@@ -302,17 +287,16 @@ fn git_repos(options: &Options, args: &[&OsStr]) -> bool {
         _ => false,
     };
     if option_enabled {
-        let paths: Vec<PathBuf> = args.iter().map(PathBuf::from).collect::<Vec<PathBuf>>();
-        let mut files: Vec<PathBuf> = Vec::new();
+        let max_depth = options
+            .dir_action
+            .recurse_options()
+            .map_or(1, |r| r.max_depth.unwrap_or(usize::MAX));
+        let paths: Vec<PathBuf> = args.iter().map(PathBuf::from).collect();
+        let mut repos: Vec<PathBuf> = Vec::new();
         for path in paths {
-            get_files_in_dir(&mut files, path);
+            collect_child_git_repos(&path, max_depth, &mut repos);
         }
-        let repos: Vec<bool> = files
-            .iter()
-            .map(git2::Repository::open)
-            .map(|repo| repo.is_ok())
-            .collect();
-        repos.contains(&true)
+        !repos.is_empty()
     } else {
         false
     }
@@ -407,7 +391,13 @@ impl Lez<'_> {
                 continue;
             }
 
-            if f.points_to_directory() && !self.options.dir_action.treat_dirs_as_files() {
+            let treat_as_file = match self.options.dir_action {
+                DirAction::AsFile => true,
+                DirAction::Recurse(o) => o.tree && !matches!(self.options.view.mode, Mode::Json(_)),
+                DirAction::List => false,
+            };
+
+            if f.points_to_directory() && !treat_as_file {
                 trace!("matching on new Dir");
                 dir_files.push(f);
             } else {

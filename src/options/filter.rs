@@ -32,9 +32,10 @@ impl FileFilter {
         let mut filter_flags: Vec<FileFilterFlags> = vec![];
 
         let reverse = matches.get_flag("reverse") || config.filter.reverse.unwrap_or(false);
-        let only_dirs = matches.get_flag("only-dirs") || config.filter.only_dirs.unwrap_or(false);
-        let only_files =
-            matches.get_flag("only-files") || config.filter.only_files.unwrap_or(false);
+        let only_dirs = matches.get_flag("only-dirs")
+            || (!matches.get_flag("only-files") && config.filter.only_dirs.unwrap_or(false));
+        let only_files = matches.get_flag("only-files")
+            || (!matches.get_flag("only-dirs") && config.filter.only_files.unwrap_or(false));
         let no_symlinks = matches.get_flag("no-symlinks");
         let show_symlinks = matches.get_flag("show-symlinks");
         let dirs_last = matches.get_flag("dirs-last");

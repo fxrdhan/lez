@@ -349,3 +349,456 @@ fn test_stdin_crlf_line_endings() {
     assert!(stdout.contains("hello.txt"));
     assert!(stdout.contains("world.rs"));
 }
+
+#[test]
+fn test_stdin_empty_separator_env_falls_back_to_newline() {
+    let temp = TempTestDir::new("empty_sep_env");
+    let file_a = temp.create_file("alpha.txt", b"a");
+    let file_b = temp.create_file("beta.txt", b"b");
+
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .env("LEZ_STDIN_SEPARATOR", "")
+        .args(["--stdin", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin
+            .write_all(format!("{}\n{}\n", file_a.display(), file_b.display()).as_bytes())
+            .unwrap();
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(
+        output.status.success(),
+        "lez failed on empty LEZ_STDIN_SEPARATOR: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "Expected exactly 2 output paths, got: {:?}",
+        lines
+    );
+    assert!(lines[0].ends_with("alpha.txt"));
+    assert!(lines[1].ends_with("beta.txt"));
+}
+
+#[test]
+fn test_stdin_empty_quotes_separator_env_falls_back_to_newline() {
+    let temp = TempTestDir::new("empty_quotes_sep_env");
+    let file_a = temp.create_file("alpha.txt", b"a");
+    let file_b = temp.create_file("beta.txt", b"b");
+
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .env("LEZ_STDIN_SEPARATOR", "\"\"")
+        .args(["--stdin", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin
+            .write_all(format!("{}\n{}\n", file_a.display(), file_b.display()).as_bytes())
+            .unwrap();
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(
+        output.status.success(),
+        "lez failed on empty-quotes LEZ_STDIN_SEPARATOR: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "Expected exactly 2 output paths, got: {:?}",
+        lines
+    );
+    assert!(lines[0].ends_with("alpha.txt"));
+    assert!(lines[1].ends_with("beta.txt"));
+}
+
+#[test]
+fn test_stdin_empty_lez_falls_back_to_eza_separator() {
+    let temp = TempTestDir::new("empty_lez_fallback_eza");
+    let file_1 = temp.create_file("one.txt", b"1");
+    let file_2 = temp.create_file("two.txt", b"2");
+
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .env("LEZ_STDIN_SEPARATOR", "")
+        .env("EZA_STDIN_SEPARATOR", ",")
+        .args(["--stdin", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin
+            .write_all(format!("{},{}", file_1.display(), file_2.display()).as_bytes())
+            .unwrap();
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(
+        output.status.success(),
+        "lez failed on empty LEZ fallback to EZA: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "Expected exactly 2 output paths, got: {:?}",
+        lines
+    );
+    assert!(lines[0].ends_with("one.txt"));
+    assert!(lines[1].ends_with("two.txt"));
+}
+
+#[test]
+fn test_stdin_empty_quotes_lez_falls_back_to_eza_separator() {
+    let temp = TempTestDir::new("empty_quotes_fallback_eza");
+    let file_1 = temp.create_file("one.txt", b"1");
+    let file_2 = temp.create_file("two.txt", b"2");
+
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .env("LEZ_STDIN_SEPARATOR", "\"\"")
+        .env("EZA_STDIN_SEPARATOR", ",")
+        .args(["--stdin", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin
+            .write_all(format!("{},{}", file_1.display(), file_2.display()).as_bytes())
+            .unwrap();
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(
+        output.status.success(),
+        "lez failed on empty-quotes LEZ fallback to EZA: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "Expected exactly 2 output paths, got: {:?}",
+        lines
+    );
+    assert!(lines[0].ends_with("one.txt"));
+    assert!(lines[1].ends_with("two.txt"));
+}
+
+#[test]
+fn test_stdin_null_separator_escaped_env() {
+    let temp = TempTestDir::new("null_sep_escaped");
+    temp.create_file("file_01.txt", b"01");
+    temp.create_file("file_02.txt", b"02");
+
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .env("LEZ_STDIN_SEPARATOR", r"\0")
+        .args(["--stdin", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin.write_all(b"file_01.txt\0file_02.txt\0").unwrap();
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(
+        output.status.success(),
+        "lez failed with escaped null separator: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("file_01.txt"));
+    assert!(stdout.contains("file_02.txt"));
+}
+
+#[test]
+fn test_stdin_null_separator_hex_env() {
+    let temp = TempTestDir::new("null_sep_hex");
+    temp.create_file("hex_a.txt", b"a");
+    temp.create_file("hex_b.txt", b"b");
+
+    for sep in [r"\x00", r"\x0", r"\X00", r"\X0"] {
+        let mut child = Command::new(bin_path())
+            .current_dir(&temp.path)
+            .env("LEZ_STDIN_SEPARATOR", sep)
+            .args(["--stdin", "-1"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn lez");
+
+        {
+            let mut stdin = child.stdin.take().expect("Failed to open stdin");
+            stdin.write_all(b"hex_a.txt\0hex_b.txt\0").unwrap();
+        }
+
+        let output = child.wait_with_output().expect("Failed to wait on child");
+        assert!(
+            output.status.success(),
+            "lez failed with hex null separator {sep}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("hex_a.txt"));
+        assert!(stdout.contains("hex_b.txt"));
+    }
+}
+
+#[test]
+fn test_stdin_null_separator_unicode_env() {
+    let temp = TempTestDir::new("null_sep_unicode");
+    temp.create_file("uni_a.txt", b"a");
+    temp.create_file("uni_b.txt", b"b");
+
+    for sep in [r"\u0000", r"\u{0}", r"\u{0000}", r"\U00000000"] {
+        let mut child = Command::new(bin_path())
+            .current_dir(&temp.path)
+            .env("LEZ_STDIN_SEPARATOR", sep)
+            .args(["--stdin", "-1"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn lez");
+
+        {
+            let mut stdin = child.stdin.take().expect("Failed to open stdin");
+            stdin.write_all(b"uni_a.txt\0uni_b.txt\0").unwrap();
+        }
+
+        let output = child.wait_with_output().expect("Failed to wait on child");
+        assert!(
+            output.status.success(),
+            "lez failed with unicode null separator {sep}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("uni_a.txt"));
+        assert!(stdout.contains("uni_b.txt"));
+    }
+}
+
+#[test]
+fn test_stdin_null_separator_keyword_env() {
+    let temp = TempTestDir::new("null_sep_keyword");
+    temp.create_file("kw_1.txt", b"1");
+    temp.create_file("kw_2.txt", b"2");
+
+    for kw in ["null", "NUL", "NULL", "  null  ", "  NUL  "] {
+        let mut child = Command::new(bin_path())
+            .current_dir(&temp.path)
+            .env("LEZ_STDIN_SEPARATOR", kw)
+            .args(["--stdin", "-1"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn lez");
+
+        {
+            let mut stdin = child.stdin.take().expect("Failed to open stdin");
+            stdin.write_all(b"kw_1.txt\0kw_2.txt\0").unwrap();
+        }
+
+        let output = child.wait_with_output().expect("Failed to wait on child");
+        assert!(
+            output.status.success(),
+            "lez failed with '{kw}' keyword separator: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("kw_1.txt"));
+        assert!(stdout.contains("kw_2.txt"));
+    }
+}
+
+#[test]
+fn test_stdin_quoted_null_separator_env() {
+    let temp = TempTestDir::new("quoted_null_sep");
+    temp.create_file("q_1.txt", b"1");
+    temp.create_file("q_2.txt", b"2");
+
+    for q in [r#""\0""#, r#"'\0'"#, r#""\x00""#, r#""null""#] {
+        let mut child = Command::new(bin_path())
+            .current_dir(&temp.path)
+            .env("LEZ_STDIN_SEPARATOR", q)
+            .args(["--stdin", "-1"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn lez");
+
+        {
+            let mut stdin = child.stdin.take().expect("Failed to open stdin");
+            stdin.write_all(b"q_1.txt\0q_2.txt\0").unwrap();
+        }
+
+        let output = child.wait_with_output().expect("Failed to wait on child");
+        assert!(
+            output.status.success(),
+            "lez failed with quoted separator {q}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("q_1.txt"));
+        assert!(stdout.contains("q_2.txt"));
+    }
+}
+
+#[test]
+fn test_stdin_custom_multibyte_unicode_separator() {
+    let temp = TempTestDir::new("multibyte_sep");
+    temp.create_file("fire_a.txt", b"a");
+    temp.create_file("fire_b.txt", b"b");
+
+    for sep in ["🔥", r"\u{1f525}"] {
+        let mut child = Command::new(bin_path())
+            .current_dir(&temp.path)
+            .env("LEZ_STDIN_SEPARATOR", sep)
+            .args(["--stdin", "-1"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn lez");
+
+        {
+            let mut stdin = child.stdin.take().expect("Failed to open stdin");
+            stdin
+                .write_all("fire_a.txt🔥fire_b.txt🔥".as_bytes())
+                .unwrap();
+        }
+
+        let output = child.wait_with_output().expect("Failed to wait on child");
+        assert!(
+            output.status.success(),
+            "lez failed with multibyte separator {sep}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("fire_a.txt"));
+        assert!(stdout.contains("fire_b.txt"));
+    }
+}
+
+#[test]
+fn test_stdin_consecutive_null_delimiters() {
+    let temp = TempTestDir::new("consecutive_null_sep");
+    temp.create_file("item_1.txt", b"1");
+    temp.create_file("item_2.txt", b"2");
+
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .env("LEZ_STDIN_SEPARATOR", r"\0")
+        .args(["--stdin", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin.write_all(b"item_1.txt\0\0\0item_2.txt\0\0").unwrap();
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(
+        output.status.success(),
+        "lez failed with consecutive null separators: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("item_1.txt"));
+    assert!(stdout.contains("item_2.txt"));
+}
+
+#[test]
+fn test_stdin_escaped_tab_and_newline_env() {
+    let temp = TempTestDir::new("tab_and_nl_sep");
+    temp.create_file("tab_x.txt", b"x");
+    temp.create_file("tab_y.txt", b"y");
+
+    // Test tab escape \t
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .env("LEZ_STDIN_SEPARATOR", r"\t")
+        .args(["--stdin", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin.write_all(b"tab_x.txt\ttab_y.txt\t").unwrap();
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("tab_x.txt"));
+    assert!(stdout.contains("tab_y.txt"));
+
+    // Test newline escape \n
+    let mut child = Command::new(bin_path())
+        .current_dir(&temp.path)
+        .env("LEZ_STDIN_SEPARATOR", r"\n")
+        .args(["--stdin", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn lez");
+
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin.write_all(b"tab_x.txt\ntab_y.txt\n").unwrap();
+    }
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("tab_x.txt"));
+    assert!(stdout.contains("tab_y.txt"));
+}

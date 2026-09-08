@@ -518,3 +518,328 @@ fn test_summary_multi_directory_arguments() {
         "Output must contain summary for dir 2: {stdout}"
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn test_summary_tree_mode_with_only_files() {
+    let temp = TempTestDir::new("tree_only_files");
+    temp.create_dir("parent_dir");
+    temp.create_dir("parent_dir/child_dir");
+    temp.create_file("parent_dir/child_dir/nested_file.txt", b"nested");
+    temp.create_file("parent_dir/root_file.txt", b"root");
+    temp.create_symlink("parent_dir/root_file.txt", "parent_dir/link_to_root");
+
+    // -T -f --summary: container directories must not be in summary
+    let output = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "--summary",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let summary_line = stdout.lines().last().expect("last line is summary");
+    assert_eq!(
+        summary_line.trim(),
+        "0 directories, 2 files, 1 symlink (3 total)"
+    );
+
+    // -T -f --print-total: total must reflect only displayed entries (3)
+    let output_total = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "--print-total",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output_total.status.success());
+    let stdout_total = String::from_utf8_lossy(&output_total.stdout);
+    let total_line = stdout_total.lines().last().expect("last line is total");
+    assert_eq!(total_line.trim(), "total: 3");
+
+    // Long tree: -l -T -f --summary
+    let output_long = Command::new(bin_path())
+        .args([
+            "-l",
+            "-T",
+            "-f",
+            "--summary",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output_long.status.success());
+    let stdout_long = String::from_utf8_lossy(&output_long.stdout);
+    let summary_line_long = stdout_long.lines().last().expect("last line is summary");
+    assert_eq!(
+        summary_line_long.trim(),
+        "0 directories, 2 files, 1 symlink (3 total)"
+    );
+
+    // Long tree: -l -T -f --print-total
+    let output_long_total = Command::new(bin_path())
+        .args([
+            "-l",
+            "-T",
+            "-f",
+            "--print-total",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output_long_total.status.success());
+    let stdout_long_total = String::from_utf8_lossy(&output_long_total.stdout);
+    let total_line_long = stdout_long_total
+        .lines()
+        .last()
+        .expect("last line is total");
+    assert_eq!(total_line_long.trim(), "total: 3");
+}
+
+#[test]
+fn test_summary_tree_mode_with_only_files_empty_and_dirs_only() {
+    let temp = TempTestDir::new("tree_dirs_only");
+    temp.create_dir("d1");
+    temp.create_dir("d1/d2");
+    temp.create_dir("d1/d2/d3");
+
+    // Directory with only subdirectories
+    let output = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "--summary",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.trim(),
+        "0 directories, 0 files, 0 symlinks (0 total)"
+    );
+
+    let output_total = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "--print-total",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output_total.status.success());
+    let stdout_total = String::from_utf8_lossy(&output_total.stdout);
+    assert_eq!(stdout_total.trim(), "total: 0");
+
+    // Empty directory
+    let temp_empty = TempTestDir::new("tree_empty");
+    let output_empty = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "--summary",
+            "--color=never",
+            temp_empty.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output_empty.status.success());
+    let stdout_empty = String::from_utf8_lossy(&output_empty.stdout);
+    assert_eq!(
+        stdout_empty.trim(),
+        "0 directories, 0 files, 0 symlinks (0 total)"
+    );
+
+    let output_empty_total = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "--print-total",
+            "--color=never",
+            temp_empty.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output_empty_total.status.success());
+    let stdout_empty_total = String::from_utf8_lossy(&output_empty_total.stdout);
+    assert_eq!(stdout_empty_total.trim(), "total: 0");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_summary_tree_mode_with_level_and_multi_dirs() {
+    let temp = TempTestDir::new("tree_level_multi");
+    let dir1 = temp.path.join("dir1");
+    let dir2 = temp.path.join("dir2");
+    std::fs::create_dir_all(dir1.join("sub_lvl2").join("sub_lvl3")).unwrap();
+    std::fs::create_dir_all(&dir2).unwrap();
+    std::fs::write(dir1.join("f1.txt"), b"1").unwrap();
+    std::fs::write(dir1.join("sub_lvl2").join("f2.txt"), b"2").unwrap();
+    std::fs::write(dir1.join("sub_lvl2").join("sub_lvl3").join("f3.txt"), b"3").unwrap();
+    std::os::unix::fs::symlink(dir1.join("f1.txt"), dir1.join("link_to_file")).unwrap();
+    std::fs::write(dir2.join("f4.txt"), b"4").unwrap();
+
+    // -T -f -L 2 --summary dir1: stops at depth 2, f3.txt is excluded
+    let output_l2 = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "-L",
+            "2",
+            "--summary",
+            "--color=never",
+            dir1.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_l2.status.success());
+    let stdout_l2 = String::from_utf8_lossy(&output_l2.stdout);
+    let summary_l2 = stdout_l2.lines().last().expect("last line is summary");
+    assert_eq!(
+        summary_l2.trim(),
+        "0 directories, 2 files, 1 symlink (3 total)"
+    );
+
+    // -T -f -L 2 --print-total dir1
+    let output_l2_tot = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "-L",
+            "2",
+            "--print-total",
+            "--color=never",
+            dir1.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_l2_tot.status.success());
+    let stdout_l2_tot = String::from_utf8_lossy(&output_l2_tot.stdout);
+    let total_l2 = stdout_l2_tot.lines().last().expect("last line is total");
+    assert_eq!(total_l2.trim(), "total: 3");
+
+    // -T -f -L 1 --summary dir1: only depth 1 items
+    let output_l1 = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "-L",
+            "1",
+            "--summary",
+            "--color=never",
+            dir1.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_l1.status.success());
+    let stdout_l1 = String::from_utf8_lossy(&output_l1.stdout);
+    let summary_l1 = stdout_l1.lines().last().expect("last line is summary");
+    assert_eq!(
+        summary_l1.trim(),
+        "0 directories, 1 file, 1 symlink (2 total)"
+    );
+
+    // -T -f --summary dir1 dir2: multi-directory accumulation
+    let output_multi = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "--summary",
+            "--color=never",
+            dir1.to_str().unwrap(),
+            dir2.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_multi.status.success());
+    let stdout_multi = String::from_utf8_lossy(&output_multi.stdout);
+    let summary_multi = stdout_multi.lines().last().expect("last line is summary");
+    assert_eq!(
+        summary_multi.trim(),
+        "0 directories, 4 files, 1 symlink (5 total)"
+    );
+
+    // -T -f --print-total dir1 dir2
+    let output_multi_tot = Command::new(bin_path())
+        .args([
+            "-T",
+            "-f",
+            "--print-total",
+            "--color=never",
+            dir1.to_str().unwrap(),
+            dir2.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_multi_tot.status.success());
+    let stdout_multi_tot = String::from_utf8_lossy(&output_multi_tot.stdout);
+    let total_multi = stdout_multi_tot.lines().last().expect("last line is total");
+    assert_eq!(total_multi.trim(), "total: 5");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_summary_dereference_symlinks() {
+    let temp = TempTestDir::new("summary_deref");
+    temp.create_dir("actual_dir");
+    temp.create_file("actual_file.txt", b"content");
+    temp.create_symlink("actual_dir", "dir_link");
+    temp.create_symlink("actual_file.txt", "file_link");
+    temp.create_symlink("nonexistent", "broken_link");
+
+    // Without -X: 1 directory, 1 file, 3 symlinks (5 total)
+    let output_no_deref = Command::new(bin_path())
+        .args([
+            "-l",
+            "--summary",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_no_deref.status.success());
+    let stdout_no = String::from_utf8_lossy(&output_no_deref.stdout);
+    let summary_no = stdout_no.lines().last().unwrap().trim();
+    assert_eq!(summary_no, "1 directory, 1 file, 3 symlinks (5 total)");
+
+    // With -X (--dereference):
+    // dir_link -> directory (so 2 directories)
+    // file_link -> file (so 2 files)
+    // broken_link -> symlink (1 symlink)
+    // Total: 2 directories, 2 files, 1 symlink (5 total)
+    let output_deref = Command::new(bin_path())
+        .args([
+            "-l",
+            "-X",
+            "--summary",
+            "--color=never",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+    assert!(output_deref.status.success());
+    let stdout_deref = String::from_utf8_lossy(&output_deref.stdout);
+    let summary_deref = stdout_deref.lines().last().unwrap().trim();
+    assert_eq!(summary_deref, "2 directories, 2 files, 1 symlink (5 total)");
+}

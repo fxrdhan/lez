@@ -182,3 +182,47 @@ fn test_quotes_always_quotes_paths_even_without_spaces() {
         "--quotes=always should quote path even without spaces"
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn test_symlink_target_quotes_always_quotes_target() {
+    use std::os::unix::fs::symlink;
+    let temp = TempTestDir::new("symlink_quotes_always");
+    temp.create_file("target.txt", b"hello");
+    symlink("target.txt", temp.path().join("link")).unwrap();
+
+    let output = Command::new(bin_path())
+        .current_dir(temp.path())
+        .args(["-l", "--color=never", "--quotes=always", "link"])
+        .output()
+        .expect("failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("'link' -> 'target.txt'"),
+        "Expected link and target both quoted under --quotes=always, got: {stdout}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_symlink_target_quotes_never_suppresses_quotes_on_target_with_space() {
+    use std::os::unix::fs::symlink;
+    let temp = TempTestDir::new("symlink_quotes_never");
+    temp.create_file("target file.txt", b"hello");
+    symlink("target file.txt", temp.path().join("link file")).unwrap();
+
+    let output = Command::new(bin_path())
+        .current_dir(temp.path())
+        .args(["-l", "--color=never", "--quotes=never", "link file"])
+        .output()
+        .expect("failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("link file -> target file.txt"),
+        "Expected link and target unquoted under --quotes=never, got: {stdout}"
+    );
+}

@@ -589,3 +589,203 @@ fn test_json_long_duplicate_filenames_across_paths() {
         "Both files must have distinct keys in JSON map: {stdout}"
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn test_json_smart_group_emits_actual_group_never_colon() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempTestDir::new("json_sg_never_colon");
+    temp.create_file("file1.txt", b"hello");
+    temp.create_file("file2.txt", b"world");
+
+    let output = Command::new(bin_path)
+        .args(["-l", "--smart-group", "--json", temp.path.to_str().unwrap()])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let val: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
+    let obj = val.as_object().expect("Expected JSON map");
+
+    for (filename, file_meta) in obj {
+        let meta = file_meta.as_object().expect("Metadata object");
+        let group = meta
+            .get("Group")
+            .unwrap_or_else(|| panic!("File {filename} missing Group field"))
+            .as_str()
+            .expect("Group field must be a string");
+
+        assert_ne!(
+            group, ":",
+            "JSON group field must be the real group name or GID, never a colon ':'"
+        );
+        assert!(!group.is_empty(), "JSON group field must not be empty");
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn test_json_smart_group_with_numeric_emits_gid() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempTestDir::new("json_sg_numeric");
+    temp.create_file("alpha.txt", b"alpha");
+
+    let output = Command::new(bin_path)
+        .args([
+            "-l",
+            "--smart-group",
+            "--numeric",
+            "--json",
+            temp.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let val: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
+    let obj = val.as_object().expect("Expected JSON map");
+
+    for (filename, file_meta) in obj {
+        let meta = file_meta.as_object().expect("Metadata object");
+        let group = meta
+            .get("Group")
+            .unwrap_or_else(|| panic!("File {filename} missing Group field"))
+            .as_str()
+            .expect("Group field must be a string");
+
+        assert_ne!(
+            group, ":",
+            "JSON numeric group field must not be a colon ':'"
+        );
+        assert!(
+            group.chars().all(|c| c.is_ascii_digit()),
+            "Numeric JSON group must consist of ASCII digits, got: {group}"
+        );
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn test_json_smart_group_when_user_matches_group() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    // Search candidates where file owner user name commonly matches group name
+    // (e.g. /dev/oslog on macOS (_logd:_logd), or system entries on Linux).
+    let candidates = [
+        "/dev/oslog",
+        "/dev/zero",
+        "/dev/null",
+        "/etc/passwd",
+        "/bin/sh",
+        "/usr/bin/env",
+    ];
+
+    let mut matching_path = None;
+    for path in candidates {
+        if std::path::Path::new(path).exists() {
+            let check = Command::new(bin_path)
+                .args(["-ld", "--smart-group", path])
+                .output();
+            if let Ok(out) = check
+                && out.status.success()
+            {
+                let text = String::from_utf8_lossy(&out.stdout);
+                // In smart-group table mode, matching user and group shows a colon ":"
+                if text.contains(" : ") {
+                    matching_path = Some(path);
+                    break;
+                }
+            }
+        }
+    }
+
+    if let Some(target) = matching_path {
+        // 1. Get baseline JSON with plain --group
+        let baseline_out = Command::new(bin_path)
+            .args(["-ld", "--group", "--json", target])
+            .output()
+            .expect("Failed to run baseline lez");
+        assert!(baseline_out.status.success());
+        let baseline_json: serde_json::Value =
+            serde_json::from_slice(&baseline_out.stdout).expect("Valid baseline JSON");
+        let baseline_obj = baseline_json
+            .as_object()
+            .expect("Expected JSON map")
+            .values()
+            .next()
+            .expect("File entry")
+            .as_object()
+            .expect("Metadata object");
+        let expected_group = baseline_obj
+            .get("Group")
+            .expect("Baseline Group field")
+            .as_str()
+            .expect("Group is str");
+        assert_ne!(expected_group, ":");
+
+        // 2. Run with --smart-group --json
+        let smart_out = Command::new(bin_path)
+            .args(["-ld", "--smart-group", "--json", target])
+            .output()
+            .expect("Failed to run smart-group lez");
+        assert!(smart_out.status.success());
+        let smart_json: serde_json::Value =
+            serde_json::from_slice(&smart_out.stdout).expect("Valid smart-group JSON");
+        let smart_obj = smart_json
+            .as_object()
+            .expect("Expected JSON map")
+            .values()
+            .next()
+            .expect("File entry")
+            .as_object()
+            .expect("Metadata object");
+        let smart_group = smart_obj
+            .get("Group")
+            .expect("Smart Group field")
+            .as_str()
+            .expect("Group is str");
+
+        assert_ne!(
+            smart_group, ":",
+            "JSON group must NEVER be ':' when user matches group under --smart-group"
+        );
+        assert_eq!(
+            smart_group, expected_group,
+            "JSON group under --smart-group must match the true group name"
+        );
+
+        // 3. Run with --smart-group --numeric --json
+        let num_out = Command::new(bin_path)
+            .args(["-ld", "--smart-group", "--numeric", "--json", target])
+            .output()
+            .expect("Failed to run numeric smart-group lez");
+        assert!(num_out.status.success());
+        let num_json: serde_json::Value =
+            serde_json::from_slice(&num_out.stdout).expect("Valid numeric JSON");
+        let num_obj = num_json
+            .as_object()
+            .expect("Expected JSON map")
+            .values()
+            .next()
+            .expect("File entry")
+            .as_object()
+            .expect("Metadata object");
+        let num_group = num_obj
+            .get("Group")
+            .expect("Numeric Group field")
+            .as_str()
+            .expect("Numeric group is str");
+
+        assert_ne!(
+            num_group, ":",
+            "JSON numeric group must NEVER be ':' under --smart-group"
+        );
+        assert!(
+            num_group.chars().all(|c| c.is_ascii_digit()),
+            "Numeric group must consist of ASCII digits, got: {num_group}"
+        );
+    }
+}

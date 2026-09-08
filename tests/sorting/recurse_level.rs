@@ -318,6 +318,51 @@ fn test_recurse_level_json_mode() {
 }
 
 #[test]
+fn test_tree_json_mode() {
+    let fixture = TempTestDir::new("tree_json");
+    fixture.create_file("treetest/file1.txt", b"1");
+    fixture.create_file("treetest/sub1/file2.txt", b"2");
+    fixture.create_file("treetest/sub1/sub2/file3.txt", b"3");
+
+    let target_dir = fixture.path.join("treetest");
+
+    // Full tree JSON without --level
+    let output = run_lez(&["--tree", "--json", target_dir.to_str().unwrap()]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Valid JSON for --tree --json");
+    let treetest_obj = &parsed["treetest"];
+    assert!(treetest_obj.get("files").is_some());
+    assert!(treetest_obj.get("directories").is_some());
+    let sub1_obj = &treetest_obj["directories"]["sub1"];
+    assert!(sub1_obj.get("files").is_some());
+    assert!(sub1_obj.get("directories").is_some());
+    let sub2_obj = &sub1_obj["directories"]["sub2"];
+    assert!(sub2_obj.get("files").is_some());
+
+    // Tree with --level=2
+    let output_l2 = run_lez(&[
+        "--tree",
+        "--level=2",
+        "--json",
+        target_dir.to_str().unwrap(),
+    ]);
+    assert!(output_l2.status.success());
+    let stdout_l2 = String::from_utf8_lossy(&output_l2.stdout);
+    let parsed_l2: serde_json::Value =
+        serde_json::from_str(&stdout_l2).expect("Valid JSON for --tree --level=2 --json");
+    let treetest_obj2 = &parsed_l2["treetest"];
+    assert!(treetest_obj2.get("directories").is_some());
+    let sub1_obj2 = &treetest_obj2["directories"]["sub1"];
+    assert!(sub1_obj2.get("files").is_some());
+    assert!(
+        sub1_obj2.get("directories").is_none(),
+        "Level 2 tree JSON should not contain sub2 directories"
+    );
+}
+
+#[test]
 fn test_recurse_level_with_empty_directories() {
     let fixture = TempTestDir::new("empty_dirs");
     fixture.create_dir("parent/empty_child1");
