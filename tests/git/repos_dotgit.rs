@@ -363,3 +363,32 @@ fn test_f2_empty_repo_dotgit_no_subrepo_status() {
         "Empty repo .git directory must not display branch indicator: {dotgit_line}"
     );
 }
+
+#[test]
+fn test_git_repos_nested_child_repo_under_tree() {
+    let Some(repo) = TempGitRepo::new("nested_repo_test") else {
+        return;
+    };
+    repo.write_file("parent_file.txt", b"parent\n");
+    // Create nested child repo at depth 2 (sub/child_repo)
+    repo.create_subrepo("sub/child_repo");
+
+    let output = run_lez(&[
+        "-l",
+        "--tree",
+        "--git-repos",
+        "--color=never",
+        repo.path.to_str().unwrap(),
+    ]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let child_line = stdout
+        .lines()
+        .find(|l| l.contains("child_repo"))
+        .unwrap_or_else(|| panic!("child_repo entry not found in tree output:\n{stdout}"));
+    assert!(
+        child_line.contains("master") || child_line.contains("main"),
+        "Nested child repo in tree view must show branch name: {child_line}"
+    );
+}
