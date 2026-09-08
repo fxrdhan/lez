@@ -435,7 +435,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                         target_parent,
                         &target_display_name,
                         target_style,
-                        QuoteStyle::Auto,
+                        self.options.quote_style,
                     );
 
                     if should_add_classify_char && let Some(class) = self.classify_char(target) {
