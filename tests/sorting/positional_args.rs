@@ -582,3 +582,27 @@ fn test_positional_dirs_treated_as_files_sort() {
     let lines_dirs_first: Vec<&str> = stdout_dirs_first.lines().collect();
     assert_eq!(lines_dirs_first, vec!["dir_a", "dir_z", "file_m.txt"]);
 }
+
+#[cfg(unix)]
+#[test]
+fn test_sort_extension_with_dereference_directory_symlink() {
+    use std::os::unix::fs::symlink;
+    let temp = TempTestDir::new("sort_ext_deref");
+    temp.create_dir("real_dir");
+    temp.create_file("file.aaa", b"content");
+    symlink("real_dir", temp.path.join("link_dir.zzz")).unwrap();
+
+    // 1. Without -X: link_dir.zzz has extension "zzz", which sorts after "aaa"
+    let out_no_deref = run_lez_in(&temp.path, &["-1", "--sort=ext", "--color=never"]);
+    assert!(out_no_deref.status.success());
+    let stdout1 = String::from_utf8_lossy(&out_no_deref.stdout);
+    let lines1: Vec<&str> = stdout1.lines().collect();
+    assert_eq!(lines1, vec!["real_dir", "file.aaa", "link_dir.zzz"]);
+
+    // 2. With -X: link_dir.zzz is dereferenced to a directory, so its extension is ignored (None < "aaa")
+    let out_deref = run_lez_in(&temp.path, &["-1", "-X", "--sort=ext", "--color=never"]);
+    assert!(out_deref.status.success());
+    let stdout2 = String::from_utf8_lossy(&out_deref.stdout);
+    let lines2: Vec<&str> = stdout2.lines().collect();
+    assert_eq!(lines2, vec!["link_dir.zzz", "real_dir", "file.aaa"]);
+}

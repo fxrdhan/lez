@@ -738,8 +738,18 @@ impl SortField {
 
             Self::Extension(case) => {
                 // Ignore extensions for directories when sorting.
-                let left = if a.is_directory() { &None } else { &a.ext };
-                let right = if b.is_directory() { &None } else { &b.ext };
+                let a_is_dir = if a.deref_links {
+                    a.points_to_directory()
+                } else {
+                    a.is_directory()
+                };
+                let b_is_dir = if b.deref_links {
+                    b.points_to_directory()
+                } else {
+                    b.is_directory()
+                };
+                let left = if a_is_dir { &None } else { &a.ext };
+                let right = if b_is_dir { &None } else { &b.ext };
                 let ext_order = match (left, right) {
                     (None, None) => Ordering::Equal,
                     (None, Some(_)) => Ordering::Less,
