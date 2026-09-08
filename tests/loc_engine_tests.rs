@@ -17,5 +17,7 @@ mod no_language;
 mod percent_digits;
 #[path = "loc_engine/sorting_and_tree.rs"]
 mod sorting_and_tree;
+#[path = "loc_engine/symlink_dereference.rs"]
+mod symlink_dereference;
 #[path = "loc_engine/syntax_edge_cases.rs"]
 mod syntax_edge_cases;
