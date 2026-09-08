@@ -189,7 +189,7 @@ impl Options {
         let view = View::deduce(matches, vars, strict, config)?;
         let dir_action = DirAction::deduce(
             matches,
-            matches!(view.mode, Mode::Details(_)),
+            matches!(view.mode, Mode::Details(_) | Mode::Json(_)),
             strict,
             config,
         )?;

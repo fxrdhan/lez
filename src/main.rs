@@ -19,6 +19,7 @@ use std::process::exit;
 use log::*;
 use nu_ansi_term::{AnsiStrings as ANSIStrings, Style};
 
+use lez::fs::dir_action::DirAction;
 use lez::fs::feature::git::GitCache;
 use lez::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
 use lez::fs::{Dir, File, shell_globs};
@@ -408,7 +409,13 @@ impl Lez<'_> {
                 continue;
             }
 
-            if f.points_to_directory() && !self.options.dir_action.treat_dirs_as_files() {
+            let treat_as_file = match self.options.dir_action {
+                DirAction::AsFile => true,
+                DirAction::Recurse(o) => o.tree && !matches!(self.options.view.mode, Mode::Json(_)),
+                DirAction::List => false,
+            };
+
+            if f.points_to_directory() && !treat_as_file {
                 trace!("matching on new Dir");
                 dir_files.push(f);
             } else {

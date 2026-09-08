@@ -232,7 +232,7 @@ impl<'a> Render<'a> {
 
             let follow_links = self.view.follow_links;
             if let Some(recurse_opts) = recurse_opts {
-                if !recurse_opts.tree && !recurse_opts.is_too_deep(child_depth) {
+                if !recurse_opts.is_too_deep(child_depth) {
                     let mut child_dirs = files
                         .iter()
                         .filter(|f| {
