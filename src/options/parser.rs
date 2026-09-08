@@ -138,9 +138,11 @@ pub fn get_command() -> clap::Command {
             .require_equals(true)
             .value_parser(value_parser!(ShowWhen))
             .default_missing_value("auto")
-            .hide_default_value(true))
+            .hide_default_value(true)
+            .overrides_with("no-quotes"))
         .arg(arg!(--"no-quotes" "don't quote file names with spaces")
-            .hide(true))
+            .hide(true)
+            .overrides_with("quotes"))
         .arg(arg!(--"short-nix" "abbreviate Nix store hashes in file names and paths"))
         .arg(arg!(--"no-symlink-targets" "do not show symlink targets (the `-> ...`)"))
         .arg(arg!(--summary "display total summary statistics of entries"))
@@ -238,9 +240,9 @@ pub fn get_command() -> clap::Command {
             .overrides_with("no-git"))
         .arg(arg!(--"git-glyphs" "display Git status with Nerd Font glyphs / icons"))
         .arg(arg!(--"git-repos" "list root of git-tree status")
-            .overrides_with("git-repos-no-status"))
+            .overrides_with_all(["git-repos-no-status", "no-git"]))
         .arg(arg!(--"git-repos-no-status" "list each git-repos branch name (much faster)")
-            .overrides_with("git-repos"))
+            .overrides_with_all(["git-repos", "no-git"]))
         .arg(arg!(-M --mounts "show mount details (Linux and macOS only)"))
         .arg(arg!(-'@' --extended "list each file's extended attributes and sizes"))
         .arg(arg!(--"no-extended" "don't show the marker that a file has extended attributes"))
@@ -258,7 +260,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"no-time" "suppress the time field"))
         .arg(arg!(--"no-language" "suppress the language field in --loc"))
         .arg(arg!(--"no-git" "suppress Git fields (overrides --git, --git-repos, --git-repos-no-status, --git-ignore)")
-            .overrides_with("git"))
+            .overrides_with_all(["git", "git-repos", "git-repos-no-status"]))
         .arg(arg!(--"print-total" "display total number of entries"))
 }
 
@@ -1323,5 +1325,23 @@ pub mod test {
         let cli8 = mock_cli(vec!["--git-repos-no-status", "--git-repos"]);
         assert!(cli8.get_flag("git-repos"));
         assert!(!cli8.get_flag("git-repos-no-status"));
+
+        // --no-git / --git-repos
+        let cli9 = mock_cli(vec!["--git-repos", "--no-git"]);
+        assert!(!cli9.get_flag("git-repos"));
+        assert!(cli9.get_flag("no-git"));
+
+        let cli10 = mock_cli(vec!["--no-git", "--git-repos"]);
+        assert!(cli10.get_flag("git-repos"));
+        assert!(!cli10.get_flag("no-git"));
+
+        // --quotes / --no-quotes
+        let cli13 = mock_cli(vec!["--quotes=always", "--no-quotes"]);
+        assert!(!cli13.contains_id("quotes"));
+        assert!(cli13.get_flag("no-quotes"));
+
+        let cli14 = mock_cli(vec!["--no-quotes", "--quotes=always"]);
+        assert!(cli14.contains_id("quotes"));
+        assert!(!cli14.get_flag("no-quotes"));
     }
 }
