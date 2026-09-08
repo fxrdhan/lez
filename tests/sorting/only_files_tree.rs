@@ -167,3 +167,35 @@ fn recursive_lines_mode_hides_directory_entries() {
         );
     }
 }
+
+#[test]
+fn tree_with_only_files_summary_and_total_match_displayed_files() {
+    let fixture = fixture("tree_summary");
+
+    let output_summary = run_lez(&[
+        "-T",
+        "-f",
+        "--summary",
+        "--color=never",
+        fixture.path.to_str().unwrap(),
+    ]);
+    assert!(output_summary.status.success());
+    let stdout_summary = String::from_utf8_lossy(&output_summary.stdout);
+    let summary_line = stdout_summary.lines().last().expect("summary line");
+    assert_eq!(
+        summary_line.trim(),
+        "0 directories, 3 files, 0 symlinks (3 total)"
+    );
+
+    let output_total = run_lez(&[
+        "-T",
+        "-f",
+        "--print-total",
+        "--color=never",
+        fixture.path.to_str().unwrap(),
+    ]);
+    assert!(output_total.status.success());
+    let stdout_total = String::from_utf8_lossy(&output_total.stdout);
+    let total_line = stdout_total.lines().last().expect("total line");
+    assert_eq!(total_line.trim(), "total: 3");
+}
