@@ -789,3 +789,124 @@ fn test_json_smart_group_when_user_matches_group() {
         );
     }
 }
+
+#[test]
+#[cfg(unix)]
+fn test_json_symlink_cycle_does_not_hang() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempTestDir::new("json_symlink_cycle");
+    let sub = temp.create_dir("sub");
+    temp.create_file("sub/hello.txt", b"hello");
+    let loop_link = sub.join("loop");
+    std::os::unix::fs::symlink(&sub, &loop_link).unwrap();
+
+    let output = Command::new(bin_path)
+        .args(["-R", "--json", sub.to_str().unwrap()])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let val: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
+    assert!(val.is_object());
+}
+
+#[test]
+#[cfg(unix)]
+fn test_json_permission_denied_exit_code_and_json() {
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    use std::os::unix::fs::PermissionsExt;
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempTestDir::new("json_perm_denied");
+    let restricted = temp.create_dir("restricted");
+    temp.create_file("restricted/secret.txt", b"secret");
+
+    let orig_perms = fs::metadata(&restricted).unwrap().permissions();
+    let mut no_perms = orig_perms.clone();
+    no_perms.set_mode(0o000);
+    fs::set_permissions(&restricted, no_perms).unwrap();
+
+    let output = Command::new(bin_path)
+        .args(["--json", restricted.to_str().unwrap()])
+        .output()
+        .expect("Failed to run lez");
+
+    // Restore permissions so drop cleanup succeeds
+    let mut restore_perms = orig_perms;
+    restore_perms.set_mode(0o755);
+    let _ = fs::set_permissions(&restricted, restore_perms);
+
+    assert_eq!(
+        output.status.code(),
+        Some(13),
+        "Must exit with code 13 (PERMISSION_DENIED) on permission error"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let val: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!("Stdout should be valid JSON even on error: {e}, stdout: {stdout}")
+    });
+    assert!(val.is_object() || val.is_array());
+}
+
+#[test]
+fn test_json_multi_dir_same_basename() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempTestDir::new("json_same_basename");
+    let p1 = temp.create_dir("parent1/common");
+    let p2 = temp.create_dir("parent2/common");
+    temp.create_file("parent1/common/a.txt", b"a");
+    temp.create_file("parent2/common/b.txt", b"b");
+
+    let output = Command::new(bin_path)
+        .args(["--json", p1.to_str().unwrap(), p2.to_str().unwrap()])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let val: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
+    let obj = val.as_object().expect("Expected JSON map");
+    assert_eq!(
+        obj.len(),
+        2,
+        "Both directories must be represented in JSON map: {stdout}"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_json_symlink_target_field() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempTestDir::new("json_symlink_target");
+    let target = temp.create_file("target.txt", b"target");
+    let link_path = temp.path.join("link.txt");
+    std::os::unix::fs::symlink(&target, &link_path).unwrap();
+
+    let output = Command::new(bin_path)
+        .args(["-l", "--json", link_path.to_str().unwrap()])
+        .output()
+        .expect("Failed to run lez");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let val: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
+    let obj = val.as_object().expect("JSON object");
+    let link_meta = obj
+        .get("link.txt")
+        .expect("link.txt entry")
+        .as_object()
+        .expect("meta object");
+    assert!(
+        link_meta.contains_key("Target"),
+        "JSON metadata for symlink must contain 'Target' field: {stdout}"
+    );
+    assert_eq!(
+        link_meta.get("Target").unwrap().as_str().unwrap(),
+        target.to_str().unwrap()
+    );
+}

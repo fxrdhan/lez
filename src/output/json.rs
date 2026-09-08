@@ -17,7 +17,7 @@ use crate::fs::dir_action::DirAction;
 use crate::fs::feature::git::GitCache;
 use crate::fs::fields as f;
 use crate::fs::filter::FileFilter;
-use crate::fs::{self, Dir, DotFilter, File};
+use crate::fs::{Dir, DotFilter, File};
 use crate::loc::count_roots;
 use crate::options::parser::CodeContent;
 use crate::output::View;
@@ -84,8 +84,8 @@ impl<'a> Render<'a> {
         files: Vec<File<'a>>,
         mut dirs: Vec<Dir>,
         w: &mut W,
-    ) -> io::Result<()> {
-        match (
+    ) -> io::Result<i32> {
+        let status = match (
             files.len(),
             dirs.len(),
             self.dir_action.recurse_options().is_some(),
@@ -93,14 +93,25 @@ impl<'a> Render<'a> {
             (0, 1, false) => {
                 // Safe unwrap as we verify before that the len is at least one.
                 let dir = dirs.get_mut(0).unwrap();
-                self.render_directory(dir, w)
+                self.render_directory(dir, w)?
             }
-            (_, 0, _) => self.render_files(files, w),
-            (0, _, true) => self.render_recursive_directories(&mut dirs, false, w, 0),
-            (0, _, _) => self.render_directories(dirs, w),
-            (_, _, recurse) => self.render_files_directories(files, dirs, recurse, w),
-        }?;
-        Ok(())
+            (_, 0, _) => {
+                self.render_files(files, w)?;
+                crate::exits::SUCCESS
+            }
+            (0, _, true) => {
+                let mut visited = std::collections::HashSet::new();
+                for d in &dirs {
+                    if let Ok(canon) = std::fs::canonicalize(&d.path) {
+                        visited.insert(canon);
+                    }
+                }
+                self.render_recursive_directories(&mut dirs, false, w, 0, &visited)?
+            }
+            (0, _, _) => self.render_directories(dirs, w)?,
+            (_, _, recurse) => self.render_files_directories(files, dirs, recurse, w)?,
+        };
+        Ok(status)
     }
 
     fn render_files<W: Write>(&self, files: Vec<File<'a>>, w: &mut W) -> io::Result<()> {
@@ -156,8 +167,26 @@ impl<'a> Render<'a> {
         Ok(())
     }
 
-    fn render_directory<W: Write>(&self, dir: &'a mut Dir, w: &mut W) -> io::Result<()> {
-        let dir = dir.read()?;
+    fn render_directory<W: Write>(&self, dir: &'a mut Dir, w: &mut W) -> io::Result<i32> {
+        let dir_path = dir.path.clone();
+        let dir = match dir.read() {
+            Ok(d) => d,
+            Err(e) => {
+                let _ = writeln!(
+                    io::stderr(),
+                    "Permission denied: {} - code: {}",
+                    dir_path.display(),
+                    crate::exits::PERMISSION_DENIED
+                );
+                write!(w, "[]")?;
+                let status = if e.kind() == io::ErrorKind::PermissionDenied {
+                    crate::exits::PERMISSION_DENIED
+                } else {
+                    crate::exits::RUNTIME_ERROR
+                };
+                return Ok(status);
+            }
+        };
         let mut files: Vec<File<'a>> = dir
             .files(
                 self.dots,
@@ -178,7 +207,7 @@ impl<'a> Render<'a> {
 
         self.render_files(files, w)?;
 
-        Ok(())
+        Ok(crate::exits::SUCCESS)
     }
 
     fn render_recursive_directories<W: Write>(
@@ -187,29 +216,58 @@ impl<'a> Render<'a> {
         sub_dir: bool,
         w: &mut W,
         depth: usize,
-    ) -> io::Result<()> {
+        ancestors: &std::collections::HashSet<PathBuf>,
+    ) -> io::Result<i32> {
         write!(w, "{{")?;
         let mut first = true;
+        let mut exit_status = crate::exits::SUCCESS;
+        let has_name_collision = {
+            let mut set = std::collections::HashSet::new();
+            dirs.iter().any(|d| {
+                let name = d.path.file_name().map(|n| n.to_string_lossy().to_string());
+                !set.insert(name)
+            })
+        };
+
         for dir in dirs {
+            let dir_path = dir.path.clone();
             if first {
                 first = false;
             } else {
                 write!(w, ",")?;
             }
-            if sub_dir {
-                let key = serde_json::to_string(&dir.path.display().to_string())
-                    .unwrap_or_else(|_| format!("\"{}\"", dir.path.display()));
+            if sub_dir || has_name_collision {
+                let key = serde_json::to_string(&dir_path.display().to_string())
+                    .unwrap_or_else(|_| format!("\"{}\"", dir_path.display()));
                 write!(w, "{key}:{{")?;
             } else {
-                let name = dir
-                    .path
+                let name = dir_path
                     .file_name()
                     .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| dir.path.display().to_string());
+                    .unwrap_or_else(|| dir_path.display().to_string());
                 let key = serde_json::to_string(&name).unwrap_or_else(|_| format!("\"{}\"", name));
                 write!(w, "{key}:{{")?;
             }
-            let dir_r = dir.read()?;
+
+            let dir_r = match dir.read() {
+                Ok(r) => r,
+                Err(e) => {
+                    let _ = writeln!(
+                        io::stderr(),
+                        "Permission denied: {} - code: {}",
+                        dir_path.display(),
+                        crate::exits::PERMISSION_DENIED
+                    );
+                    if e.kind() == io::ErrorKind::PermissionDenied {
+                        exit_status = crate::exits::PERMISSION_DENIED;
+                    } else if exit_status == crate::exits::SUCCESS {
+                        exit_status = crate::exits::RUNTIME_ERROR;
+                    }
+                    write!(w, "\"files\":[], \"directories\":{{}}}}")?;
+                    continue;
+                }
+            };
+
             let mut files: Vec<File<'a>> = dir_r
                 .files(
                     self.dots,
@@ -233,22 +291,45 @@ impl<'a> Render<'a> {
             let follow_links = self.view.follow_links;
             if let Some(recurse_opts) = recurse_opts {
                 if !recurse_opts.is_too_deep(child_depth) {
-                    let mut child_dirs = files
-                        .iter()
-                        .filter(|f| {
-                            (if follow_links {
-                                f.points_to_directory()
-                            } else {
-                                f.is_directory()
-                            }) && !f.is_all_all
-                        })
-                        .map(fs::File::to_dir)
-                        .collect::<Vec<Dir>>();
+                    let mut child_dirs = Vec::new();
+                    let mut next_ancestors = ancestors.clone();
+                    if let Ok(canon) = std::fs::canonicalize(&dir_path) {
+                        next_ancestors.insert(canon);
+                    }
+
+                    for f in &files {
+                        let is_dir_target = (if follow_links {
+                            f.points_to_directory()
+                        } else {
+                            f.is_directory()
+                        }) && !f.is_all_all;
+
+                        if is_dir_target {
+                            if follow_links
+                                && f.is_link()
+                                && let Ok(canon) = std::fs::canonicalize(&f.path)
+                                && next_ancestors.contains(&canon)
+                            {
+                                debug!("Skipping symlink cycle for {:?}", f.path);
+                                continue;
+                            }
+                            child_dirs.push(f.to_dir());
+                        }
+                    }
 
                     write!(w, "\"files\":")?;
                     self.render_files(files, w)?;
                     write!(w, ", \"directories\":")?;
-                    self.render_recursive_directories(&mut child_dirs, false, w, child_depth)?;
+                    let child_status = self.render_recursive_directories(
+                        &mut child_dirs,
+                        false,
+                        w,
+                        child_depth,
+                        &next_ancestors,
+                    )?;
+                    if child_status != crate::exits::SUCCESS {
+                        exit_status = child_status;
+                    }
                 } else {
                     write!(w, "\"files\":")?;
                     self.render_files(files, w)?;
@@ -260,12 +341,13 @@ impl<'a> Render<'a> {
             write!(w, "}}")?;
         }
         write!(w, "}}")?;
-        Ok(())
+        Ok(exit_status)
     }
 
-    fn render_directories<W: Write>(&self, dirs: Vec<Dir>, w: &mut W) -> io::Result<()> {
+    fn render_directories<W: Write>(&self, dirs: Vec<Dir>, w: &mut W) -> io::Result<i32> {
         write!(w, "{{")?;
         let mut first = true;
+        let mut exit_status = crate::exits::SUCCESS;
         for mut dir in dirs {
             if first {
                 first = false;
@@ -275,10 +357,13 @@ impl<'a> Render<'a> {
             let key = serde_json::to_string(&dir.path.display().to_string())
                 .unwrap_or_else(|_| format!("\"{}\"", dir.path.display()));
             write!(w, "{key}:")?;
-            self.render_directory(&mut dir, w)?;
+            let status = self.render_directory(&mut dir, w)?;
+            if status != crate::exits::SUCCESS {
+                exit_status = status;
+            }
         }
         write!(w, "}}")?;
-        Ok(())
+        Ok(exit_status)
     }
 
     fn render_files_directories<W: Write>(
@@ -287,17 +372,23 @@ impl<'a> Render<'a> {
         mut dirs: Vec<Dir>,
         recurse: bool,
         w: &mut W,
-    ) -> io::Result<()> {
+    ) -> io::Result<i32> {
         write!(w, "{{\"files\":")?;
         self.render_files(files, w)?;
         write!(w, ", \"directories\":")?;
-        if recurse {
-            self.render_recursive_directories(&mut dirs, false, w, 0)?;
+        let status = if recurse {
+            let mut visited = std::collections::HashSet::new();
+            for d in &dirs {
+                if let Ok(canon) = std::fs::canonicalize(&d.path) {
+                    visited.insert(canon);
+                }
+            }
+            self.render_recursive_directories(&mut dirs, false, w, 0, &visited)?
         } else {
-            self.render_directories(dirs, w)?;
-        }
+            self.render_directories(dirs, w)?
+        };
         write!(w, "}}")?;
-        Ok(())
+        Ok(status)
     }
 
     fn render_file(&self, f: &File<'a>, code_loc: Option<usize>) -> String {
@@ -349,20 +440,28 @@ struct JsonFileObject<'a> {
     pub git: Option<&'a GitCache>,
 
     code_loc: Option<usize>,
+
+    target: Option<String>,
 }
 
 impl<'a> JsonFileObject<'a> {
     /// Render a json object with the columns in the map
     fn render(self) -> String {
-        self.internal
+        let mut entries: Vec<String> = self
+            .internal
             .iter()
             .map(|(c, v)| {
                 let header = serde_json::to_string(c.header())
                     .unwrap_or_else(|_| format!("\"{}\"", c.header()));
                 format!("{header}: {v}")
             })
-            .collect::<Vec<String>>()
-            .join(",")
+            .collect();
+        if let Some(target) = self.target {
+            let escaped =
+                serde_json::to_string(&target).unwrap_or_else(|_| format!("\"{target}\""));
+            entries.push(format!("\"Target\": {escaped}"));
+        }
+        entries.join(",")
     }
 
     fn create_for_file(
@@ -374,11 +473,20 @@ impl<'a> JsonFileObject<'a> {
         git: Option<&'a GitCache>,
         code_loc: Option<usize>,
     ) -> Self {
+        let target = if f.is_link() {
+            std::fs::read_link(&f.path)
+                .ok()
+                .map(|p| p.display().to_string())
+        } else {
+            None
+        };
+
         let mut res = Self {
             internal: vec![],
             options,
             git,
             code_loc,
+            target,
         };
 
         columns

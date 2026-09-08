@@ -5,6 +5,7 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 #[allow(unused_variables, unused_imports)]
+pub mod exits;
 pub mod fs;
 pub mod info;
 #[allow(dead_code)]

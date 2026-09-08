@@ -440,8 +440,13 @@ impl Lez<'_> {
                 &self.options,
             );
 
-            r.render(files, dirs, &mut self.writer)?;
-            return Ok(exit_status);
+            let render_exit = r.render(files, dirs, &mut self.writer)?;
+            let final_exit = if exit_status != exits::SUCCESS {
+                exit_status
+            } else {
+                render_exit
+            };
+            return Ok(final_exit);
         }
 
         self.print_files(None, files)?;
@@ -787,23 +792,7 @@ impl Lez<'_> {
     }
 }
 
-mod exits {
-
-    /// Exit code for when lez runs OK.
-    pub const SUCCESS: i32 = 0;
-
-    /// Exit code for when there was at least one I/O error during execution.
-    pub const RUNTIME_ERROR: i32 = 1;
-
-    /// Exit code for when a specified input path does not exist.
-    pub const MISSING_INPUT_PATH: i32 = 2;
-
-    /// Exit code for when the command-line options are invalid.
-    pub const OPTIONS_ERROR: i32 = 3;
-
-    /// Exit code for missing file permissions
-    pub const PERMISSION_DENIED: i32 = 13;
-}
+use lez::exits;
 
 #[cfg(test)]
 mod tests {
