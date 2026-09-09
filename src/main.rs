@@ -21,7 +21,10 @@ use nu_ansi_term::{AnsiStrings as ANSIStrings, Style};
 
 use lez::fs::dir_action::DirAction;
 use lez::fs::feature::git::GitCache;
-use lez::fs::filter::{FileFilterFlags::OnlyFiles, GitIgnore};
+use lez::fs::filter::{
+    FileFilterFlags::{OnlyDirs, OnlyFiles},
+    GitIgnore,
+};
 use lez::fs::{Dir, File, shell_globs};
 use lez::logger;
 use lez::options::parser::{get_command, normalize_args};
@@ -351,6 +354,47 @@ impl Lez<'_> {
                 return Ok(exit_status);
             }
 
+            let (mut file_roots, mut dir_roots): (Vec<PathBuf>, Vec<PathBuf>) =
+                roots.into_iter().partition(|p| !p.is_dir());
+
+            if !file_roots.is_empty() && self.options.filter.flags.contains(&OnlyFiles) {
+                dir_roots.clear();
+            }
+
+            if self.options.filter.flags.contains(&OnlyDirs) {
+                file_roots.clear();
+            }
+
+            file_roots.retain(|p| {
+                let name = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                if self.options.filter.is_ignored_path(p, &name) {
+                    return false;
+                }
+                if self.options.filter.since.is_some() {
+                    let Ok(meta) = std::fs::metadata(p) else {
+                        return false;
+                    };
+                    if !self.options.filter.matches_since_metadata(&meta) {
+                        return false;
+                    }
+                }
+                true
+            });
+
+            dir_roots.retain(|p| {
+                let name = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                !self.options.filter.is_ignored_path(p, &name)
+            });
+
+            let mut roots = file_roots;
+            roots.extend(dir_roots);
+
             let r = code::Render {
                 theme: &self.theme,
                 opts: &opts,
@@ -360,6 +404,8 @@ impl Lez<'_> {
                 sort_field: self.options.filter.sort_field,
                 is_explicit_sort: self.options.filter.is_explicit_sort,
                 reverse: self.options.filter.is_reverse(),
+                filter: Some(&self.options.filter),
+                no_git: self.options.no_git,
             };
             r.render(&mut self.writer)?;
             return Ok(exit_status);

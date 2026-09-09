@@ -151,3 +151,147 @@ fn test_code_sub_language_tree_indentation() {
     assert!(stdout.contains("Markdown"));
     assert!(stdout.contains("├── ") || stdout.contains("└── "));
 }
+
+#[test]
+fn test_code_ignore_glob() {
+    let tmp = TempTestDir::new("code_ignore_glob");
+    tmp.create_file("main.rs", b"fn main() {}\n");
+    tmp.create_file("script.py", b"print('hello')\n");
+
+    // Filter out Python with -I
+    let out = Command::new(bin_path())
+        .arg("--code")
+        .arg("-I")
+        .arg("*.py")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Rust"));
+    assert!(!stdout.contains("Python"));
+
+    // Filter out both
+    let out_none = Command::new(bin_path())
+        .arg("--code")
+        .arg("-I")
+        .arg("*.py")
+        .arg("-I")
+        .arg("*.rs")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out_none.status.success());
+    let stdout_none = String::from_utf8_lossy(&out_none.stdout);
+    assert!(stdout_none.contains("No recognised source code found."));
+}
+
+#[test]
+fn test_code_only_files() {
+    let tmp = TempTestDir::new("code_only_files");
+    let file_root = tmp.create_file("root.rs", b"fn main() {}\n");
+    tmp.create_file("nested/child.py", b"print('child')\n");
+
+    let out = Command::new(bin_path())
+        .arg("--code")
+        .arg("-f")
+        .arg(&file_root)
+        .arg(tmp.path().join("nested"))
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Rust"));
+    assert!(!stdout.contains("Python"));
+}
+
+#[test]
+fn test_code_no_git() {
+    let tmp = TempTestDir::new("code_no_git");
+    // Initialize a git repo in tmp
+    let _repo = git2::Repository::init(tmp.path()).unwrap();
+    tmp.create_file(".gitignore", b"ignored.py\n");
+    tmp.create_file("main.rs", b"fn main() {}\n");
+    tmp.create_file("ignored.py", b"print('ignored')\n");
+
+    // Normal --code honours .gitignore
+    let out_git = Command::new(bin_path())
+        .arg("--code")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out_git.status.success());
+    let stdout_git = String::from_utf8_lossy(&out_git.stdout);
+    assert!(stdout_git.contains("Rust"));
+    assert!(!stdout_git.contains("Python"));
+
+    // --no-git suppresses git checks and counts ignored.py
+    let out_no_git = Command::new(bin_path())
+        .arg("--code")
+        .arg("--no-git")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out_no_git.status.success());
+    let stdout_no_git = String::from_utf8_lossy(&out_no_git.stdout);
+    assert!(stdout_no_git.contains("Rust"));
+    assert!(stdout_no_git.contains("Python"));
+}
+
+#[test]
+fn test_code_since_filter() {
+    let tmp = TempTestDir::new("code_since");
+    let _fresh = tmp.create_file("fresh.rs", b"fn fresh() {}\n");
+    let old = tmp.create_file("old.py", b"print('old')\n");
+
+    // Set old.py mtime to 2 days ago
+    let two_days_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(2 * 86400);
+    let old_f = std::fs::File::options().write(true).open(&old).unwrap();
+    let times = std::fs::FileTimes::new().set_modified(two_days_ago);
+    old_f.set_times(times).unwrap();
+
+    let out = Command::new(bin_path())
+        .arg("--code")
+        .arg("--since")
+        .arg("1h")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Rust"));
+    assert!(!stdout.contains("Python"));
+}
+
+#[test]
+fn test_code_only_dirs() {
+    let tmp = TempTestDir::new("code_only_dirs");
+    tmp.create_file("root.rs", b"fn main() {}\n");
+
+    let out = Command::new(bin_path())
+        .arg("--code")
+        .arg("-D")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("No recognised source code found."));
+}
+
+#[test]
+fn test_code_single_file_root_ignored() {
+    let tmp = TempTestDir::new("code_single_file_root_ignored");
+    let file = tmp.create_file("ignored.rs", b"fn main() {}\n");
+
+    let out = Command::new(bin_path())
+        .arg("--code")
+        .arg("-I")
+        .arg("*.rs")
+        .arg(&file)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("No recognised source code found."));
+}

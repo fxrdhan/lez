@@ -77,6 +77,12 @@ pub struct Render<'a> {
 
     /// Whether to reverse the sort order (ascending vs descending).
     pub reverse: bool,
+
+    /// Optional file filter for glob patterns and timestamps.
+    pub filter: Option<&'a crate::fs::filter::FileFilter>,
+
+    /// Whether Git operations should be completely suppressed.
+    pub no_git: bool,
 }
 
 /// How a summary column lines its contents up.
@@ -107,7 +113,12 @@ impl Cell {
 
 impl Render<'_> {
     pub fn render<W: Write>(self, w: &mut W) -> io::Result<()> {
-        let report = crate::loc::count_roots(&self.roots, self.show_hidden);
+        let report = crate::loc::count_roots_filtered(
+            &self.roots,
+            self.show_hidden,
+            self.filter,
+            self.no_git,
+        );
 
         if report.is_empty() {
             let style = self.theme.ui.punctuation.unwrap_or_default();
