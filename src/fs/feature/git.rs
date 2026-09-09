@@ -38,7 +38,43 @@ pub struct GitCache {
 impl GitCache {
     #[must_use]
     pub fn has_anything_for(&self, index: &Path) -> bool {
-        self.repos.iter().any(|e| e.has_path(index))
+        if index.as_os_str().is_empty() {
+            return false;
+        }
+
+        self.repos.iter().any(|e| {
+            if e.has_path(index)
+                || e.original_path.starts_with(index)
+                || e.workdir.starts_with(index)
+                || index.starts_with(&e.workdir)
+                || e.extra_paths.iter().any(|p| p.starts_with(index))
+            {
+                return true;
+            }
+
+            if let Ok(c_index) = index.canonicalize() {
+                if e.workdir_canonical.starts_with(&c_index)
+                    || c_index.starts_with(&e.workdir_canonical)
+                {
+                    return true;
+                }
+
+                if let Ok(c_orig) = e.original_path.canonicalize()
+                    && (c_orig.starts_with(&c_index) || c_index.starts_with(&c_orig))
+                {
+                    return true;
+                }
+
+                if e.extra_paths.iter().any(|p| {
+                    p.canonicalize()
+                        .is_ok_and(|c_p| c_p.starts_with(&c_index) || c_index.starts_with(&c_p))
+                }) {
+                    return true;
+                }
+            }
+
+            false
+        })
     }
 
     #[must_use]
@@ -1111,11 +1147,51 @@ mod tests {
         let git_cache = GitCache::from_iter(vec![sub_a_path.clone()]);
 
         assert!(git_cache.has_anything_for(&sub_a_path));
+        assert!(
+            git_cache.has_anything_for(&test_repo.path),
+            "parent of repo must match has_anything_for"
+        );
         let status_a = git_cache.get(&file_a, false);
         assert!(status_a.unstaged == f::GitStatus::Modified);
 
         let dir_status_a = git_cache.get(&sub_a_path, true);
         assert!(dir_status_a.unstaged == f::GitStatus::Modified);
+    }
+
+    #[test]
+    fn test_has_anything_for_parent_of_child_repo() {
+        let parent = std::env::temp_dir().join(format!("lez_test_parent_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&parent);
+        fs::create_dir_all(&parent).unwrap();
+
+        let child_repo_path = parent.join("child_repo");
+        let repo = git2::Repository::init(&child_repo_path).unwrap();
+        let sig = git2::Signature::now("Test", "test@test.com").unwrap();
+        let mut index = repo.index().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
+            .unwrap();
+
+        let git_cache = GitCache::from_paths(vec![child_repo_path.clone()], true);
+        assert!(
+            git_cache.has_anything_for(&parent),
+            "Parent non-repo path must match has_anything_for"
+        );
+        assert!(
+            git_cache.has_anything_for(&child_repo_path),
+            "Child repo path itself matches has_anything_for"
+        );
+        let unrelated = std::env::temp_dir().join("lez_unrelated_12345");
+        assert!(
+            !git_cache.has_anything_for(&unrelated),
+            "Unrelated path does not match has_anything_for"
+        );
+        assert!(
+            !git_cache.has_anything_for(Path::new("")),
+            "Empty path does not match has_anything_for"
+        );
+        let _ = fs::remove_dir_all(&parent);
     }
 
     #[test]

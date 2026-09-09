@@ -184,14 +184,12 @@ fn git_options(options: &Options, args: &[&OsStr]) -> Option<GitCache> {
     }
     let mut paths: Vec<PathBuf> = args.iter().map(PathBuf::from).collect();
 
-    // When --git-ignore is on AND we’re recursing, also pre-discover child
-    // Git repositories so their `.gitignore` files are honored during the
-    // traversal. Without this, `lez --tree --git-ignore` run from a parent
-    // of a repository misses that repository’s `.gitignore` because
+    // When we’re recursing, also pre-discover child Git repositories so
+    // their statuses are shown and `.gitignore` files are honored during the
+    // traversal. Without this, `lez -l --git --tree` or `--git-ignore` run from
+    // a parent of a repository misses that repository because
     // `GitRepo::discover` only walks UP from the input paths. See #1086.
-    if options.filter.git_ignore == GitIgnore::CheckAndIgnore
-        && let Some(recurse) = options.dir_action.recurse_options()
-    {
+    if let Some(recurse) = options.dir_action.recurse_options() {
         let max_depth = recurse.max_depth.unwrap_or(usize::MAX);
         let mut extra: Vec<PathBuf> = Vec::new();
         for path in &paths {
