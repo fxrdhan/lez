@@ -189,8 +189,8 @@ fn test_f7_no_git_overrides_git_ignore() {
 }
 
 #[test]
-fn test_f7_no_git_first_overrides_git_ignore() {
-    let Some(repo) = TempGitRepo::new("no_git_first") else {
+fn test_f7_git_ignore_after_no_git_reciprocal_override() {
+    let Some(repo) = TempGitRepo::new("git_ignore_after_no_git") else {
         return;
     };
     repo.write_file(".gitignore", b"ignored.txt\n");
@@ -207,8 +207,8 @@ fn test_f7_no_git_first_overrides_git_ignore() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert!(
-        stdout.contains("ignored.txt"),
-        "--no-git before --git-ignore must override gitignore filtering: {stdout}"
+        !stdout.contains("ignored.txt"),
+        "--git-ignore after --no-git must reciprocally override --no-git and enable gitignore filtering: {stdout}"
     );
 }
 
