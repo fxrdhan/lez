@@ -342,3 +342,57 @@ fn test_trailing_slash_directory_ignore() {
         "Expected package.json to be ignored in:\n{stdout}"
     );
 }
+
+#[test]
+fn test_anchored_glob_depth_isolation() {
+    let temp = TempTestDir::new("anchored_isolation");
+    temp.create_file("file.txt", "root file");
+    temp.create_file("sub/file.txt", "sub file");
+    temp.create_file("build/out.bin", "root build");
+    temp.create_file("sub/build/out.bin", "sub build");
+
+    // 1. Anchored with leading slash: /file.txt
+    let output = run_lez_in(&temp.path, &["-T", "-I", "/file.txt", "--color=never"]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("sub"),
+        "Expected sub directory in:\n{stdout}"
+    );
+    // sub/file.txt must still be listed, while root file.txt is ignored
+    assert_eq!(
+        stdout.matches("file.txt").count(),
+        1,
+        "Expected exactly one file.txt (sub/file.txt) and root file.txt ignored:\n{stdout}"
+    );
+
+    // 2. Anchored with dot-slash: ./build/*
+    let output2 = run_lez_in(&temp.path, &["-T", "-I", "./build/*", "--color=never"]);
+    assert!(output2.status.success());
+    let stdout2 = String::from_utf8_lossy(&output2.stdout);
+    // sub/build/out.bin must still be listed, while root build/out.bin is ignored
+    assert_eq!(
+        stdout2.matches("out.bin").count(),
+        1,
+        "Expected exactly one out.bin (sub/build/out.bin) and root build/out.bin ignored:\n{stdout2}"
+    );
+
+    // 3. Anchored wildcard ./*.txt ignores only root .txt files, keeping sub/file.txt
+    let output3 = run_lez_in(&temp.path, &["-T", "-I", "./*.txt", "--color=never"]);
+    assert!(output3.status.success());
+    let stdout3 = String::from_utf8_lossy(&output3.stdout);
+    assert_eq!(
+        stdout3.matches("file.txt").count(),
+        1,
+        "Expected ./*.txt to ignore root file.txt while preserving sub/file.txt:\n{stdout3}"
+    );
+
+    // 4. Non-tree mode: -I /file.txt ignores root file.txt
+    let output4 = run_lez_in(&temp.path, &["-1", "-I", "/file.txt", "--color=never"]);
+    assert!(output4.status.success());
+    let stdout4 = String::from_utf8_lossy(&output4.stdout);
+    assert!(
+        !stdout4.lines().any(|l| l.trim() == "file.txt"),
+        "Root file.txt must be ignored in non-tree listing:\n{stdout4}"
+    );
+}
