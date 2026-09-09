@@ -16,7 +16,7 @@ use crate::output::render::{GroupRender, OctalPermissionsRender, UserRender};
 use crate::fs::dir_action::DirAction;
 use crate::fs::feature::git::GitCache;
 use crate::fs::fields as f;
-use crate::fs::filter::FileFilter;
+use crate::fs::filter::{FileFilter, FileFilterFlags};
 use crate::fs::{Dir, DotFilter, File};
 use crate::loc::count_roots;
 use crate::options::parser::CodeContent;
@@ -289,6 +289,23 @@ impl<'a> Render<'a> {
             let child_depth = depth + 1;
 
             let follow_links = self.view.follow_links;
+            let (child_dir_files, mut leaf_files): (Vec<File<'a>>, Vec<File<'a>>) =
+                files.into_iter().partition(|f| {
+                    (if follow_links {
+                        f.points_to_directory()
+                    } else {
+                        f.is_directory()
+                    }) && !f.is_all_all
+                });
+
+            if self.file_filter.flags.contains(&FileFilterFlags::OnlyDirs) {
+                leaf_files.clear();
+            }
+
+            if self.file_filter.flags.contains(&FileFilterFlags::OnlyFiles) {
+                leaf_files.retain(|f| !f.points_to_directory());
+            }
+
             if let Some(recurse_opts) = recurse_opts {
                 if !recurse_opts.is_too_deep(child_depth) {
                     let mut child_dirs = Vec::new();
@@ -297,28 +314,20 @@ impl<'a> Render<'a> {
                         next_ancestors.insert(canon);
                     }
 
-                    for f in &files {
-                        let is_dir_target = (if follow_links {
-                            f.points_to_directory()
-                        } else {
-                            f.is_directory()
-                        }) && !f.is_all_all;
-
-                        if is_dir_target {
-                            if follow_links
-                                && f.is_link()
-                                && let Ok(canon) = std::fs::canonicalize(&f.path)
-                                && next_ancestors.contains(&canon)
-                            {
-                                debug!("Skipping symlink cycle for {:?}", f.path);
-                                continue;
-                            }
-                            child_dirs.push(f.to_dir());
+                    for f in child_dir_files {
+                        if follow_links
+                            && f.is_link()
+                            && let Ok(canon) = std::fs::canonicalize(&f.path)
+                            && next_ancestors.contains(&canon)
+                        {
+                            debug!("Skipping symlink cycle for {:?}", f.path);
+                            continue;
                         }
+                        child_dirs.push(f.to_dir());
                     }
 
                     write!(w, "\"files\":")?;
-                    self.render_files(files, w)?;
+                    self.render_files(leaf_files, w)?;
                     write!(w, ", \"directories\":")?;
                     let child_status = self.render_recursive_directories(
                         &mut child_dirs,
@@ -332,11 +341,14 @@ impl<'a> Render<'a> {
                     }
                 } else {
                     write!(w, "\"files\":")?;
-                    self.render_files(files, w)?;
+                    self.render_files(leaf_files, w)?;
+                    if recurse_opts.tree {
+                        write!(w, ", \"directories\":{{}}")?;
+                    }
                 }
             } else {
                 write!(w, "\"files\":")?;
-                self.render_files(files, w)?;
+                self.render_files(leaf_files, w)?;
             }
             write!(w, "}}")?;
         }

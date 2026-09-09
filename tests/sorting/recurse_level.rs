@@ -357,8 +357,15 @@ fn test_tree_json_mode() {
     let sub1_obj2 = &treetest_obj2["directories"]["sub1"];
     assert!(sub1_obj2.get("files").is_some());
     assert!(
-        sub1_obj2.get("directories").is_none(),
-        "Level 2 tree JSON should not contain sub2 directories"
+        sub1_obj2
+            .get("directories")
+            .is_some_and(|d| d.as_object().unwrap().is_empty()),
+        "Level 2 tree JSON should contain empty sub1 directories object"
+    );
+    let sub1_files = sub1_obj2["files"].as_array().unwrap();
+    assert!(
+        !sub1_files.contains(&serde_json::json!("sub2")),
+        "sub1 files must not contain directory sub2"
     );
 }
 
@@ -413,4 +420,84 @@ fn test_recurse_options_is_too_deep_unit() {
     assert!(!level_2.is_too_deep(1));
     assert!(level_2.is_too_deep(2));
     assert!(level_2.is_too_deep(3));
+}
+
+#[test]
+fn test_tree_json_mode_duplicate_prevention_and_type_filters() {
+    let fixture = TempTestDir::new("tree_json_filters");
+    fixture.create_file("root/alpha.txt", b"alpha");
+    fixture.create_file("root/child/beta.txt", b"beta");
+    fixture.create_file("root/child/nested/gamma.txt", b"gamma");
+
+    let target = fixture.path.join("root");
+
+    // 1. Normal tree JSON: files should not contain child directory names
+    let out_normal = run_lez(&["--tree", "--json", target.to_str().unwrap()]);
+    assert!(out_normal.status.success());
+    let parsed_normal: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&out_normal.stdout)).unwrap();
+    let root_obj = &parsed_normal["root"];
+    let root_files: Vec<&str> = root_obj["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(root_files, vec!["alpha.txt"]);
+    assert!(root_obj["directories"].get("child").is_some());
+
+    let child_obj = &root_obj["directories"]["child"];
+    let child_files: Vec<&str> = child_obj["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(child_files, vec!["beta.txt"]);
+    assert!(child_obj["directories"].get("nested").is_some());
+
+    // 2. Only files (-f): directories are traversed but never listed in "files"
+    let out_files = run_lez(&["--tree", "--json", "-f", target.to_str().unwrap()]);
+    assert!(out_files.status.success());
+    let parsed_files: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&out_files.stdout)).unwrap();
+    let rf_obj = &parsed_files["root"];
+    let rf_files: Vec<&str> = rf_obj["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(rf_files, vec!["alpha.txt"]);
+    let rf_child = &rf_obj["directories"]["child"];
+    let rf_child_files: Vec<&str> = rf_child["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(rf_child_files, vec!["beta.txt"]);
+
+    // 3. Only dirs (-D): files are empty, directories are listed
+    let out_dirs = run_lez(&["--tree", "--json", "-D", target.to_str().unwrap()]);
+    assert!(out_dirs.status.success());
+    let parsed_dirs: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&out_dirs.stdout)).unwrap();
+    let rd_obj = &parsed_dirs["root"];
+    assert!(rd_obj["files"].as_array().unwrap().is_empty());
+    assert!(rd_obj["directories"].get("child").is_some());
+    let rd_child = &rd_obj["directories"]["child"];
+    assert!(rd_child["files"].as_array().unwrap().is_empty());
+    assert!(rd_child["directories"].get("nested").is_some());
+
+    // 4. Max depth limit (-L 1): directories key is retained as empty object
+    let out_l1 = run_lez(&["--tree", "-L", "1", "--json", target.to_str().unwrap()]);
+    assert!(out_l1.status.success());
+    let parsed_l1: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&out_l1.stdout)).unwrap();
+    let rl1_obj = &parsed_l1["root"];
+    assert!(
+        rl1_obj["directories"].as_object().unwrap().is_empty(),
+        "At depth limit, directories must be an empty object, not omitted"
+    );
 }
