@@ -83,6 +83,9 @@ pub struct Render<'a> {
 
     /// Whether Git operations should be completely suppressed.
     pub no_git: bool,
+
+    /// Whether symlinks should be followed / dereferenced.
+    pub deref_links: bool,
 }
 
 /// How a summary column lines its contents up.
@@ -118,6 +121,7 @@ impl Render<'_> {
             self.show_hidden,
             self.filter,
             self.no_git,
+            self.deref_links,
         );
 
         if report.is_empty() {
