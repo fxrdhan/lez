@@ -167,3 +167,75 @@ fn test_target_files_named_like_time_values_not_swallowed() {
 
     let _ = fs::remove_dir_all(&temp_dir);
 }
+
+#[test]
+fn test_t_flag_sorts_by_time_in_grid_and_tree() {
+    use std::time::{Duration, SystemTime};
+
+    let temp_dir = std::env::temp_dir().join("lez_test_t_grid_sort");
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    let old_file = temp_dir.join("a_older.txt");
+    let new_file = temp_dir.join("z_newer.txt");
+
+    fs::write(&old_file, b"older").unwrap();
+    fs::write(&new_file, b"newer").unwrap();
+
+    let now = SystemTime::now();
+    let old_time = now - Duration::from_secs(3600);
+
+    let f = StdFile::options().write(true).open(&old_file).unwrap();
+    let times = std::fs::FileTimes::new().set_modified(old_time);
+    f.set_times(times).unwrap();
+
+    // In default grid view (no -l, no -1), -t should sort newest first (z_newer before a_older)
+    let output_grid = Command::new(bin_path())
+        .current_dir(&temp_dir)
+        .args(["-t"])
+        .output()
+        .expect("Failed to execute lez -t");
+
+    assert!(output_grid.status.success());
+    let stdout_grid = String::from_utf8_lossy(&output_grid.stdout);
+    let pos_older = stdout_grid.find("a_older.txt").expect("find older");
+    let pos_newer = stdout_grid.find("z_newer.txt").expect("find newer");
+    assert!(
+        pos_newer < pos_older,
+        "Expected newer file before older file with -t in grid view, got: {stdout_grid}"
+    );
+
+    // With -t -r, older file should come first
+    let output_rev = Command::new(bin_path())
+        .current_dir(&temp_dir)
+        .args(["-t", "-r"])
+        .output()
+        .expect("Failed to execute lez -t -r");
+
+    assert!(output_rev.status.success());
+    let stdout_rev = String::from_utf8_lossy(&output_rev.stdout);
+    let pos_older_rev = stdout_rev.find("a_older.txt").expect("find older");
+    let pos_newer_rev = stdout_rev.find("z_newer.txt").expect("find newer");
+    assert!(
+        pos_older_rev < pos_newer_rev,
+        "Expected older file before newer file with -t -r, got: {stdout_rev}"
+    );
+
+    // In tree view (-T -t), newest first
+    let output_tree = Command::new(bin_path())
+        .current_dir(&temp_dir)
+        .args(["-T", "-t"])
+        .output()
+        .expect("Failed to execute lez -T -t");
+
+    assert!(output_tree.status.success());
+    let stdout_tree = String::from_utf8_lossy(&output_tree.stdout);
+    let pos_older_tree = stdout_tree.find("a_older.txt").expect("find older");
+    let pos_newer_tree = stdout_tree.find("z_newer.txt").expect("find newer");
+    assert!(
+        pos_newer_tree < pos_older_tree,
+        "Expected newer file before older file with -T -t, got: {stdout_tree}"
+    );
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}
