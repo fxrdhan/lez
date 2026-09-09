@@ -869,15 +869,17 @@ mod tests {
     use std::io::Write;
 
     struct TestGitRepo {
+        _temp: tempfile::TempDir,
         path: PathBuf,
     }
 
     impl TestGitRepo {
         fn new(name: &str) -> Self {
-            let path =
-                std::env::temp_dir().join(format!("lez_test_git_{}_{}", name, std::process::id()));
-            let _ = fs::remove_dir_all(&path);
-            fs::create_dir_all(&path).unwrap();
+            let temp = tempfile::Builder::new()
+                .prefix(&format!("lez_test_git_{name}_"))
+                .tempdir()
+                .unwrap();
+            let path = temp.path().to_path_buf();
 
             let repo = git2::Repository::init(&path).unwrap();
             let workdir = repo.workdir().unwrap().to_path_buf();
@@ -885,7 +887,10 @@ mod tests {
             config.set_str("user.name", "Test User").unwrap();
             config.set_str("user.email", "test@example.com").unwrap();
 
-            Self { path: workdir }
+            Self {
+                _temp: temp,
+                path: workdir,
+            }
         }
 
         fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
@@ -943,12 +948,6 @@ mod tests {
             let parents: Vec<&git2::Commit<'_>> = parent_commit.iter().collect();
             repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parents)
                 .unwrap();
-        }
-    }
-
-    impl Drop for TestGitRepo {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
         }
     }
 
@@ -1160,9 +1159,11 @@ mod tests {
 
     #[test]
     fn test_has_anything_for_parent_of_child_repo() {
-        let parent = std::env::temp_dir().join(format!("lez_test_parent_{}", std::process::id()));
-        let _ = fs::remove_dir_all(&parent);
-        fs::create_dir_all(&parent).unwrap();
+        let parent_dir = tempfile::Builder::new()
+            .prefix("lez_test_parent_")
+            .tempdir()
+            .unwrap();
+        let parent = parent_dir.path().to_path_buf();
 
         let child_repo_path = parent.join("child_repo");
         let repo = git2::Repository::init(&child_repo_path).unwrap();
@@ -1182,7 +1183,11 @@ mod tests {
             git_cache.has_anything_for(&child_repo_path),
             "Child repo path itself matches has_anything_for"
         );
-        let unrelated = std::env::temp_dir().join("lez_unrelated_12345");
+        let unrelated_dir = tempfile::Builder::new()
+            .prefix("lez_unrelated_")
+            .tempdir()
+            .unwrap();
+        let unrelated = unrelated_dir.path().to_path_buf();
         assert!(
             !git_cache.has_anything_for(&unrelated),
             "Unrelated path does not match has_anything_for"
@@ -1191,7 +1196,6 @@ mod tests {
             !git_cache.has_anything_for(Path::new("")),
             "Empty path does not match has_anything_for"
         );
-        let _ = fs::remove_dir_all(&parent);
     }
 
     #[test]
@@ -1481,12 +1485,11 @@ mod tests {
         test_repo.create_file("file.txt", b"hello");
         test_repo.commit_all("initial commit");
 
-        let wt_path = std::env::temp_dir().join(format!(
-            "lez_test_git_worktree_{}_{}",
-            "unit",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&wt_path);
+        let wt_dir = tempfile::Builder::new()
+            .prefix("lez_test_git_worktree_")
+            .tempdir()
+            .unwrap();
+        let wt_path = wt_dir.path().join("wt");
 
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let _ = repo.worktree("wt_branch", &wt_path, None).unwrap();
@@ -1498,8 +1501,6 @@ mod tests {
 
         let res_main = f::SubdirGitRepo::from_path(&test_repo.path, true);
         assert!(!res_main.is_worktree);
-
-        let _ = fs::remove_dir_all(&wt_path);
     }
 
     #[test]

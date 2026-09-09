@@ -843,7 +843,7 @@ use lez::exits;
 mod tests {
     use super::collect_child_git_repos;
     use std::fs;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     /// Create a directory containing an empty `.git` directory at `path`,
     /// simulating a Git repository for the walk-down’s purposes (it only
@@ -852,90 +852,96 @@ mod tests {
         fs::create_dir_all(path.join(".git")).unwrap();
     }
 
-    /// Create a temp directory unique to this test, returning its path.
-    fn temp_workdir(label: &str) -> PathBuf {
-        let mut path = std::env::temp_dir();
-        path.push(format!("lez-test-{}-{}", label, std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).unwrap();
-        path
+    /// Create a temp directory unique to this test, returning its guard.
+    fn temp_workdir(label: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(&format!("lez-test-{label}-"))
+            .tempdir()
+            .unwrap()
     }
 
     #[test]
     fn finds_child_repo_under_non_repo_parent() {
-        let root = temp_workdir("child-repo");
+        let root_dir = temp_workdir("child-repo");
+        let root = root_dir.path();
         mark_as_repo(&root.join("repo"));
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         assert_eq!(out, vec![root.join("repo")]);
     }
 
     #[test]
     fn finds_nested_repo() {
-        let root = temp_workdir("nested");
+        let root_dir = temp_workdir("nested");
+        let root = root_dir.path();
         mark_as_repo(&root.join("a/b/c/repo"));
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         assert_eq!(out, vec![root.join("a/b/c/repo")]);
     }
 
     #[test]
     fn finds_sibling_repos() {
-        let root = temp_workdir("siblings");
+        let root_dir = temp_workdir("siblings");
+        let root = root_dir.path();
         mark_as_repo(&root.join("alpha"));
         mark_as_repo(&root.join("beta"));
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         out.sort();
         assert_eq!(out, vec![root.join("alpha"), root.join("beta")]);
     }
 
     #[test]
     fn includes_start_when_it_is_a_repo() {
-        let root = temp_workdir("start-is-repo");
-        mark_as_repo(&root);
+        let root_dir = temp_workdir("start-is-repo");
+        let root = root_dir.path();
+        mark_as_repo(root);
         mark_as_repo(&root.join("submod"));
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         out.sort();
-        let mut expected = vec![root.clone(), root.join("submod")];
+        let mut expected = vec![root.to_path_buf(), root.join("submod")];
         expected.sort();
         assert_eq!(out, expected);
     }
 
     #[test]
     fn respects_max_depth() {
-        let root = temp_workdir("max-depth");
+        let root_dir = temp_workdir("max-depth");
+        let root = root_dir.path();
         mark_as_repo(&root.join("a/b/c/repo")); // depth 4
         let mut shallow = Vec::new();
-        collect_child_git_repos(&root, 2, &mut shallow);
+        collect_child_git_repos(root, 2, &mut shallow);
         assert!(shallow.is_empty(), "depth 2 should miss repo at depth 4");
         let mut deep = Vec::new();
-        collect_child_git_repos(&root, 5, &mut deep);
+        collect_child_git_repos(root, 5, &mut deep);
         assert_eq!(deep, vec![root.join("a/b/c/repo")]);
     }
 
     #[test]
     fn handles_dot_git_as_a_file() {
         // Submodules use a `.git` file whose contents point to the real gitdir.
-        let root = temp_workdir("dot-git-file");
+        let root_dir = temp_workdir("dot-git-file");
+        let root = root_dir.path();
         let submod = root.join("submod");
         fs::create_dir_all(&submod).unwrap();
         fs::write(submod.join(".git"), "gitdir: ../.git/modules/submod\n").unwrap();
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         assert_eq!(out, vec![submod]);
     }
 
     #[test]
     fn does_not_descend_into_dot_directories() {
-        let root = temp_workdir("dot-dir");
+        let root_dir = temp_workdir("dot-dir");
+        let root = root_dir.path();
         // A `.git/` containing nested directories shouldn’t be searched.
         let bogus = root.join(".git/modules/inner");
         fs::create_dir_all(&bogus).unwrap();
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         // The root itself has `.git`, so it counts; nothing under it should.
-        assert_eq!(out, vec![root.clone()]);
+        assert_eq!(out, vec![root.to_path_buf()]);
     }
 }

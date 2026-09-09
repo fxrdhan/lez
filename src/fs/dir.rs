@@ -604,16 +604,18 @@ mod tests {
     use std::io::Write;
 
     struct TestDir {
+        _temp: tempfile::TempDir,
         path: PathBuf,
     }
 
     impl TestDir {
         fn new(name: &str) -> Self {
-            let path =
-                std::env::temp_dir().join(format!("lez_test_dir_{}_{}", name, std::process::id()));
-            let _ = fs::remove_dir_all(&path);
-            fs::create_dir_all(&path).unwrap();
-            Self { path }
+            let temp = tempfile::Builder::new()
+                .prefix(&format!("lez_test_dir_{name}_"))
+                .tempdir()
+                .unwrap();
+            let path = temp.path().to_path_buf();
+            Self { _temp: temp, path }
         }
 
         fn create_file(&self, name: &str) -> PathBuf {
@@ -621,12 +623,6 @@ mod tests {
             let mut file = StdFile::create(&file_path).unwrap();
             file.write_all(b"test").unwrap();
             file_path
-        }
-    }
-
-    impl Drop for TestDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
         }
     }
 

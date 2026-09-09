@@ -232,23 +232,18 @@ mod tests {
     }
 
     struct TempDir {
+        _temp: tempfile::TempDir,
         path: PathBuf,
     }
 
     impl TempDir {
         fn new(prefix: &str) -> Self {
-            let nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            let path = std::env::temp_dir().join(format!(
-                "lez_theme_test_{prefix}_{}_{}",
-                std::process::id(),
-                nanos
-            ));
-            let _ = std::fs::remove_dir_all(&path);
-            std::fs::create_dir_all(&path).unwrap();
-            Self { path }
+            let temp = tempfile::Builder::new()
+                .prefix(&format!("lez_theme_test_{prefix}_"))
+                .tempdir()
+                .unwrap();
+            let path = temp.path().to_path_buf();
+            Self { _temp: temp, path }
         }
 
         fn create_file(&self, name: &str, content: &[u8]) -> PathBuf {
@@ -258,12 +253,6 @@ mod tests {
             }
             std::fs::write(&p, content).unwrap();
             p
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
         }
     }
 

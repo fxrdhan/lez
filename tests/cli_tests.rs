@@ -1,24 +1,38 @@
+fn run_isolated(pattern: &str) {
+    trycmd::TestCases::new()
+        .env("LS_COLORS", "")
+        .env("LEZ_COLORS", "")
+        .env("EZA_COLORS", "")
+        .env("EXA_COLORS", "")
+        .env("TIME_STYLE", "")
+        .env("NO_COLOR", "")
+        .env("LEZ_STRICT", "")
+        .env("EZA_STRICT", "")
+        .env("EXA_STRICT", "")
+        .case(pattern);
+}
+
 #[test]
 fn cli_all_tests() {
-    trycmd::TestCases::new().case("tests/cmd/*_all.toml");
+    run_isolated("tests/cmd/*_all.toml");
 }
 
 #[test]
 #[cfg(unix)]
 fn cli_unix_tests() {
-    trycmd::TestCases::new().case("tests/cmd/*_unix.toml");
+    run_isolated("tests/cmd/*_unix.toml");
 }
 
 #[test]
 #[cfg(windows)]
 fn cli_windows_tests() {
-    trycmd::TestCases::new().case("tests/cmd/*_windows.toml");
+    run_isolated("tests/cmd/*_windows.toml");
 }
 
 #[test]
 #[cfg(feature = "nix-local")]
 fn cli_nix_local_tests() {
-    trycmd::TestCases::new().case("tests/cmd/*_nix_local.toml");
+    run_isolated("tests/cmd/*_nix_local.toml");
 }
 
 /// The generated suites need a fixture that only the Nix build produces, so
@@ -53,17 +67,12 @@ fn require_generated_fixture(feature: &str) {
 #[cfg(feature = "powertest")]
 fn cli_powertest_tests() {
     require_generated_fixture("powertest");
-    trycmd::TestCases::new()
-        .env("LS_COLORS", "")
-        .env("LEZ_COLORS", "")
-        .env("EZA_COLORS", "")
-        .env("EXA_COLORS", "")
-        .case("tests/ptests/*.toml");
+    run_isolated("tests/ptests/*.toml");
 }
 
 #[test]
 #[cfg(feature = "nix")]
 fn cli_nix_generated_tests() {
     require_generated_fixture("nix");
-    trycmd::TestCases::new().case("tests/gen/*.toml");
+    run_isolated("tests/gen/*.toml");
 }

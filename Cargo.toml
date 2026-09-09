@@ -166,6 +166,7 @@ chrono = { version = "0.4.40", default-features = false, features = ["clock"] }
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
+tempfile = "3.16"
 trycmd = "1.0"
 
 [features]
