@@ -406,6 +406,7 @@ impl Lez<'_> {
                 reverse: self.options.filter.is_reverse(),
                 filter: Some(&self.options.filter),
                 no_git: self.options.no_git,
+                deref_links: self.options.view.deref_links,
             };
             r.render(&mut self.writer)?;
             return Ok(exit_status);

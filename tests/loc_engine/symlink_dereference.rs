@@ -407,3 +407,65 @@ fn test_loc_dereference_positional_files() {
         }
     }
 }
+
+#[test]
+#[cfg(unix)]
+fn test_code_mode_symlink_dereference_flags() {
+    let tmp = TempTestDir::new("code_deref_flags");
+    tmp.create_file("main.rs", b"fn main() {\n    println!(\"hello\");\n}\n");
+    tmp.create_symlink("main.rs", "symlink.rs");
+
+    // 1. Without -X: symlinks must NOT be dereferenced/counted in --code (Files: 1, not 2)
+    let out_no_deref = Command::new(bin_path())
+        .args(["--code", "--color=never"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out_no_deref.status.success());
+    let s_no_deref = String::from_utf8_lossy(&out_no_deref.stdout);
+    for line in s_no_deref.lines() {
+        if line.contains("Rust") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            assert_eq!(
+                parts[1], "1",
+                "expected 1 file counted without -X, got: {line}"
+            );
+        }
+    }
+
+    // 2. With -X: symlink IS dereferenced and counted (Files: 2)
+    let out_deref = Command::new(bin_path())
+        .args(["--code", "-X", "--color=never"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out_deref.status.success());
+    let s_deref = String::from_utf8_lossy(&out_deref.stdout);
+    for line in s_deref.lines() {
+        if line.contains("Rust") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            assert_eq!(
+                parts[1], "2",
+                "expected 2 files counted with -X, got: {line}"
+            );
+        }
+    }
+
+    // 3. With -X --no-symlinks: symlinks ignored even if -X is passed (Files: 1)
+    let out_no_sym = Command::new(bin_path())
+        .args(["--code", "-X", "--no-symlinks", "--color=never"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out_no_sym.status.success());
+    let s_no_sym = String::from_utf8_lossy(&out_no_sym.stdout);
+    for line in s_no_sym.lines() {
+        if line.contains("Rust") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            assert_eq!(
+                parts[1], "1",
+                "expected 1 file counted with --no-symlinks, got: {line}"
+            );
+        }
+    }
+}

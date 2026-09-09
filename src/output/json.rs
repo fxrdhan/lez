@@ -341,14 +341,24 @@ impl<'a> Render<'a> {
                     }
                 } else {
                     write!(w, "\"files\":")?;
-                    self.render_files(leaf_files, w)?;
+                    let mut cutoff_files = leaf_files;
+                    if !self.file_filter.flags.contains(&FileFilterFlags::OnlyFiles) {
+                        cutoff_files.extend(child_dir_files);
+                        self.file_filter.sort_files(&mut cutoff_files);
+                    }
+                    self.render_files(cutoff_files, w)?;
                     if recurse_opts.tree {
                         write!(w, ", \"directories\":{{}}")?;
                     }
                 }
             } else {
                 write!(w, "\"files\":")?;
-                self.render_files(leaf_files, w)?;
+                let mut cutoff_files = leaf_files;
+                if !self.file_filter.flags.contains(&FileFilterFlags::OnlyFiles) {
+                    cutoff_files.extend(child_dir_files);
+                    self.file_filter.sort_files(&mut cutoff_files);
+                }
+                self.render_files(cutoff_files, w)?;
             }
             write!(w, "}}")?;
         }

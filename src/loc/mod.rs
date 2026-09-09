@@ -519,7 +519,7 @@ where
 {
     let mut jobs: Vec<(PathBuf, &'static Language)> = Vec::new();
     for root in roots {
-        collect_jobs(root, is_ignored, show_hidden, None, &mut jobs);
+        collect_jobs(root, is_ignored, show_hidden, None, false, &mut jobs);
     }
     count_jobs(jobs)
 }
@@ -531,6 +531,7 @@ fn collect_jobs<F>(
     is_ignored: &F,
     show_hidden: bool,
     filter: Option<&FileFilter>,
+    deref_links: bool,
     jobs: &mut Vec<(PathBuf, &'static Language)>,
 ) where
     F: Fn(&Path) -> bool,
@@ -544,6 +545,7 @@ fn collect_jobs<F>(
         is_ignored,
         show_hidden,
         filter,
+        deref_links,
         jobs,
     );
 }
@@ -554,6 +556,7 @@ fn collect_entry<F>(
     is_ignored: &F,
     show_hidden: bool,
     filter: Option<&FileFilter>,
+    deref_links: bool,
     jobs: &mut Vec<(PathBuf, &'static Language)>,
 ) where
     F: Fn(&Path) -> bool,
@@ -579,7 +582,14 @@ fn collect_entry<F>(
     }
 
     if file_type.is_symlink() {
-        if let Ok(meta) = std::fs::metadata(path)
+        if deref_links
+            && filter.is_none_or(|f| {
+                !f.no_symlinks
+                    && !f
+                        .flags
+                        .contains(&crate::fs::filter::FileFilterFlags::NoSymlinks)
+            })
+            && let Ok(meta) = std::fs::metadata(path)
             && meta.is_file()
         {
             if let Some(f) = filter
@@ -657,7 +667,15 @@ fn collect_entry<F>(
                 continue;
             };
 
-            collect_entry(&child, child_ft, is_ignored, show_hidden, filter, jobs);
+            collect_entry(
+                &child,
+                child_ft,
+                is_ignored,
+                show_hidden,
+                filter,
+                deref_links,
+                jobs,
+            );
         }
     }
 }
@@ -667,7 +685,7 @@ fn collect_entry<F>(
 /// point used by both the `--loc` percentage columns and the `--code` summary.
 #[must_use]
 pub fn count_roots(roots: &[PathBuf], show_hidden: bool) -> Report {
-    count_roots_filtered(roots, show_hidden, None, false)
+    count_roots_filtered(roots, show_hidden, None, false, false)
 }
 
 /// Count the given `roots`, respecting filter options (`--ignore-glob`, `--since`)
@@ -678,6 +696,7 @@ pub fn count_roots_filtered(
     show_hidden: bool,
     filter: Option<&FileFilter>,
     no_git: bool,
+    deref_links: bool,
 ) -> Report {
     #[cfg(not(feature = "git"))]
     let _ = no_git;
@@ -728,12 +747,26 @@ pub fn count_roots_filtered(
                         }
                         false
                     };
-                    collect_jobs(root, &is_ignored, show_hidden, filter, &mut jobs);
+                    collect_jobs(
+                        root,
+                        &is_ignored,
+                        show_hidden,
+                        filter,
+                        deref_links,
+                        &mut jobs,
+                    );
                     continue;
                 }
             }
         }
-        collect_jobs(root, &|_: &Path| false, show_hidden, filter, &mut jobs);
+        collect_jobs(
+            root,
+            &|_: &Path| false,
+            show_hidden,
+            filter,
+            deref_links,
+            &mut jobs,
+        );
     }
     count_jobs(jobs)
 }
