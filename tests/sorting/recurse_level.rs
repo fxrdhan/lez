@@ -364,8 +364,8 @@ fn test_tree_json_mode() {
     );
     let sub1_files = sub1_obj2["files"].as_array().unwrap();
     assert!(
-        !sub1_files.contains(&serde_json::json!("sub2")),
-        "sub1 files must not contain directory sub2"
+        sub1_files.contains(&serde_json::json!("sub2")),
+        "sub1 files must contain directory sub2 at cutoff level"
     );
 }
 
@@ -490,7 +490,7 @@ fn test_tree_json_mode_duplicate_prevention_and_type_filters() {
     assert!(rd_child["files"].as_array().unwrap().is_empty());
     assert!(rd_child["directories"].get("nested").is_some());
 
-    // 4. Max depth limit (-L 1): directories key is retained as empty object
+    // 4. Max depth limit (-L 1): directories key is retained as empty object, and child directory is preserved in files array
     let out_l1 = run_lez(&["--tree", "-L", "1", "--json", target.to_str().unwrap()]);
     assert!(out_l1.status.success());
     let parsed_l1: serde_json::Value =
@@ -499,5 +499,43 @@ fn test_tree_json_mode_duplicate_prevention_and_type_filters() {
     assert!(
         rl1_obj["directories"].as_object().unwrap().is_empty(),
         "At depth limit, directories must be an empty object, not omitted"
+    );
+    let rl1_files: Vec<&str> = rl1_obj["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert!(
+        rl1_files.contains(&"child"),
+        "At depth cutoff, child directory must be retained in files array: {rl1_files:?}"
+    );
+    assert!(
+        rl1_files.contains(&"alpha.txt"),
+        "At depth cutoff, regular files must be retained in files array: {rl1_files:?}"
+    );
+
+    // 5. Max depth limit with -D (-L 1 -D): child directory retained in files array, not dropped
+    let out_l1_d = run_lez(&[
+        "--tree",
+        "-L",
+        "1",
+        "-D",
+        "--json",
+        target.to_str().unwrap(),
+    ]);
+    assert!(out_l1_d.status.success());
+    let parsed_l1_d: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&out_l1_d.stdout)).unwrap();
+    let rl1_d_files: Vec<&str> = parsed_l1_d["root"]["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(
+        rl1_d_files,
+        vec!["child"],
+        "With -D at depth cutoff, child directory must be present in files array"
     );
 }
