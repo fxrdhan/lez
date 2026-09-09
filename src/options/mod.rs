@@ -121,6 +121,9 @@ pub struct Options {
 
     /// Whether to read file names from stdin instead of the command-line
     pub stdin: FilesInput,
+
+    /// Whether Git operations and ignore checks should be completely suppressed.
+    pub no_git: bool,
 }
 
 impl Options {
@@ -196,6 +199,11 @@ impl Options {
         let filter = FileFilter::deduce(matches, strict, vars, config)?;
         let theme = ThemeOptions::deduce(matches, vars, config);
         let stdin = FilesInput::deduce(matches, vars);
+        let no_git = matches.get_flag("no-git")
+            || vars
+                .get(vars::LEZ_OVERRIDE_GIT)
+                .or_else(|| vars.get_with_fallback(vars::EZA_OVERRIDE_GIT, vars::EXA_OVERRIDE_GIT))
+                .is_some();
 
         Ok(Self {
             dir_action,
@@ -203,6 +211,7 @@ impl Options {
             view,
             theme,
             stdin,
+            no_git,
         })
     }
 }

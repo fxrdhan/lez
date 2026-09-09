@@ -438,3 +438,26 @@ fn test_since_with_symlinks() {
         entries
     );
 }
+
+#[test]
+fn test_since_tree_mode_with_old_argument_directory() {
+    let fixture = TempTestDir::new("tree_old_root");
+    let now = SystemTime::now();
+
+    let _recent = fixture.create_file("recent_child.txt", b"recent child");
+    fixture.set_mtime("recent_child.txt", now - Duration::from_secs(60));
+
+    // Set the fixture directory (the argument directory) to an old mtime (10 days ago)
+    let dir = StdFile::open(&fixture.path).expect("open fixture dir");
+    let times = FileTimes::new().set_modified(now - Duration::from_secs(10 * 86400));
+    let _ = dir.set_times(times);
+
+    // Run lez -T --since 1d on fixture directory
+    let out = run_lez(&["-T", "--since", "1d", fixture.path.to_str().unwrap()]);
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("recent_child.txt"),
+        "Tree mode must not drop the argument directory pre-traversal even if directory mtime is old: {stdout}"
+    );
+}

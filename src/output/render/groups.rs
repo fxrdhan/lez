@@ -38,39 +38,50 @@ impl Render for Option<f::Group> {
 
         let mut style = colours.not_yours();
 
-        let group = match self {
-            Some(g) => match users.get_group_by_gid(g.0) {
-                Some(g) => (*g).clone(),
-                None => return TextCell::paint(style, g.0.to_string()),
-            },
+        let gid = match self {
+            Some(g) => g.0,
             None => return TextCell::blank(colours.no_group()),
         };
+        let maybe_group = users.get_group_by_gid(gid);
 
         let current_uid = users.get_current_uid();
         if let Some(current_user) = users.get_user_by_uid(current_uid)
-            && (current_user.primary_group_id() == group.gid()
-                || group.members().iter().any(|u| u == current_user.name()))
+            && (current_user.primary_group_id() == gid
+                || maybe_group
+                    .as_ref()
+                    .is_some_and(|g| g.members().iter().any(|u| u == current_user.name())))
         {
             style = colours.yours();
         }
 
-        if group.gid() == 0 && style != colours.yours() {
+        if gid == 0 && style != colours.yours() {
             style = colours.root_group();
         }
 
         let mut group_name = match user_format {
-            UserFormat::Name => group.name().to_string_lossy().into(),
-            UserFormat::Numeric => group.gid().to_string(),
+            UserFormat::Name => match &maybe_group {
+                Some(group) => group.name().to_string_lossy().into(),
+                None => gid.to_string(),
+            },
+            UserFormat::Numeric => gid.to_string(),
         };
 
         if let GroupFormat::Smart = group_format
             && let Some(file_uid) = file_user
         {
             let is_match = match user_format {
-                UserFormat::Name => users.get_user_by_uid(file_uid.0).is_some_and(|file_user| {
-                    file_user.name().to_string_lossy() == group.name().to_string_lossy()
-                }),
-                UserFormat::Numeric => file_uid.0 == group.gid(),
+                UserFormat::Name => {
+                    let user_name = users
+                        .get_user_by_uid(file_uid.0)
+                        .map(|u| u.name().to_string_lossy().into_owned())
+                        .unwrap_or_else(|| file_uid.0.to_string());
+                    let grp_name = match &maybe_group {
+                        Some(group) => group.name().to_string_lossy(),
+                        None => std::borrow::Cow::Owned(gid.to_string()),
+                    };
+                    user_name == grp_name
+                }
+                UserFormat::Numeric => file_uid.0 == gid,
             };
             if is_match {
                 group_name = ":".to_string();
@@ -415,5 +426,69 @@ pub mod test {
         let none_group: Option<f::Group> = None;
         assert_eq!(None, none_group.render_json(&users, UserFormat::Name));
         assert_eq!(None, none_group.render_json(&users, UserFormat::Numeric));
+    }
+
+    #[test]
+    fn unmapped_group_smart_and_styling() {
+        let mut users = MockUsers::with_current_uid(1000);
+        // User with primary_group_id = 9999, but group 9999 is unmapped in /etc/group
+        users.add_user(User::new(1000, "user", 9999));
+
+        let unmapped_group = Some(f::Group(9999));
+
+        // 1. Primary group styling must be preserved even when GID is unmapped in /etc/group
+        let rendered_name = unmapped_group.render(
+            &TestColours,
+            &users,
+            UserFormat::Name,
+            GroupFormat::Regular,
+            None,
+        );
+        assert_eq!(
+            TextCell::paint_str(TestColours.yours(), "9999"),
+            rendered_name
+        );
+
+        // 2. Numeric mode + smart group collapses to ":" when file UID == GID for unmapped group
+        let same_id_file = Some(f::User(9999));
+        let rendered_smart_numeric = unmapped_group.render(
+            &TestColours,
+            &users,
+            UserFormat::Numeric,
+            GroupFormat::Smart,
+            same_id_file,
+        );
+        assert_eq!(
+            TextCell::paint_str(TestColours.yours(), ":"),
+            rendered_smart_numeric
+        );
+
+        // 3. Unmapped GID 0 receives root_group styling when not owned by current user
+        let other_users = MockUsers::with_current_uid(2000);
+        let unmapped_root_group = Some(f::Group(0));
+        let rendered_root = unmapped_root_group.render(
+            &TestColours,
+            &other_users,
+            UserFormat::Numeric,
+            GroupFormat::Regular,
+            None,
+        );
+        assert_eq!(
+            TextCell::paint_str(TestColours.root_group(), "0"),
+            rendered_root
+        );
+
+        // 4. Name mode + smart group collapses to ":" when unmapped UID == unmapped GID
+        let rendered_smart_name = unmapped_group.render(
+            &TestColours,
+            &users,
+            UserFormat::Name,
+            GroupFormat::Smart,
+            same_id_file,
+        );
+        assert_eq!(
+            TextCell::paint_str(TestColours.yours(), ":"),
+            rendered_smart_name
+        );
     }
 }

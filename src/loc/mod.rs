@@ -29,6 +29,8 @@ use std::path::{Path, PathBuf};
 use phf::{Map, phf_map};
 use rayon::prelude::*;
 
+use crate::fs::filter::FileFilter;
+
 /// A programming language lez knows how to count, along with the comment
 /// syntax needed to tell code from commentary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -517,7 +519,7 @@ where
 {
     let mut jobs: Vec<(PathBuf, &'static Language)> = Vec::new();
     for root in roots {
-        collect_jobs(root, is_ignored, show_hidden, &mut jobs);
+        collect_jobs(root, is_ignored, show_hidden, None, &mut jobs);
     }
     count_jobs(jobs)
 }
@@ -528,6 +530,7 @@ fn collect_jobs<F>(
     path: &Path,
     is_ignored: &F,
     show_hidden: bool,
+    filter: Option<&FileFilter>,
     jobs: &mut Vec<(PathBuf, &'static Language)>,
 ) where
     F: Fn(&Path) -> bool,
@@ -535,7 +538,14 @@ fn collect_jobs<F>(
     let Ok(meta) = std::fs::metadata(path) else {
         return;
     };
-    collect_entry(path, meta.file_type(), is_ignored, show_hidden, jobs);
+    collect_entry(
+        path,
+        meta.file_type(),
+        is_ignored,
+        show_hidden,
+        filter,
+        jobs,
+    );
 }
 
 fn collect_entry<F>(
@@ -543,26 +553,64 @@ fn collect_entry<F>(
     file_type: std::fs::FileType,
     is_ignored: &F,
     show_hidden: bool,
+    filter: Option<&FileFilter>,
     jobs: &mut Vec<(PathBuf, &'static Language)>,
 ) where
     F: Fn(&Path) -> bool,
 {
+    if is_ignored(path) {
+        return;
+    }
+
+    if let Some(f) = filter {
+        let name_str = path
+            .file_name()
+            .map(|n| n.to_string_lossy())
+            .unwrap_or_default();
+        if f.is_ignored_path(path, &name_str) {
+            return;
+        }
+        if f.flags
+            .contains(&crate::fs::filter::FileFilterFlags::OnlyDirs)
+            && !file_type.is_dir()
+        {
+            return;
+        }
+    }
+
     if file_type.is_symlink() {
         if let Ok(meta) = std::fs::metadata(path)
             && meta.is_file()
-            && let Some(lang) = language_for_path(path).or_else(|| {
+        {
+            if let Some(f) = filter
+                && f.since.is_some()
+                && !f.matches_since_metadata(&meta)
+            {
+                return;
+            }
+            if let Some(lang) = language_for_path(path).or_else(|| {
                 std::fs::canonicalize(path)
                     .ok()
                     .as_deref()
                     .and_then(language_for_path)
-            })
-        {
-            jobs.push((path.to_path_buf(), lang));
+            }) {
+                jobs.push((path.to_path_buf(), lang));
+            }
         }
         return;
     }
 
     if file_type.is_file() {
+        if let Some(f) = filter
+            && f.since.is_some()
+        {
+            let Ok(meta) = std::fs::metadata(path) else {
+                return;
+            };
+            if !f.matches_since_metadata(&meta) {
+                return;
+            }
+        }
         if let Some(lang) = language_for_path(path) {
             jobs.push((path.to_path_buf(), lang));
         }
@@ -598,11 +646,18 @@ fn collect_entry<F>(
                 continue;
             }
 
+            let name_str = name.to_string_lossy();
+            if let Some(f) = filter
+                && f.is_ignored_path(&child, &name_str)
+            {
+                continue;
+            }
+
             let Ok(child_ft) = entry.file_type() else {
                 continue;
             };
 
-            collect_entry(&child, child_ft, is_ignored, show_hidden, jobs);
+            collect_entry(&child, child_ft, is_ignored, show_hidden, filter, jobs);
         }
     }
 }
@@ -612,6 +667,20 @@ fn collect_entry<F>(
 /// point used by both the `--loc` percentage columns and the `--code` summary.
 #[must_use]
 pub fn count_roots(roots: &[PathBuf], show_hidden: bool) -> Report {
+    count_roots_filtered(roots, show_hidden, None, false)
+}
+
+/// Count the given `roots`, respecting filter options (`--ignore-glob`, `--since`)
+/// and repository `.gitignore` (unless `no_git` is specified).
+#[must_use]
+pub fn count_roots_filtered(
+    roots: &[PathBuf],
+    show_hidden: bool,
+    filter: Option<&FileFilter>,
+    no_git: bool,
+) -> Report {
+    #[cfg(not(feature = "git"))]
+    let _ = no_git;
     let mut jobs: Vec<(PathBuf, &'static Language)> = Vec::new();
     #[cfg(feature = "git")]
     let cwd = std::env::current_dir()
@@ -621,7 +690,7 @@ pub fn count_roots(roots: &[PathBuf], show_hidden: bool) -> Report {
     for root in roots {
         #[cfg(feature = "git")]
         {
-            if let Ok(repo) = git2::Repository::discover(root) {
+            if !no_git && let Ok(repo) = git2::Repository::discover(root) {
                 let workdir = repo.workdir().map(Path::to_path_buf);
                 let canon_wd = workdir
                     .as_deref()
@@ -659,12 +728,12 @@ pub fn count_roots(roots: &[PathBuf], show_hidden: bool) -> Report {
                         }
                         false
                     };
-                    collect_jobs(root, &is_ignored, show_hidden, &mut jobs);
+                    collect_jobs(root, &is_ignored, show_hidden, filter, &mut jobs);
                     continue;
                 }
             }
         }
-        collect_jobs(root, &|_: &Path| false, show_hidden, &mut jobs);
+        collect_jobs(root, &|_: &Path| false, show_hidden, filter, &mut jobs);
     }
     count_jobs(jobs)
 }

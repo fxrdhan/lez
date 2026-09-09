@@ -311,6 +311,38 @@ impl FileFilter {
         }
     }
 
+    /// Determines whether a filesystem metadata timestamp matches the `--since` duration filter window.
+    #[must_use]
+    pub fn matches_since_metadata(&self, metadata: &std::fs::Metadata) -> bool {
+        let Some(since) = self.since else {
+            return true;
+        };
+        let Ok(duration) = chrono::Duration::from_std(since) else {
+            return false;
+        };
+        let now = Utc::now().naive_utc();
+        let Some(cutoff) = now.checked_sub_signed(duration) else {
+            return true;
+        };
+
+        let mtime = metadata
+            .modified()
+            .ok()
+            .and_then(File::systemtime_to_naivedatetime);
+        let ctime = metadata
+            .created()
+            .ok()
+            .and_then(File::systemtime_to_naivedatetime);
+
+        if let Some(mtime) = mtime {
+            mtime >= cutoff && mtime <= now
+        } else if let Some(ctime) = ctime {
+            ctime >= cutoff && ctime <= now
+        } else {
+            false
+        }
+    }
+
     /// Determines whether an individual file matches active filter rules
     /// (not considering directory recursion container status).
     #[must_use]
@@ -428,7 +460,7 @@ impl FileFilter {
     /// `exa -I='*.ogg' music/*` should filter out the ogg files obtained
     /// from the glob, even though the globbing is done by the shell!
     pub fn filter_argument_files(&self, is_tree: bool, files: &mut Vec<File<'_>>) {
-        files.retain(|f| self.matches_since(f));
+        files.retain(|f| (is_tree && f.points_to_directory()) || self.matches_since(f));
         files.retain(|f| {
             !self.ignore_patterns.is_ignored_path(&f.path, &f.name)
                 && !self
@@ -436,6 +468,14 @@ impl FileFilter {
                     .is_ignored_path(&f.path, &f.name)
         });
         files.retain(|f| self.matches_file_type_filters(f, is_tree));
+    }
+
+    /// Checks whether a given path and filename match either case-sensitive or
+    /// case-insensitive ignore glob patterns.
+    #[must_use]
+    pub fn is_ignored_path(&self, path: &std::path::Path, name: &str) -> bool {
+        self.ignore_patterns.is_ignored_path(path, name)
+            || self.ignore_patterns_caseins.is_ignored_path(path, name)
     }
 
     /// Whether reverse sorting is enabled.
@@ -856,11 +896,16 @@ impl CompiledIgnorePattern {
                 stripped_pattern = glob::Pattern::new(normalized).ok();
             }
 
+            let is_anchored = pat_str.starts_with('/')
+                || pat_str.starts_with('\\')
+                || pat_str.starts_with("./")
+                || pat_str.starts_with(".\\");
+
             let base = stripped_pattern
                 .as_ref()
                 .map(|p| p.as_str())
                 .unwrap_or(normalized);
-            if !base.starts_with("**") && !pat_str.starts_with('/') && !pat_str.starts_with('\\') {
+            if !base.starts_with("**") && !is_anchored {
                 wildcard_pattern = glob::Pattern::new(&format!("**/{base}")).ok();
             }
         }
@@ -900,7 +945,6 @@ impl CompiledIgnorePattern {
             if self.stripped_pattern.as_ref().is_some_and(|stripped| {
                 stripped.matches_path_with(clean_path, path_opts)
                     || stripped.matches_path_with(path, path_opts)
-                    || stripped.matches_with(name, options)
             }) {
                 return true;
             }
@@ -1179,6 +1223,34 @@ mod test_ignores {
         assert!(pats_dir.is_ignored_path(Path::new("target"), "target"));
         assert!(pats_dir.is_ignored_path(Path::new("./target"), "target"));
 
+        // Anchored globs (/ and ./) must not leak across arbitrary depths (BUG-B)
+        let (pats_anchored_slash, _) = IgnorePatterns::parse_from_iter(vec!["/file.txt"]);
+        assert!(pats_anchored_slash.is_ignored_path(Path::new("file.txt"), "file.txt"));
+        assert!(pats_anchored_slash.is_ignored_path(Path::new("./file.txt"), "file.txt"));
+        assert!(!pats_anchored_slash.is_ignored_path(Path::new("sub/file.txt"), "file.txt"));
+        assert!(!pats_anchored_slash.is_ignored_path(Path::new("a/b/file.txt"), "file.txt"));
+
+        let (pats_anchored_dot, _) = IgnorePatterns::parse_from_iter(vec!["./file.txt"]);
+        assert!(pats_anchored_dot.is_ignored_path(Path::new("file.txt"), "file.txt"));
+        assert!(pats_anchored_dot.is_ignored_path(Path::new("./file.txt"), "file.txt"));
+        assert!(!pats_anchored_dot.is_ignored_path(Path::new("sub/file.txt"), "file.txt"));
+        assert!(!pats_anchored_dot.is_ignored_path(Path::new("a/b/file.txt"), "file.txt"));
+
+        let (pats_anchored_dir, _) = IgnorePatterns::parse_from_iter(vec!["./build/*"]);
+        assert!(pats_anchored_dir.is_ignored_path(Path::new("build/output.o"), "output.o"));
+        assert!(pats_anchored_dir.is_ignored_path(Path::new("./build/output.o"), "output.o"));
+        assert!(!pats_anchored_dir.is_ignored_path(Path::new("src/build/output.o"), "output.o"));
+        assert!(!pats_anchored_dir.is_ignored_path(Path::new("a/b/build/output.o"), "output.o"));
+
+        let (pats_anchored_named_dir, _) = IgnorePatterns::parse_from_iter(vec!["/target"]);
+        assert!(pats_anchored_named_dir.is_ignored_path(Path::new("target"), "target"));
+        assert!(pats_anchored_named_dir.is_ignored_path(Path::new("./target"), "target"));
+        let (pats_anchored_wild, _) = IgnorePatterns::parse_from_iter(vec!["./*.txt"]);
+        assert!(pats_anchored_wild.is_ignored_path(Path::new("file.txt"), "file.txt"));
+        assert!(pats_anchored_wild.is_ignored_path(Path::new("./file.txt"), "file.txt"));
+        assert!(!pats_anchored_wild.is_ignored_path(Path::new("sub/file.txt"), "file.txt"));
+        assert!(!pats_anchored_wild.is_ignored_path(Path::new("a/b/file.txt"), "file.txt"));
+
         // Flat filename pattern matches in any directory
         let (pats_flat, _) = IgnorePatterns::parse_from_iter(vec!["*.mp3"]);
         assert!(pats_flat.is_ignored_path(Path::new("song.mp3"), "song.mp3"));
@@ -1409,6 +1481,24 @@ mod test_ignores {
         let mut arg_files = vec![file_cargo];
         filter_zero.filter_argument_files(false, &mut arg_files);
         assert!(arg_files.is_empty());
+
+        let dir_src = File::from_args(PathBuf::from("src"), None, None, false, false, false, None);
+        let mut arg_dirs = vec![dir_src];
+        filter_zero.filter_argument_files(true, &mut arg_dirs);
+        assert_eq!(
+            arg_dirs.len(),
+            1,
+            "tree mode preserves argument directories pre-traversal even with --since"
+        );
+
+        let dir_src_non_tree =
+            File::from_args(PathBuf::from("src"), None, None, false, false, false, None);
+        let mut arg_dirs_non_tree = vec![dir_src_non_tree];
+        filter_zero.filter_argument_files(false, &mut arg_dirs_non_tree);
+        assert!(
+            arg_dirs_non_tree.is_empty(),
+            "non-tree mode filters argument directories with --since"
+        );
     }
 
     #[test]

@@ -175,7 +175,8 @@ pub fn get_command() -> clap::Command {
             .action(clap::ArgAction::Append))
         .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)")
             .action(clap::ArgAction::Append))
-        .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'"))
+        .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'")
+            .overrides_with("no-git"))
         .arg(arg!(--"cachedir-ignore" "ignore directories with a 'CACHEDIR.TAG' file"))
         .arg(arg!(-'W' --"warn-hidden" "print a message showing the number of hidden and ignored items; give twice to always print")
             .action(clap::ArgAction::Count))
@@ -260,7 +261,7 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"no-time" "suppress the time field"))
         .arg(arg!(--"no-language" "suppress the language field in --loc"))
         .arg(arg!(--"no-git" "suppress Git fields (overrides --git, --git-repos, --git-repos-no-status, --git-ignore)")
-            .overrides_with_all(["git", "git-repos", "git-repos-no-status"]))
+            .overrides_with_all(["git", "git-repos", "git-repos-no-status", "git-ignore"]))
         .arg(arg!(--"print-total" "display total number of entries"))
 }
 
@@ -1343,5 +1344,14 @@ pub mod test {
         let cli14 = mock_cli(vec!["--no-quotes", "--quotes=always"]);
         assert!(cli14.contains_id("quotes"));
         assert!(!cli14.get_flag("no-quotes"));
+
+        // --git-ignore / --no-git
+        let cli15 = mock_cli(vec!["--git-ignore", "--no-git"]);
+        assert!(!cli15.get_flag("git-ignore"));
+        assert!(cli15.get_flag("no-git"));
+
+        let cli16 = mock_cli(vec!["--no-git", "--git-ignore"]);
+        assert!(cli16.get_flag("git-ignore"));
+        assert!(!cli16.get_flag("no-git"));
     }
 }

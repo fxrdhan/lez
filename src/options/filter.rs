@@ -262,11 +262,9 @@ impl GitIgnore {
             .or_else(|| vars.get_with_fallback(vars::EZA_OVERRIDE_GIT, vars::EXA_OVERRIDE_GIT))
             .is_some();
 
-        if matches.get_flag("no-git") || no_git_env {
-            return Self::Off;
-        }
-
-        if matches.get_flag("git-ignore") || config.filter.git_ignore.unwrap_or(false) {
+        if no_git_env || matches.get_flag("no-git") {
+            Self::Off
+        } else if matches.get_flag("git-ignore") || config.filter.git_ignore.unwrap_or(false) {
             Self::CheckAndIgnore
         } else {
             Self::Off
@@ -335,6 +333,18 @@ mod tests {
                 &FileConfig::default()
             ),
             GitIgnore::Off
+        );
+    }
+
+    #[test]
+    fn deduce_no_git_git_ignore_reciprocal_override() {
+        assert_eq!(
+            GitIgnore::deduce(
+                &mock_cli(vec!["--no-git", "--git-ignore"]),
+                &MockVars::default(),
+                &FileConfig::default()
+            ),
+            GitIgnore::CheckAndIgnore
         );
     }
 
