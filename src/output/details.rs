@@ -181,7 +181,8 @@ impl<'a> AsRef<File<'a>> for Egg<'a> {
 }
 
 impl<'a> Render<'a> {
-    pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<()> {
+    pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<i32> {
+        let mut exit_status = crate::exits::SUCCESS;
         let mut hidden_count =
             crate::output::hidden_count::HiddenCount::new(self.filter.warn_hidden);
         let mut rows = Vec::new();
@@ -246,6 +247,7 @@ impl<'a> Render<'a> {
                 color_scale_info,
                 &mut summary,
                 hidden_count.as_mut(),
+                &mut exit_status,
             );
 
             for row in self.iterate_with_table(table.unwrap(), rows) {
@@ -260,6 +262,7 @@ impl<'a> Render<'a> {
                 color_scale_info,
                 &mut summary,
                 hidden_count.as_mut(),
+                &mut exit_status,
             );
 
             for row in self.iterate(rows) {
@@ -282,10 +285,10 @@ impl<'a> Render<'a> {
         if let Some(hc) = &hidden_count
             && let Some(warn_line) = hc.render(self.theme.ui.hidden_warning.unwrap_or_default())
         {
-            writeln!(w, "{warn_line}")?;
+            let _ = writeln!(io::stderr(), "{warn_line}");
         }
 
-        Ok(())
+        Ok(exit_status)
     }
 
     /// The root path(s) to recurse when computing the `--loc` percentage
@@ -310,6 +313,7 @@ impl<'a> Render<'a> {
         color_scale_info: Option<ColorScaleInformation>,
         summary: &mut Option<crate::output::summary::Summary>,
         mut hidden_count: Option<&mut crate::output::hidden_count::HiddenCount>,
+        exit_status: &mut i32,
     ) {
         use crate::fs::feature::xattr;
 
@@ -395,6 +399,14 @@ impl<'a> Render<'a> {
         for (tree_params, egg) in depth.iterate_over(file_eggs.into_iter()) {
             let mut files = Vec::new();
             let errors = egg.errors;
+
+            for (error, _) in &errors {
+                if error.kind() == io::ErrorKind::PermissionDenied {
+                    *exit_status = crate::exits::PERMISSION_DENIED;
+                } else if *exit_status == crate::exits::SUCCESS {
+                    *exit_status = crate::exits::RUNTIME_ERROR;
+                }
+            }
 
             // With --only-files, directories still get recursed into but are
             // not listed themselves; skipping before add_widths keeps the
@@ -493,6 +505,7 @@ impl<'a> Render<'a> {
                         color_scale_info,
                         summary,
                         hidden_count.as_deref_mut(),
+                        exit_status,
                     );
                     continue;
                 }

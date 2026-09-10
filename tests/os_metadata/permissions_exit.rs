@@ -118,3 +118,42 @@ fn missing_path_keeps_precedence_over_permission_denied() {
         "a nonexistent input path is the more specific complaint; stderr was: {stderr}"
     );
 }
+
+#[test]
+fn tree_mode_unreadable_directory_exits_with_permission_denied() {
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let mut tree = LockedTree::new("tree_perm");
+    let outer = tree.dir("outer");
+    let inner = tree.dir("outer/inner");
+    fs::write(inner.join("secret.txt"), b"secret").unwrap();
+    tree.lock(&inner);
+
+    let (code, stderr) = run(&[Path::new("-T"), &outer]);
+
+    assert_eq!(
+        code, 13,
+        "tree mode (-T) must exit with code 13 (PERMISSION_DENIED) when an unreadable directory is encountered; stderr was: {stderr}"
+    );
+}
+
+#[test]
+fn unreadable_intermediate_directory_stat_exits_with_permission_denied() {
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let mut tree = LockedTree::new("stat_eacces");
+    let locked = tree.dir("locked");
+    let target = locked.join("file.txt");
+    fs::write(&target, b"hello").unwrap();
+
+    tree.lock(&locked);
+
+    let (code, stderr) = run(&[&target]);
+
+    assert_eq!(
+        code, 13,
+        "Access denied during metadata query must exit with 13 (PERMISSION_DENIED), not 2 (MISSING_INPUT_PATH); stderr was: {stderr}"
+    );
+}

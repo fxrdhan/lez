@@ -111,7 +111,7 @@ fn test_cli_invalid_value_passed_to_flag() {
         .expect("lez command failed");
 
     assert!(!output.status.success());
-    assert_eq!(output.status.code(), Some(2)); // Clap argument parsing error code
+    assert_eq!(output.status.code(), Some(3)); // OPTIONS_ERROR
 }
 
 #[test]

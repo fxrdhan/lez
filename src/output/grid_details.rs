@@ -99,7 +99,7 @@ impl<'a> Render<'a> {
     // This doesn’t take an IgnoreCache even though the details one does
     // because grid-details has no tree view.
 
-    pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<()> {
+    pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<i32> {
         let options = self
             .details
             .table
@@ -231,7 +231,7 @@ impl<'a> Render<'a> {
 
         write!(w, "{grid}")?;
 
-        Ok(())
+        Ok(crate::exits::SUCCESS)
     }
 
     fn make_table(&mut self, options: &'a TableOptions) -> Table<'a> {

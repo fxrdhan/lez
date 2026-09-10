@@ -62,19 +62,21 @@ impl ThemeConfig {
 
 impl UseColours {
     fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
-        let default_value = match vars.get(vars::NO_COLOR) {
-            Some(_) => Self::Never,
-            None => match config.theme.color.as_deref() {
+        let no_color_active = vars.get(vars::NO_COLOR).is_some_and(|v| !v.is_empty());
+        let default_value = if no_color_active {
+            Self::Never
+        } else {
+            match config.theme.color.as_deref() {
                 Some("never") => Self::Never,
                 Some("always") => Self::Always,
                 _ => Self::Automatic,
-            },
+            }
         };
 
         if matches.value_source("color") == Some(clap::parser::ValueSource::CommandLine) {
             match matches.get_one("color").copied().unwrap_or(ShowWhen::Auto) {
                 ShowWhen::Auto => {
-                    if vars.get(vars::NO_COLOR).is_some() {
+                    if no_color_active {
                         Self::Never
                     } else {
                         Self::Automatic
@@ -196,6 +198,19 @@ mod tests {
     }
 
     #[test]
+    fn deduce_use_colors_empty_no_color_env() {
+        let vars = MockVars {
+            no_colors: OsString::from(""),
+            ..MockVars::default()
+        };
+
+        assert_eq!(
+            UseColours::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
+            UseColours::Automatic
+        );
+    }
+
+    #[test]
     fn deduce_use_colors_no_color_arg() {
         let vars = MockVars {
             ..MockVars::default()
@@ -232,23 +247,18 @@ mod tests {
     }
 
     struct TempDir {
+        _temp: tempfile::TempDir,
         path: PathBuf,
     }
 
     impl TempDir {
         fn new(prefix: &str) -> Self {
-            let nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            let path = std::env::temp_dir().join(format!(
-                "lez_theme_test_{prefix}_{}_{}",
-                std::process::id(),
-                nanos
-            ));
-            let _ = std::fs::remove_dir_all(&path);
-            std::fs::create_dir_all(&path).unwrap();
-            Self { path }
+            let temp = tempfile::Builder::new()
+                .prefix(&format!("lez_theme_test_{prefix}_"))
+                .tempdir()
+                .unwrap();
+            let path = temp.path().to_path_buf();
+            Self { _temp: temp, path }
         }
 
         fn create_file(&self, name: &str, content: &[u8]) -> PathBuf {
@@ -258,12 +268,6 @@ mod tests {
             }
             std::fs::write(&p, content).unwrap();
             p
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
         }
     }
 

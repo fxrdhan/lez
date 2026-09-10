@@ -32,31 +32,71 @@ pub fn git_available() -> bool {
         .unwrap_or(false)
 }
 
+/// Creates an isolated Command for `lez` CLI integration tests.
+/// - Clears all ambient environment variables to prevent host shell pollution.
+/// - Passes essential environment variables (`PATH`, `HOME`, `TMPDIR`, Windows system roots).
+/// - Sets a neutral baseline (`TERM=dumb`).
+pub fn lez_cmd() -> Command {
+    let mut cmd = Command::new(bin_path());
+    cmd.env_clear();
+    if let Ok(path) = std::env::var("PATH") {
+        cmd.env("PATH", path);
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        cmd.env("HOME", home);
+    }
+    if let Ok(tmpdir) = std::env::var("TMPDIR") {
+        cmd.env("TMPDIR", tmpdir);
+    }
+    #[cfg(windows)]
+    {
+        if let Ok(val) = std::env::var("SystemRoot") {
+            cmd.env("SystemRoot", val);
+        }
+        if let Ok(val) = std::env::var("SYSTEMROOT") {
+            cmd.env("SYSTEMROOT", val);
+        }
+        if let Ok(val) = std::env::var("USERPROFILE") {
+            cmd.env("USERPROFILE", val);
+        }
+        if let Ok(val) = std::env::var("ComSpec") {
+            cmd.env("ComSpec", val);
+        }
+    }
+    cmd.env("TERM", "dumb");
+    cmd
+}
+
 /// A managed temporary directory that automatically cleans up on `Drop`.
 pub struct TempTestDir {
+    _temp_dir: tempfile::TempDir,
     pub path: PathBuf,
 }
 
 impl TempTestDir {
     pub fn new(prefix: &str) -> Self {
-        let count = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_test_{prefix}_{}_{}_{}",
-            std::process::id(),
-            nanos,
-            count
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("failed to create temp dir");
-        Self { path }
+        let temp_dir = tempfile::Builder::new()
+            .prefix(&format!("lez_test_{prefix}_"))
+            .tempdir()
+            .expect("failed to create temp dir");
+        let path = temp_dir.path().to_path_buf();
+        Self {
+            _temp_dir: temp_dir,
+            path,
+        }
     }
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub fn create_empty_file(&self, rel: &str) -> PathBuf {
+        let p = self.path.join(rel);
+        if let Some(parent) = p.parent() {
+            fs::create_dir_all(parent).expect("failed to create parent dir");
+        }
+        StdFile::create(&p).expect("failed to create file");
+        p
     }
 
     pub fn create_file(&self, rel: &str, content: &[u8]) -> PathBuf {
@@ -133,17 +173,12 @@ impl TempTestDir {
     }
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
 /// Alias for backwards compatibility with tests using `TempEnv`.
 pub type TempEnv = TempTestDir;
 
 /// A managed temporary Git repository fixture.
 pub struct TempGitRepo {
+    _temp_dir: tempfile::TempDir,
     pub path: PathBuf,
 }
 
@@ -152,21 +187,16 @@ impl TempGitRepo {
         if !git_available() {
             return None;
         }
-        let count = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_git_{prefix}_{}_{}_{}",
-            std::process::id(),
-            nanos,
-            count
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp repo root");
+        let temp_dir = tempfile::Builder::new()
+            .prefix(&format!("lez_git_{prefix}_"))
+            .tempdir()
+            .ok()?;
+        let path = temp_dir.path().to_path_buf();
 
-        let repo = Self { path };
+        let repo = Self {
+            _temp_dir: temp_dir,
+            path,
+        };
         if !repo.git(&["init", "-q"]) {
             return None;
         }
@@ -225,11 +255,5 @@ impl TempGitRepo {
             .env("GIT_CONFIG_SYSTEM", "/dev/null")
             .output()
             .ok()
-    }
-}
-
-impl Drop for TempGitRepo {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
     }
 }

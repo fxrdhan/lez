@@ -29,14 +29,14 @@ mod powertest_config;
 mod quoting_safety;
 #[path = "cli_options/shell_completions.rs"]
 mod shell_completions;
-#[path = "cli_options/stdin_null.rs"]
-mod stdin_null;
 #[path = "cli_options/stdin_paths.rs"]
 mod stdin_paths;
 #[path = "cli_options/tags.rs"]
 mod tags;
 #[path = "cli_options/time_aliases.rs"]
 mod time_aliases;
+#[path = "cli_options/time_style_options.rs"]
+mod time_style_options;
 #[path = "cli_options/timezone_dst.rs"]
 mod timezone_dst;
 #[path = "cli_options/zsh_completions.rs"]

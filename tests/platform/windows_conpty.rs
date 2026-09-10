@@ -126,8 +126,8 @@ fn test_live_windows_console_virtual_terminal_processing() {
             let mut mode: u32 = 0;
             let success = GetConsoleMode(stdout_handle, &mut mode);
             if success != 0 {
-                // If attached to a live console, check if VT processing is queried without error
-                assert!(mode > 0 || mode == 0);
+                // If attached to a live console, verify GetConsoleMode successfully queried console state
+                assert_ne!(success, 0, "GetConsoleMode query succeeded");
             }
         }
     }

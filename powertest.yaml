@@ -52,15 +52,6 @@ commands:
     - --color=never
   :
   ? - null
-    - --colour=auto
-  :
-  ? - null
-    - --colour=always
-  :
-  ? - null
-    - --colour=never
-  :
-  ? - null
     - --icons=auto
   :
   ? - null
@@ -106,9 +97,6 @@ commands:
     - --almost-all
   :
   ? - -d
-    - --treat-dirs-as-files
-  :
-  ? - null
     - --treat-dirs-as-files
   :
   ? - -L # Hidden alias
@@ -163,9 +151,6 @@ commands:
   ? - -f
     - --only-files
   :
-  ? - -f
-    - --only-files
-  :
   ? - -I # TODO: add more globs
     - --ignore-glob
   : prefix: -l
@@ -176,41 +161,41 @@ commands:
   :
   ? - -b # Long View Options
     - --binary
-  :
+  : prefix: -l
   ? - -B
     - --bytes
-  :
+  : prefix: -l
   ? - -g
     - --group
-  :
+  : prefix: -l
   ? - -h
     - --header
-  :
+  : prefix: -l
   ? - -H
     - --links
-  :
+  : prefix: -l
   ? - -i
     - --inode
-  :
+  : prefix: -l
   # --loc and --code take their mode via `=` only. Their bare forms belong
   # here, but tests/ptests has no snapshot for either, and the snapshots come
   # from `nix build ./#trydump`, which needs the generated fixture. Add the
   # entries back together with the dump they need.
   ? - -m
     - --modified
-  :
+  : prefix: -l
   ? - -M
     - --mounts
-  :
+  : prefix: -l
   ? - -n
     - --numeric
-  :
+  : prefix: -l
   ? - -S
     - --blocksize
-  :
+  : prefix: -l
   ? - null
     - --blocks
-  :
+  : prefix: -l
   ? - -t
     - --time
   : prefix: -l
@@ -221,16 +206,17 @@ commands:
       #- created
   ? - -u
     - --accessed
-  :
+  : prefix: -l
   ? - -U
     - --created
-  :
+  : prefix: -l
   ? - null
     - --changed
-  :
+  : prefix: -l
   ? - null
     - --time-style
   : long: time-style
+    prefix: -l
     values:
       - default
       - iso
@@ -239,34 +225,34 @@ commands:
       - relative
   ? - null
     - --total-size
-  :
+  : prefix: -l
   ? - null
     - --no-permissions
-  :
+  : prefix: -l
   ? - -o
     - --octal-permissions
-  :
+  : prefix: -l
   ? - null
     - --no-filesize
-  :
+  : prefix: -l
   ? - null
     - --no-user
-  :
+  : prefix: -l
   ? - null
     - --no-language
-  :
+  : prefix: -l
   ? - null
     - --git
-  :
+  : prefix: -l
   ? - null
     - --no-git
-  :
+  : prefix: -l
   ? - null
     - --git-repos
-  :
+  : prefix: -l
   ? - -@
     - --extended
-  :
+  : prefix: -l
   ? - -Z
     - --context
-  :
+  : prefix: -l

@@ -51,7 +51,17 @@ fn main() {
 
     let command = get_command();
     let args = normalize_args(env::args_os(), &command);
-    let cli = command.get_matches_from(args);
+    let cli = match command.try_get_matches_from(args) {
+        Ok(matches) => matches,
+        Err(e) => {
+            let _ = e.print();
+            if e.use_stderr() {
+                exit(exits::OPTIONS_ERROR);
+            } else {
+                exit(exits::SUCCESS);
+            }
+        }
+    };
 
     let stdout_istty = io::stdout().is_terminal();
     let mut input = String::new();
@@ -338,7 +348,13 @@ impl Lez<'_> {
             for file_path in &self.input_paths {
                 let path = PathBuf::from(file_path);
                 if let Err(e) = std::fs::symlink_metadata(&path) {
-                    exit_status = exits::MISSING_INPUT_PATH;
+                    if e.kind() == std::io::ErrorKind::PermissionDenied {
+                        if exit_status == exits::SUCCESS {
+                            exit_status = exits::PERMISSION_DENIED;
+                        }
+                    } else {
+                        exit_status = exits::MISSING_INPUT_PATH;
+                    }
                     writeln!(io::stderr(), "{file_path:?}: {e}")?;
                 } else {
                     roots.push(path);
@@ -431,7 +447,13 @@ impl Lez<'_> {
             // We don't know whether this file exists, so we have to try to get
             // the metadata to verify.
             if let Err(e) = f.metadata() {
-                exit_status = exits::MISSING_INPUT_PATH;
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    if exit_status == exits::SUCCESS {
+                        exit_status = exits::PERMISSION_DENIED;
+                    }
+                } else {
+                    exit_status = exits::MISSING_INPUT_PATH;
+                }
                 writeln!(io::stderr(), "{file_path:?}: {e}")?;
                 continue;
             }
@@ -494,7 +516,10 @@ impl Lez<'_> {
             return Ok(final_exit);
         }
 
-        self.print_files(None, files)?;
+        let print_files_status = self.print_files(None, files)?;
+        if print_files_status != exits::SUCCESS && exit_status == exits::SUCCESS {
+            exit_status = print_files_status;
+        }
 
         self.print_dirs(dirs, no_files, is_only_dir, exit_status, 0)
     }
@@ -518,6 +543,7 @@ impl Lez<'_> {
         // directory it wasn’t allowed to read, so `run` can surface it as an
         // exit code instead of only a stderr line.
         let mut denied_anywhere = false;
+        let mut io_error_anywhere = false;
 
         for mut dir in dir_files {
             let dir = match dir.read() {
@@ -535,6 +561,7 @@ impl Lez<'_> {
                     }
 
                     let _ = writeln!(io::stderr(), "{}: {}", dir.path.display(), e);
+                    io_error_anywhere = true;
                     continue;
                 }
             };
@@ -606,26 +633,31 @@ impl Lez<'_> {
                         .map(File::to_dir)
                         .collect::<Vec<Dir>>();
 
-                    self.print_files(Some(dir), children)?;
+                    let status = self.print_files(Some(dir), children)?;
+                    denied_anywhere |= status == exits::PERMISSION_DENIED;
+                    io_error_anywhere |= status == exits::RUNTIME_ERROR;
                     if let Some(warn_line) = hidden_count
                         .as_ref()
                         .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
                     {
-                        writeln!(&mut self.writer, "{warn_line}")?;
+                        let _ = writeln!(io::stderr(), "{warn_line}");
                     }
                     let status =
                         self.print_dirs(child_dirs, false, false, exit_status, child_depth)?;
                     denied_anywhere |= status == exits::PERMISSION_DENIED;
+                    io_error_anywhere |= status == exits::RUNTIME_ERROR;
                     continue;
                 }
             }
 
-            self.print_files(Some(dir), children)?;
+            let status = self.print_files(Some(dir), children)?;
+            denied_anywhere |= status == exits::PERMISSION_DENIED;
+            io_error_anywhere |= status == exits::RUNTIME_ERROR;
             if let Some(warn_line) = hidden_count
                 .as_ref()
                 .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
             {
-                writeln!(&mut self.writer, "{warn_line}")?;
+                let _ = writeln!(io::stderr(), "{warn_line}");
             }
         }
 
@@ -647,15 +679,18 @@ impl Lez<'_> {
         if denied_anywhere && exit_status == exits::SUCCESS {
             return Ok(exits::PERMISSION_DENIED);
         }
+        if io_error_anywhere && exit_status == exits::SUCCESS {
+            return Ok(exits::RUNTIME_ERROR);
+        }
 
         Ok(exit_status)
     }
 
     /// Prints the list of files using whichever view is selected.
-    fn print_files(&mut self, dir: Option<&Dir>, mut files: Vec<File<'_>>) -> io::Result<()> {
+    fn print_files(&mut self, dir: Option<&Dir>, mut files: Vec<File<'_>>) -> io::Result<i32> {
         if files.is_empty() {
             if dir.is_none() {
-                return Ok(());
+                return Ok(exits::SUCCESS);
             }
             if self.options.view.total_entries {
                 writeln!(&mut self.writer, "total: 0")?;
@@ -664,7 +699,7 @@ impl Lez<'_> {
                 let show_icons = self.options.view.file_style.are_icons_enabled();
                 Summary::new().render(&self.theme, show_icons, &mut self.writer)?;
             }
-            return Ok(());
+            return Ok(exits::SUCCESS);
         }
         let recursing = self.options.dir_action.recurse_options().is_some();
         let only_files = self.options.filter.flags.contains(&OnlyFiles);
@@ -712,7 +747,7 @@ impl Lez<'_> {
                     opts,
                     console_width,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer).map(|()| exits::SUCCESS)
             }
 
             (Mode::Grid(opts), None) => {
@@ -723,7 +758,7 @@ impl Lez<'_> {
                     opts,
                     console_width: 80,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer).map(|()| exits::SUCCESS)
             }
 
             (Mode::Lines, _) => {
@@ -732,7 +767,7 @@ impl Lez<'_> {
                     theme,
                     file_style,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer).map(|()| exits::SUCCESS)
             }
 
             (Mode::Details(opts), _) => {
@@ -817,7 +852,7 @@ impl Lez<'_> {
 
             (Mode::Json(_), _) => unreachable!("--json is handled in Lez::run"),
         };
-        result?;
+        let render_status = result?;
 
         let is_tree = self
             .options
@@ -833,7 +868,7 @@ impl Lez<'_> {
             s.render(&self.theme, show_icons, &mut self.writer)?;
         }
 
-        Ok(())
+        Ok(render_status)
     }
 }
 
@@ -843,7 +878,7 @@ use lez::exits;
 mod tests {
     use super::collect_child_git_repos;
     use std::fs;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     /// Create a directory containing an empty `.git` directory at `path`,
     /// simulating a Git repository for the walk-down’s purposes (it only
@@ -852,90 +887,96 @@ mod tests {
         fs::create_dir_all(path.join(".git")).unwrap();
     }
 
-    /// Create a temp directory unique to this test, returning its path.
-    fn temp_workdir(label: &str) -> PathBuf {
-        let mut path = std::env::temp_dir();
-        path.push(format!("lez-test-{}-{}", label, std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).unwrap();
-        path
+    /// Create a temp directory unique to this test, returning its guard.
+    fn temp_workdir(label: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(&format!("lez-test-{label}-"))
+            .tempdir()
+            .unwrap()
     }
 
     #[test]
     fn finds_child_repo_under_non_repo_parent() {
-        let root = temp_workdir("child-repo");
+        let root_dir = temp_workdir("child-repo");
+        let root = root_dir.path();
         mark_as_repo(&root.join("repo"));
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         assert_eq!(out, vec![root.join("repo")]);
     }
 
     #[test]
     fn finds_nested_repo() {
-        let root = temp_workdir("nested");
+        let root_dir = temp_workdir("nested");
+        let root = root_dir.path();
         mark_as_repo(&root.join("a/b/c/repo"));
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         assert_eq!(out, vec![root.join("a/b/c/repo")]);
     }
 
     #[test]
     fn finds_sibling_repos() {
-        let root = temp_workdir("siblings");
+        let root_dir = temp_workdir("siblings");
+        let root = root_dir.path();
         mark_as_repo(&root.join("alpha"));
         mark_as_repo(&root.join("beta"));
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         out.sort();
         assert_eq!(out, vec![root.join("alpha"), root.join("beta")]);
     }
 
     #[test]
     fn includes_start_when_it_is_a_repo() {
-        let root = temp_workdir("start-is-repo");
-        mark_as_repo(&root);
+        let root_dir = temp_workdir("start-is-repo");
+        let root = root_dir.path();
+        mark_as_repo(root);
         mark_as_repo(&root.join("submod"));
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         out.sort();
-        let mut expected = vec![root.clone(), root.join("submod")];
+        let mut expected = vec![root.to_path_buf(), root.join("submod")];
         expected.sort();
         assert_eq!(out, expected);
     }
 
     #[test]
     fn respects_max_depth() {
-        let root = temp_workdir("max-depth");
+        let root_dir = temp_workdir("max-depth");
+        let root = root_dir.path();
         mark_as_repo(&root.join("a/b/c/repo")); // depth 4
         let mut shallow = Vec::new();
-        collect_child_git_repos(&root, 2, &mut shallow);
+        collect_child_git_repos(root, 2, &mut shallow);
         assert!(shallow.is_empty(), "depth 2 should miss repo at depth 4");
         let mut deep = Vec::new();
-        collect_child_git_repos(&root, 5, &mut deep);
+        collect_child_git_repos(root, 5, &mut deep);
         assert_eq!(deep, vec![root.join("a/b/c/repo")]);
     }
 
     #[test]
     fn handles_dot_git_as_a_file() {
         // Submodules use a `.git` file whose contents point to the real gitdir.
-        let root = temp_workdir("dot-git-file");
+        let root_dir = temp_workdir("dot-git-file");
+        let root = root_dir.path();
         let submod = root.join("submod");
         fs::create_dir_all(&submod).unwrap();
         fs::write(submod.join(".git"), "gitdir: ../.git/modules/submod\n").unwrap();
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         assert_eq!(out, vec![submod]);
     }
 
     #[test]
     fn does_not_descend_into_dot_directories() {
-        let root = temp_workdir("dot-dir");
+        let root_dir = temp_workdir("dot-dir");
+        let root = root_dir.path();
         // A `.git/` containing nested directories shouldn’t be searched.
         let bogus = root.join(".git/modules/inner");
         fs::create_dir_all(&bogus).unwrap();
         let mut out = Vec::new();
-        collect_child_git_repos(&root, usize::MAX, &mut out);
+        collect_child_git_repos(root, usize::MAX, &mut out);
         // The root itself has `.git`, so it counts; nothing under it should.
-        assert_eq!(out, vec![root.clone()]);
+        assert_eq!(out, vec![root.to_path_buf()]);
     }
 }

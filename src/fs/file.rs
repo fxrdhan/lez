@@ -1682,19 +1682,19 @@ mod is_git_dir_test {
 #[cfg(unix)]
 mod length_test {
     use super::File;
-    use std::fs::{self, File as StdFile};
+    use std::fs::File as StdFile;
     use std::io::Write;
 
     #[test]
     #[cfg(unix)]
     fn dereference_symlink_length() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("lez_test_deref_len_{}", std::process::id()));
-        let _ = fs::remove_dir_all(&temp_dir);
-        fs::create_dir_all(&temp_dir).unwrap();
+        let temp_dir = tempfile::Builder::new()
+            .prefix("lez_test_deref_len_")
+            .tempdir()
+            .unwrap();
 
-        let target_path = temp_dir.join("target.txt");
-        let link_path = temp_dir.join("link.txt");
+        let target_path = temp_dir.path().join("target.txt");
+        let link_path = temp_dir.path().join("link.txt");
 
         let mut target_file = StdFile::create(&target_path).unwrap();
         target_file.write_all(b"hello world!").unwrap();
@@ -1711,8 +1711,6 @@ mod length_test {
             target_path.to_str().unwrap().len() as u64
         );
         assert_eq!(link_deref.length(), 12);
-
-        let _ = fs::remove_dir_all(&temp_dir);
     }
 }
 
@@ -1780,16 +1778,15 @@ mod broken_symlink_test {
     /// https://github.com/eza-community/eza/issues/1715
     #[test]
     fn empty_target_symlink_is_not_directory() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("lez_test_empty_symlink_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp_dir);
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        let temp_dir = tempfile::Builder::new()
+            .prefix("lez_test_empty_symlink_")
+            .tempdir()
+            .unwrap();
 
-        let link_path = temp_dir.join("empty-link");
+        let link_path = temp_dir.path().join("empty-link");
         // Some environments (e.g. Nix sandbox) don't allow creating
         // symlinks with empty targets, so skip if that's the case.
         if unix_fs::symlink("", &link_path).is_err() {
-            let _ = std::fs::remove_dir_all(&temp_dir);
             return;
         }
 
@@ -1810,23 +1807,21 @@ mod broken_symlink_test {
             target.is_broken(),
             "symlink with empty target should be considered broken"
         );
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     /// A symlink whose target has been deleted should not be treated as a
     /// directory either.
     #[test]
     fn deleted_target_symlink_is_not_directory() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("lez_test_deleted_symlink_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp_dir);
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        let temp_dir = tempfile::Builder::new()
+            .prefix("lez_test_deleted_symlink_")
+            .tempdir()
+            .unwrap();
 
-        let target_dir = temp_dir.join("target_dir");
+        let target_dir = temp_dir.path().join("target_dir");
         std::fs::create_dir(&target_dir).unwrap();
 
-        let link_path = temp_dir.join("dir-link");
+        let link_path = temp_dir.path().join("dir-link");
         unix_fs::symlink("target_dir", &link_path).unwrap();
 
         // Verify it initially points to a directory
@@ -1852,8 +1847,6 @@ mod broken_symlink_test {
             target.is_broken(),
             "symlink with deleted target should be considered broken"
         );
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     /// The answer is cached after the first call, and only for symlinks --
@@ -1861,19 +1854,19 @@ mod broken_symlink_test {
     /// every time rather than only the first.
     #[test]
     fn repeated_calls_agree_for_every_kind_of_entry() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("lez_test_ptd_cache_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp_dir);
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        let temp_dir = tempfile::Builder::new()
+            .prefix("lez_test_ptd_cache_")
+            .tempdir()
+            .unwrap();
 
-        let real_dir = temp_dir.join("real_dir");
+        let real_dir = temp_dir.path().join("real_dir");
         std::fs::create_dir(&real_dir).unwrap();
-        let real_file = temp_dir.join("real_file");
+        let real_file = temp_dir.path().join("real_file");
         std::fs::write(&real_file, b"x").unwrap();
 
-        let dir_link = temp_dir.join("dir_link");
+        let dir_link = temp_dir.path().join("dir_link");
         unix_fs::symlink(&real_dir, &dir_link).unwrap();
-        let file_link = temp_dir.join("file_link");
+        let file_link = temp_dir.path().join("file_link");
         unix_fs::symlink(&real_file, &file_link).unwrap();
 
         for (path, expected) in [
@@ -1891,8 +1884,6 @@ mod broken_symlink_test {
                 );
             }
         }
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }
 
@@ -1900,23 +1891,18 @@ mod broken_symlink_test {
 mod recursive_size_test {
     use super::File;
     use std::fs;
-    use std::path::PathBuf;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
-    static COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-    fn temp_dir(label: &str) -> PathBuf {
-        let n = COUNTER.fetch_add(1, Ordering::SeqCst);
-        let path =
-            std::env::temp_dir().join(format!("lez_recsize_{label}_{}_{}", std::process::id(), n));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).unwrap();
-        path
+    fn temp_dir(label: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(&format!("lez_recsize_{label}_"))
+            .tempdir()
+            .unwrap()
     }
 
     #[test]
     fn total_size_is_stable_across_cache_hits() {
-        let dir = temp_dir("stable");
+        let dir_guard = temp_dir("stable");
+        let dir = dir_guard.path().to_path_buf();
         fs::write(dir.join("one.bin"), vec![0u8; 4096]).unwrap();
         fs::write(dir.join("two.bin"), vec![0u8; 1024]).unwrap();
 
@@ -1927,19 +1913,16 @@ mod recursive_size_test {
         // Second construction must hit DIRECTORY_SIZE_CACHE and agree.
         let file2 = File::from_args(dir.clone(), None, None, false, true, false, None);
         assert_eq!(first, file2.length());
-
-        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
     fn plain_files_do_not_get_recursive_size() {
-        let dir = temp_dir("plain");
+        let dir_guard = temp_dir("plain");
+        let dir = dir_guard.path().to_path_buf();
         fs::write(dir.join("file.txt"), b"data").unwrap();
 
         let file = File::from_args(dir.join("file.txt"), None, None, false, true, false, None);
         assert_eq!(file.length(), 4);
-
-        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
@@ -1947,7 +1930,8 @@ mod recursive_size_test {
         use crate::fs::dir::Dir;
         use crate::fs::fields as f;
 
-        let parent = temp_dir("parent_aa_parent");
+        let parent_guard = temp_dir("parent_aa_parent");
+        let parent = parent_guard.path().to_path_buf();
         let child = parent.join("child");
         fs::create_dir_all(&child).unwrap();
         // 1MB file in parent
@@ -1965,15 +1949,14 @@ mod recursive_size_test {
         assert!(aa_current_file.is_recursive_size());
         assert!(aa_current_file.length() >= 1024);
         assert!(aa_current_file.length() < 1024 * 1024);
-
-        let _ = fs::remove_dir_all(parent);
     }
 
     #[test]
     fn dotfile_filter_synchronizes_with_recursive_size() {
         use crate::fs::DotFilter;
 
-        let root = temp_dir("dotfile_sync");
+        let root_guard = temp_dir("dotfile_sync");
+        let root = root_guard.path().to_path_buf();
         fs::write(root.join("visible.bin"), vec![0u8; 4096]).unwrap();
         fs::write(root.join(".hidden.bin"), vec![0u8; 8192]).unwrap();
 
@@ -2006,15 +1989,14 @@ mod recursive_size_test {
             Some(DotFilter::Dotfiles),
         );
         assert_eq!(file_with_dots.length(), 4096 + 8192 + 16384);
-
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn hardlinks_in_same_tree_are_deduplicated() {
         use crate::fs::DotFilter;
 
-        let root = temp_dir("hardlinks_dedup");
+        let root_guard = temp_dir("hardlinks_dedup");
+        let root = root_guard.path().to_path_buf();
         let file1 = root.join("file1.bin");
         fs::write(&file1, vec![0u8; 10000]).unwrap();
 
@@ -2040,8 +2022,6 @@ mod recursive_size_test {
             Some(DotFilter::JustFiles),
         );
         assert_eq!(file.length(), 15000);
-
-        let _ = fs::remove_dir_all(root);
     }
 }
 
@@ -2049,25 +2029,18 @@ mod recursive_size_test {
 mod mime_type_test {
     use super::File;
     use std::fs;
-    use std::path::PathBuf;
 
-    fn temp_dir(label: &str) -> PathBuf {
-        let path = std::env::temp_dir().join(format!(
-            "lez_mime_test_{label}_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).unwrap();
-        path
+    fn temp_dir(label: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(&format!("lez_mime_test_{label}_"))
+            .tempdir()
+            .unwrap()
     }
 
     #[test]
     fn test_file_mimetype_detection_when_enabled() {
-        let dir = temp_dir("enabled");
+        let dir_guard = temp_dir("enabled");
+        let dir = dir_guard.path();
         let png_no_ext = dir.join("png_no_ext");
         fs::write(
             &png_no_ext,
@@ -2081,23 +2054,22 @@ mod mime_type_test {
 
         let file_without_mime = File::from_args(png_no_ext, None, None, false, false, false, None);
         assert_eq!(file_without_mime.mimetype(), None);
-
-        let _ = fs::remove_dir_all(dir);
     }
 
     #[cfg(windows)]
     #[test]
     fn windows_executable_detection_uses_pathext() {
-        let dir = std::env::temp_dir().join(format!("lez_pathext_{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let temp = tempfile::Builder::new()
+            .prefix("lez_pathext_")
+            .tempdir()
+            .unwrap();
+        let dir = temp.path();
 
         let exe = File::from_args(dir.join("app.EXE"), None, None, false, false, false, None);
         assert!(exe.is_executable_file(), "PATHEXT lists .EXE");
 
         let txt = File::from_args(dir.join("notes.txt"), None, None, false, false, false, None);
         assert!(!txt.is_executable_file());
-
-        let _ = fs::remove_dir_all(dir);
     }
 }
 
@@ -2106,44 +2078,34 @@ mod is_empty_dir_test {
     use super::File;
     use std::fs;
     use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
-    struct TempDir(PathBuf);
+    struct TempDir {
+        _temp: tempfile::TempDir,
+        path: PathBuf,
+    }
 
     impl TempDir {
         fn new(tag: &str) -> Self {
-            let nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            let path = std::env::temp_dir().join(format!(
-                "lez_empty_{tag}_{}_{}",
-                std::process::id(),
-                nanos
-            ));
-            let _ = fs::remove_dir_all(&path);
-            fs::create_dir_all(&path).unwrap();
-            Self(path)
+            let temp = tempfile::Builder::new()
+                .prefix(&format!("lez_empty_{tag}_"))
+                .tempdir()
+                .unwrap();
+            let path = temp.path().to_path_buf();
+            Self { _temp: temp, path }
         }
 
         fn file(self, name: &str) -> Self {
-            fs::write(self.0.join(name), b"").unwrap();
+            fs::write(self.path.join(name), b"").unwrap();
             self
         }
 
         fn subdir(self, name: &str) -> Self {
-            fs::create_dir(self.0.join(name)).unwrap();
+            fs::create_dir(self.path.join(name)).unwrap();
             self
         }
 
         fn is_empty(&self) -> bool {
-            File::from_args(self.0.clone(), None, None, false, false, false, None).is_empty_dir()
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
+            File::from_args(self.path.clone(), None, None, false, false, false, None).is_empty_dir()
         }
     }
 
@@ -2173,7 +2135,7 @@ mod is_empty_dir_test {
     #[test]
     fn a_file_is_not_an_empty_directory() {
         let dir = TempDir::new("not_a_dir").file("a");
-        let file = File::from_args(dir.0.join("a"), None, None, false, false, false, None);
+        let file = File::from_args(dir.path.join("a"), None, None, false, false, false, None);
         assert!(!file.is_empty_dir());
     }
 
@@ -2183,7 +2145,15 @@ mod is_empty_dir_test {
         use std::sync::atomic::Ordering;
 
         let empty_dir = TempDir::new("caching_empty");
-        let file = File::from_args(empty_dir.0.clone(), None, None, false, false, false, None);
+        let file = File::from_args(
+            empty_dir.path.clone(),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
         assert_eq!(file.is_empty_dir.load(Ordering::Acquire), EMPTY_DIR_UNKNOWN);
         assert!(file.is_empty_dir());
         assert_eq!(file.is_empty_dir.load(Ordering::Acquire), EMPTY_DIR_YES);
@@ -2192,7 +2162,7 @@ mod is_empty_dir_test {
 
         let non_empty_dir = TempDir::new("caching_non_empty").file("test.txt");
         let file_non_empty = File::from_args(
-            non_empty_dir.0.clone(),
+            non_empty_dir.path.clone(),
             None,
             None,
             false,
@@ -2253,10 +2223,11 @@ mod is_mount_point_test {
 
     #[test]
     fn an_ordinary_directory_is_not() {
-        let dir = std::env::temp_dir().join(format!("lez_mount_{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        assert!(!mount_point(dir.to_str().unwrap()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let temp = tempfile::Builder::new()
+            .prefix("lez_mount_")
+            .tempdir()
+            .unwrap();
+        assert!(!mount_point(temp.path().to_str().unwrap()));
     }
 
     #[test]

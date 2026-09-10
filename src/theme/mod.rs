@@ -1348,9 +1348,11 @@ mod customs_test {
 
     #[test]
     fn to_theme_keeps_themed_icons_without_colours() {
-        let dir = std::env::temp_dir().join(format!("lez_theme_never_{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("theme.yml");
+        let temp_dir = tempfile::Builder::new()
+            .prefix("lez_theme_never_")
+            .tempdir()
+            .unwrap();
+        let path = temp_dir.path().join("theme.yml");
         std::fs::write(
             &path,
             "filenames:\n  notes.txt: {filename: {foreground: Red}, icon: {glyph: x}}\n",
@@ -1392,8 +1394,6 @@ mod customs_test {
         let entry = theme.ui.filenames.as_ref().unwrap()["notes.txt"].clone();
         assert_eq!(entry.filename, Some(Red.normal()));
         assert_eq!(entry.icon.and_then(|i| i.glyph), Some("x".to_string()));
-
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

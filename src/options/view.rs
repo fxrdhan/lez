@@ -123,6 +123,16 @@ impl Mode {
         let mut json = matches.get_flag("json");
         let spacing = SpacingBetweenColumns::deduce(matches);
 
+        // In non-strict mode, resolve POSIX last-flag-wins precedence between -l and -1.
+        // In strict mode, keep both flags set so that strict checks can report the conflict.
+        if !strict && long && oneline {
+            if matches.index_of("oneline") > matches.index_of("long") {
+                long = false;
+            } else {
+                oneline = false;
+            }
+        }
+
         if !long
             && !oneline
             && !grid

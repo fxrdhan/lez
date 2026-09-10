@@ -107,6 +107,20 @@ fn test_exit_code_3_on_strict_mode_conflicting_options() {
 }
 
 #[test]
+fn test_exit_code_3_on_invalid_cli_arguments() {
+    let output = Command::new(bin_path())
+        .arg("--completely-invalid-nonexistent-flag-xyz")
+        .output()
+        .expect("run lez with invalid option");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "Expected exit code 3 (OPTIONS_ERROR) on invalid CLI arguments"
+    );
+}
+
+#[test]
 fn test_exit_code_on_missing_input_path() {
     let temp = TempTestDir::new("missing_path");
     let non_existent = temp.path.join("definitely_missing_subdir_12345");
@@ -139,39 +153,4 @@ fn test_exit_code_on_code_mode_missing_input_path() {
         Some(2),
         "Expected exit code 2 (MISSING_INPUT_PATH) on missing path in --code mode"
     );
-}
-
-#[cfg(unix)]
-#[test]
-fn test_exit_code_13_on_permission_denied_directory() {
-    use std::os::unix::fs::PermissionsExt;
-
-    // Skip if running as root in container where chmod 000 doesn't block read
-    if unsafe { libc::geteuid() } == 0 {
-        return;
-    }
-
-    let temp = TempTestDir::new("unreadable_dir");
-    let unreadable = temp.path.join("locked_dir");
-    fs::create_dir_all(&unreadable).unwrap();
-    fs::write(unreadable.join("secret.txt"), b"secret").unwrap();
-
-    // Remove all read & execute permissions (chmod 000)
-    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000)).unwrap();
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg(&unreadable)
-        .output()
-        .expect("run lez on unreadable dir");
-
-    let code = output.status.code();
-    assert!(
-        code == Some(13) || code == Some(1),
-        "Expected exit code 13 (PERMISSION_DENIED) or 1 (RUNTIME_ERROR), got: {:?}",
-        code
-    );
-
-    // Restore permissions so fixture drop cleanup succeeds
-    let _ = fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o755));
 }
