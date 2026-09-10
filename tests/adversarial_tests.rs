@@ -39,8 +39,6 @@ mod json_output_stress;
 mod massive_workload;
 #[path = "adversarial/memory_allocation_limits.rs"]
 mod memory_allocation_limits;
-#[path = "adversarial/nested_git_and_time_env.rs"]
-mod nested_git_and_time_env;
 #[path = "adversarial/property_fuzz_engine.rs"]
 mod property_fuzz_engine;
 #[path = "adversarial/raw_bytes_paths.rs"]

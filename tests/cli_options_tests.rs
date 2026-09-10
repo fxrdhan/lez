@@ -35,6 +35,8 @@ mod stdin_paths;
 mod tags;
 #[path = "cli_options/time_aliases.rs"]
 mod time_aliases;
+#[path = "cli_options/time_style_options.rs"]
+mod time_style_options;
 #[path = "cli_options/timezone_dst.rs"]
 mod timezone_dst;
 #[path = "cli_options/zsh_completions.rs"]

@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
+use lez::fs::File;
+use lez::fs::filter::{SortCase, SortField};
+use std::cmp::Ordering;
 use std::fs::{self, File as StdFile};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -346,4 +349,164 @@ fn test_f5_sort_path_case_sensitive_variants() {
             "Case alias {case_alias} must match --sort=Path"
         );
     }
+}
+
+// ----------------------------------------------------------------------------
+// M4: Full Path Sorting Unit Comparisons & Ordering (#1836)
+// ----------------------------------------------------------------------------
+
+#[test]
+fn test_m4_sort_by_path_unit_comparisons() {
+    let file_a = File::from_args(
+        PathBuf::from("alpha/sub/z_file.txt"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+    let file_b = File::from_args(
+        PathBuf::from("beta/sub/a_file.txt"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+
+    // Sort by name (basename): a_file.txt < z_file.txt -> file_a > file_b
+    let name_cmp = SortField::Name(SortCase::AaBbCc).compare_files(&file_a, &file_b);
+    assert_eq!(name_cmp, Ordering::Greater);
+
+    // Sort by path: alpha/... < beta/... -> file_a < file_b
+    let path_cmp = SortField::Path(SortCase::AaBbCc).compare_files(&file_a, &file_b);
+    assert_eq!(path_cmp, Ordering::Less);
+}
+
+#[test]
+fn test_m4_sort_by_path_case_sensitivity() {
+    let file_upper = File::from_args(
+        PathBuf::from("FOLDER_A/file.txt"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+    let file_lower = File::from_args(
+        PathBuf::from("folder_a/file.txt"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+
+    // Case-insensitive path (--sort=path / AaBbCc): FOLDER_A == folder_a
+    let path_ci = SortField::Path(SortCase::AaBbCc).compare_files(&file_upper, &file_lower);
+    assert_eq!(path_ci, Ordering::Equal);
+
+    // Case-sensitive path (--sort=Path / ABCabc): uppercase F comes before lowercase f
+    let path_cs = SortField::Path(SortCase::ABCabc).compare_files(&file_upper, &file_lower);
+    assert_eq!(path_cs, Ordering::Less);
+}
+
+#[test]
+fn test_m4_sort_by_path_natural_number_ordering() {
+    let file_2 = File::from_args(
+        PathBuf::from("dir/2/item.txt"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+    let file_10 = File::from_args(
+        PathBuf::from("dir/10/item.txt"),
+        None,
+        None,
+        false,
+        false,
+        false,
+        None,
+    );
+
+    // Natural ordering in path: 2 comes before 10
+    let cmp = SortField::Path(SortCase::AaBbCc).compare_files(&file_2, &file_10);
+    assert_eq!(cmp, Ordering::Less);
+}
+
+#[test]
+fn test_m4_sort_by_path_cli_e2e() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempDirSetup::new("sort_path_cli");
+
+    let p1 = temp.create_file("b_dir/a.txt", b"1");
+    let p2 = temp.create_file("a_dir/z.txt", b"2");
+
+    // By basename (-s name): a.txt comes first, then z.txt
+    let output_name = Command::new(bin_path)
+        .args([
+            "-s",
+            "name",
+            "-1",
+            p1.to_str().unwrap(),
+            p2.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    let stdout_name = String::from_utf8_lossy(&output_name.stdout);
+    let lines_name: Vec<&str> = stdout_name.lines().collect();
+    assert_eq!(lines_name.len(), 2);
+    assert!(lines_name[0].contains("a.txt"));
+    assert!(lines_name[1].contains("z.txt"));
+
+    // By path (-s path): a_dir/z.txt comes first, then b_dir/a.txt
+    let output_path = Command::new(bin_path)
+        .args([
+            "-s",
+            "path",
+            "-1",
+            p1.to_str().unwrap(),
+            p2.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    let stdout_path = String::from_utf8_lossy(&output_path.stdout);
+    let lines_path: Vec<&str> = stdout_path.lines().collect();
+    assert_eq!(lines_path.len(), 2);
+    assert!(lines_path[0].contains("a_dir"));
+    assert!(lines_path[1].contains("b_dir"));
+}
+
+#[test]
+fn test_m4_sort_by_path_reverse() {
+    let bin_path = env!("CARGO_BIN_EXE_lez");
+    let temp = TempDirSetup::new("sort_path_rev");
+
+    let p1 = temp.create_file("b_dir/a.txt", b"1");
+    let p2 = temp.create_file("a_dir/z.txt", b"2");
+
+    let output = Command::new(bin_path)
+        .args([
+            "-s",
+            "path",
+            "-r",
+            "-1",
+            p1.to_str().unwrap(),
+            p2.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 2);
+    // In reverse path sort: b_dir comes first, then a_dir
+    assert!(lines[0].contains("b_dir"));
+    assert!(lines[1].contains("a_dir"));
 }

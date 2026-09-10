@@ -11,6 +11,8 @@ mod conflicts_and_states;
 mod gitignore;
 #[path = "git/glyphs.rs"]
 mod glyphs;
+#[path = "git/nested_repos.rs"]
+mod nested_repos;
 #[path = "git/repos_dotgit.rs"]
 mod repos_dotgit;
 #[path = "git/submodules.rs"]
