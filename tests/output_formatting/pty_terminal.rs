@@ -259,3 +259,43 @@ fn test_pty_tree_and_long_view_interactive() {
     assert!(status_l.success());
     assert!(stdout_l.contains("nested_folder"));
 }
+
+#[test]
+fn test_pty_empty_no_color_does_not_disable_color() {
+    let temp = TempPtyDir::new("empty_no_color");
+    temp.create_file("document.rs", b"fn main() {}\n");
+
+    let pty = PtySession::spawn(
+        &["--color=auto", temp.path.to_str().unwrap()],
+        80,
+        24,
+        &[("NO_COLOR", ""), ("LS_COLORS", "rs=32")],
+    );
+
+    let (status, stdout) = pty.read_to_string();
+    assert!(status.success());
+    assert!(
+        stdout.contains("\x1b[") || stdout.contains("\u{1b}["),
+        "Empty NO_COLOR=\"\" in interactive PTY must not disable color: {stdout:?}"
+    );
+}
+
+#[test]
+fn test_pty_non_empty_no_color_disables_color() {
+    let temp = TempPtyDir::new("non_empty_no_color");
+    temp.create_file("document.rs", b"fn main() {}\n");
+
+    let pty = PtySession::spawn(
+        &["--color=auto", temp.path.to_str().unwrap()],
+        80,
+        24,
+        &[("NO_COLOR", "1"), ("LS_COLORS", "rs=32")],
+    );
+
+    let (status, stdout) = pty.read_to_string();
+    assert!(status.success());
+    assert!(
+        !stdout.contains("\x1b[") && !stdout.contains("\u{1b}["),
+        "Non-empty NO_COLOR=\"1\" in interactive PTY must disable color: {stdout:?}"
+    );
+}

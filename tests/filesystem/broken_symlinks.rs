@@ -418,3 +418,39 @@ fn test_empty_symlink_in_json_mode() {
         serde_json::from_str(&stdout).expect("Valid JSON must be produced");
     assert!(parsed.is_array(), "JSON output root is an array");
 }
+
+// ----------------------------------------------------------------------------
+// 10. Circular directory symlinks under --follow-symlinks
+// ----------------------------------------------------------------------------
+#[cfg(unix)]
+#[test]
+fn test_circular_symlink_directory_recursion_limit_under_follow_symlinks() {
+    let fixture = TempTestDir::new("symlink_cycle");
+    let _sub = fixture.create_dir("cycle_sub");
+
+    // Create circular link pointing to ancestor fixture.path
+    if fixture
+        .create_symlink(fixture.path.to_str().unwrap(), "cycle_sub/parent_loop")
+        .is_none()
+    {
+        return;
+    }
+
+    let output = run_lez(&[
+        "-T",
+        "--follow-symlinks",
+        "-L",
+        "3",
+        "--color=never",
+        fixture.path.to_str().unwrap(),
+    ]);
+
+    assert!(
+        output.status.success(),
+        "lez should handle circular symlink with depth limit, status: {:?}",
+        output.status
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("cycle_sub"));
+    assert!(stdout.contains("parent_loop"));
+}

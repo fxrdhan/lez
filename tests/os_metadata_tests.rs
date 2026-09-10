@@ -27,6 +27,8 @@ mod mount_fallbacks;
 mod mount_indicators;
 #[path = "os_metadata/permissions_exit.rs"]
 mod permissions_exit;
+#[path = "os_metadata/permissions_special_bits.rs"]
+mod permissions_special_bits;
 #[path = "os_metadata/security_context_and_mount_invariants.rs"]
 mod security_context_and_mount_invariants;
 #[path = "os_metadata/special_device_nodes.rs"]

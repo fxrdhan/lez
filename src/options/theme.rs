@@ -62,19 +62,21 @@ impl ThemeConfig {
 
 impl UseColours {
     fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
-        let default_value = match vars.get(vars::NO_COLOR) {
-            Some(_) => Self::Never,
-            None => match config.theme.color.as_deref() {
+        let no_color_active = vars.get(vars::NO_COLOR).is_some_and(|v| !v.is_empty());
+        let default_value = if no_color_active {
+            Self::Never
+        } else {
+            match config.theme.color.as_deref() {
                 Some("never") => Self::Never,
                 Some("always") => Self::Always,
                 _ => Self::Automatic,
-            },
+            }
         };
 
         if matches.value_source("color") == Some(clap::parser::ValueSource::CommandLine) {
             match matches.get_one("color").copied().unwrap_or(ShowWhen::Auto) {
                 ShowWhen::Auto => {
-                    if vars.get(vars::NO_COLOR).is_some() {
+                    if no_color_active {
                         Self::Never
                     } else {
                         Self::Automatic
@@ -192,6 +194,19 @@ mod tests {
         assert_eq!(
             UseColours::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             UseColours::Never
+        );
+    }
+
+    #[test]
+    fn deduce_use_colors_empty_no_color_env() {
+        let vars = MockVars {
+            no_colors: OsString::from(""),
+            ..MockVars::default()
+        };
+
+        assert_eq!(
+            UseColours::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
+            UseColours::Automatic
         );
     }
 

@@ -348,7 +348,13 @@ impl Lez<'_> {
             for file_path in &self.input_paths {
                 let path = PathBuf::from(file_path);
                 if let Err(e) = std::fs::symlink_metadata(&path) {
-                    exit_status = exits::MISSING_INPUT_PATH;
+                    if e.kind() == std::io::ErrorKind::PermissionDenied {
+                        if exit_status == exits::SUCCESS {
+                            exit_status = exits::PERMISSION_DENIED;
+                        }
+                    } else {
+                        exit_status = exits::MISSING_INPUT_PATH;
+                    }
                     writeln!(io::stderr(), "{file_path:?}: {e}")?;
                 } else {
                     roots.push(path);
@@ -441,7 +447,13 @@ impl Lez<'_> {
             // We don't know whether this file exists, so we have to try to get
             // the metadata to verify.
             if let Err(e) = f.metadata() {
-                exit_status = exits::MISSING_INPUT_PATH;
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    if exit_status == exits::SUCCESS {
+                        exit_status = exits::PERMISSION_DENIED;
+                    }
+                } else {
+                    exit_status = exits::MISSING_INPUT_PATH;
+                }
                 writeln!(io::stderr(), "{file_path:?}: {e}")?;
                 continue;
             }

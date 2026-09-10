@@ -1243,3 +1243,50 @@ fn glob_and_gitignore_end_to_end() {
     assert!(s_nogit.contains("build"));
     assert!(s_nogit.contains("root.bak"));
 }
+
+#[test]
+fn test_mode_deduction_code_trumps_json() {
+    let temp = TempTestDir::new("code_trumps_json");
+    temp.create_file("main.rs", b"fn main() {}\n");
+
+    let output = run_lez(&["--json", "--code", temp.path.to_str().unwrap()]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Rust") || stdout.contains("Code") || stdout.contains("Total"),
+        "Output must be code summary, got: {stdout}"
+    );
+    assert!(
+        !stdout.trim().starts_with('['),
+        "Output must not be JSON array"
+    );
+}
+
+#[test]
+fn test_mode_deduction_posix_last_flag_wins_long_vs_oneline() {
+    let temp = TempTestDir::new("long_vs_oneline");
+    temp.create_file("a.txt", b"a");
+    temp.create_file("b.txt", b"b");
+
+    // lez -l -1 -> -1 came last, should render oneline output without permissions/size
+    let output = run_lez(&["-l", "-1", "--color=never", temp.path.to_str().unwrap()]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines, vec!["a.txt", "b.txt"]);
+
+    // lez -1 -l -> -l came last, should render table with metadata
+    let output_long = run_lez(&["-1", "-l", "--color=never", temp.path.to_str().unwrap()]);
+    assert!(output_long.status.success());
+    let stdout_long = String::from_utf8_lossy(&output_long.stdout);
+    #[cfg(unix)]
+    assert!(
+        stdout_long.contains(".rw") || stdout_long.contains("-rw"),
+        "Must render permissions when -l comes last: {stdout_long}"
+    );
+    #[cfg(windows)]
+    assert!(
+        stdout_long.contains("-a") || stdout_long.contains("---"),
+        "Must render attributes when -l comes last: {stdout_long}"
+    );
+}

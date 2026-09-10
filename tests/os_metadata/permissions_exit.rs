@@ -137,3 +137,23 @@ fn tree_mode_unreadable_directory_exits_with_permission_denied() {
         "tree mode (-T) must exit with code 13 (PERMISSION_DENIED) when an unreadable directory is encountered; stderr was: {stderr}"
     );
 }
+
+#[test]
+fn unreadable_intermediate_directory_stat_exits_with_permission_denied() {
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let mut tree = LockedTree::new("stat_eacces");
+    let locked = tree.dir("locked");
+    let target = locked.join("file.txt");
+    fs::write(&target, b"hello").unwrap();
+
+    tree.lock(&locked);
+
+    let (code, stderr) = run(&[&target]);
+
+    assert_eq!(
+        code, 13,
+        "Access denied during metadata query must exit with 13 (PERMISSION_DENIED), not 2 (MISSING_INPUT_PATH); stderr was: {stderr}"
+    );
+}
