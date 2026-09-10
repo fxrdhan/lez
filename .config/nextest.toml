@@ -17,10 +17,8 @@ slow-timeout = { period = "60s", terminate-after = 3 }
 fail-fast = false
 
 [profile.ci]
-# CI reruns a failure once before believing it: the suite creates real files
-# and symlinks, and a runner under load can lose a race that is not a real
-# regression.
-retries = 1
+# Suite uses isolated hermetic TempDirs, so retries are unnecessary and
+# regressions fail immediately.
 failure-output = "immediate-final"
 status-level = "fail"
 fail-fast = false

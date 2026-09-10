@@ -29,8 +29,6 @@ mod powertest_config;
 mod quoting_safety;
 #[path = "cli_options/shell_completions.rs"]
 mod shell_completions;
-#[path = "cli_options/stdin_null.rs"]
-mod stdin_null;
 #[path = "cli_options/stdin_paths.rs"]
 mod stdin_paths;
 #[path = "cli_options/tags.rs"]
