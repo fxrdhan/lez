@@ -13,29 +13,29 @@
 
 use std::fs::{self, File as StdFile};
 use std::io::Write;
-use std::path::PathBuf;
+use std::os::unix::process::ExitStatusExt;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
+use tempfile::TempDir;
 
 struct SignalTestDir {
+    inner: TempDir,
     path: PathBuf,
 }
 
 impl SignalTestDir {
     fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("lez_sig_{prefix}_{}_{}", std::process::id(), nanos));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp signal test directory");
-        Self { path }
+        let inner = tempfile::Builder::new()
+            .prefix(&format!("lez_sig_{prefix}_"))
+            .tempdir()
+            .expect("Failed to create temp signal test directory");
+        let path = inner.path().to_path_buf();
+        Self { inner, path }
     }
 
     fn populate_deep_tree(&self, depth: usize, breadth: usize) {
-        fn recurse(dir: &std::path::Path, current_depth: usize, max_depth: usize, breadth: usize) {
+        fn recurse(dir: &Path, current_depth: usize, max_depth: usize, breadth: usize) {
             if current_depth >= max_depth {
                 return;
             }
@@ -55,20 +55,13 @@ impl SignalTestDir {
     }
 }
 
-impl Drop for SignalTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
 fn bin_path() -> &'static str {
     env!("CARGO_BIN_EXE_lez")
 }
 
 #[test]
-fn test_sigint_interruption_during_tree_traversal() {
-    let fixture = SignalTestDir::new("sigint_tree");
-    // Generate a deep tree to give lez work to do
+fn test_sigint_graceful_child_termination() {
+    let fixture = SignalTestDir::new("sigint_scan");
     fixture.populate_deep_tree(4, 5);
 
     let mut child = Command::new(bin_path())
@@ -105,24 +98,27 @@ fn test_sigint_interruption_during_tree_traversal() {
         Some(s) => s,
         None => {
             let _ = child.kill();
-            child.wait().expect("Failed to wait on killed child")
+            let _ = child.wait();
+            panic!("Process timed out and did not terminate within 3 seconds of SIGINT");
         }
     };
 
     assert!(
-        status.code().is_some() || status.to_string().contains("signal"),
-        "Process must terminate cleanly on SIGINT"
+        status.success()
+            || status.signal() == Some(libc::SIGINT)
+            || status.code() == Some(128 + libc::SIGINT),
+        "Process must terminate cleanly on SIGINT or complete successfully, got status: {status:?}"
     );
 }
 
 #[test]
 fn test_sigterm_graceful_process_teardown() {
     let fixture = SignalTestDir::new("sigterm_scan");
-    fixture.populate_deep_tree(4, 4);
+    fixture.populate_deep_tree(4, 5);
 
     let mut child = Command::new(bin_path())
         .current_dir(&fixture.path)
-        .args(["-R", "--color=never"])
+        .args(["-T", "-l", "--total-size", "--color=never"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -152,12 +148,15 @@ fn test_sigterm_graceful_process_teardown() {
         Some(s) => s,
         None => {
             let _ = child.kill();
-            child.wait().expect("Failed to wait on killed child")
+            let _ = child.wait();
+            panic!("Process timed out and did not terminate within 3 seconds of SIGTERM");
         }
     };
 
     assert!(
-        status.code().is_some() || status.to_string().contains("signal"),
-        "Process must terminate cleanly on SIGTERM"
+        status.success()
+            || status.signal() == Some(libc::SIGTERM)
+            || status.code() == Some(128 + libc::SIGTERM),
+        "Process must terminate cleanly on SIGTERM or complete successfully, got status: {status:?}"
     );
 }

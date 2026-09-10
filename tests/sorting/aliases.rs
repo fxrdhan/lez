@@ -183,12 +183,12 @@ fn test_sort_newest_reverse_matches_oldest() {
 #[test]
 fn test_gnu_ls_style_t_sorts_newest_first() {
     let temp = TempTestDir::new("sort_gnu_t");
-    temp.create_file("older.txt", b"older");
-    temp.create_file("newer.txt", b"newer");
+    temp.create_file("alpha_older.txt", b"older");
+    temp.create_file("zeta_newer.txt", b"newer");
 
     let now = SystemTime::now();
-    temp.set_mtime("older.txt", now - Duration::from_secs(100));
-    temp.set_mtime("newer.txt", now - Duration::from_secs(10));
+    temp.set_mtime("alpha_older.txt", now - Duration::from_secs(100));
+    temp.set_mtime("zeta_newer.txt", now - Duration::from_secs(10));
 
     let temp_str = temp.path.to_str().unwrap();
 
@@ -197,32 +197,32 @@ fn test_gnu_ls_style_t_sorts_newest_first() {
     assert!(output_t.status.success());
     let stdout_t = String::from_utf8_lossy(&output_t.stdout);
     let lines_t: Vec<&str> = stdout_t.lines().collect();
-    assert_eq!(lines_t, vec!["newer.txt", "older.txt"]);
+    assert_eq!(lines_t, vec!["zeta_newer.txt", "alpha_older.txt"]);
 
     // lez -1tr temp_dir should sort oldest first
     let output_1tr = run_lez(&["-1tr", "--color=never", temp_str]);
     assert!(output_1tr.status.success());
     let stdout_1tr = String::from_utf8_lossy(&output_1tr.stdout);
     let lines_1tr: Vec<&str> = stdout_1tr.lines().collect();
-    assert_eq!(lines_1tr, vec!["older.txt", "newer.txt"]);
+    assert_eq!(lines_1tr, vec!["alpha_older.txt", "zeta_newer.txt"]);
 
     // lez -ltra temp_dir should succeed and contain reversed mtime order
     let output_ltra = run_lez(&["-ltra", "--color=never", temp_str]);
     assert!(output_ltra.status.success());
 
-    // Precedence: lez -1 -t --sort=name -> sorts by name
+    // Precedence: lez -1 -t --sort=name -> sorts by name ('alpha' < 'zeta')
     let output_prec_name = run_lez(&["-1", "-t", "--sort=name", "--color=never", temp_str]);
     assert!(output_prec_name.status.success());
     let stdout_prec_name = String::from_utf8_lossy(&output_prec_name.stdout);
     let lines_prec_name: Vec<&str> = stdout_prec_name.lines().collect();
-    assert_eq!(lines_prec_name, vec!["newer.txt", "older.txt"]); // 'newer' < 'older' alphabetically
+    assert_eq!(lines_prec_name, vec!["alpha_older.txt", "zeta_newer.txt"]);
 
-    // Precedence: lez -1 --sort=name -t -> sorts by mtime
+    // Precedence: lez -1 --sort=name -t -> sorts by mtime (newest first: 'zeta' before 'alpha')
     let output_prec_t = run_lez(&["-1", "--sort=name", "-t", "--color=never", temp_str]);
     assert!(output_prec_t.status.success());
     let stdout_prec_t = String::from_utf8_lossy(&output_prec_t.stdout);
     let lines_prec_t: Vec<&str> = stdout_prec_t.lines().collect();
-    assert_eq!(lines_prec_t, vec!["newer.txt", "older.txt"]);
+    assert_eq!(lines_prec_t, vec!["zeta_newer.txt", "alpha_older.txt"]);
 }
 
 #[test]

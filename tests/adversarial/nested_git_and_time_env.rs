@@ -881,7 +881,7 @@ fn test_m5_valid_time_styles_pass() {
 fn test_m5_time_style_cli_process_exit_code() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
 
-    // Invalid format string -> Clap error with exit code 2
+    // Invalid format string -> Clap error with exit code 3 (OPTIONS_ERROR)
     let output_invalid = Command::new(bin_path)
         .args(["--time-style", "bogus_time_style"])
         .output()
@@ -889,8 +889,8 @@ fn test_m5_time_style_cli_process_exit_code() {
 
     assert_eq!(
         output_invalid.status.code(),
-        Some(2),
-        "Expected exit code 2 for invalid --time-style"
+        Some(3),
+        "Expected exit code 3 for invalid --time-style"
     );
     let stderr = String::from_utf8_lossy(&output_invalid.stderr);
     assert!(stderr.contains("error:"));

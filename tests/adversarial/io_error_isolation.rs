@@ -15,29 +15,24 @@ use std::fs::{self, File as StdFile};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use tempfile::TempDir;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 struct IoErrorFixture {
+    inner: TempDir,
     path: PathBuf,
 }
 
 impl IoErrorFixture {
     fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_ioerr_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp io error test directory");
-        Self { path }
+        let inner = tempfile::Builder::new()
+            .prefix(&format!("lez_ioerr_{prefix}_"))
+            .tempdir()
+            .expect("Failed to create temp io error test directory");
+        let path = inner.path().to_path_buf();
+        Self { inner, path }
     }
 
     fn create_file(&self, rel: &str, content: &[u8]) -> PathBuf {
@@ -90,7 +85,6 @@ impl Drop for IoErrorFixture {
                 }
             }
         }
-        let _ = fs::remove_dir_all(&self.path);
     }
 }
 
@@ -170,7 +164,14 @@ fn test_unreadable_subdirectory_in_tree_view_continues_sibling_traversal() {
 
     fixture.make_unreadable("locked_branch");
 
-    let (_code, stdout, _stderr) = run_lez(&fixture.path, &["-T", "--color=never"]);
+    let (code, stdout, _stderr) = run_lez(&fixture.path, &["-T", "--color=never"]);
+
+    if unsafe { libc::geteuid() } != 0 {
+        assert_eq!(
+            code, 13,
+            "Tree mode with unreadable subdirectory must exit with 13 (PERMISSION_DENIED)"
+        );
+    }
 
     // Stdout must STILL contain the valid branches and locked entry
     assert!(
@@ -245,4 +246,24 @@ fn test_unreadable_files_in_loc_engine_view() {
     );
 
     fixture.restore_permissions("unreadable.rs");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_directory_traversal_eloop_exits_with_runtime_error() {
+    let fixture = IoErrorFixture::new("traversal_eloop");
+    let loop_dir = fixture.create_dir("cycle_dir");
+
+    // Create circular directory symlink
+    std::os::unix::fs::symlink(&loop_dir, loop_dir.join("sub_loop")).expect("symlink");
+
+    let (code, _stdout, stderr) = run_lez(
+        &fixture.path,
+        &["--recurse", "--follow-symlinks", "--color=never"],
+    );
+
+    assert_eq!(
+        code, 1,
+        "Non-permission traversal errors (such as ELOOP) must exit with code 1 (RUNTIME_ERROR), got: {code}, stderr: {stderr}"
+    );
 }

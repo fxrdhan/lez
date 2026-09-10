@@ -118,3 +118,22 @@ fn missing_path_keeps_precedence_over_permission_denied() {
         "a nonexistent input path is the more specific complaint; stderr was: {stderr}"
     );
 }
+
+#[test]
+fn tree_mode_unreadable_directory_exits_with_permission_denied() {
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let mut tree = LockedTree::new("tree_perm");
+    let outer = tree.dir("outer");
+    let inner = tree.dir("outer/inner");
+    fs::write(inner.join("secret.txt"), b"secret").unwrap();
+    tree.lock(&inner);
+
+    let (code, stderr) = run(&[Path::new("-T"), &outer]);
+
+    assert_eq!(
+        code, 13,
+        "tree mode (-T) must exit with code 13 (PERMISSION_DENIED) when an unreadable directory is encountered; stderr was: {stderr}"
+    );
+}

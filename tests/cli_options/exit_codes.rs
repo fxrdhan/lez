@@ -107,6 +107,20 @@ fn test_exit_code_3_on_strict_mode_conflicting_options() {
 }
 
 #[test]
+fn test_exit_code_3_on_invalid_cli_arguments() {
+    let output = Command::new(bin_path())
+        .arg("--completely-invalid-nonexistent-flag-xyz")
+        .output()
+        .expect("run lez with invalid option");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "Expected exit code 3 (OPTIONS_ERROR) on invalid CLI arguments"
+    );
+}
+
+#[test]
 fn test_exit_code_on_missing_input_path() {
     let temp = TempTestDir::new("missing_path");
     let non_existent = temp.path.join("definitely_missing_subdir_12345");

@@ -51,7 +51,17 @@ fn main() {
 
     let command = get_command();
     let args = normalize_args(env::args_os(), &command);
-    let cli = command.get_matches_from(args);
+    let cli = match command.try_get_matches_from(args) {
+        Ok(matches) => matches,
+        Err(e) => {
+            let _ = e.print();
+            if e.use_stderr() {
+                exit(exits::OPTIONS_ERROR);
+            } else {
+                exit(exits::SUCCESS);
+            }
+        }
+    };
 
     let stdout_istty = io::stdout().is_terminal();
     let mut input = String::new();
@@ -494,7 +504,10 @@ impl Lez<'_> {
             return Ok(final_exit);
         }
 
-        self.print_files(None, files)?;
+        let print_files_status = self.print_files(None, files)?;
+        if print_files_status != exits::SUCCESS && exit_status == exits::SUCCESS {
+            exit_status = print_files_status;
+        }
 
         self.print_dirs(dirs, no_files, is_only_dir, exit_status, 0)
     }
@@ -518,6 +531,7 @@ impl Lez<'_> {
         // directory it wasn’t allowed to read, so `run` can surface it as an
         // exit code instead of only a stderr line.
         let mut denied_anywhere = false;
+        let mut io_error_anywhere = false;
 
         for mut dir in dir_files {
             let dir = match dir.read() {
@@ -535,6 +549,7 @@ impl Lez<'_> {
                     }
 
                     let _ = writeln!(io::stderr(), "{}: {}", dir.path.display(), e);
+                    io_error_anywhere = true;
                     continue;
                 }
             };
@@ -606,26 +621,31 @@ impl Lez<'_> {
                         .map(File::to_dir)
                         .collect::<Vec<Dir>>();
 
-                    self.print_files(Some(dir), children)?;
+                    let status = self.print_files(Some(dir), children)?;
+                    denied_anywhere |= status == exits::PERMISSION_DENIED;
+                    io_error_anywhere |= status == exits::RUNTIME_ERROR;
                     if let Some(warn_line) = hidden_count
                         .as_ref()
                         .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
                     {
-                        writeln!(&mut self.writer, "{warn_line}")?;
+                        let _ = writeln!(io::stderr(), "{warn_line}");
                     }
                     let status =
                         self.print_dirs(child_dirs, false, false, exit_status, child_depth)?;
                     denied_anywhere |= status == exits::PERMISSION_DENIED;
+                    io_error_anywhere |= status == exits::RUNTIME_ERROR;
                     continue;
                 }
             }
 
-            self.print_files(Some(dir), children)?;
+            let status = self.print_files(Some(dir), children)?;
+            denied_anywhere |= status == exits::PERMISSION_DENIED;
+            io_error_anywhere |= status == exits::RUNTIME_ERROR;
             if let Some(warn_line) = hidden_count
                 .as_ref()
                 .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
             {
-                writeln!(&mut self.writer, "{warn_line}")?;
+                let _ = writeln!(io::stderr(), "{warn_line}");
             }
         }
 
@@ -647,15 +667,18 @@ impl Lez<'_> {
         if denied_anywhere && exit_status == exits::SUCCESS {
             return Ok(exits::PERMISSION_DENIED);
         }
+        if io_error_anywhere && exit_status == exits::SUCCESS {
+            return Ok(exits::RUNTIME_ERROR);
+        }
 
         Ok(exit_status)
     }
 
     /// Prints the list of files using whichever view is selected.
-    fn print_files(&mut self, dir: Option<&Dir>, mut files: Vec<File<'_>>) -> io::Result<()> {
+    fn print_files(&mut self, dir: Option<&Dir>, mut files: Vec<File<'_>>) -> io::Result<i32> {
         if files.is_empty() {
             if dir.is_none() {
-                return Ok(());
+                return Ok(exits::SUCCESS);
             }
             if self.options.view.total_entries {
                 writeln!(&mut self.writer, "total: 0")?;
@@ -664,7 +687,7 @@ impl Lez<'_> {
                 let show_icons = self.options.view.file_style.are_icons_enabled();
                 Summary::new().render(&self.theme, show_icons, &mut self.writer)?;
             }
-            return Ok(());
+            return Ok(exits::SUCCESS);
         }
         let recursing = self.options.dir_action.recurse_options().is_some();
         let only_files = self.options.filter.flags.contains(&OnlyFiles);
@@ -712,7 +735,7 @@ impl Lez<'_> {
                     opts,
                     console_width,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer).map(|()| exits::SUCCESS)
             }
 
             (Mode::Grid(opts), None) => {
@@ -723,7 +746,7 @@ impl Lez<'_> {
                     opts,
                     console_width: 80,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer).map(|()| exits::SUCCESS)
             }
 
             (Mode::Lines, _) => {
@@ -732,7 +755,7 @@ impl Lez<'_> {
                     theme,
                     file_style,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer).map(|()| exits::SUCCESS)
             }
 
             (Mode::Details(opts), _) => {
@@ -817,7 +840,7 @@ impl Lez<'_> {
 
             (Mode::Json(_), _) => unreachable!("--json is handled in Lez::run"),
         };
-        result?;
+        let render_status = result?;
 
         let is_tree = self
             .options
@@ -833,7 +856,7 @@ impl Lez<'_> {
             s.render(&self.theme, show_icons, &mut self.writer)?;
         }
 
-        Ok(())
+        Ok(render_status)
     }
 }
 

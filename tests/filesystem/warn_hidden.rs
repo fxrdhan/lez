@@ -6,32 +6,29 @@
 //! twice, it always prints the numbers.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use tempfile::TempDir;
 
 struct TempTestDir {
-    path: PathBuf,
+    inner: TempDir,
 }
 
 impl TempTestDir {
     fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_warn_hidden_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
+        let inner = tempfile::Builder::new()
+            .prefix(&format!("lez_warn_hidden_{prefix}_"))
+            .tempdir()
+            .expect("Failed to create temp test directory");
+        Self { inner }
+    }
+
+    fn path(&self) -> &Path {
+        self.inner.path()
     }
 
     fn create_file(&self, rel_path: &str) {
-        let file_path = self.path.join(rel_path);
+        let file_path = self.path().join(rel_path);
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).unwrap();
         }
@@ -39,19 +36,16 @@ impl TempTestDir {
     }
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn run_lez(args: &[&str]) -> String {
+fn run_lez(args: &[&str]) -> (String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_lez"))
         .args(args)
         .output()
         .expect("Failed to execute lez binary");
     assert!(output.status.success());
-    String::from_utf8_lossy(&output.stdout).into_owned()
+    (
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
 }
 
 fn fixture(prefix: &str) -> TempTestDir {
@@ -66,16 +60,20 @@ fn fixture(prefix: &str) -> TempTestDir {
 fn warn_hidden_stays_silent_when_nothing_was_filtered() {
     let fixture = fixture("silent");
 
-    let stdout = run_lez(&[
+    let (stdout, stderr) = run_lez(&[
         "-1",
         "--color=never",
         "-W",
-        fixture.path.join("clean").to_str().unwrap(),
+        fixture.path().join("clean").to_str().unwrap(),
     ]);
     assert!(stdout.contains("inner.txt"), "{stdout}");
     assert!(
         !stdout.contains("hidden"),
-        "no tally without filtered entries: {stdout}"
+        "no tally in stdout without filtered entries: {stdout}"
+    );
+    assert!(
+        !stderr.contains("hidden"),
+        "no tally in stderr without filtered entries: {stderr}"
     );
 }
 
@@ -83,11 +81,20 @@ fn warn_hidden_stays_silent_when_nothing_was_filtered() {
 fn warn_hidden_reports_once_something_was_hidden() {
     let fixture = fixture("auto");
 
-    let stdout = run_lez(&["-1", "--color=never", "-W", fixture.path.to_str().unwrap()]);
+    let (stdout, stderr) = run_lez(&[
+        "-1",
+        "--color=never",
+        "-W",
+        fixture.path().to_str().unwrap(),
+    ]);
     assert!(stdout.contains("visible.txt"), "{stdout}");
     assert!(
-        stdout.contains("hidden items"),
-        "must warn about the hidden dotfile: {stdout}"
+        !stdout.contains("hidden items"),
+        "stdout must remain pure data payload without warnings: {stdout}"
+    );
+    assert!(
+        stderr.contains("hidden items"),
+        "stderr must contain the warning tally: {stderr}"
     );
 }
 
@@ -95,18 +102,35 @@ fn warn_hidden_reports_once_something_was_hidden() {
 fn warn_hidden_twice_always_prints_the_tally() {
     let fixture = fixture("verbose");
 
-    // A directory whose contents are all visible still gets a tally line.
-    let stdout = run_lez(&[
+    // A directory whose contents are all visible still gets a tally line on stderr.
+    let (stdout, stderr) = run_lez(&[
         "-1",
         "--color=never",
         "-WW",
-        fixture.path.join("clean").to_str().unwrap(),
+        fixture.path().join("clean").to_str().unwrap(),
     ]);
     assert!(
-        stdout.contains("0 hidden and 0 ignored"),
-        "double flag forces the tally: {stdout}"
+        !stdout.contains("0 hidden and 0 ignored"),
+        "stdout must remain pure: {stdout}"
+    );
+    assert!(
+        stderr.contains("0 hidden and 0 ignored"),
+        "double flag forces the tally to stderr: {stderr}"
     );
 
-    let stdout = run_lez(&["-1", "--color=never", "-WW", fixture.path.to_str().unwrap()]);
-    assert!(stdout.contains("1 hidden"), "{stdout}");
+    let (stdout, stderr) = run_lez(&[
+        "-1",
+        "--color=never",
+        "-WW",
+        fixture.path().to_str().unwrap(),
+    ]);
+    assert!(stdout.contains("visible.txt"), "{stdout}");
+    assert!(
+        !stdout.contains("1 hidden"),
+        "stdout must remain pure: {stdout}"
+    );
+    assert!(
+        stderr.contains("1 hidden"),
+        "double flag prints tally to stderr: {stderr}"
+    );
 }
