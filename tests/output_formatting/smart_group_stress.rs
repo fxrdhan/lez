@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lez_chal_m3_{prefix}_{}_{}",
+            "lez_smart_stress_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));

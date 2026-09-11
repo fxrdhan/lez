@@ -92,11 +92,11 @@ fn run_lez(args: &[&str]) -> Output {
 }
 
 // ----------------------------------------------------------------------------
-// F7: GitIgnore Scoping & --no-git Override Tests
+// GitIgnore Scoping & --no-git Override Tests
 // ----------------------------------------------------------------------------
 
 #[test]
-fn test_f7_gitignore_filters_unlisted_target() {
+fn test_gitignore_filters_unlisted_target() {
     let Some(repo) = TempGitRepo::new("root_ignore") else {
         return;
     };
@@ -126,7 +126,7 @@ fn test_f7_gitignore_filters_unlisted_target() {
 }
 
 #[test]
-fn test_f7_explicit_positional_dir_displayed_despite_gitignore() {
+fn test_explicit_positional_dir_displayed_despite_gitignore() {
     let Some(repo) = TempGitRepo::new("explicit_dir") else {
         return;
     };
@@ -157,7 +157,7 @@ fn test_f7_explicit_positional_dir_displayed_despite_gitignore() {
 }
 
 #[test]
-fn test_f7_no_git_overrides_git_ignore() {
+fn test_no_git_overrides_git_ignore() {
     let Some(repo) = TempGitRepo::new("no_git_override") else {
         return;
     };
@@ -189,7 +189,7 @@ fn test_f7_no_git_overrides_git_ignore() {
 }
 
 #[test]
-fn test_f7_git_ignore_after_no_git_reciprocal_override() {
+fn test_git_ignore_after_no_git_reciprocal_override() {
     let Some(repo) = TempGitRepo::new("git_ignore_after_no_git") else {
         return;
     };
@@ -213,7 +213,7 @@ fn test_f7_git_ignore_after_no_git_reciprocal_override() {
 }
 
 #[test]
-fn test_f7_explicit_positional_file_displayed_despite_gitignore() {
+fn test_explicit_positional_file_displayed_despite_gitignore() {
     let Some(repo) = TempGitRepo::new("explicit_file") else {
         return;
     };
@@ -236,7 +236,7 @@ fn test_f7_explicit_positional_file_displayed_despite_gitignore() {
 }
 
 #[test]
-fn test_f7_positional_dir_filters_nested_ignored_files() {
+fn test_positional_dir_filters_nested_ignored_files() {
     let Some(repo) = TempGitRepo::new("nested_ignore") else {
         return;
     };
@@ -266,7 +266,7 @@ fn test_f7_positional_dir_filters_nested_ignored_files() {
 }
 
 #[test]
-fn test_f7_positional_dir_in_tree_mode() {
+fn test_positional_dir_in_tree_mode() {
     let Some(repo) = TempGitRepo::new("tree_ignore") else {
         return;
     };
@@ -299,7 +299,7 @@ fn test_f7_positional_dir_in_tree_mode() {
 }
 
 #[test]
-fn test_f7_env_var_override_git_ignore() {
+fn test_env_var_override_git_ignore() {
     let Some(repo) = TempGitRepo::new("env_override") else {
         return;
     };

@@ -11,6 +11,8 @@ mod archive_fuzz_stress;
 mod blocksize_column_stress;
 #[path = "adversarial/broken_pipe_resilience.rs"]
 mod broken_pipe_resilience;
+#[path = "adversarial/bug_remediations.rs"]
+mod bug_remediations;
 #[path = "adversarial/concurrency_model_checker.rs"]
 mod concurrency_model_checker;
 #[path = "adversarial/continuous_fuzz_guard.rs"]
@@ -25,14 +27,8 @@ mod dynamic_fs_concurrency;
 mod fd_exhaustion;
 #[path = "adversarial/filesystem_types_stress.rs"]
 mod filesystem_types_stress;
-#[path = "adversarial/grid_width_and_odin.rs"]
-mod grid_width_and_odin;
 #[path = "adversarial/io_error_isolation.rs"]
 mod io_error_isolation;
-#[path = "adversarial/janet_loc_basics.rs"]
-mod janet_loc_basics;
-#[path = "adversarial/janet_loc_stress.rs"]
-mod janet_loc_stress;
 #[path = "adversarial/json_output_stress.rs"]
 mod json_output_stress;
 #[path = "adversarial/massive_workload.rs"]
@@ -47,10 +43,6 @@ mod raw_bytes_paths;
 mod signal_cleanup;
 #[path = "adversarial/since_duration_stress.rs"]
 mod since_duration_stress;
-#[path = "adversarial/smart_group_basics.rs"]
-mod smart_group_basics;
-#[path = "adversarial/smart_group_stress.rs"]
-mod smart_group_stress;
 #[path = "adversarial/strict_mode_permutations.rs"]
 mod strict_mode_permutations;
 #[path = "adversarial/symlink_targets_stress.rs"]

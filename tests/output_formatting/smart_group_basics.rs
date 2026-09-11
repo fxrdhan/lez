@@ -20,7 +20,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lez_adv_m3_{prefix}_{}_{}",
+            "lez_smart_group_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -57,7 +57,7 @@ fn bin_path() -> &'static str {
 }
 
 #[test]
-fn test_m3_cli_smart_group_basic() {
+fn test_smart_group_basic() {
     let temp = TempTestDir::new("smart_basic");
     temp.create_file("test1.txt", b"hello world");
 
@@ -74,7 +74,7 @@ fn test_m3_cli_smart_group_basic() {
 }
 
 #[test]
-fn test_m3_cli_smart_group_vs_plain_long() {
+fn test_smart_group_vs_plain_long() {
     let temp = TempTestDir::new("smart_vs_plain");
     temp.create_file("file.txt", b"data");
 
@@ -100,7 +100,7 @@ fn test_m3_cli_smart_group_vs_plain_long() {
 }
 
 #[test]
-fn test_m3_cli_smart_group_with_group_flag() {
+fn test_smart_group_with_group_flag() {
     let temp = TempTestDir::new("smart_with_g");
     temp.create_file("sample.rs", b"fn main() {}");
 
@@ -118,7 +118,7 @@ fn test_m3_cli_smart_group_with_group_flag() {
 }
 
 #[test]
-fn test_m3_cli_smart_group_json_mode() {
+fn test_smart_group_json_mode() {
     let temp = TempTestDir::new("smart_json");
     temp.create_file("doc.md", b"# Markdown");
 
@@ -158,7 +158,7 @@ fn test_m3_cli_smart_group_json_mode() {
 }
 
 #[test]
-fn test_m3_cli_plain_long_json_mode_has_no_group() {
+fn test_plain_long_json_mode_has_no_group() {
     let temp = TempTestDir::new("plain_json");
     temp.create_file("doc.md", b"# Markdown");
 
@@ -185,7 +185,7 @@ fn test_m3_cli_plain_long_json_mode_has_no_group() {
 }
 
 #[test]
-fn test_m3_cli_smart_group_with_multiple_files_and_dirs() {
+fn test_smart_group_with_multiple_files_and_dirs() {
     let temp = TempTestDir::new("multi_entries");
     temp.create_file("alpha.txt", b"a");
     temp.create_file("beta.log", b"b");
@@ -209,7 +209,7 @@ fn test_m3_cli_smart_group_with_multiple_files_and_dirs() {
 }
 
 #[test]
-fn test_m3_cli_smart_group_with_other_long_flags() {
+fn test_smart_group_with_other_long_flags() {
     let temp = TempTestDir::new("combo_long");
     temp.create_file("combo.dat", b"12345");
 

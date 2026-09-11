@@ -190,7 +190,20 @@ impl DotFilter {
             }
             1 => Ok(Self::Dotfiles),
             c => {
-                if matches.get_flag("tree") {
+                let cli_overrides_tree = matches.get_flag("oneline")
+                    || matches.get_flag("grid")
+                    || matches.get_flag("json")
+                    || matches
+                        .get_one::<crate::options::parser::CodeContent>("code")
+                        .is_some();
+                let tree_from_config = !cli_overrides_tree
+                    && config
+                        .display
+                        .mode
+                        .as_deref()
+                        .is_some_and(|m| m.eq_ignore_ascii_case("tree"));
+                let is_tree = matches.get_flag("tree") || tree_from_config;
+                if is_tree {
                     Err(OptionsError::TreeAllAll)
                 } else if strict && c > 2 {
                     Err(OptionsError::Conflict("all", "all"))

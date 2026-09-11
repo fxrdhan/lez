@@ -218,3 +218,39 @@ fn test_real_macos_extended_attributes_roundtrip() {
     let stdout_ext = String::from_utf8_lossy(&output_ext.stdout);
     assert!(stdout_ext.contains("com.apple.metadata:kCustomField"));
 }
+
+#[test]
+fn test_resourcefork_xattr_decoding_unit() {
+    #[cfg(target_os = "macos")]
+    {
+        use lez::fs::feature::xattr::Attribute;
+
+        let mut data = vec![0u8; 64];
+        // Header
+        data[0..4].copy_from_slice(&256u32.to_be_bytes()); // data offset
+        data[4..8].copy_from_slice(&16u32.to_be_bytes()); // map offset
+        data[8..12].copy_from_slice(&0u32.to_be_bytes()); // data len
+        data[12..16].copy_from_slice(&48u32.to_be_bytes()); // map len
+
+        // Map at 16
+        // Type list offset at map + 24 = index 40
+        data[40..42].copy_from_slice(&28u16.to_be_bytes());
+
+        // Type list at 16 + 28 = 44
+        data[44..46].copy_from_slice(&0u16.to_be_bytes()); // 1 type (0 + 1)
+        data[46..50].copy_from_slice(b"icns");
+        data[50..52].copy_from_slice(&0u16.to_be_bytes()); // count 1 (0 + 1)
+        data[52..54].copy_from_slice(&0u16.to_be_bytes());
+
+        let attr = Attribute {
+            name: "com.apple.ResourceFork".to_string(),
+            value: Some(data),
+        };
+
+        let formatted = format!("{attr}");
+        assert!(
+            formatted.contains("<[icns: 1]>"),
+            "Formatted output: {formatted}"
+        );
+    }
+}

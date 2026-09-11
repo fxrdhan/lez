@@ -39,7 +39,7 @@ impl TempHarness {
             .unwrap()
             .as_nanos();
         let root = std::env::temp_dir().join(format!(
-            "lez_chal2_m2_full_{}_{}_{}",
+            "lez_fs_types_{}_{}_{}",
             name,
             std::process::id(),
             nanos

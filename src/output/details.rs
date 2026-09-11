@@ -223,9 +223,12 @@ impl<'a> Render<'a> {
             // Percentage columns need the whole tree’s code total as their
             // denominator, so walk the tree (or git repo) once up front.
             if matches!(loc_content, Some(CodeContent::Percent | CodeContent::Both)) {
-                let report = crate::loc::count_roots(
+                let report = crate::loc::count_roots_filtered(
                     &self.loc_roots(),
                     self.filter.dot_filter.shows_dotfiles(),
+                    Some(self.filter),
+                    !self.git_ignoring,
+                    self.opts.follow_links,
                 );
                 table.set_loc_total(Some(report.total().code));
             }
@@ -238,6 +241,12 @@ impl<'a> Render<'a> {
 
             // This is weird, but I can’t find a way around it:
             // https://internals.rust-lang.org/t/should-option-mut-t-implement-copy/3715/6
+            let mut ancestors = std::collections::HashSet::new();
+            if let Some(dir) = self.dir
+                && let Ok(canon) = std::fs::canonicalize(&dir.path)
+            {
+                ancestors.insert(canon);
+            }
             let mut table = Some(table);
             self.add_files_to_table(
                 &mut table,
@@ -248,12 +257,19 @@ impl<'a> Render<'a> {
                 &mut summary,
                 hidden_count.as_mut(),
                 &mut exit_status,
+                &ancestors,
             );
 
             for row in self.iterate_with_table(table.unwrap(), rows) {
                 writeln!(w, "{}", row.strings())?;
             }
         } else {
+            let mut ancestors = std::collections::HashSet::new();
+            if let Some(dir) = self.dir
+                && let Ok(canon) = std::fs::canonicalize(&dir.path)
+            {
+                ancestors.insert(canon);
+            }
             self.add_files_to_table(
                 &mut None,
                 &mut rows,
@@ -263,6 +279,7 @@ impl<'a> Render<'a> {
                 &mut summary,
                 hidden_count.as_mut(),
                 &mut exit_status,
+                &ancestors,
             );
 
             for row in self.iterate(rows) {
@@ -314,6 +331,7 @@ impl<'a> Render<'a> {
         summary: &mut Option<crate::output::summary::Summary>,
         mut hidden_count: Option<&mut crate::output::hidden_count::HiddenCount>,
         exit_status: &mut i32,
+        ancestors: &std::collections::HashSet<std::path::PathBuf>,
     ) {
         use crate::fs::feature::xattr;
 
@@ -364,6 +382,10 @@ impl<'a> Render<'a> {
                     && self
                         .git
                         .is_some_and(|git| git.is_submodule_path(&file.path));
+                let is_cycle = follow_links
+                    && file.is_link()
+                    && std::fs::canonicalize(&file.path)
+                        .is_ok_and(|canon| ancestors.contains(&canon));
                 if let Some(r) = self.recurse
                     && (if follow_links {
                         file.points_to_directory()
@@ -374,6 +396,7 @@ impl<'a> Render<'a> {
                     && !r.is_too_deep(depth.0)
                     && !file.is_all_all
                     && !in_submodule
+                    && !is_cycle
                 {
                     trace!("matching on read_dir");
                     match file.read_dir() {
@@ -497,6 +520,11 @@ impl<'a> Render<'a> {
                         ));
                     }
 
+                    let mut next_ancestors = ancestors.clone();
+                    if let Ok(canon) = std::fs::canonicalize(&egg.file.path) {
+                        next_ancestors.insert(canon);
+                    }
+
                     self.add_files_to_table(
                         table,
                         rows,
@@ -506,6 +534,7 @@ impl<'a> Render<'a> {
                         summary,
                         hidden_count.as_deref_mut(),
                         exit_status,
+                        &next_ancestors,
                     );
                     continue;
                 }

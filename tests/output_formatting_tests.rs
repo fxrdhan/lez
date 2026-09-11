@@ -13,6 +13,8 @@ mod colourless;
 mod grid_details;
 #[path = "output_formatting/grid_packing.rs"]
 mod grid_packing;
+#[path = "output_formatting/grid_width.rs"]
+mod grid_width;
 #[path = "output_formatting/palette.rs"]
 mod palette;
 #[path = "output_formatting/path_quoting.rs"]
@@ -24,6 +26,10 @@ mod print_total;
 mod pty_terminal;
 #[path = "output_formatting/size_digits.rs"]
 mod size_digits;
+#[path = "output_formatting/smart_group_basics.rs"]
+mod smart_group_basics;
+#[path = "output_formatting/smart_group_stress.rs"]
+mod smart_group_stress;
 #[path = "output_formatting/spacing.rs"]
 mod spacing;
 #[path = "output_formatting/summary_stats.rs"]

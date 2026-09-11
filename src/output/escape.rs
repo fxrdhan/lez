@@ -60,7 +60,7 @@ impl Quoting {
 }
 
 pub fn is_printable(c: char) -> bool {
-    c >= 0x20 as char && c != 0x7f as char
+    !c.is_control()
 }
 
 /// Escapes characters inside a string without adding outer quotation marks.

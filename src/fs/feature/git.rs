@@ -99,10 +99,7 @@ impl GitCache {
     /// repository.
     #[must_use]
     pub fn is_submodule_path(&self, path: &Path) -> bool {
-        self.repos
-            .iter()
-            .find(|repo| repo.has_path(path))
-            .is_some_and(|repo| repo.is_submodule_path(path))
+        self.repos.iter().any(|repo| repo.is_submodule_path(path))
     }
 }
 
@@ -140,7 +137,9 @@ impl FromIterator<PathBuf> for GitCache {
 
         if let Ok(path) = env::var("GIT_DIR") {
             // These flags are consistent with how `git` uses GIT_DIR:
-            let flags = git2::RepositoryOpenFlags::NO_SEARCH | git2::RepositoryOpenFlags::NO_DOTGIT;
+            let flags = git2::RepositoryOpenFlags::NO_SEARCH
+                | git2::RepositoryOpenFlags::NO_DOTGIT
+                | git2::RepositoryOpenFlags::FROM_ENV;
             match GitRepo::discover(path.into(), flags, git.deep_untracked) {
                 Ok(repo) => {
                     debug!("Opened GIT_DIR repo");
@@ -157,6 +156,13 @@ impl FromIterator<PathBuf> for GitCache {
                 debug!("Skipping {path:?} because it already came back Gitless");
             } else if git.repos.iter().any(|e| e.has_path(&path)) {
                 debug!("Skipping {path:?} because we already queried it");
+            } else if let Some(r) = git
+                .repos
+                .iter_mut()
+                .find(|e| reorient(&path).starts_with(&e.workdir_canonical))
+            {
+                debug!("Adding path to existing repo (workdir matches)");
+                r.extra_paths.push(path);
             } else {
                 let flags = git2::RepositoryOpenFlags::FROM_ENV;
                 match GitRepo::discover(path, flags, git.deep_untracked) {
@@ -238,7 +244,33 @@ impl GitRepo {
     /// Whether `path` lies inside one of this repository's submodule
     /// working trees. The list is discovered lazily via git2 and cached.
     pub fn is_submodule_path(&self, path: &Path) -> bool {
-        let Ok(relative) = path.strip_prefix(&self.workdir) else {
+        let path_canon = reorient(path);
+        let clean_path = match path.to_str() {
+            Some(s) => Path::new(s.trim_start_matches(r"\\?\")),
+            None => path,
+        };
+        let clean_canon = match path_canon.to_str() {
+            Some(s) => Path::new(s.trim_start_matches(r"\\?\")),
+            None => &path_canon,
+        };
+        let clean_workdir = match self.workdir.to_str() {
+            Some(s) => Path::new(s.trim_start_matches(r"\\?\")),
+            None => &self.workdir,
+        };
+        let clean_workdir_canon = match self.workdir_canonical.to_str() {
+            Some(s) => Path::new(s.trim_start_matches(r"\\?\")),
+            None => &self.workdir_canonical,
+        };
+
+        let relative = if let Ok(rel) = clean_path.strip_prefix(clean_workdir) {
+            rel
+        } else if let Ok(rel) = clean_canon.strip_prefix(clean_workdir_canon) {
+            rel
+        } else if let Ok(rel) = clean_canon.strip_prefix(clean_workdir) {
+            rel
+        } else if let Ok(rel) = clean_path.strip_prefix(clean_workdir_canon) {
+            rel
+        } else {
             return false;
         };
         let Ok(mut guard) = self.submodules.lock() else {
@@ -251,12 +283,18 @@ impl GitRepo {
                 && let Ok(submodules) = repo.submodules()
             {
                 for sm in submodules {
-                    out.push(sm.path().to_path_buf());
+                    let normalized = sm
+                        .path()
+                        .to_string_lossy()
+                        .replace('/', std::path::MAIN_SEPARATOR_STR);
+                    out.push(PathBuf::from(normalized));
                 }
             }
             out
         });
-        submodules.iter().any(|sm| relative.starts_with(sm))
+        submodules
+            .iter()
+            .any(|sm| relative == sm || relative.starts_with(sm))
     }
 
     /// Searches through this repository for a path (to a file or directory,
@@ -435,7 +473,12 @@ impl GitRepo {
     /// The absolute paths of every listing that resolved to this repository:
     /// status queries only ever concern paths beneath these (see `has_path`).
     fn listing_roots(&self) -> Vec<PathBuf> {
-        std::iter::once(&self.original_path)
+        let base = if reorient(&self.original_path).starts_with(&self.workdir_canonical) {
+            Some(&self.original_path)
+        } else {
+            None
+        };
+        base.into_iter()
             .chain(self.extra_paths.iter())
             .map(|p| reorient(p))
             .collect()
@@ -443,7 +486,7 @@ impl GitRepo {
 
     /// Whether this repository has the given working directory.
     fn has_workdir(&self, path: &Path) -> bool {
-        self.workdir == path
+        self.workdir == path || self.workdir_canonical == reorient(path)
     }
 
     /// Whether this repository cares about the given path at all.
@@ -470,12 +513,20 @@ impl GitRepo {
             }
         };
 
+        if repo.workdir().is_none()
+            && let Some(wt) = env::var_os("GIT_WORK_TREE")
+        {
+            let wt_path = PathBuf::from(wt);
+            let wt_canon = reorient(&wt_path);
+            let _ = repo.set_workdir(&wt_canon, false);
+        }
+
         if let Some(workdir) = repo.workdir() {
-            let workdir = workdir.to_path_buf();
+            let workdir = reorient(workdir);
             let contents = Mutex::new(GitContents::Before { repo });
             Ok(Self {
                 contents,
-                workdir_canonical: reorient(&workdir),
+                workdir_canonical: workdir.clone(),
                 workdir,
                 original_path: path,
                 extra_paths: Vec::new(),

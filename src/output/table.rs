@@ -759,6 +759,11 @@ impl TableWidths {
 
     #[must_use]
     pub fn total(&self, spaces: usize) -> usize {
-        self.0.len() * spaces + self.0.iter().sum::<usize>()
+        let sum: usize = self.0.iter().sum();
+        self.0
+            .len()
+            .checked_mul(spaces)
+            .and_then(|total_spaces| total_spaces.checked_add(sum))
+            .unwrap_or(usize::MAX)
     }
 }

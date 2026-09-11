@@ -9,10 +9,16 @@ mod common;
 mod ada_language;
 #[path = "loc_engine/hidden_entries.rs"]
 mod hidden_entries;
+#[path = "loc_engine/janet_loc_basics.rs"]
+mod janet_loc_basics;
+#[path = "loc_engine/janet_loc_stress.rs"]
+mod janet_loc_stress;
 #[path = "loc_engine/markdown_code_blocks.rs"]
 mod markdown_code_blocks;
 #[path = "loc_engine/no_language.rs"]
 mod no_language;
+#[path = "loc_engine/odin_language.rs"]
+mod odin_language;
 #[path = "loc_engine/percent_digits.rs"]
 mod percent_digits;
 #[path = "loc_engine/sorting_and_tree.rs"]

@@ -155,15 +155,54 @@ fn test_mount_indicator_json_compatibility() {
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("Must be valid JSON");
     let obj = parsed.as_object().expect("Expected root JSON object");
 
-    // Check permissions field in JSON representation
-    if let Some(entry) = obj.get("/")
-        && let Some(perm) = entry.get("permissions").and_then(|p| p.as_str())
-    {
-        assert!(
-            perm.starts_with('d'),
-            "JSON permissions for root mount point must start with 'd' for schema compatibility, got: {perm}"
-        );
-    }
+    // Check permissions field in JSON representation for mount point
+    let entry = obj
+        .get("/")
+        .expect("Expected '/' entry in root JSON object");
+    let perm = entry
+        .get("Permissions")
+        .and_then(|p| p.as_str())
+        .expect("Expected 'Permissions' string in '/' entry");
+    assert!(
+        perm.starts_with('D'),
+        "JSON permissions for root mount point must start with 'D' (mount point indicator), got: {perm}"
+    );
+
+    // Check permissions field in JSON representation for non-mount directory
+    let temp = TempTestDir::new("json_reg_dir");
+    let subdir = temp.create_dir("normal_folder");
+    let output_sub = Command::new(bin_path())
+        .arg("-ld")
+        .arg("--json")
+        .arg(&subdir)
+        .output()
+        .expect("Failed to execute lez -ld --json on normal directory");
+
+    assert!(output_sub.status.success());
+    let stdout_sub = String::from_utf8_lossy(&output_sub.stdout);
+    let parsed_sub: serde_json::Value =
+        serde_json::from_str(&stdout_sub).expect("Must be valid JSON");
+    let obj_sub = parsed_sub
+        .as_object()
+        .expect("Expected JSON object for normal directory");
+    let sub_name = subdir.file_name().unwrap().to_str().unwrap();
+    let sub_entry = obj_sub
+        .get(sub_name)
+        .or_else(|| obj_sub.get(subdir.to_str().unwrap()))
+        .or_else(|| obj_sub.values().next())
+        .expect("Expected entry in JSON object");
+    let sub_perm = sub_entry
+        .get("Permissions")
+        .and_then(|p| p.as_str())
+        .expect("Expected 'Permissions' string in directory entry");
+    assert!(
+        sub_perm.starts_with('d'),
+        "JSON permissions for regular directory must start with 'd' (lowercase), got: {sub_perm}"
+    );
+    assert!(
+        !sub_perm.starts_with('D'),
+        "JSON permissions for regular directory must not start with 'D', got: {sub_perm}"
+    );
 }
 
 #[test]

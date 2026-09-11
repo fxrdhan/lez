@@ -184,6 +184,8 @@ fn custom(
 }
 
 fn format_with_tz(time: &DateTime<FixedOffset>, format: &str, use_utc: bool) -> String {
+    use std::fmt::Write;
+
     if !format.contains("%Z") {
         return time.format(format).to_string();
     }
@@ -196,11 +198,19 @@ fn format_with_tz(time: &DateTime<FixedOffset>, format: &str, use_utc: bool) -> 
     let mut result = String::new();
     let mut last_end = 0;
     for (start, part) in format.match_indices("%Z") {
-        result.push_str(&time.format(&format[last_end..start]).to_string());
+        let preceding_percents = format[..start]
+            .chars()
+            .rev()
+            .take_while(|&c| c == '%')
+            .count();
+        if preceding_percents % 2 == 1 {
+            continue;
+        }
+        let _ = write!(result, "{}", time.format(&format[last_end..start]));
         result.push_str(&tz_name);
         last_end = start + part.len();
     }
-    result.push_str(&time.format(&format[last_end..]).to_string());
+    let _ = write!(result, "{}", time.format(&format[last_end..]));
     result
 }
 

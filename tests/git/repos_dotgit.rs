@@ -121,11 +121,11 @@ fn run_lez(args: &[&str]) -> Output {
 }
 
 // ----------------------------------------------------------------------------
-// F2: --git-repos .git Directory Exclusion Tests
+// --git-repos .git Directory Exclusion Tests
 // ----------------------------------------------------------------------------
 
 #[test]
-fn test_f2_root_dotgit_excluded_from_git_repos_column() {
+fn test_root_dotgit_excluded_from_git_repos_column() {
     let Some(repo) = TempGitRepo::new("dotgit_exclude") else {
         return;
     };
@@ -160,7 +160,7 @@ fn test_f2_root_dotgit_excluded_from_git_repos_column() {
 }
 
 #[test]
-fn test_f2_nested_subrepo_shows_branch_while_dotgit_does_not() {
+fn test_nested_subrepo_shows_branch_while_dotgit_does_not() {
     let Some(repo) = TempGitRepo::new("subrepo_and_dotgit") else {
         return;
     };
@@ -208,7 +208,7 @@ fn test_f2_nested_subrepo_shows_branch_while_dotgit_does_not() {
 }
 
 #[test]
-fn test_f2_git_repos_no_stat_dotgit_exclusion() {
+fn test_git_repos_no_stat_dotgit_exclusion() {
     let Some(repo) = TempGitRepo::new("no_stat_dotgit") else {
         return;
     };
@@ -246,7 +246,7 @@ fn test_f2_git_repos_no_stat_dotgit_exclusion() {
 }
 
 #[test]
-fn test_f2_json_mode_dotgit_exclusion() {
+fn test_json_mode_dotgit_exclusion() {
     let Some(repo) = TempGitRepo::new("json_dotgit") else {
         return;
     };
@@ -311,7 +311,7 @@ fn test_f2_json_mode_dotgit_exclusion() {
 }
 
 #[test]
-fn test_f2_tree_view_dotgit_exclusion() {
+fn test_tree_view_dotgit_exclusion() {
     let Some(repo) = TempGitRepo::new("tree_dotgit") else {
         return;
     };
@@ -337,7 +337,7 @@ fn test_f2_tree_view_dotgit_exclusion() {
 }
 
 #[test]
-fn test_f2_empty_repo_dotgit_no_subrepo_status() {
+fn test_empty_repo_dotgit_no_subrepo_status() {
     let Some(repo) = TempGitRepo::new("empty_dotgit") else {
         return;
     };

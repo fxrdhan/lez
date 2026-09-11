@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lez_adv_m4_{prefix}_{}_{}",
+            "lez_janet_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -49,7 +49,7 @@ fn bin_path() -> &'static str {
 }
 
 #[test]
-fn test_m4_janet_code_summary() {
+fn test_janet_code_summary() {
     let temp = TempTestDir::new("janet_summary");
     let janet_content = b"# Janet language example\n(defn square [x]\n  # Computes square\n  (* x x))\n\n(print (square 5))\n";
     temp.create_file("main.janet", janet_content);
@@ -75,7 +75,7 @@ fn test_m4_janet_code_summary() {
 }
 
 #[test]
-fn test_m4_jdn_code_summary() {
+fn test_jdn_code_summary() {
     let temp = TempTestDir::new("jdn_summary");
     let jdn_content = b"# Janet Data Notation\n{:name \"lez\"\n :version \"0.24.0\"\n # configuration data\n :features [:loc :icons]}\n";
     temp.create_file("config.jdn", jdn_content);
@@ -96,7 +96,7 @@ fn test_m4_jdn_code_summary() {
 }
 
 #[test]
-fn test_m4_mixed_janet_and_other_languages() {
+fn test_mixed_janet_and_other_languages() {
     let temp = TempTestDir::new("mixed_langs");
     temp.create_file("script.janet", b"# Janet script\n(print \"hi\")\n");
     temp.create_file("data.jdn", b"# JDN\n{:a 1}\n");
@@ -115,7 +115,7 @@ fn test_m4_mixed_janet_and_other_languages() {
 }
 
 #[test]
-fn test_m4_janet_loc_columns_in_long_view() {
+fn test_janet_loc_columns_in_long_view() {
     let temp = TempTestDir::new("janet_loc_col");
     temp.create_file("app.janet", b"# Line 1 comment\n(defn foo [] 42)\n");
     temp.create_file("settings.jdn", b"# Config\n{:k :v}\n");
@@ -139,30 +139,7 @@ fn test_m4_janet_loc_columns_in_long_view() {
 }
 
 #[test]
-fn test_m4_icons_output_for_janet_and_jdn() {
-    let temp = TempTestDir::new("janet_icons");
-    temp.create_file("test.janet", b"(print 1)\n");
-    temp.create_file("data.jdn", b"{:x 1}\n");
-
-    let output = Command::new(bin_path())
-        .arg("--icons=always")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Janet icon is \u{f0af7} (Nerd Font glyph)
-    let janet_icon = '\u{f0af7}';
-    assert!(
-        stdout.contains(janet_icon),
-        "Output should contain the Janet icon for .janet or .jdn files: {}",
-        stdout
-    );
-}
-
-#[test]
-fn test_m4_janet_empty_file_and_blanks() {
+fn test_janet_empty_file_and_blanks() {
     let temp = TempTestDir::new("janet_empty");
     temp.create_file("empty.janet", b"");
     temp.create_file("blanks.janet", b"\n\n   \n\t\n");
@@ -177,7 +154,7 @@ fn test_m4_janet_empty_file_and_blanks() {
 }
 
 #[test]
-fn test_m4_janet_comments_and_strings() {
+fn test_janet_comments_and_strings() {
     let temp = TempTestDir::new("janet_strings");
     let content = b"(def str \"# not a comment # really\")\n# actual comment\n";
     temp.create_file("strings.janet", content);
@@ -194,7 +171,7 @@ fn test_m4_janet_comments_and_strings() {
 }
 
 #[test]
-fn test_m4_code_summary_modes() {
+fn test_code_summary_modes() {
     let temp = TempTestDir::new("janet_modes");
     temp.create_file("test.janet", b"(print \"hello\")\n");
 

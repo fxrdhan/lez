@@ -19,7 +19,7 @@ struct TempEnv {
 
 impl TempEnv {
     fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("lez_adv_m2_{}_{}", name, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lez_symlink_{}_{}", name, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("failed to create temp dir");
         Self { dir }
