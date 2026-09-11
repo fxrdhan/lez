@@ -92,11 +92,11 @@ fn run_lez(args: &[&str]) -> Output {
 }
 
 // ----------------------------------------------------------------------------
-// F8: Git Status Glyphs / Visual Formatting Tests
+// Git Status Glyphs / Visual Formatting Tests
 // ----------------------------------------------------------------------------
 
 #[test]
-fn test_f8_git_glyphs_flag_accepted() {
+fn test_git_glyphs_flag_accepted() {
     let Some(repo) = TempGitRepo::new("glyphs_flag") else {
         return;
     };
@@ -117,7 +117,7 @@ fn test_f8_git_glyphs_flag_accepted() {
 }
 
 #[test]
-fn test_f8_git_glyphs_replaces_ascii_status_modified() {
+fn test_git_glyphs_replaces_ascii_status_modified() {
     let Some(repo) = TempGitRepo::new("glyphs_mod") else {
         return;
     };
@@ -156,7 +156,7 @@ fn test_f8_git_glyphs_replaces_ascii_status_modified() {
 }
 
 #[test]
-fn test_f8_git_glyphs_untracked_and_added() {
+fn test_git_glyphs_untracked_and_added() {
     let Some(repo) = TempGitRepo::new("glyphs_untracked") else {
         return;
     };
@@ -202,7 +202,7 @@ fn test_f8_git_glyphs_untracked_and_added() {
 }
 
 #[test]
-fn test_f8_default_without_git_glyphs_is_ascii() {
+fn test_default_without_git_glyphs_is_ascii() {
     let Some(repo) = TempGitRepo::new("ascii_default") else {
         return;
     };
@@ -226,7 +226,7 @@ fn test_f8_default_without_git_glyphs_is_ascii() {
 }
 
 #[test]
-fn test_f8_git_glyphs_with_icons() {
+fn test_git_glyphs_with_icons() {
     let Some(repo) = TempGitRepo::new("glyphs_icons") else {
         return;
     };
@@ -246,7 +246,7 @@ fn test_f8_git_glyphs_with_icons() {
 }
 
 #[test]
-fn test_f8_git_glyphs_deleted_and_renamed() {
+fn test_git_glyphs_deleted_and_renamed() {
     let Some(repo) = TempGitRepo::new("glyphs_del_ren") else {
         return;
     };
@@ -272,7 +272,7 @@ fn test_f8_git_glyphs_deleted_and_renamed() {
 }
 
 #[test]
-fn test_f8_git_glyphs_ignored_and_clean() {
+fn test_git_glyphs_ignored_and_clean() {
     let Some(repo) = TempGitRepo::new("glyphs_ign_clean") else {
         return;
     };
@@ -319,7 +319,7 @@ fn test_f8_git_glyphs_ignored_and_clean() {
 }
 
 #[test]
-fn test_f8_git_glyphs_with_git_repos() {
+fn test_git_glyphs_with_git_repos() {
     let Some(repo) = TempGitRepo::new("glyphs_repos") else {
         return;
     };
@@ -339,7 +339,7 @@ fn test_f8_git_glyphs_with_git_repos() {
 }
 
 #[test]
-fn test_f8_git_glyphs_in_tree_view() {
+fn test_git_glyphs_in_tree_view() {
     let Some(repo) = TempGitRepo::new("glyphs_tree") else {
         return;
     };
@@ -359,7 +359,7 @@ fn test_f8_git_glyphs_in_tree_view() {
 }
 
 #[test]
-fn test_f8_git_glyphs_in_grid_details() {
+fn test_git_glyphs_in_grid_details() {
     let Some(repo) = TempGitRepo::new("glyphs_grid_details") else {
         return;
     };

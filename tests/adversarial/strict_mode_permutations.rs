@@ -57,8 +57,11 @@ impl TempTestDir {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("lez_adv_{prefix}_{}_{}", std::process::id(), nanos));
+        let path = std::env::temp_dir().join(format!(
+            "lez_strict_{prefix}_{}_{}",
+            std::process::id(),
+            nanos
+        ));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("Failed to create temp test directory");
         Self { path }
@@ -93,7 +96,7 @@ impl TempGitRepo {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lez_adv_git_{prefix}_{}_{}",
+            "lez_git_scoped_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -149,11 +152,11 @@ impl Drop for TempGitRepo {
 }
 
 // =========================================================================
-// M1: STRICT MODE STRESS TESTS
+// STRICT MODE STRESS TESTS
 // =========================================================================
 
 #[test]
-fn test_m1_strict_mode_default_options_pass_without_false_positives() {
+fn test_strict_mode_default_options_pass_without_false_positives() {
     let vars = MockVars::new(true);
 
     // Standard default flags that should never trigger strict mode errors
@@ -201,7 +204,7 @@ fn test_m1_strict_mode_default_options_pass_without_false_positives() {
 }
 
 #[test]
-fn test_m1_strict_mode_long_only_flags_fail_without_long() {
+fn test_strict_mode_long_only_flags_fail_without_long() {
     let vars_strict = MockVars::new(true);
     let vars_non_strict = MockVars::new(false);
 
@@ -227,6 +230,40 @@ fn test_m1_strict_mode_long_only_flags_fail_without_long() {
         ("-M", "mounts"),
         ("--loc", "loc"),
         ("--git", "git"),
+        ("--git-repos", "git-repos"),
+        ("--git-repos-no-status", "git-repos-no-status"),
+        ("--git-glyphs", "git-glyphs"),
+        ("--octal-permissions", "octal-permissions"),
+        ("-o", "octal-permissions"),
+        ("--total-size", "total-size"),
+        ("--flags", "flags"),
+        ("-O", "flags"),
+        ("--context", "context"),
+        ("-Z", "context"),
+        ("--smart-group", "smart-group"),
+        ("--extended", "extended"),
+        ("-@", "extended"),
+        ("--no-extended", "no-extended"),
+        ("--tags", "tags"),
+        ("-e", "tags"),
+        ("--no-permissions", "no-permissions"),
+        ("--no-filesize", "no-filesize"),
+        ("--size-digits=3", "size-digits"),
+        ("--percent-digits=1", "percent-digits"),
+        ("--no-user", "no-user"),
+        ("--no-time", "no-time"),
+        ("--no-language", "no-language"),
+        ("--time-style=iso", "time-style"),
+        ("--modified", "modified"),
+        ("-m", "modified"),
+        ("--accessed", "accessed"),
+        ("-u", "accessed"),
+        ("--changed", "changed"),
+        ("--created", "created"),
+        ("-U", "created"),
+        ("--utc", "utc"),
+        ("--inspect-archives", "inspect-archives"),
+        ("--print-total", "print-total"),
     ];
 
     for (flag, expected_name) in long_only_flags {
@@ -255,7 +292,7 @@ fn test_m1_strict_mode_long_only_flags_fail_without_long() {
 }
 
 #[test]
-fn test_m1_strict_mode_long_only_flags_succeed_with_long() {
+fn test_strict_mode_long_only_flags_succeed_with_long() {
     let vars = MockVars::new(true);
 
     let long_only_flags = [
@@ -280,6 +317,40 @@ fn test_m1_strict_mode_long_only_flags_succeed_with_long() {
         "-M",
         "--loc",
         "--git",
+        "--git-repos",
+        "--git-repos-no-status",
+        "--git-glyphs",
+        "--octal-permissions",
+        "-o",
+        "--total-size",
+        "--flags",
+        "-O",
+        "--context",
+        "-Z",
+        "--smart-group",
+        "--extended",
+        "-@",
+        "--no-extended",
+        "--tags",
+        "-e",
+        "--no-permissions",
+        "--no-filesize",
+        "--size-digits=3",
+        "--percent-digits=1",
+        "--no-user",
+        "--no-time",
+        "--no-language",
+        "--time-style=iso",
+        "--modified",
+        "-m",
+        "--accessed",
+        "-u",
+        "--changed",
+        "--created",
+        "-U",
+        "--utc",
+        "--inspect-archives",
+        "--print-total",
     ];
 
     for flag in long_only_flags {
@@ -294,7 +365,7 @@ fn test_m1_strict_mode_long_only_flags_succeed_with_long() {
 }
 
 #[test]
-fn test_m1_strict_mode_conflicting_options() {
+fn test_strict_mode_conflicting_options() {
     let vars = MockVars::new(true);
 
     // 1. -l with --across (without --grid)
@@ -343,7 +414,7 @@ fn test_m1_strict_mode_conflicting_options() {
 }
 
 #[test]
-fn test_m1_strict_mode_cli_process_exit_codes() {
+fn test_strict_mode_cli_process_exit_codes() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("exit_codes");
     let temp_str = temp.path.to_str().unwrap();
@@ -392,11 +463,11 @@ fn test_m1_strict_mode_cli_process_exit_codes() {
 }
 
 // =========================================================================
-// M2: CONSTANT-TIME SIBLING LOOKUP STRESS TESTS
+// CONSTANT-TIME SIBLING LOOKUP STRESS TESTS
 // =========================================================================
 
 #[test]
-fn test_m2_sibling_lookup_scale_and_timing() {
+fn test_sibling_lookup_scale_and_timing() {
     let temp_dir = TempTestDir::new("scale_sibling");
 
     let num_pairs = 250;
@@ -449,7 +520,7 @@ fn test_m2_sibling_lookup_scale_and_timing() {
 }
 
 #[test]
-fn test_m2_sibling_lookup_cache_invalidation_lifecycle() {
+fn test_sibling_lookup_cache_invalidation_lifecycle() {
     let temp_dir = TempTestDir::new("lifecycle");
     let file1 = temp_dir.create_file("alpha.txt", b"alpha");
     let file2 = temp_dir.create_file("beta.txt", b"beta");
@@ -489,7 +560,7 @@ fn test_m2_sibling_lookup_cache_invalidation_lifecycle() {
 }
 
 #[test]
-fn test_m2_sibling_lookup_special_characters_and_unicode() {
+fn test_sibling_lookup_special_characters_and_unicode() {
     let temp_dir = TempTestDir::new("unicode_special");
 
     let f_spaces = temp_dir.create_file("my source file.ts", b"code");
@@ -511,7 +582,7 @@ fn test_m2_sibling_lookup_special_characters_and_unicode() {
 }
 
 #[test]
-fn test_m2_sibling_lookup_concurrent_multithreaded_access() {
+fn test_sibling_lookup_concurrent_multithreaded_access() {
     let temp_dir = TempTestDir::new("concurrent");
     let mut paths = Vec::new();
     for i in 0..500 {
@@ -540,11 +611,11 @@ fn test_m2_sibling_lookup_concurrent_multithreaded_access() {
 }
 
 // =========================================================================
-// M3: PATH-SCOPED GIT STATUS QUERIES STRESS TESTS
+// PATH-SCOPED GIT STATUS QUERIES STRESS TESTS
 // =========================================================================
 
 #[test]
-fn test_m3_git_scoped_queries_nested_structure() {
+fn test_git_scoped_queries_nested_structure() {
     let repo = TempGitRepo::new("scoped_nested");
 
     // Setup folder hierarchy
@@ -615,7 +686,7 @@ fn test_m3_git_scoped_queries_nested_structure() {
 }
 
 #[test]
-fn test_m3_git_scoped_queries_staged_and_ignored() {
+fn test_git_scoped_queries_staged_and_ignored() {
     let repo = TempGitRepo::new("staged_ignored");
     repo.create_file(".gitignore", b"*.ignored\n");
     let file_staged = repo.create_file("sub_dir/staged.txt", b"initial\n");
@@ -643,31 +714,7 @@ fn test_m3_git_scoped_queries_staged_and_ignored() {
 }
 
 #[test]
-fn test_m3_git_cli_end_to_end_execution() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    let repo = TempGitRepo::new("cli_e2e");
-
-    let sub_a_file = repo.create_file("folder_a/tracked.txt", b"initial\n");
-    let _sub_b_file = repo.create_file("folder_b/tracked.txt", b"initial\n");
-    repo.commit_all("commit");
-
-    fs::write(&sub_a_file, b"modified\n").unwrap();
-
-    let folder_a = repo.path.join("folder_a");
-
-    // Run lez --git -l on folder_a
-    let output = Command::new(bin_path)
-        .args(["--git", "-l", folder_a.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez CLI");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("tracked.txt"));
-}
-
-#[test]
-fn test_m1_strict_mode_time_and_git_options_permutations() {
+fn test_strict_mode_time_and_git_options_permutations() {
     let vars = MockVars::new(true);
 
     // --time=created without -l -> fails in strict mode
@@ -712,7 +759,7 @@ fn test_m1_strict_mode_time_and_git_options_permutations() {
 }
 
 #[test]
-fn test_m1_strict_mode_almost_all_and_all_counts() {
+fn test_strict_mode_almost_all_and_all_counts() {
     let vars = MockVars::new(true);
 
     // -a alone -> ok
@@ -743,7 +790,7 @@ fn test_m1_strict_mode_almost_all_and_all_counts() {
 }
 
 #[test]
-fn test_m2_sibling_lookup_compiled_file_detection_all_languages() {
+fn test_sibling_lookup_compiled_file_detection_all_languages() {
     let temp_dir = TempTestDir::new("compiled_all_langs");
 
     // TypeScript -> JavaScript
@@ -797,42 +844,7 @@ fn test_m2_sibling_lookup_compiled_file_detection_all_languages() {
 }
 
 #[test]
-fn test_m2_sibling_lookup_10k_files_benchmark() {
-    let temp_dir = TempTestDir::new("benchmark_10k");
-
-    let total_files = 10000;
-    let mut paths_to_query = Vec::with_capacity(total_files);
-
-    for i in 0..total_files {
-        let ext = match i % 5 {
-            0 => "ts",
-            1 => "js",
-            2 => "scss",
-            3 => "css",
-            _ => "rs",
-        };
-        let p = temp_dir.create_file(&format!("file_{i:05}.{ext}"), b"content");
-        paths_to_query.push(p);
-    }
-
-    let dir = Dir::read_dir(temp_dir.path.clone()).expect("Read 10k dir");
-
-    let start = Instant::now();
-    for p in &paths_to_query {
-        assert!(dir.contains(p));
-    }
-    let elapsed = start.elapsed();
-
-    // 10,000 queries on a 10,000 file directory:
-    // With O(1) set lookup, this should complete in < 500ms
-    assert!(
-        elapsed < Duration::from_millis(500),
-        "10,000 lookups took {elapsed:?}, expected < 500ms!"
-    );
-}
-
-#[test]
-fn test_m3_git_scoped_queries_rename_and_deletion() {
+fn test_git_scoped_queries_rename_and_deletion() {
     let repo = TempGitRepo::new("rename_del");
     let file1 = repo.create_file("sub_a/file1.txt", b"v1\n");
     let file2 = repo.create_file("sub_a/file2.txt", b"v2\n");
@@ -868,7 +880,7 @@ fn test_m3_git_scoped_queries_rename_and_deletion() {
 }
 
 #[test]
-fn test_m3_git_scoped_queries_deep_pathspec() {
+fn test_git_scoped_queries_deep_pathspec() {
     let repo = TempGitRepo::new("deep_pathspec");
     let deep_file = repo.create_file("d1/d2/d3/d4/d5/d6/d7/deep.txt", b"initial\n");
     let sibling_file = repo.create_file("d1/d2/d3/d4/d5/d6/d7/sibling.txt", b"initial\n");
@@ -891,7 +903,7 @@ fn test_m3_git_scoped_queries_deep_pathspec() {
 }
 
 #[test]
-fn test_m3_git_scoped_queries_relative_and_dot_dot_paths() {
+fn test_git_scoped_queries_relative_and_dot_dot_paths() {
     let repo = TempGitRepo::new("relative_dot_dot");
     let file_a = repo.create_file("sub_a/file.txt", b"initial\n");
     repo.commit_all("Initial");

@@ -6,7 +6,7 @@ use std::fs;
 use std::process::Command;
 
 #[test]
-fn test_m1_child_git_repo_gitignore_respected_under_parent_dir() {
+fn test_child_git_repo_gitignore_respected_under_parent_dir() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("child_git_ignore");
 
@@ -78,7 +78,7 @@ fn test_m1_child_git_repo_gitignore_respected_under_parent_dir() {
 }
 
 #[test]
-fn test_m1_multiple_sibling_git_repos_under_common_parent() {
+fn test_multiple_sibling_git_repos_under_common_parent() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("sibling_repos");
 
@@ -121,7 +121,7 @@ fn test_m1_multiple_sibling_git_repos_under_common_parent() {
 }
 
 #[test]
-fn test_m1_submodule_dot_git_file_handled() {
+fn test_submodule_dot_git_file_handled() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("submod_file");
 
@@ -290,7 +290,7 @@ fn test_child_submodule_dot_git_file_status_in_tree_without_git_ignore() {
 }
 
 #[test]
-fn test_m1_deeply_nested_git_repo_traversal() {
+fn test_deeply_nested_git_repo_traversal() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("deep_nested_repo");
 

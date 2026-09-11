@@ -77,7 +77,6 @@ impl TempRepo {
             return false;
         }
         let child_abs = self.path.join("child");
-        let _ = fs::remove_dir_all(self.path.join(".git")); // no-op safety
         if !self.git(
             "",
             &[
@@ -124,10 +123,7 @@ fn ignore_submodule_contents_prunes_recursion() {
     let Some(repo) = TempRepo::new("ignore") else {
         return;
     };
-    if !repo.with_submodule() {
-        eprintln!("could not build submodule fixture; skipping");
-        return;
-    }
+    assert!(repo.with_submodule(), "could not build submodule fixture");
     let sub_inner = Path::new("sub").join("inner.txt");
     let nested = Path::new("sub").join("deep").join("nested.txt");
 

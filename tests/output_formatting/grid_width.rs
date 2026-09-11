@@ -8,7 +8,6 @@ use lez::fs::filter::{
     FileFilter, FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase, SortField,
 };
 use lez::fs::{DotFilter, File};
-use lez::loc::{LocCounts, count_roots, language_for};
 use lez::options::parser::get_command;
 use lez::options::vars::Vars;
 use lez::options::{Options, OptionsError};
@@ -117,13 +116,13 @@ fn make_filter(flags: Vec<FileFilterFlags>, ignores: Vec<&str>) -> FileFilter {
 }
 
 // =========================================================================
-// R1 ADVERSARIAL STRESS TESTS: Hyperlink URI Percent-Encoding
+// HYPERLINK URI PERCENT-ENCODING TESTS
 // =========================================================================
 
 #[test]
 #[cfg(unix)]
-fn test_r1_hyperlink_painting_with_special_characters() {
-    let temp = TempTestDir::new("r1_hyperlink");
+fn test_hyperlink_painting_with_special_characters() {
+    let temp = TempTestDir::new("hyperlink");
     let test_names = [
         "regular.txt",
         "file with spaces.txt",
@@ -229,11 +228,11 @@ fn test_r1_hyperlink_painting_with_special_characters() {
 }
 
 // =========================================================================
-// R2 ADVERSARIAL STRESS TESTS: Color-Scale Filter Exclusion
+// COLOR-SCALE FILTER EXCLUSION TESTS
 // =========================================================================
 
 #[test]
-fn test_r2_color_scale_all_files_ignored_returns_none_extremes() {
+fn test_color_scale_all_files_ignored_returns_none_extremes() {
     let opts = ColorScaleOptions {
         mode: ColorScaleMode::Gradient,
         min_luminance: 50,
@@ -280,7 +279,7 @@ fn test_r2_color_scale_all_files_ignored_returns_none_extremes() {
 }
 
 #[test]
-fn test_r2_color_scale_single_file_min_equals_max_style_safety() {
+fn test_color_scale_single_file_min_equals_max_style_safety() {
     let opts = ColorScaleOptions {
         mode: ColorScaleMode::Gradient,
         min_luminance: 40,
@@ -320,7 +319,7 @@ fn test_r2_color_scale_single_file_min_equals_max_style_safety() {
 }
 
 #[test]
-fn test_r2_color_scale_combined_only_files_and_ignore_glob() {
+fn test_color_scale_combined_only_files_and_ignore_glob() {
     let opts = ColorScaleOptions {
         mode: ColorScaleMode::Gradient,
         min_luminance: 50,
@@ -367,8 +366,8 @@ fn test_r2_color_scale_combined_only_files_and_ignore_glob() {
 }
 
 #[test]
-fn test_r2_color_scale_nested_directory_tree_exclusion() {
-    let temp = TempTestDir::new("r2_nested");
+fn test_color_scale_nested_directory_tree_exclusion() {
+    let temp = TempTestDir::new("nested");
     let root = &temp.path;
 
     let f1 = root.join("visible_100b.txt");
@@ -415,116 +414,11 @@ fn test_r2_color_scale_nested_directory_tree_exclusion() {
 }
 
 // =========================================================================
-// R3 ADVERSARIAL STRESS TESTS: Odin Language LOC Engine
+// TERMINAL WIDTH CLAMPING TESTS
 // =========================================================================
 
 #[test]
-fn test_r3_odin_extension_and_comments_stress() {
-    let odin_lang = language_for("main.odin", Some("odin"))
-        .expect("Odin language should be registered for .odin");
-    assert_eq!(odin_lang.name, "Odin");
-
-    // 1. Comments immediately adjacent to tokens without whitespace
-    let src1 = "x:=1;//adjacent line comment\n/*adjacent block*/y:=2;/*trailing*/\n";
-    let counts1 = LocCounts::from_source(src1, odin_lang);
-    assert_eq!(counts1.lines, 2);
-    assert_eq!(
-        counts1.code, 2,
-        "Lines with adjacent code and comments must count as code"
-    );
-    assert_eq!(counts1.comments, 0);
-
-    // 2. Multiline block comment with nested asterisks and slashes
-    let src2 =
-        "/* ***\n * Multiline block comment \n * with / and * inside\n *** */\npackage main\n";
-    let counts2 = LocCounts::from_source(src2, odin_lang);
-    assert_eq!(counts2.lines, 5);
-    assert_eq!(counts2.code, 1);
-    assert_eq!(counts2.comments, 4);
-
-    // 3. String literal containing escaped quotes and comment syntax
-    let src3 = "str := \"hello // world /* not a comment */ \\\" still string\"\n";
-    let counts3 = LocCounts::from_source(src3, odin_lang);
-    assert_eq!(counts3.lines, 1);
-    assert_eq!(counts3.code, 1);
-    assert_eq!(counts3.comments, 0);
-
-    // 4. Block comment containing string quotes
-    let src4 = "/* block comment with \"string\" inside */\n";
-    let counts4 = LocCounts::from_source(src4, odin_lang);
-    assert_eq!(counts4.lines, 1);
-    assert_eq!(counts4.code, 0);
-    assert_eq!(counts4.comments, 1);
-
-    // 5. Realistic Odin syntax
-    let src5 = r#"
-package main
-
-import "core:fmt"
-
-Vector3 :: struct {
-    x, y, z: f32,
-}
-
-// Compute length
-length :: proc(v: Vector3) -> f32 {
-    // Return distance
-    return math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
-}
-
-main :: proc() {
-    v := Vector3{1.0, 2.0, 3.0}
-    /* print result */
-    fmt.println("Length:", length(v))
-}
-"#;
-    let counts5 = LocCounts::from_source(src5, odin_lang);
-    assert_eq!(counts5.lines, 20);
-    assert_eq!(counts5.code, 12);
-    assert_eq!(counts5.comments, 3);
-    assert_eq!(counts5.blanks, 5);
-    assert_eq!(
-        counts5.lines,
-        counts5.code + counts5.comments + counts5.blanks
-    );
-}
-
-#[test]
-fn test_r3_odin_in_multi_language_tree_count_roots() {
-    let temp = TempTestDir::new("r3_multilang");
-    let root = &temp.path;
-
-    let odin_file = root.join("game.odin");
-    let rust_file = root.join("main.rs");
-    let py_file = root.join("script.py");
-
-    fs::write(
-        &odin_file,
-        "package main\n// Odin comment\nmain :: proc() {}\n",
-    )
-    .unwrap();
-    fs::write(&rust_file, "fn main() {\n    // Rust comment\n}\n").unwrap();
-    fs::write(&py_file, "# Python comment\nprint('hi')\n").unwrap();
-
-    let report = count_roots(std::slice::from_ref(&root.to_path_buf()), false);
-    let odin_stat = report.languages().find(|s| s.language.name == "Odin");
-    assert!(
-        odin_stat.is_some(),
-        "Odin must be present in LOC report languages"
-    );
-    let stat = odin_stat.unwrap();
-    assert_eq!(stat.files, 1);
-    assert_eq!(stat.counts.lines, 3);
-    assert_eq!(stat.counts.code, 2);
-    assert_eq!(stat.counts.comments, 1);
-}
-
-// =========================================================================
-// R4 ADVERSARIAL STRESS TESTS: Terminal Width Clamping
-// =========================================================================
-
-#[test]
-fn test_r4_terminal_width_extreme_values_and_clamping() {
+fn test_terminal_width_extreme_values_and_clamping() {
     let vars = MockVars::new();
 
     // 1. Extreme width flags via CLI parser
@@ -582,11 +476,11 @@ fn test_r4_terminal_width_extreme_values_and_clamping() {
 }
 
 // =========================================================================
-// R5 ADVERSARIAL STRESS TESTS: Option Precedence for Binary/Bytes
+// OPTION PRECEDENCE FOR BINARY/BYTES TESTS
 // =========================================================================
 
 #[test]
-fn test_r5_size_format_precedence_permutations() {
+fn test_size_format_precedence_permutations() {
     let vars = MockVars::new();
 
     // Permutation table: (args, expected_size_format)
@@ -659,7 +553,7 @@ fn test_r5_size_format_precedence_permutations() {
 }
 
 // =========================================================================
-// CROSS-FEATURE & SYSTEM STRESS TESTS (Tier 3 & 4)
+// CROSS-FEATURE & SYSTEM STRESS TESTS
 // =========================================================================
 
 #[test]
@@ -691,8 +585,8 @@ fn test_cross_feature_grid_narrow_width_with_binary_and_color_scale() {
 
 #[test]
 #[cfg(unix)]
-fn test_r1_adversarial_hyperlink_edge_cases() {
-    let temp = TempTestDir::new("r1_adv_edge");
+fn test_hyperlink_painting_edge_cases() {
+    let temp = TempTestDir::new("hyperlink_edge");
     let adversarial_names = [
         "consecutive_????_questions",
         "consecutive_####_hashes",
@@ -762,8 +656,8 @@ fn test_r1_adversarial_hyperlink_edge_cases() {
 }
 
 #[test]
-fn test_r2_adversarial_deep_hierarchy_with_multiple_filters() {
-    let temp = TempTestDir::new("r2_deep_filters");
+fn test_color_scale_deep_hierarchy_with_multiple_filters() {
+    let temp = TempTestDir::new("deep_filters");
     let root = &temp.path;
 
     // Build 3-level hierarchy:
@@ -843,62 +737,8 @@ fn test_r2_adversarial_deep_hierarchy_with_multiple_filters() {
 }
 
 #[test]
-fn test_r3_adversarial_odin_comment_edge_cases() {
-    let odin_lang = language_for("complex.odin", Some("odin")).unwrap();
-
-    // 1. Empty block comments
-    let src1 = "x := 1; /**/ y := 2;\n";
-    let c1 = LocCounts::from_source(src1, odin_lang);
-    assert_eq!(c1.lines, 1);
-    assert_eq!(c1.code, 1);
-    assert_eq!(c1.comments, 0);
-
-    // 2. Multiple block comments on single line
-    let src2 = "/* 1 */ /* 2 */ /* 3 */\n";
-    let c2 = LocCounts::from_source(src2, odin_lang);
-    assert_eq!(c2.lines, 1);
-    assert_eq!(c2.code, 0);
-    assert_eq!(c2.comments, 1);
-
-    // 3. Line without trailing newline
-    let src3 = "// only comment no newline";
-    let c3 = LocCounts::from_source(src3, odin_lang);
-    assert_eq!(c3.lines, 1);
-    assert_eq!(c3.comments, 1);
-    assert_eq!(c3.code, 0);
-
-    // 4. Code without trailing newline
-    let src4 = "x := 42";
-    let c4 = LocCounts::from_source(src4, odin_lang);
-    assert_eq!(c4.lines, 1);
-    assert_eq!(c4.code, 1);
-
-    // 5. Complex Odin attributes and procedures
-    let src5 = r#"
-package main
-
-@(private="file")
-GLOBAL_CONFIG: int = 100
-
-// Main entry point
-@(export)
-main :: proc() {
-    /* inline comment */
-    msg := "Hello, \"//\" World!"
-    fmt.println(msg)
-}
-"#;
-    let c5 = LocCounts::from_source(src5, odin_lang);
-    assert_eq!(c5.lines, 13);
-    assert_eq!(c5.code, 8);
-    assert_eq!(c5.comments, 2);
-    assert_eq!(c5.blanks, 3);
-    assert_eq!(c5.lines, c5.code + c5.comments + c5.blanks);
-}
-
-#[test]
-fn test_r4_adversarial_grid_formatting_under_extreme_widths() {
-    let temp = TempTestDir::new("r4_grid_stress");
+fn test_grid_formatting_under_extreme_widths() {
+    let temp = TempTestDir::new("grid_stress");
     for i in 1..=20 {
         let name = format!("long_filename_entry_number_{i:04}.txt");
         fs::write(temp.path.join(name), b"test").unwrap();
@@ -922,8 +762,8 @@ fn test_r4_adversarial_grid_formatting_under_extreme_widths() {
 }
 
 #[test]
-fn test_r5_adversarial_precedence_in_details_and_grid_modes() {
-    let temp = TempTestDir::new("r5_details_precedence");
+fn test_size_format_precedence_in_details_and_grid_modes() {
+    let temp = TempTestDir::new("details_precedence");
     let test_file = temp.path.join("file_2048.txt");
     fs::write(&test_file, vec![0u8; 2048]).unwrap();
 

@@ -37,12 +37,11 @@ fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
         .expect("Failed to parse CLI args in mock")
 }
 
-// =========================================================================
-// M3: TOTAL ENTRIES SUMMARY COUNT FLAG (--print-total) (#1851)
+// TOTAL ENTRIES SUMMARY COUNT FLAG (--print-total) (#1851)
 // =========================================================================
 
 #[test]
-fn test_m3_print_total_empty_directory() {
+fn test_print_total_empty_directory() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_empty");
 
@@ -60,7 +59,7 @@ fn test_m3_print_total_empty_directory() {
 }
 
 #[test]
-fn test_m3_print_total_multiple_files_and_dirs() {
+fn test_print_total_multiple_files_and_dirs() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_entries");
 
@@ -109,7 +108,7 @@ fn test_m3_print_total_multiple_files_and_dirs() {
 }
 
 #[test]
-fn test_m3_print_total_with_filters_only_dirs_and_only_files() {
+fn test_print_total_with_filters_only_dirs_and_only_files() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_filters");
 
@@ -143,7 +142,7 @@ fn test_m3_print_total_with_filters_only_dirs_and_only_files() {
 }
 
 #[test]
-fn test_m3_print_total_with_hidden_files() {
+fn test_print_total_with_hidden_files() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_hidden");
 
@@ -175,7 +174,7 @@ fn test_m3_print_total_with_hidden_files() {
 }
 
 #[test]
-fn test_m3_print_total_tree_mode() {
+fn test_print_total_tree_mode() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_tree");
 
@@ -197,7 +196,7 @@ fn test_m3_print_total_tree_mode() {
 }
 
 #[test]
-fn test_m3_print_total_tree_mode_with_only_files() {
+fn test_print_total_tree_mode_with_only_files() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_tree_only_files");
 
@@ -219,7 +218,7 @@ fn test_m3_print_total_tree_mode_with_only_files() {
 }
 
 #[test]
-fn test_m3_view_deduce_print_total() {
+fn test_view_deduce_print_total() {
     let matches_on = parse_cli_args(&["--print-total"]);
     let opts_on = Options::deduce(&matches_on, &MockVars::new()).unwrap();
     assert!(opts_on.view.total_entries);
@@ -230,7 +229,7 @@ fn test_m3_view_deduce_print_total() {
 }
 
 #[test]
-fn test_m3_print_total_with_stdin() {
+fn test_print_total_with_stdin() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("stdin_total");
 

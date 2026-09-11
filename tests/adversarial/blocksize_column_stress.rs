@@ -25,7 +25,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lez_chal_blocks_{prefix}_{}_{}",
+            "lez_blocksize_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));

@@ -47,11 +47,11 @@ fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
 }
 
 // =========================================================================
-// M2: PRE-UNIX EPOCH TIMESTAMP HANDLING (#1826)
+// PRE-UNIX EPOCH TIMESTAMP HANDLING
 // =========================================================================
 
 #[test]
-fn test_m2_systemtime_to_naivedatetime_exact_epoch() {
+fn test_systemtime_to_naivedatetime_exact_epoch() {
     let dt = File::systemtime_to_naivedatetime(UNIX_EPOCH).expect("epoch conversion");
     assert_eq!(dt.and_utc().timestamp(), 0);
     assert_eq!(dt.and_utc().timestamp_subsec_nanos(), 0);
@@ -61,7 +61,7 @@ fn test_m2_systemtime_to_naivedatetime_exact_epoch() {
 }
 
 #[test]
-fn test_m2_systemtime_to_naivedatetime_pre_epoch_one_second() {
+fn test_systemtime_to_naivedatetime_pre_epoch_one_second() {
     // 1969-12-31 23:59:59 UTC == -1s
     let st = UNIX_EPOCH - Duration::from_secs(1);
     let dt = File::systemtime_to_naivedatetime(st).expect("pre-epoch 1s conversion");
@@ -73,7 +73,7 @@ fn test_m2_systemtime_to_naivedatetime_pre_epoch_one_second() {
 }
 
 #[test]
-fn test_m2_systemtime_to_naivedatetime_subsecond_flooring() {
+fn test_systemtime_to_naivedatetime_subsecond_flooring() {
     // Test 1: 0.25s before epoch (-0.25s) => secs = -1, nanos = 750_000_000
     let st1 = UNIX_EPOCH - Duration::from_millis(250);
     let dt1 = File::systemtime_to_naivedatetime(st1).expect("pre-epoch 250ms conversion");
@@ -114,7 +114,7 @@ fn test_m2_systemtime_to_naivedatetime_subsecond_flooring() {
 }
 
 #[test]
-fn test_m2_systemtime_to_naivedatetime_far_past_dates() {
+fn test_systemtime_to_naivedatetime_far_past_dates() {
     // 1901-12-13 20:45:52 UTC (i32 min: -2_147_483_648s)
     let st_1901 = UNIX_EPOCH - Duration::from_secs(2_147_483_648);
     let dt_1901 = File::systemtime_to_naivedatetime(st_1901).expect("1901 date");
@@ -133,7 +133,7 @@ fn test_m2_systemtime_to_naivedatetime_far_past_dates() {
 }
 
 #[test]
-fn test_m2_pre_epoch_leap_year_dates() {
+fn test_pre_epoch_leap_year_dates() {
     // 1968-02-29 12:00:00 UTC (1968 was a leap year: 671.5 days before epoch)
     // 672 * 86400 - 43200 = 58,017,600 seconds
     let st_1968 = UNIX_EPOCH - Duration::from_secs(58_017_600);
@@ -152,12 +152,12 @@ fn test_m2_pre_epoch_leap_year_dates() {
 }
 
 // =========================================================================
-// M5: TIME STYLE ERROR & NON-UTF-8 VALIDATION (#1848)
+// TIME STYLE ERROR & NON-UTF-8 VALIDATION
 // =========================================================================
 
 #[cfg(unix)]
 #[test]
-fn test_m5_non_utf8_time_style_returns_invalid_utf8_error() {
+fn test_non_utf8_time_style_returns_invalid_utf8_error() {
     use std::os::unix::ffi::OsStringExt;
 
     let args = vec![
@@ -178,7 +178,7 @@ fn test_m5_non_utf8_time_style_returns_invalid_utf8_error() {
 }
 
 #[test]
-fn test_m5_invalid_time_style_string_returns_invalid_value_error() {
+fn test_invalid_time_style_string_returns_invalid_value_error() {
     let invalid_styles = [
         "not_a_valid_style",
         "FULL-ISO",
@@ -208,7 +208,7 @@ fn test_m5_invalid_time_style_string_returns_invalid_value_error() {
 }
 
 #[test]
-fn test_m5_valid_time_styles_pass() {
+fn test_valid_time_styles_pass() {
     let valid_styles = [
         "default",
         "iso",
@@ -235,7 +235,7 @@ fn test_m5_valid_time_styles_pass() {
 }
 
 #[test]
-fn test_m5_time_style_cli_process_exit_code() {
+fn test_time_style_cli_process_exit_code() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
 
     // Invalid format string -> Clap error with exit code 3 (OPTIONS_ERROR)
@@ -254,7 +254,7 @@ fn test_m5_time_style_cli_process_exit_code() {
 }
 
 #[test]
-fn test_m5_time_style_env_var_fallback() {
+fn test_time_style_env_var_fallback() {
     let vars_invalid = MockVars::new().with_var("TIME_STYLE", "invalid_env_style");
     let matches = parse_cli_args(&["-l"]);
     let opts = Options::deduce(&matches, &vars_invalid).unwrap();

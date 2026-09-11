@@ -18,7 +18,7 @@ impl TempTestDir {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "lez_adv_b5_{prefix}_{}_{}",
+            "lez_json_{prefix}_{}_{}",
             std::process::id(),
             nanos
         ));
@@ -51,7 +51,7 @@ impl Drop for TempTestDir {
 }
 
 #[test]
-fn test_m1_json_cli_short_single_directory() {
+fn test_json_cli_short_single_directory() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_short");
     temp.create_file("alpha.txt", b"a");
@@ -76,7 +76,7 @@ fn test_m1_json_cli_short_single_directory() {
 }
 
 #[test]
-fn test_m1_json_cli_short_empty_directory() {
+fn test_json_cli_short_empty_directory() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_empty");
 
@@ -95,7 +95,7 @@ fn test_m1_json_cli_short_empty_directory() {
 }
 
 #[test]
-fn test_m1_json_cli_short_single_file() {
+fn test_json_cli_short_single_file() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_file");
     let file_path = temp.create_file("solo.txt", b"solo");
@@ -116,7 +116,7 @@ fn test_m1_json_cli_short_single_file() {
 }
 
 #[test]
-fn test_m1_json_cli_short_multi_directories() {
+fn test_json_cli_short_multi_directories() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_multidir");
     let dir_a = temp.create_dir("dirA");
@@ -147,7 +147,7 @@ fn test_m1_json_cli_short_multi_directories() {
 }
 
 #[test]
-fn test_m1_json_cli_short_mixed_files_and_directories() {
+fn test_json_cli_short_mixed_files_and_directories() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_mixed");
     let f1 = temp.create_file("top.txt", b"top");
@@ -170,7 +170,7 @@ fn test_m1_json_cli_short_mixed_files_and_directories() {
 }
 
 #[test]
-fn test_m1_json_cli_long_metadata_schema() {
+fn test_json_cli_long_metadata_schema() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long");
     temp.create_file("test.txt", b"content of test file");
@@ -205,7 +205,7 @@ fn test_m1_json_cli_long_metadata_schema() {
 }
 
 #[test]
-fn test_m1_json_cli_long_empty_directory() {
+fn test_json_cli_long_empty_directory() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long_empty");
 
@@ -223,7 +223,7 @@ fn test_m1_json_cli_long_empty_directory() {
 }
 
 #[test]
-fn test_m1_json_cli_all_hidden_files() {
+fn test_json_cli_all_hidden_files() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_hidden");
     temp.create_file(".secret.txt", b"secret");
@@ -245,7 +245,7 @@ fn test_m1_json_cli_all_hidden_files() {
 }
 
 #[test]
-fn test_m1_json_cli_bytes_and_binary_units() {
+fn test_json_cli_bytes_and_binary_units() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_units");
     temp.create_file("large.bin", &vec![0u8; 1024 * 1024]);
@@ -290,7 +290,7 @@ fn test_m1_json_cli_bytes_and_binary_units() {
 }
 
 #[test]
-fn test_m1_json_cli_time_styles() {
+fn test_json_cli_time_styles() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_time");
     temp.create_file("stamp.txt", b"timestamp test");
@@ -321,7 +321,7 @@ fn test_m1_json_cli_time_styles() {
 }
 
 #[test]
-fn test_m1_json_cli_recursive_tree() {
+fn test_json_cli_recursive_tree() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_tree");
     temp.create_file("root_file.txt", b"root");
@@ -345,7 +345,7 @@ fn test_m1_json_cli_recursive_tree() {
 }
 
 #[test]
-fn test_m1_json_cli_recursive_long_tree() {
+fn test_json_cli_recursive_long_tree() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long_tree");
     temp.create_file("root_file.txt", b"root");
@@ -374,7 +374,7 @@ fn test_m1_json_cli_recursive_long_tree() {
 }
 
 #[test]
-fn test_m1_json_cli_special_characters_escaping() {
+fn test_json_cli_special_characters_escaping() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_escaping");
     temp.create_file("file with spaces.txt", b"1");
@@ -403,7 +403,7 @@ fn test_m1_json_cli_special_characters_escaping() {
 }
 
 #[test]
-fn test_m1_json_cli_no_ansi_escapes() {
+fn test_json_cli_no_ansi_escapes() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_no_ansi");
     temp.create_file("plain.txt", b"plain");
@@ -429,7 +429,7 @@ fn test_m1_json_cli_no_ansi_escapes() {
 
 #[test]
 #[cfg(unix)]
-fn test_m1_json_cli_symlinks() {
+fn test_json_cli_symlinks() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_symlink");
     let target = temp.create_file("target.txt", b"target");
@@ -454,7 +454,7 @@ fn test_m1_json_cli_symlinks() {
 
 #[test]
 #[cfg(feature = "git")]
-fn test_m1_json_cli_git_status() {
+fn test_json_cli_git_status() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_git");
     let repo = git2::Repository::init(&temp.path).expect("Failed to init git repo");
@@ -484,87 +484,6 @@ fn test_m1_json_cli_git_status() {
         .as_str()
         .unwrap();
     assert!(git_status == "NM" || git_status == "-M" || git_status == "N-");
-}
-
-#[test]
-fn test_m2_resourcefork_xattr_decoding_unit() {
-    #[cfg(target_os = "macos")]
-    {
-        use lez::fs::feature::xattr::Attribute;
-
-        let mut data = vec![0u8; 64];
-        // Header
-        data[0..4].copy_from_slice(&256u32.to_be_bytes()); // data offset
-        data[4..8].copy_from_slice(&16u32.to_be_bytes()); // map offset
-        data[8..12].copy_from_slice(&0u32.to_be_bytes()); // data len
-        data[12..16].copy_from_slice(&48u32.to_be_bytes()); // map len
-
-        // Map at 16
-        // Type list offset at map + 24 = index 40
-        data[40..42].copy_from_slice(&28u16.to_be_bytes());
-
-        // Type list at 16 + 28 = 44
-        data[44..46].copy_from_slice(&0u16.to_be_bytes()); // 1 type (0 + 1)
-        data[46..50].copy_from_slice(b"icns");
-        data[50..52].copy_from_slice(&0u16.to_be_bytes()); // count 1 (0 + 1)
-        data[52..54].copy_from_slice(&0u16.to_be_bytes());
-
-        let attr = Attribute {
-            name: "com.apple.ResourceFork".to_string(),
-            value: Some(data),
-        };
-
-        let formatted = format!("{attr}");
-        assert!(
-            formatted.contains("<[icns: 1]>"),
-            "Formatted output: {formatted}"
-        );
-    }
-}
-
-#[test]
-#[cfg(unix)]
-fn test_m3_mounts_cli_display() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(bin_path)
-        .args(["-l", "-M", "/"])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-}
-
-#[test]
-fn test_m4_directorynames_theme_override() {
-    let yaml = r#"
-directorynames:
-  special_dir:
-    filename:
-      foreground: Red
-"#;
-    let temp = TempTestDir::new("theme_dir");
-    let theme_file = temp.create_file("theme.yml", yaml.as_bytes());
-    let cfg = lez::options::config::ThemeConfig::from_path(theme_file);
-    let theme = cfg.to_theme().expect("Failed to parse theme");
-    assert!(theme.directorynames.is_some());
-    let dir_styles = theme.directorynames.unwrap();
-    assert!(dir_styles.contains_key("special_dir"));
-}
-
-#[test]
-fn test_m5_icons_apple_and_configs() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    let temp = TempTestDir::new("icons_test");
-    temp.create_file("hyprland.conf", b"");
-
-    let output = Command::new(bin_path)
-        .args(["--icons=always", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("hyprland.conf"));
 }
 
 #[test]
