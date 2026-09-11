@@ -190,6 +190,35 @@ impl FileConfig {
         content.parse().ok()
     }
 
+    fn parse_explicit_file(path: &Path) -> Option<Self> {
+        match fs::read_to_string(path) {
+            Ok(content) => {
+                let toml_err = match toml::from_str::<Self>(&content) {
+                    Ok(cfg) => return Some(cfg),
+                    Err(e) => e,
+                };
+                let yaml_err = match serde_norway::from_str::<Self>(&content) {
+                    Ok(cfg) => return Some(cfg),
+                    Err(e) => e,
+                };
+                let is_yaml = path.extension().is_some_and(|ext| {
+                    ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml")
+                });
+                let err_msg = if is_yaml {
+                    yaml_err.to_string()
+                } else {
+                    toml_err.to_string()
+                };
+                eprintln!("lez: Failed to parse config file {:?}: {err_msg}", path);
+                None
+            }
+            Err(e) => {
+                eprintln!("lez: Failed to read config file {:?}: {e}", path);
+                None
+            }
+        }
+    }
+
     /// Load global and local configuration with precedence:
     /// local (`.lez.toml` in cwd) > global (`config.toml` in config dir).
     pub fn load_merged<V: Vars>(
@@ -204,7 +233,7 @@ impl FileConfig {
 
         // 1. If explicit config file was requested via CLI or env var
         if let Some(custom) = custom_file {
-            return Self::from_file(custom).unwrap_or_default();
+            return Self::parse_explicit_file(custom).unwrap_or_default();
         }
 
         if let Some(env_file) = vars
@@ -213,7 +242,7 @@ impl FileConfig {
             .or_else(|| vars.get(vars::EXA_CONFIG_FILE))
         {
             let path = PathBuf::from(env_file);
-            return Self::from_file(&path).unwrap_or_default();
+            return Self::parse_explicit_file(&path).unwrap_or_default();
         }
 
         let mut config = Self::default();

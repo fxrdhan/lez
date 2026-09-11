@@ -768,6 +768,15 @@ pub fn count_roots_filtered(
             &mut jobs,
         );
     }
+    let mut seen = std::collections::HashSet::new();
+    jobs.retain(|(path, _)| {
+        if deref_links {
+            seen.insert(path.clone())
+        } else {
+            let canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.clone());
+            seen.insert(canon)
+        }
+    });
     count_jobs(jobs)
 }
 

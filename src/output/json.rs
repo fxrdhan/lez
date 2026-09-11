@@ -18,7 +18,6 @@ use crate::fs::feature::git::GitCache;
 use crate::fs::fields as f;
 use crate::fs::filter::{FileFilter, FileFilterFlags};
 use crate::fs::{Dir, DotFilter, File};
-use crate::loc::count_roots;
 use crate::options::parser::CodeContent;
 use crate::output::View;
 use crate::output::details::{self, show_xattr_hint};
@@ -129,7 +128,13 @@ impl<'a> Render<'a> {
                         ) {
                             let roots: Vec<PathBuf> =
                                 files.iter().map(|f| f.path.clone()).collect();
-                            let report = count_roots(&roots, self.dots.shows_dotfiles());
+                            let report = crate::loc::count_roots_filtered(
+                                &roots,
+                                self.dots.shows_dotfiles(),
+                                Some(self.file_filter),
+                                !self.git_ignoring,
+                                self.deref_links,
+                            );
 
                             Some(report.total().code)
                         } else {
@@ -172,16 +177,17 @@ impl<'a> Render<'a> {
         let dir = match dir.read() {
             Ok(d) => d,
             Err(e) => {
-                let _ = writeln!(
-                    io::stderr(),
-                    "Permission denied: {} - code: {}",
-                    dir_path.display(),
-                    crate::exits::PERMISSION_DENIED
-                );
                 write!(w, "[]")?;
                 let status = if e.kind() == io::ErrorKind::PermissionDenied {
+                    let _ = writeln!(
+                        io::stderr(),
+                        "Permission denied: {} - code: {}",
+                        dir_path.display(),
+                        crate::exits::PERMISSION_DENIED
+                    );
                     crate::exits::PERMISSION_DENIED
                 } else {
+                    let _ = writeln!(io::stderr(), "{}: {}", dir_path.display(), e);
                     crate::exits::RUNTIME_ERROR
                 };
                 return Ok(status);
@@ -252,16 +258,19 @@ impl<'a> Render<'a> {
             let dir_r = match dir.read() {
                 Ok(r) => r,
                 Err(e) => {
-                    let _ = writeln!(
-                        io::stderr(),
-                        "Permission denied: {} - code: {}",
-                        dir_path.display(),
-                        crate::exits::PERMISSION_DENIED
-                    );
                     if e.kind() == io::ErrorKind::PermissionDenied {
+                        let _ = writeln!(
+                            io::stderr(),
+                            "Permission denied: {} - code: {}",
+                            dir_path.display(),
+                            crate::exits::PERMISSION_DENIED
+                        );
                         exit_status = crate::exits::PERMISSION_DENIED;
-                    } else if exit_status == crate::exits::SUCCESS {
-                        exit_status = crate::exits::RUNTIME_ERROR;
+                    } else {
+                        let _ = writeln!(io::stderr(), "{}: {}", dir_path.display(), e);
+                        if exit_status == crate::exits::SUCCESS {
+                            exit_status = crate::exits::RUNTIME_ERROR;
+                        }
                     }
                     write!(w, "\"files\":[], \"directories\":{{}}}}")?;
                     continue;

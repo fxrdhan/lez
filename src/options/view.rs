@@ -226,10 +226,42 @@ impl Mode {
             "numeric",
             "mounts",
             "loc",
+            "git-repos",
+            "git-repos-no-status",
+            "git-glyphs",
+            "octal-permissions",
+            "total-size",
+            "smart-group",
+            "extended",
+            "no-extended",
+            "tags",
+            "no-permissions",
+            "no-filesize",
+            "size-digits",
+            "percent-digits",
+            "no-user",
+            "no-time",
+            "no-language",
+            "time-style",
+            "modified",
+            "accessed",
+            "changed",
+            "created",
+            "utc",
+            "inspect-archives",
+            "print-total",
         ] {
             if matches.value_source(flag) == Some(ValueSource::CommandLine) {
                 return Err(OptionsError::Useless(flag, false, "long"));
             }
+        }
+
+        if matches.value_source("file-flags") == Some(ValueSource::CommandLine) {
+            return Err(OptionsError::Useless("flags", false, "long"));
+        }
+
+        if matches.value_source("security-context") == Some(ValueSource::CommandLine) {
+            return Err(OptionsError::Useless("context", false, "long"));
         }
 
         if let Some(_word) = matches.get_one::<TimeArgs>("time") {

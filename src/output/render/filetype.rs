@@ -29,11 +29,11 @@ impl f::Type {
         };
     }
 
-    pub fn render_json(self) -> &'static str {
+    pub fn render_json(self, mount: bool) -> &'static str {
         #[rustfmt::skip]
         return match self {
             Self::File         => ".",
-            Self::Directory    => "d",
+            Self::Directory    => if mount { "D" } else { "d" },
             Self::Pipe         => "|",
             Self::Link         => "l",
             Self::BlockDevice  => "b",
@@ -127,13 +127,14 @@ mod test {
 
     #[test]
     fn test_filetype_render_json() {
-        assert_eq!(f::Type::File.render_json(), ".");
-        assert_eq!(f::Type::Directory.render_json(), "d");
-        assert_eq!(f::Type::Pipe.render_json(), "|");
-        assert_eq!(f::Type::Link.render_json(), "l");
-        assert_eq!(f::Type::BlockDevice.render_json(), "b");
-        assert_eq!(f::Type::CharDevice.render_json(), "c");
-        assert_eq!(f::Type::Socket.render_json(), "s");
-        assert_eq!(f::Type::Special.render_json(), "?");
+        assert_eq!(f::Type::File.render_json(false), ".");
+        assert_eq!(f::Type::Directory.render_json(false), "d");
+        assert_eq!(f::Type::Directory.render_json(true), "D");
+        assert_eq!(f::Type::Pipe.render_json(false), "|");
+        assert_eq!(f::Type::Link.render_json(false), "l");
+        assert_eq!(f::Type::BlockDevice.render_json(false), "b");
+        assert_eq!(f::Type::CharDevice.render_json(false), "c");
+        assert_eq!(f::Type::Socket.render_json(false), "s");
+        assert_eq!(f::Type::Special.render_json(false), "?");
     }
 }

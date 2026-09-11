@@ -135,7 +135,7 @@ pub enum SpacingBetweenColumns {
 impl SpacingBetweenColumns {
     pub fn deduce(matches: &clap::ArgMatches) -> Self {
         if let Some(&spaces) = matches.get_one::<usize>("spacing") {
-            Self::Set(spaces)
+            Self::Set(spaces.min(1000))
         } else {
             Self::Default
         }

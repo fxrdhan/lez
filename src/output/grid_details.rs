@@ -262,7 +262,13 @@ impl<'a> Render<'a> {
             } else {
                 self.files.iter().map(|f| f.path.clone()).collect()
             };
-            let report = crate::loc::count_roots(&roots, self.filter.dot_filter.shows_dotfiles());
+            let report = crate::loc::count_roots_filtered(
+                &roots,
+                self.filter.dot_filter.shows_dotfiles(),
+                Some(self.filter),
+                !self.git_ignoring,
+                self.details.follow_links,
+            );
             table.set_loc_total(Some(report.total().code));
         }
 

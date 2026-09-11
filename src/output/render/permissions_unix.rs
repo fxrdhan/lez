@@ -42,7 +42,7 @@ impl PermissionsPlusRender for Option<f::PermissionsPlus> {
 
     fn render_json(&self) -> Option<String> {
         self.map(|p| {
-            let mut chars = vec![p.file_type.render_json()];
+            let mut chars = vec![p.file_type.render_json(p.mount)];
             let permissions = p.permissions;
             chars.extend(Some(permissions).render_json(p.file_type.is_regular_file()));
 
@@ -559,8 +559,8 @@ pub mod test {
             mount: true,
         });
 
-        // JSON format must remain "drwxr-xr-x" in both cases for schema compatibility
+        // JSON format must reflect 'D' for mount point directories
         assert_eq!(regular_p.render_json(), Some("drwxr-xr-x".to_string()));
-        assert_eq!(mount_p.render_json(), Some("drwxr-xr-x".to_string()));
+        assert_eq!(mount_p.render_json(), Some("Drwxr-xr-x".to_string()));
     }
 }

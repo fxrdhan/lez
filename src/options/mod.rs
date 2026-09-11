@@ -135,6 +135,9 @@ impl Options {
         if self.filter.git_ignore == GitIgnore::CheckAndIgnore {
             return true;
         }
+        if self.filter.ignore_submodule_contents {
+            return true;
+        }
 
         match self.view.mode {
             Mode::Details(details::Options {
