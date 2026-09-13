@@ -469,3 +469,33 @@ fn test_code_mode_symlink_dereference_flags() {
         }
     }
 }
+
+#[test]
+fn test_loc_dereference_deduplication_of_identical_files_and_symlinks() {
+    let tmp = TempTestDir::new("loc_deref_dedup");
+    tmp.create_file("source.rs", b"fn main() {\n    println!(\"hello\");\n}\n");
+    let src_path = tmp.path().join("source.rs");
+
+    // Pass the same file twice (as absolute and dot-prefixed paths) with -X
+    let out = Command::new(bin_path())
+        .args(["--code", "-X", "--color=never"])
+        .arg(&src_path)
+        .arg(&src_path)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    for line in s.lines() {
+        if line.contains("Rust") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            assert_eq!(
+                parts[1], "1",
+                "expected deduplicated 1 file counted with -X, got: {line}"
+            );
+            assert_eq!(
+                parts[2], "3",
+                "expected deduplicated 3 lines counted with -X, got: {line}"
+            );
+        }
+    }
+}

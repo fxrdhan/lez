@@ -332,3 +332,25 @@ fn foo<'a>(x: i32) {
     );
     assert_eq!(counts.code, 3, "All 3 code lines must be detected");
 }
+
+#[test]
+fn test_multiline_string_literals_do_not_swallow_as_comments() {
+    let rust = loc::language_for("test.rs", Some("rs")).expect("Rust language");
+    let source = r#"fn main() {
+    let s = "hello
+    // not a comment
+    /* also not a comment */
+    world";
+    // genuine comment
+}
+"#;
+    let counts = LocCounts::from_source(source, rust);
+    assert_eq!(
+        counts.comments, 1,
+        "Only the genuine comment should be counted as a comment"
+    );
+    assert_eq!(
+        counts.code, 6,
+        "Lines inside the string literal must count as code"
+    );
+}
