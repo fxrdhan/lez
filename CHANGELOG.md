@@ -8,6 +8,31 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.28.4] - 2026-09-14
+
+### Features & Enhancements
+
+- **Configuration File Modes**: Support `mode = "tree"` and `mode = "code"` configuration options in `.lez.toml` and `$LEZ_CONFIG_DIR/config.toml` to customize default view representations ([#127](https://github.com/fxrdhan/lez/pull/127)).
+
+### Bug Fixes & Hardening
+
+- **Symlink Recursion & Cycle Prevention**: Detect symlink loops in recursive directory traversal (`-R` / `--recurse`), preventing infinite loops and stack exhaustion when encountering self-referential directory symlinks ([#133](https://github.com/fxrdhan/lez/pull/133)).
+- **Raw Byte Stdin Streaming**: Support arbitrary byte streams without UTF-8 lossiness in `--stdin` mode, strip carriage returns on Windows, and safely handle edge cases such as empty or NUL delimiters ([#125](https://github.com/fxrdhan/lez/pull/125), [#126](https://github.com/fxrdhan/lez/pull/126), [#133](https://github.com/fxrdhan/lez/pull/133)).
+- **Configuration & Theme Fallbacks**: Enforce `--no-config` on custom themes, gracefully handle corrupt YAML theme definitions, and allow `--color=auto` to explicitly override `color = "always"` config defaults ([#127](https://github.com/fxrdhan/lez/pull/127), [#133](https://github.com/fxrdhan/lez/pull/133)).
+- **Flag Precedence & Reciprocal Overrides**: Add strict reciprocal overrides for CLI flag pairs (e.g. `-a` vs `-A`, `--no-git` vs `--git-ignore`, `--only-dirs` vs `--only-files`, and `--quotes` options) ensuring intuitive last-argument-wins semantics ([#126](https://github.com/fxrdhan/lez/pull/126), [#127](https://github.com/fxrdhan/lez/pull/127), [#128](https://github.com/fxrdhan/lez/pull/128), [#133](https://github.com/fxrdhan/lez/pull/133)).
+- **Lines of Code (LOC) Accuracy**: Preserve dereferenced symlink counting with `-X` (`--dereference`), properly isolate multi-line string literal delimiters in code lexing, use unicode-width calculation for column alignment, respect `--no-git` filtering in summary reports, and support Odin syntax ([#125](https://github.com/fxrdhan/lez/pull/125), [#126](https://github.com/fxrdhan/lez/pull/126), [#128](https://github.com/fxrdhan/lez/pull/128), [#129](https://github.com/fxrdhan/lez/pull/129), [#130](https://github.com/fxrdhan/lez/pull/130), [#133](https://github.com/fxrdhan/lez/pull/133)).
+- **Structured JSON Engine**: Preserve recursion cutoff directories in JSON output, disambiguate duplicate file paths and root keys, emit authentic group names regardless of smart-group settings, and retain schema keys at maximum depth ([#125](https://github.com/fxrdhan/lez/pull/125), [#126](https://github.com/fxrdhan/lez/pull/126), [#127](https://github.com/fxrdhan/lez/pull/127), [#128](https://github.com/fxrdhan/lez/pull/128), [#129](https://github.com/fxrdhan/lez/pull/129), [#130](https://github.com/fxrdhan/lez/pull/130)).
+- **Git Integration & Sub-repo Discovery**: Discover nested Git repositories recursively in traversal modes without `--git-ignore`, preserving status columns and avoiding swallowed child statuses ([#126](https://github.com/fxrdhan/lez/pull/126), [#128](https://github.com/fxrdhan/lez/pull/128)).
+- **Output & Summary Calculations**: Accurately compute directory entry counts and total summaries in tree views, exclude unlisted containers, and apply custom quote styling to symlink targets ([#125](https://github.com/fxrdhan/lez/pull/125), [#126](https://github.com/fxrdhan/lez/pull/126), [#128](https://github.com/fxrdhan/lez/pull/128)).
+
+### Testing & Quality Assurance
+
+- **Test Suite Modernization & Isolation**: Decompose legacy monolithic integration tests into 11 modular domain runners (`adversarial`, `cli_options`, `filesystem`, `git`, `icons_theme`, `loc_engine`, `os_metadata`, `output_formatting`, `platform`, `sorting`, `cli`), isolate environment variables and tempdirs using `tempfile`, eliminate orphan snapshots, and remediate 14 audit-identified edge cases ([#131](https://github.com/fxrdhan/lez/pull/131), [#132](https://github.com/fxrdhan/lez/pull/132)).
+
+### Distribution & CI Automation
+
+- **Homebrew Automation**: Automatically bump Homebrew formula in `fxrdhan/homebrew-tap` upon release publish via GitHub Actions release workflow.
+
 ## [0.28.3] - 2026-09-07
 
 ### Bug Fixes
