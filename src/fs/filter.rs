@@ -301,11 +301,15 @@ impl FileFilter {
         let Some(cutoff) = now.checked_sub_signed(duration) else {
             return true;
         };
+        // Allow timestamps slightly in the future (up to 1 hour) due to clock skew or NTP drift
+        let future_bound = now
+            .checked_add_signed(chrono::Duration::hours(1))
+            .unwrap_or(now);
 
         if let Some(mtime) = file.modified_time() {
-            mtime >= cutoff && mtime <= now
+            mtime >= cutoff && mtime <= future_bound
         } else if let Some(ctime) = file.created_time() {
-            ctime >= cutoff && ctime <= now
+            ctime >= cutoff && ctime <= future_bound
         } else {
             false
         }
@@ -324,6 +328,9 @@ impl FileFilter {
         let Some(cutoff) = now.checked_sub_signed(duration) else {
             return true;
         };
+        let future_bound = now
+            .checked_add_signed(chrono::Duration::hours(1))
+            .unwrap_or(now);
 
         let mtime = metadata
             .modified()
@@ -335,9 +342,9 @@ impl FileFilter {
             .and_then(File::systemtime_to_naivedatetime);
 
         if let Some(mtime) = mtime {
-            mtime >= cutoff && mtime <= now
+            mtime >= cutoff && mtime <= future_bound
         } else if let Some(ctime) = ctime {
-            ctime >= cutoff && ctime <= now
+            ctime >= cutoff && ctime <= future_bound
         } else {
             false
         }

@@ -308,14 +308,14 @@ fn test_stdin_invalid_utf8_returns_exit_code_1_without_panic() {
     let output = child.wait_with_output().expect("Failed to wait on child");
     assert_eq!(
         output.status.code(),
-        Some(1),
-        "Expected exit code 1 (RUNTIME_ERROR) on stdin read error, got: {:?}",
+        Some(2),
+        "Expected exit code 2 (MISSING_INPUT_PATH) for nonexistent raw byte path, got: {:?}",
         output.status.code()
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("lez: Failed to read from stdin"),
-        "Expected graceful error message in stderr, got: {stderr}"
+        !stderr.contains("Failed to read from stdin"),
+        "Stdin reader should not fail on reading raw byte stream: {stderr}"
     );
 }
 

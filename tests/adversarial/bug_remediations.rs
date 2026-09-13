@@ -83,7 +83,7 @@ fn test_symlink_cycle_recursion_pruned() {
             "lez --json -R --follow-symlinks should prune cycles cleanly"
         );
 
-        // Standard -R recursion must not panic or hang, cleanly exiting with ELOOP error code
+        // Standard -R recursion must prune cycles cleanly and succeed with exit code 0
         let out_r = Command::new(lez_bin())
             .arg("-R")
             .arg("--follow-symlinks")
@@ -92,8 +92,14 @@ fn test_symlink_cycle_recursion_pruned() {
             .expect("Failed to run lez -R");
         assert_eq!(
             out_r.status.code(),
-            Some(1),
-            "lez -R --follow-symlinks should isolate ELOOP with runtime error exit code 1"
+            Some(0),
+            "lez -R --follow-symlinks should prune cycles cleanly with exit code 0: {}",
+            String::from_utf8_lossy(&out_r.stderr)
+        );
+        let stdout_r = String::from_utf8_lossy(&out_r.stdout);
+        assert!(
+            stdout_r.contains("loop_to_root"),
+            "stdout should list the symlink entry itself: {stdout_r}"
         );
     }
 }
@@ -114,11 +120,21 @@ fn test_non_utf8_stdin_stream_error_handling() {
     }
 
     let output = child.wait_with_output().expect("Failed to wait on child");
-    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Cargo.toml"),
+        "Expected Cargo.toml in stdout: {stdout}"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Failed to read from stdin"),
-        "Stdin reader should gracefully exit with error message on invalid UTF-8: {stderr}"
+        !stderr.contains("Failed to read from stdin"),
+        "Stdin reader should not fail on reading raw byte stream: {stderr}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "Expected exit code 2 (MISSING_INPUT_PATH) for nonexistent raw byte path, got: {:?}",
+        output.status.code()
     );
 }
 
@@ -615,5 +631,33 @@ fn test_json_mount_point_permissions_uppercase_indicator() {
     assert!(
         perms_reg.starts_with('d'),
         "JSON permissions for regular directory must start with lowercase 'd', got: {perms_reg}"
+    );
+}
+
+#[test]
+fn test_since_future_skew_not_hidden() {
+    let dir = TestDir::new("since_future_skew");
+    let file_path = dir.path.join("future_file.txt");
+    fs::write(&file_path, b"test content").expect("Failed to create file");
+
+    let future_time = SystemTime::now() + std::time::Duration::from_secs(60);
+    let f = StdFile::options()
+        .write(true)
+        .open(&file_path)
+        .expect("Failed to open file");
+    f.set_modified(future_time).expect("Failed to set mtime");
+
+    let output = Command::new(lez_bin())
+        .arg("--since")
+        .arg("24h")
+        .arg(&dir.path)
+        .output()
+        .expect("Failed to run lez --since");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("future_file.txt"),
+        "File with future timestamp should not be hidden by --since 24h: {stdout}"
     );
 }
