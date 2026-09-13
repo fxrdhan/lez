@@ -39,6 +39,8 @@ impl DirAction {
             // Early check for --level when it wouldn’t do anything
             if !recurse && !tree && matches.get_one::<usize>("level").is_some() {
                 return Err(OptionsError::Useless2("level", "recurse", "tree"));
+            } else if !recurse && !tree && matches.get_flag("follow-symlinks") {
+                return Err(OptionsError::Useless2("follow-symlinks", "recurse", "tree"));
             } else if recurse && as_file {
                 return Err(OptionsError::Conflict("recurse", "treat-dirs-as-files"));
             } else if tree && as_file {
@@ -201,5 +203,18 @@ mod tests {
     #[test]
     fn deduce_dir_action_tree_as_file_conflict() {
         assert!(mock_cli_try(vec!["--tree", "--treat-dirs-as-files"]).is_err());
+    }
+
+    #[test]
+    fn deduce_dir_action_follow_symlinks_without_recurse_tree_conflict() {
+        assert_eq!(
+            DirAction::deduce(
+                &mock_cli(vec!["--follow-symlinks"]),
+                false,
+                true,
+                &FileConfig::default()
+            ),
+            Err(OptionsError::Useless2("follow-symlinks", "recurse", "tree"))
+        );
     }
 }

@@ -174,7 +174,19 @@ impl DotFilter {
         let has_almost_all = matches.get_flag("almost-all");
         let show_dotfiles = matches.get_flag("show-dotfiles");
 
-        if has_almost_all {
+        // Resolve CLI order precedence between -A and -a -a
+        let almost_all_wins = if has_almost_all && all_count > 1 {
+            let idx_a = matches.indices_of("all").and_then(|mut it| it.next_back());
+            let idx_almost = matches.index_of("almost-all");
+            match (idx_a, idx_almost) {
+                (Some(ia), Some(iam)) => iam > ia,
+                _ => true,
+            }
+        } else {
+            has_almost_all
+        };
+
+        if almost_all_wins {
             return Ok(Self::Dotfiles);
         }
         match all_count {
@@ -546,6 +558,30 @@ mod tests {
         assert_eq!(
             DotFilter::deduce(
                 &mock_cli(vec!["--show-dotfiles", "--all"]),
+                false,
+                &FileConfig::default()
+            ),
+            Ok(DotFilter::Dotfiles)
+        );
+    }
+
+    #[test]
+    fn deduce_dot_filter_almost_all_then_double_all() {
+        assert_eq!(
+            DotFilter::deduce(
+                &mock_cli(vec!["-A", "-a", "-a"]),
+                false,
+                &FileConfig::default()
+            ),
+            Ok(DotFilter::DotfilesAndDots)
+        );
+    }
+
+    #[test]
+    fn deduce_dot_filter_double_all_then_almost_all() {
+        assert_eq!(
+            DotFilter::deduce(
+                &mock_cli(vec!["-a", "-a", "-A"]),
                 false,
                 &FileConfig::default()
             ),
