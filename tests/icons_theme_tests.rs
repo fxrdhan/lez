@@ -27,3 +27,5 @@ mod reset;
 mod schema;
 #[path = "icons_theme/special_dirs.rs"]
 mod special_dirs;
+#[path = "icons_theme/theme_hardening.rs"]
+mod theme_hardening;

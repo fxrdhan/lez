@@ -257,8 +257,8 @@ fn classify_line(
             }
         } else if c == '"' || c == '\'' || c == '`' {
             let (after, closed) = consume_string(&rest[c.len_utf8()..], c);
-            if !closed && c == '`' {
-                *quote = Some('`');
+            if !closed && (c == '`' || c == '"') {
+                *quote = Some(c);
             }
             rest = after;
         } else {
@@ -770,12 +770,21 @@ pub fn count_roots_filtered(
     }
     let mut seen = std::collections::HashSet::new();
     jobs.retain(|(path, _)| {
-        if deref_links {
-            seen.insert(path.clone())
+        let is_symlink = path
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink());
+        let key = if deref_links && is_symlink {
+            let parent_canon = path
+                .parent()
+                .and_then(|p| std::fs::canonicalize(p).ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let file_name = path.file_name().unwrap_or_default();
+            (true, parent_canon.join(file_name))
         } else {
             let canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.clone());
-            seen.insert(canon)
-        }
+            (false, canon)
+        };
+        seen.insert(key)
     });
     count_jobs(jobs)
 }

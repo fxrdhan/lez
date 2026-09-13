@@ -250,6 +250,9 @@ impl Mode {
             "utc",
             "inspect-archives",
             "print-total",
+            "color-scale",
+            "color-scale-mode",
+            "no-symlink-targets",
         ] {
             if matches.value_source(flag) == Some(ValueSource::CommandLine) {
                 return Err(OptionsError::Useless(flag, false, "long"));
@@ -2398,6 +2401,33 @@ mod tests {
                 ),
                 Err(OptionsError::Useless(flag, false, "long")),
                 "Expected Mode::deduce with --{flag} to fail in strict mode"
+            );
+        }
+    }
+
+    #[test]
+    fn strict_check_long_flags_modern_flags_useless_without_long() {
+        for (arg, flag) in &[
+            ("--color-scale=size", "color-scale"),
+            ("--color-scale-mode=gradient", "color-scale-mode"),
+            ("--no-symlink-targets", "no-symlink-targets"),
+        ] {
+            let matches = mock_cli(vec![arg]);
+            assert_eq!(
+                Mode::strict_check_long_flags(&matches),
+                Err(OptionsError::Useless(flag, false, "long")),
+                "Expected {arg} to trigger OptionsError::Useless without --long"
+            );
+            assert_eq!(
+                Mode::deduce(
+                    &matches,
+                    &MockVars::default(),
+                    false,
+                    true,
+                    &FileConfig::default()
+                ),
+                Err(OptionsError::Useless(flag, false, "long")),
+                "Expected Mode::deduce with {arg} to fail in strict mode"
             );
         }
     }

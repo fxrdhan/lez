@@ -19,7 +19,11 @@ impl Options {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
         let use_colours = UseColours::deduce(matches, vars, config);
         let colour_scale = ColorScaleOptions::deduce(matches, vars, config);
-        let theme_config = ThemeConfig::deduce(vars);
+        let theme_config = if matches.get_flag("no-config") {
+            None
+        } else {
+            ThemeConfig::deduce(vars)
+        };
 
         let definitions = if use_colours == UseColours::Never {
             Definitions::default()
@@ -372,5 +376,26 @@ mod tests {
 
         let theme_cfg = ThemeConfig::deduce(&vars);
         assert!(theme_cfg.is_none());
+    }
+
+    #[test]
+    fn test_options_deduce_respects_no_config_flag() {
+        let temp = TempDir::new("no_config_theme");
+        let sub = temp.path.join("custom_dir");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("theme.yml"), b"colourful: true\n").unwrap();
+
+        let mut vars = MockVars::default();
+        vars.set(vars::LEZ_CONFIG_DIR, &sub.into_os_string());
+
+        // Without --no-config
+        let matches_normal = mock_cli(vec![""]);
+        let opts_normal = Options::deduce(&matches_normal, &vars, &FileConfig::default());
+        assert!(opts_normal.theme_config.is_some());
+
+        // With --no-config
+        let matches_no_config = mock_cli(vec!["--no-config"]);
+        let opts_no_config = Options::deduce(&matches_no_config, &vars, &FileConfig::default());
+        assert!(opts_no_config.theme_config.is_none());
     }
 }

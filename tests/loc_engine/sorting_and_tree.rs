@@ -295,3 +295,22 @@ fn test_code_single_file_root_ignored() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("No recognised source code found."));
 }
+
+#[test]
+fn test_code_summary_unicode_width_formatting() {
+    let tmp = TempTestDir::new("code_unicode_width");
+    tmp.create_file(
+        "测试.rs",
+        b"fn main() {\n    println!(\"CJK filename\");\n}\n",
+    );
+
+    let out = Command::new(bin_path())
+        .args(["--code", "--color=never"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Rust"));
+    assert!(stdout.contains("100.0%"));
+}

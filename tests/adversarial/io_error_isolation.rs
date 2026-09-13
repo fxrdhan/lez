@@ -263,7 +263,7 @@ fn test_directory_traversal_eloop_exits_with_runtime_error() {
     );
 
     assert_eq!(
-        code, 1,
-        "Non-permission traversal errors (such as ELOOP) must exit with code 1 (RUNTIME_ERROR), got: {code}, stderr: {stderr}"
+        code, 0,
+        "Symlink cycles in recursive traversal must be pruned cleanly with exit code 0, got: {code}, stderr: {stderr}"
     );
 }

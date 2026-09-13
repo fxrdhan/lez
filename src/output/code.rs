@@ -107,10 +107,9 @@ impl Cell {
         Self { text, style, align }
     }
 
-    /// The display width of this cell. Every character we emit — digits,
-    /// letters, and block glyphs — occupies one terminal cell.
+    /// The display width of this cell in terminal columns.
     fn width(&self) -> usize {
-        self.text.chars().count()
+        unicode_width::UnicodeWidthStr::width(self.text.as_str())
     }
 }
 

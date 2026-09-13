@@ -801,11 +801,21 @@ impl ThemeConfig {
 
     #[must_use]
     pub fn to_theme(&self) -> Option<UiStyles> {
-        let ui_styles_override: Option<UiStylesOverride> = (|| {
-            let file = std::fs::File::open(&self.location).ok()?;
-            serde_norway::from_reader(&file).ok()
-        })();
-        FromOverride::from(ui_styles_override, Some(UiStyles::default()))
+        let file = match std::fs::File::open(&self.location) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("lez: Failed to open theme file {:?}: {e}", self.location);
+                return None;
+            }
+        };
+        let ui_styles_override: UiStylesOverride = match serde_norway::from_reader(&file) {
+            Ok(u) => u,
+            Err(e) => {
+                eprintln!("lez: Failed to parse theme file {:?}: {e}", self.location);
+                return None;
+            }
+        };
+        Some(FromOverride::from(ui_styles_override, UiStyles::default()))
     }
 }
 
@@ -1208,5 +1218,27 @@ git:
         let p = PathBuf::from("/etc/lez/theme.yml");
         let cfg = ThemeConfig::from_path(p.clone());
         assert_eq!(cfg.location(), p.as_path());
+    }
+
+    #[test]
+    fn test_theme_config_to_theme_corrupt_returns_none() {
+        let temp =
+            std::env::temp_dir().join(format!("lez_test_corrupt_theme_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp);
+        std::fs::create_dir_all(&temp).unwrap();
+        let file_path = temp.join("theme.yml");
+        std::fs::write(&file_path, b"[[[ invalid: yaml : {").unwrap();
+
+        let cfg = ThemeConfig::from_path(file_path);
+        assert!(cfg.to_theme().is_none());
+
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_theme_config_to_theme_nonexistent_returns_none() {
+        let p = PathBuf::from("/nonexistent/theme.yml");
+        let cfg = ThemeConfig::from_path(p);
+        assert!(cfg.to_theme().is_none());
     }
 }

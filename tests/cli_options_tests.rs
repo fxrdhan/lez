@@ -23,6 +23,8 @@ mod man_pages;
 mod mime_types;
 #[path = "cli_options/optional_values.rs"]
 mod optional_values;
+#[path = "cli_options/options_hardening.rs"]
+mod options_hardening;
 #[path = "cli_options/powertest_config.rs"]
 mod powertest_config;
 #[path = "cli_options/quoting_safety.rs"]

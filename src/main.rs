@@ -9,6 +9,7 @@
 #![warn(clippy::all)]
 #![allow(clippy::non_ascii_literal)]
 
+use std::collections::HashSet;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs as stdfs;
@@ -64,7 +65,7 @@ fn main() {
     };
 
     let stdout_istty = io::stdout().is_terminal();
-    let mut input = String::new();
+    let mut stdin_paths: Vec<OsString> = Vec::new();
     // Windows shells hand over `t*` unexpanded, so the wildcards in the
     // positional arguments are ours to resolve. Kept in a binding of its own
     // because input_paths borrows from it.
@@ -77,25 +78,57 @@ fn main() {
         Ok(options) => {
             match &options.stdin {
                 FilesInput::Stdin(separator) => {
-                    if let Err(e) = stdin().read_to_string(&mut input) {
+                    let mut raw_bytes = Vec::new();
+                    if let Err(e) = stdin().read_to_end(&mut raw_bytes) {
                         let _ = writeln!(io::stderr(), "lez: Failed to read from stdin: {e}");
                         exit(exits::RUNTIME_ERROR);
                     }
-                    let sep = separator.to_str().unwrap_or("\n");
-                    let sep = if sep.is_empty() { "\n" } else { sep };
-                    input_paths.extend(
-                        input
-                            .split(sep)
-                            .map(|s| {
-                                if sep == "\n" {
-                                    s.strip_suffix('\r').unwrap_or(s)
-                                } else {
-                                    s
-                                }
-                            })
-                            .filter(|s| !s.is_empty())
-                            .map(OsStr::new),
-                    );
+                    #[cfg(unix)]
+                    let sep_bytes = {
+                        use std::os::unix::ffi::OsStrExt;
+                        let b = separator.as_bytes();
+                        if b.is_empty() { b"\n".as_slice() } else { b }
+                    };
+                    #[cfg(not(unix))]
+                    let sep_bytes = {
+                        let s = separator.to_str().unwrap_or("\n");
+                        if s.is_empty() {
+                            b"\n".as_slice()
+                        } else {
+                            s.as_bytes()
+                        }
+                    };
+
+                    let mut start = 0;
+                    let needle_len = sep_bytes.len();
+                    while start < raw_bytes.len() {
+                        let end = match raw_bytes[start..]
+                            .windows(needle_len)
+                            .position(|window| window == sep_bytes)
+                        {
+                            Some(pos) => start + pos,
+                            None => raw_bytes.len(),
+                        };
+                        let mut chunk = &raw_bytes[start..end];
+                        if sep_bytes == b"\n" && chunk.ends_with(b"\r") {
+                            chunk = &chunk[..chunk.len() - 1];
+                        }
+                        if !chunk.is_empty() {
+                            #[cfg(unix)]
+                            {
+                                use std::os::unix::ffi::OsStringExt;
+                                stdin_paths.push(OsString::from_vec(chunk.to_vec()));
+                            }
+                            #[cfg(not(unix))]
+                            {
+                                stdin_paths.push(OsString::from(
+                                    String::from_utf8_lossy(chunk).into_owned(),
+                                ));
+                            }
+                        }
+                        start = end + needle_len;
+                    }
+                    input_paths.extend(stdin_paths.iter().map(OsString::as_os_str));
                 }
                 FilesInput::Args => {
                     if input_paths.is_empty() {
@@ -521,7 +554,8 @@ impl Lez<'_> {
             exit_status = print_files_status;
         }
 
-        self.print_dirs(dirs, no_files, is_only_dir, exit_status, 0)
+        let ancestors = HashSet::new();
+        self.print_dirs(dirs, no_files, is_only_dir, exit_status, 0, &ancestors)
     }
 
     fn print_dirs(
@@ -531,6 +565,7 @@ impl Lez<'_> {
         is_only_dir: bool,
         exit_status: i32,
         depth: usize,
+        ancestors: &HashSet<PathBuf>,
     ) -> io::Result<i32> {
         let View {
             file_style: file_name::Options { quote_style, .. },
@@ -615,20 +650,41 @@ impl Lez<'_> {
                 let child_depth = depth + 1;
                 let follow_links = self.options.view.follow_links;
                 if !recurse_opts.tree && !recurse_opts.is_too_deep(child_depth) {
+                    let mut next_ancestors = ancestors.clone();
+                    if let Ok(canon) = std::fs::canonicalize(&dir.path) {
+                        next_ancestors.insert(canon);
+                    }
                     let ignore_submodules = self.options.filter.ignore_submodule_contents;
                     let child_dirs = children
                         .iter()
                         .filter(|f| {
-                            (if follow_links {
+                            if f.is_all_all {
+                                return false;
+                            }
+                            let is_dir = if follow_links {
                                 f.points_to_directory()
                             } else {
                                 f.is_directory()
-                            }) && !f.is_all_all
-                                && !(ignore_submodules
-                                    && self
-                                        .git
-                                        .as_ref()
-                                        .is_some_and(|git| git.is_submodule_path(&f.path)))
+                            };
+                            if !is_dir {
+                                return false;
+                            }
+                            if follow_links
+                                && f.is_link()
+                                && std::fs::canonicalize(&f.path)
+                                    .is_ok_and(|canon| next_ancestors.contains(&canon))
+                            {
+                                return false;
+                            }
+                            if ignore_submodules
+                                && self
+                                    .git
+                                    .as_ref()
+                                    .is_some_and(|git| git.is_submodule_path(&f.path))
+                            {
+                                return false;
+                            }
+                            true
                         })
                         .map(File::to_dir)
                         .collect::<Vec<Dir>>();
@@ -642,8 +698,14 @@ impl Lez<'_> {
                     {
                         let _ = writeln!(io::stderr(), "{warn_line}");
                     }
-                    let status =
-                        self.print_dirs(child_dirs, false, false, exit_status, child_depth)?;
+                    let status = self.print_dirs(
+                        child_dirs,
+                        false,
+                        false,
+                        exit_status,
+                        child_depth,
+                        &next_ancestors,
+                    )?;
                     denied_anywhere |= status == exits::PERMISSION_DENIED;
                     io_error_anywhere |= status == exits::RUNTIME_ERROR;
                     continue;
