@@ -6,6 +6,9 @@ filekinds:
     foreground: Blue
   symlink:
     foreground: Cyan
+    # Can also borrow target's colour while applying attributes:
+    # foreground: target
+    # is_italic: true
   # Colour for Btrfs subvolume directories (Linux)
   btrfs_subvol:
     foreground: Blue

@@ -69,6 +69,18 @@ fn filekinds_symlink_allows_the_target_keyword() {
     let symlink = &schema["properties"]["filekinds"]["properties"]["symlink"];
     let text = serde_json::to_string(symlink).unwrap();
     assert!(text.contains("\"target\""), "symlink must allow target");
+    assert!(
+        text.contains("symlink_style"),
+        "symlink must reference symlink_style"
+    );
+    assert!(
+        schema["$defs"]["symlink_style"].is_object(),
+        "$defs/symlink_style must exist"
+    );
+    assert!(
+        schema["$defs"]["symlink_color"].is_object(),
+        "$defs/symlink_color must exist"
+    );
 }
 
 #[test]

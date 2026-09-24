@@ -128,12 +128,53 @@ field_accessors!(
 #[derive(Clone, Eq, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum LinkStyle {
     AnsiStyle(Style),
-    Target,
+    Target(Style),
+}
+
+impl LinkStyle {
+    /// Returns whether this link style follows the target file's colour.
+    #[must_use]
+    pub fn is_target(&self) -> bool {
+        matches!(self, Self::Target(_))
+    }
+
+    /// Returns the modifier/attribute style associated with this link style.
+    #[must_use]
+    pub fn style(&self) -> Style {
+        match self {
+            Self::AnsiStyle(s) | Self::Target(s) => *s,
+        }
+    }
 }
 
 impl Default for LinkStyle {
     fn default() -> Self {
         Self::AnsiStyle(Style::default())
+    }
+}
+
+/// Returns true if the string specifies `target` (case-insensitively), optionally with ANSI codes.
+#[must_use]
+pub fn is_target_str(s: &str) -> bool {
+    s.split(';')
+        .any(|p| p.trim().eq_ignore_ascii_case("target"))
+}
+
+/// Merges style attributes from an existing theme style and an environment variable style for target symlinks.
+#[must_use]
+pub fn merge_target_styles(existing: Style, env_style: Style) -> Style {
+    Style {
+        foreground: None,
+        background: env_style.background.or(existing.background),
+        is_bold: env_style.is_bold || existing.is_bold,
+        is_dimmed: env_style.is_dimmed || existing.is_dimmed,
+        is_italic: env_style.is_italic || existing.is_italic,
+        is_underline: env_style.is_underline || existing.is_underline,
+        is_blink: env_style.is_blink || existing.is_blink,
+        is_reverse: env_style.is_reverse || existing.is_reverse,
+        is_hidden: env_style.is_hidden || existing.is_hidden,
+        is_strikethrough: env_style.is_strikethrough || existing.is_strikethrough,
+        prefix_with_reset: env_style.prefix_with_reset || existing.prefix_with_reset,
     }
 }
 
@@ -714,9 +755,14 @@ impl UiStyles {
             "bd" => self.filekinds().block_device = Some(pair.to_style()),  // BLK
             "cd" => self.filekinds().char_device  = Some(pair.to_style()),  // CHR
             "ln" => {
-                self.filekinds().symlink = match pair.value {
-                    "target" => Some(LinkStyle::Target),
-                    _ => Some(LinkStyle::AnsiStyle(pair.to_style())),
+                let fk = self.filekinds();
+                if is_target_str(pair.value) {
+                    let parsed = pair.to_style();
+                    let existing = fk.symlink.unwrap_or_default().style();
+                    let merged = merge_target_styles(existing, parsed);
+                    fk.symlink = Some(LinkStyle::Target(merged));
+                } else {
+                    fk.symlink = Some(LinkStyle::AnsiStyle(pair.to_style()));
                 } // LINK
             }
             "or" => self.broken_symlink         = Some(pair.to_style()),  // ORPHAN

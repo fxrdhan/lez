@@ -101,6 +101,59 @@
             },
             "additionalProperties": false
         },
+        "symlink_color": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/color"
+                },
+                {
+                    "type": "string",
+                    "pattern": "^(?i:target)(;[0-9]+)*$"
+                }
+            ]
+        },
+        "symlink_style": {
+            "type": "object",
+            "properties": {
+                "foreground": {
+                    "$ref": "#/$defs/symlink_color"
+                },
+                "target": {
+                    "type": "boolean"
+                },
+                "background": {
+                    "$ref": "#/$defs/color"
+                },
+                "is_bold": {
+                    "type": "boolean"
+                },
+                "is_dimmed": {
+                    "type": "boolean"
+                },
+                "is_italic": {
+                    "type": "boolean"
+                },
+                "is_underline": {
+                    "type": "boolean"
+                },
+                "is_blink": {
+                    "type": "boolean"
+                },
+                "is_reverse": {
+                    "type": "boolean"
+                },
+                "is_hidden": {
+                    "type": "boolean"
+                },
+                "is_strikethrough": {
+                    "type": "boolean"
+                },
+                "prefix_with_reset": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        },
         "icon": {
             "properties": {
                 "glyph": {
@@ -168,14 +221,21 @@
                     "$ref": "#/$defs/style"
                 },
                 "symlink": {
-                    "description": "A style, or the literal \"target\" to borrow the pointed-to file's colour",
+                    "description": "A style, or the literal \"target\" (optionally with ANSI codes) to borrow the pointed-to file's colour",
                     "oneOf": [
+                        {
+                            "$ref": "#/$defs/symlink_style"
+                        },
                         {
                             "$ref": "#/$defs/style"
                         },
                         {
                             "type": "string",
                             "const": "target"
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "^(?i:target)(;[0-9]+)+$"
                         }
                     ]
                 },

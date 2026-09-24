@@ -103,7 +103,7 @@ impl Summary {
         let link_style = match link_style {
             crate::theme::LinkStyle::AnsiStyle(style) => style,
             // The summary line has no target to borrow a colour from.
-            crate::theme::LinkStyle::Target => nu_ansi_term::Style::default(),
+            crate::theme::LinkStyle::Target(style) => style,
         };
         let punct_style = theme.ui.punctuation.unwrap_or_default();
         let num_style = theme
