@@ -73,7 +73,7 @@ LIST OF CODES
 : character devices
 
 `ln`
-: symlinks
+: symlinks (`ln=target` borrows the target file's colour, and can be combined with style attributes like `ln=target;3` for italic)
 
 `or`
 : symlinks with no target

@@ -262,33 +262,198 @@ where
     }
 }
 
-/// theme.yml accepts either a colour style for symbolic links or the literal
-/// string `target`, mirroring LS_COLORS `ln=target`.
+/// A color or a `target` indicator for symbolic links.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+pub enum SymlinkColor {
+    Color(Color),
+    Target(Style),
+}
+
+fn deserialize_symlink_color<'de, D>(deserializer: D) -> Result<Option<SymlinkColor>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let trimmed = s.trim();
+    if crate::theme::is_target_str(trimmed) {
+        let style = crate::theme::lsc::Pair {
+            key: "ln",
+            value: trimmed,
+        }
+        .to_style();
+        Ok(Some(SymlinkColor::Target(style)))
+    } else {
+        Ok(color_from_str(trimmed).map(SymlinkColor::Color))
+    }
+}
+
+/// Style override specific to symbolic links, allowing `target` coloring
+/// alongside formatting attributes (italic, bold, etc.).
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Default)]
+pub struct SymlinkStyleOverride {
+    /// The style's foreground color or target indicator.
+    #[serde(alias = "fg", deserialize_with = "deserialize_symlink_color", default)]
+    pub foreground: Option<SymlinkColor>,
+
+    /// Explicit target flag in symlink style.
+    #[serde(alias = "is_target", default)]
+    pub target: Option<bool>,
+
+    /// The style's background color, if it has one.
+    #[serde(alias = "bg", deserialize_with = "deserialize_color", default)]
+    pub background: Option<Color>,
+
+    /// Whether this style is bold.
+    #[serde(alias = "bold")]
+    pub is_bold: Option<bool>,
+
+    /// Whether this style is dimmed.
+    #[serde(alias = "dimmed")]
+    pub is_dimmed: Option<bool>,
+
+    /// Whether this style is italic.
+    #[serde(alias = "italic")]
+    pub is_italic: Option<bool>,
+
+    /// Whether this style is underlined.
+    #[serde(alias = "underline")]
+    pub is_underline: Option<bool>,
+
+    /// Whether this style is blinking.
+    #[serde(alias = "blink")]
+    pub is_blink: Option<bool>,
+
+    /// Whether this style has reverse colors.
+    #[serde(alias = "reverse")]
+    pub is_reverse: Option<bool>,
+
+    /// Whether this style is hidden.
+    #[serde(alias = "hidden")]
+    pub is_hidden: Option<bool>,
+
+    /// Whether this style is struckthrough.
+    #[serde(alias = "strikethrough")]
+    pub is_strikethrough: Option<bool>,
+
+    /// Whether this style is always displayed starting with a reset code to clear any remaining style artifacts
+    #[serde(alias = "prefix_reset")]
+    pub prefix_with_reset: Option<bool>,
+}
+
+/// theme.yml accepts either a colour style for symbolic links (including `target` with attributes)
+/// or the literal string `target` (with optional ANSI attributes), mirroring LS_COLORS `ln=target`.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LinkStyleOverride {
-    Style(StyleOverride),
+    Style(SymlinkStyleOverride),
     Target(String),
 }
 
 impl FromOverride<LinkStyleOverride> for crate::theme::LinkStyle {
     fn from(value: LinkStyleOverride, default: Self) -> Self {
         match value {
-            LinkStyleOverride::Target(word) if word == "target" => Self::Target,
-            LinkStyleOverride::Target(_) => default,
-            LinkStyleOverride::Style(style) => {
-                Self::AnsiStyle(FromOverride::from(style, default_ansi(&default)))
+            LinkStyleOverride::Target(word) => {
+                if crate::theme::is_target_str(&word) {
+                    let style = crate::theme::lsc::Pair {
+                        key: "ln",
+                        value: &word,
+                    }
+                    .to_style();
+                    Self::Target(style)
+                } else {
+                    default
+                }
+            }
+            LinkStyleOverride::Style(symlink_override) => {
+                let is_target = match symlink_override.foreground {
+                    Some(SymlinkColor::Target(_)) => true,
+                    Some(SymlinkColor::Color(_)) => false,
+                    None => symlink_override
+                        .target
+                        .unwrap_or_else(|| default.is_target()),
+                };
+
+                if is_target {
+                    let mut base_style = match symlink_override.foreground {
+                        Some(SymlinkColor::Target(s)) => s,
+                        _ => default.style(),
+                    };
+                    base_style.foreground = None;
+
+                    if symlink_override.background.is_some() {
+                        base_style.background = symlink_override.background;
+                    }
+                    if let Some(b) = symlink_override.is_bold {
+                        base_style.is_bold = b;
+                    }
+                    if let Some(d) = symlink_override.is_dimmed {
+                        base_style.is_dimmed = d;
+                    }
+                    if let Some(i) = symlink_override.is_italic {
+                        base_style.is_italic = i;
+                    }
+                    if let Some(u) = symlink_override.is_underline {
+                        base_style.is_underline = u;
+                    }
+                    if let Some(b) = symlink_override.is_blink {
+                        base_style.is_blink = b;
+                    }
+                    if let Some(r) = symlink_override.is_reverse {
+                        base_style.is_reverse = r;
+                    }
+                    if let Some(h) = symlink_override.is_hidden {
+                        base_style.is_hidden = h;
+                    }
+                    if let Some(s) = symlink_override.is_strikethrough {
+                        base_style.is_strikethrough = s;
+                    }
+                    if let Some(p) = symlink_override.prefix_with_reset {
+                        base_style.prefix_with_reset = p;
+                    }
+                    Self::Target(base_style)
+                } else {
+                    let default_style = match default {
+                        Self::AnsiStyle(s) => s,
+                        Self::Target(_) => Style::default(),
+                    };
+                    let mut style = default_style;
+                    if let Some(SymlinkColor::Color(c)) = symlink_override.foreground {
+                        style.foreground = Some(c);
+                    }
+                    if symlink_override.background.is_some() {
+                        style.background = symlink_override.background;
+                    }
+                    if let Some(b) = symlink_override.is_bold {
+                        style.is_bold = b;
+                    }
+                    if let Some(d) = symlink_override.is_dimmed {
+                        style.is_dimmed = d;
+                    }
+                    if let Some(i) = symlink_override.is_italic {
+                        style.is_italic = i;
+                    }
+                    if let Some(u) = symlink_override.is_underline {
+                        style.is_underline = u;
+                    }
+                    if let Some(b) = symlink_override.is_blink {
+                        style.is_blink = b;
+                    }
+                    if let Some(r) = symlink_override.is_reverse {
+                        style.is_reverse = r;
+                    }
+                    if let Some(h) = symlink_override.is_hidden {
+                        style.is_hidden = h;
+                    }
+                    if let Some(s) = symlink_override.is_strikethrough {
+                        style.is_strikethrough = s;
+                    }
+                    if let Some(p) = symlink_override.prefix_with_reset {
+                        style.prefix_with_reset = p;
+                    }
+                    Self::AnsiStyle(style)
+                }
             }
         }
-    }
-}
-
-/// Unwraps an ANSI-style link into the style it carries; target-style links
-/// have no intrinsic style to inherit from.
-fn default_ansi(link: &crate::theme::LinkStyle) -> Style {
-    match link {
-        crate::theme::LinkStyle::AnsiStyle(style) => *style,
-        crate::theme::LinkStyle::Target => Style::default(),
     }
 }
 
@@ -945,6 +1110,7 @@ pub(crate) fn config_dir_from_env(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theme::LinkStyle;
 
     #[test]
     fn parse_git_repo_branch_worktree_yaml() {
@@ -1240,5 +1406,98 @@ git:
         let p = PathBuf::from("/nonexistent/theme.yml");
         let cfg = ThemeConfig::from_path(p);
         assert!(cfg.to_theme().is_none());
+    }
+
+    #[test]
+    fn parse_symlink_target_with_attributes_yaml() {
+        // 1. Literal string "target"
+        let yaml1 = r#"
+filekinds:
+  symlink: target
+"#;
+        let config1: UiStylesOverride = serde_norway::from_str(yaml1).unwrap();
+        let fk1 = config1.filekinds.unwrap();
+        let resolved1 =
+            <FileKinds as FromOverride<FileKindsOverride>>::from(fk1, FileKinds::default());
+        assert_eq!(resolved1.symlink, Some(LinkStyle::Target(Style::default())));
+
+        // 2. String with ANSI attributes "target;3"
+        let yaml2 = r#"
+filekinds:
+  symlink: "target;3"
+"#;
+        let config2: UiStylesOverride = serde_norway::from_str(yaml2).unwrap();
+        let fk2 = config2.filekinds.unwrap();
+        let resolved2 =
+            <FileKinds as FromOverride<FileKindsOverride>>::from(fk2, FileKinds::default());
+        assert_eq!(
+            resolved2.symlink,
+            Some(LinkStyle::Target(Style::default().italic()))
+        );
+
+        // 3. Mapping with foreground: target and style attributes
+        let yaml3 = r#"
+filekinds:
+  symlink:
+    foreground: target
+    is_italic: true
+    is_bold: true
+"#;
+        let config3: UiStylesOverride = serde_norway::from_str(yaml3).unwrap();
+        let fk3 = config3.filekinds.unwrap();
+        let resolved3 =
+            <FileKinds as FromOverride<FileKindsOverride>>::from(fk3, FileKinds::default());
+        assert_eq!(
+            resolved3.symlink,
+            Some(LinkStyle::Target(Style::default().italic().bold()))
+        );
+
+        // 4. Mapping with foreground: "target;4" (underline) and is_italic: true
+        let yaml4 = r#"
+filekinds:
+  symlink:
+    foreground: "target;4"
+    is_italic: true
+"#;
+        let config4: UiStylesOverride = serde_norway::from_str(yaml4).unwrap();
+        let fk4 = config4.filekinds.unwrap();
+        let resolved4 =
+            <FileKinds as FromOverride<FileKindsOverride>>::from(fk4, FileKinds::default());
+        assert_eq!(
+            resolved4.symlink,
+            Some(LinkStyle::Target(Style::default().underline().italic()))
+        );
+
+        // 5. Mapping with target: true
+        let yaml5 = r#"
+filekinds:
+  symlink:
+    target: true
+    is_dimmed: true
+"#;
+        let config5: UiStylesOverride = serde_norway::from_str(yaml5).unwrap();
+        let fk5 = config5.filekinds.unwrap();
+        let resolved5 =
+            <FileKinds as FromOverride<FileKindsOverride>>::from(fk5, FileKinds::default());
+        assert_eq!(
+            resolved5.symlink,
+            Some(LinkStyle::Target(Style::default().dimmed()))
+        );
+
+        // 6. Traditional fixed ANSI color override
+        let yaml6 = r#"
+filekinds:
+  symlink:
+    foreground: Cyan
+    is_bold: true
+"#;
+        let config6: UiStylesOverride = serde_norway::from_str(yaml6).unwrap();
+        let fk6 = config6.filekinds.unwrap();
+        let resolved6 =
+            <FileKinds as FromOverride<FileKindsOverride>>::from(fk6, FileKinds::default());
+        assert_eq!(
+            resolved6.symlink,
+            Some(LinkStyle::AnsiStyle(Color::Cyan.bold()))
+        );
     }
 }

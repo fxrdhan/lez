@@ -696,11 +696,16 @@ impl<C: Colours> FileName<'_, '_, C> {
             f if f.is_directory()        => self.colours.directory(),
             f if f.is_link()             => match self.colours.symlink() {
                 LinkColouring::AnsiStyle(style) => style,
-                LinkColouring::Target => match self.target.as_ref() {
-                    // ln=target borrows the colour of the pointed-to file.
-                    Some(FileTarget::Ok(target)) => self.style_for_file(target),
-                    Some(FileTarget::Broken(_)) => self.colours.broken_symlink(),
-                    _ => Style::default(),
+                LinkColouring::Target(symlink_style) => match self.target.as_ref() {
+                    // ln=target borrows the colour of the pointed-to file and preserves symlink style attributes.
+                    Some(FileTarget::Ok(target)) => {
+                        let target_style = self.style_for_file(target);
+                        Self::apply_link_style(target_style, &symlink_style)
+                    }
+                    Some(FileTarget::Broken(_)) | Some(FileTarget::Err(_)) => {
+                        self.colours.broken_symlink()
+                    }
+                    _ => symlink_style,
                 },
             },
             #[cfg(unix)]
@@ -713,6 +718,41 @@ impl<C: Colours> FileName<'_, '_, C> {
             f if f.is_socket()           => self.colours.socket(),
             _                            => self.colours.special(),
         };
+    }
+
+    /// Combines target file's style with explicit symlink styling attributes.
+    fn apply_link_style(mut target_style: Style, symlink_style: &Style) -> Style {
+        if symlink_style.is_bold {
+            target_style.is_bold = true;
+        }
+        if symlink_style.is_dimmed {
+            target_style.is_dimmed = true;
+        }
+        if symlink_style.is_italic {
+            target_style.is_italic = true;
+        }
+        if symlink_style.is_underline {
+            target_style.is_underline = true;
+        }
+        if symlink_style.is_blink {
+            target_style.is_blink = true;
+        }
+        if symlink_style.is_reverse {
+            target_style.is_reverse = true;
+        }
+        if symlink_style.is_hidden {
+            target_style.is_hidden = true;
+        }
+        if symlink_style.is_strikethrough {
+            target_style.is_strikethrough = true;
+        }
+        if symlink_style.prefix_with_reset {
+            target_style.prefix_with_reset = true;
+        }
+        if let Some(bg) = symlink_style.background {
+            target_style.background = Some(bg);
+        }
+        target_style
     }
 
     /// For grid's use, to cover the case of hyperlink escape sequences
@@ -1315,7 +1355,7 @@ mod test {
             Style::default()
         }
         fn symlink(&self) -> LinkColouring {
-            LinkColouring::Target
+            LinkColouring::Target(Style::default())
         }
         fn block_device(&self) -> Style {
             Style::default()
@@ -1369,6 +1409,90 @@ mod test {
             None
         }
 
+        fn mount_point(&self) -> Style {
+            Style::default()
+        }
+        fn btrfs_subvol(&self) -> Style {
+            Style::default()
+        }
+        fn classify_char(&self) -> Style {
+            Style::default()
+        }
+        fn colour_file(&self, _file: &File<'_>) -> Style {
+            Style::default()
+        }
+        fn style_override(&self, _file: &File<'_>) -> Option<FileNameStyle> {
+            None
+        }
+    }
+
+    /// Colours where `ln=target` is active with explicit italic attribute.
+    struct TargetItalicLinkColours;
+
+    impl FiletypeColours for TargetItalicLinkColours {
+        fn normal(&self) -> Style {
+            Style::default()
+        }
+        fn directory(&self) -> Style {
+            nu_ansi_term::Color::Fixed(2).bold()
+        }
+        fn pipe(&self) -> Style {
+            Style::default()
+        }
+        fn symlink(&self) -> LinkColouring {
+            LinkColouring::Target(Style::default().italic())
+        }
+        fn block_device(&self) -> Style {
+            Style::default()
+        }
+        fn char_device(&self) -> Style {
+            Style::default()
+        }
+        fn socket(&self) -> Style {
+            Style::default()
+        }
+        fn special(&self) -> Style {
+            Style::default()
+        }
+        fn tag(&self, _tag: &crate::fs::fields::TagColor) -> Style {
+            Style::default()
+        }
+    }
+
+    impl Colours for TargetItalicLinkColours {
+        fn symlink_path(&self) -> Style {
+            Style::default()
+        }
+        fn normal_arrow(&self) -> Style {
+            Style::default()
+        }
+        fn broken_symlink(&self) -> Style {
+            nu_ansi_term::Color::Fixed(7).normal()
+        }
+        fn broken_filename(&self) -> Style {
+            Style::default()
+        }
+        fn control_char(&self) -> Style {
+            Style::default()
+        }
+        fn broken_control_char(&self) -> Style {
+            Style::default()
+        }
+        fn quote(&self) -> Style {
+            Style::default()
+        }
+        fn nix_hash(&self) -> Style {
+            Style::default()
+        }
+        fn executable_file(&self) -> Style {
+            Style::default()
+        }
+        fn capability(&self) -> Option<Style> {
+            None
+        }
+        fn multi_hardlink(&self) -> Option<Style> {
+            None
+        }
         fn mount_point(&self) -> Style {
             Style::default()
         }
@@ -1476,6 +1600,107 @@ mod test {
         assert!(
             painted.contains("no-such-link-target"),
             "orphan name still renders: {painted:?}"
+        );
+    }
+
+    #[test]
+    fn ln_target_with_style_attributes_borrows_target_color_and_preserves_attributes() {
+        let colours = TargetItalicLinkColours;
+        let target_file = File::from_args(
+            std::path::PathBuf::from("tests/itest"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        assert!(target_file.is_directory());
+        let link_file = File::from_args(
+            std::path::PathBuf::from("tests/itest/dir-symlink"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: crate::output::file_name::QuoteStyle::Never,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
+            is_a_tty: true,
+            empty_dir_icon: true,
+        };
+        let file_name = FileName {
+            file: &link_file,
+            colours: &colours,
+            target: Some(FileTarget::Ok(Box::new(target_file))),
+            link_style: LinkStyle::JustFilenames,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        let expected = format!(
+            "{}",
+            nu_ansi_term::Color::Fixed(2)
+                .bold()
+                .italic()
+                .paint("dir-symlink")
+        );
+        assert!(
+            painted.contains(&expected),
+            "ln=target with italic must borrow target directory colour AND be italic: {painted:?}"
+        );
+    }
+
+    #[test]
+    fn ln_target_with_style_attributes_falls_back_to_broken_colour_for_orphans() {
+        let colours = TargetItalicLinkColours;
+        let link_file = File::from_args(
+            std::path::PathBuf::from("no-such-link-target"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let options = Options {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: crate::output::file_name::QuoteStyle::Never,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
+            is_a_tty: true,
+            empty_dir_icon: true,
+        };
+        let file_name = FileName {
+            file: &link_file,
+            colours: &colours,
+            target: Some(FileTarget::Broken(std::path::PathBuf::from("/gone"))),
+            link_style: LinkStyle::JustFilenames,
+            options,
+            mount_style: MountStyle::JustDirectoryNames,
+            tags: Tags::Off,
+        };
+        let painted = format!("{}", file_name.paint().strings());
+        let expected = format!(
+            "{}",
+            nu_ansi_term::Color::Fixed(7)
+                .normal()
+                .paint("no-such-link-target")
+        );
+        assert!(
+            painted.contains(&expected),
+            "broken orphan link must retain or= broken style unaffected: {painted:?}"
         );
     }
 }

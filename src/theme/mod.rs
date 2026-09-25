@@ -19,7 +19,7 @@ use crate::output::render;
 mod ui_styles;
 pub(crate) use self::ui_styles::FileType as ThemeFileType;
 pub(crate) use self::ui_styles::*;
-pub use self::ui_styles::{LinkStyle, UiStyles};
+pub use self::ui_styles::{LinkStyle, UiStyles, is_target_str, merge_target_styles};
 
 pub mod lsc;
 pub use self::lsc::LSColors;
@@ -885,7 +885,10 @@ mod customs_test {
     test!(ls_bd:   ls "bd=36", exa ""  =>  colours c -> { c.filekinds().block_device = Some(Cyan.normal());   });
     test!(ls_cd:   ls "cd=35", exa ""  =>  colours c -> { c.filekinds().char_device  = Some(Purple.normal()); });
     test!(ls_ln:   ls "ln=34", exa ""  =>  colours c -> { c.filekinds().symlink      = Some(LinkStyle::AnsiStyle(Blue.normal())); });
-    test!(ls_ln_target: ls "ln=target", exa ""  =>  colours c -> { c.filekinds().symlink      = Some(LinkStyle::Target); });
+    test!(ls_ln_target: ls "ln=target", exa ""  =>  colours c -> { c.filekinds().symlink      = Some(LinkStyle::Target(Style::default())); });
+    test!(ls_ln_target_italic: ls "ln=target;3", exa ""  =>  colours c -> { c.filekinds().symlink = Some(LinkStyle::Target(Style::default().italic())); });
+    test!(ls_ln_target_bold_underline: ls "ln=1;target;4", exa ""  =>  colours c -> { c.filekinds().symlink = Some(LinkStyle::Target(Style::default().bold().underline())); });
+    test!(ls_ln_target_case_insensitive: ls "ln=TARGET", exa ""  =>  colours c -> { c.filekinds().symlink = Some(LinkStyle::Target(Style::default())); });
     test!(exa_sv:   ls "", exa "sv=36"  =>  colours c -> { c.filekinds().btrfs_subvol = Some(Cyan.normal()); });
     test!(ls_or:   ls "or=33", exa ""  =>  colours c -> { c.broken_symlink         = Some(Yellow.normal()); });
     test!(ls_ca:   ls "ca=33", exa ""  =>  colours c -> { c.capability             = Some(Yellow.normal()); });
