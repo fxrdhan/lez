@@ -387,6 +387,9 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `--stdin`
 : When you wish to pipe directories to lez/read from stdin. Separate one per line or define custom separation char in `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
 
+`--stdin0`
+: Like `--stdin`, but paths are separated by NUL (`\0`) characters, as produced by `find -print0` or `fd -0`. Always uses NUL, ignoring `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR`. Overrides `--stdin` and vice versa; the last one given wins.
+
 `--print-total`
 : Print the total number of files and directories listed at the bottom of the output.
 
@@ -512,7 +515,7 @@ Any explicit use of the `--icons=WHEN` flag overrides this behavior.
 
 ## `LEZ_STDIN_SEPARATOR`, `EZA_STDIN_SEPARATOR`
 
-Specifies the separator to use when file names are piped from stdin. Defaults to newline. Supports escape sequences such as `\0` or `\x00` for null delimiter, `\n`, `\t`, `\r`, `\\`, and keywords `null`/`nul`.
+Specifies the separator to use when file names are piped from stdin with `--stdin`. Ignored by `--stdin0`. Defaults to newline. Supports escape sequences such as `\0` or `\x00` for null delimiter, `\n`, `\t`, `\r`, `\\`, and keywords `null`/`nul`.
 
 ## `LEZ_CONFIG_FILE`, `EZA_CONFIG_FILE`
 

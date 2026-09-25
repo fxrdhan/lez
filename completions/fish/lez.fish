@@ -214,6 +214,7 @@ complete -c lez -l no-time -d "Suppress the time field"
 complete -c lez -l no-language -d "Suppress the language field in --loc"
 complete -c lez -s M -l mounts -d "Show mount details"
 complete -c lez -l stdin -d "When piping to lez. Read file names from stdin"
+complete -c lez -l stdin0 -d "Like --stdin, but paths are separated by NUL"
 complete -c lez -l print-total -d "Display total number of entries"
 
 # Optional extras

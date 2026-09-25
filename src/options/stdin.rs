@@ -216,7 +216,9 @@ pub fn unescape_separator(raw: &str) -> String {
 
 impl FilesInput {
     pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V) -> Self {
-        if matches.get_flag("stdin") {
+        if matches.get_flag("stdin0") {
+            FilesInput::Stdin(OsString::from("\0"))
+        } else if matches.get_flag("stdin") {
             let separator = vars
                 .get(LEZ_STDIN_SEPARATOR)
                 .map(|raw| unescape_separator(&raw.to_string_lossy()))
@@ -246,6 +248,41 @@ mod tests {
     use super::*;
     use crate::options::parser::test::mock_cli;
     use crate::options::vars::test::MockVars;
+
+    #[test]
+    fn deduce_stdin0_uses_null_separator() {
+        let cli = mock_cli(vec!["--stdin0"]);
+        let vars = MockVars::default();
+        assert_eq!(
+            FilesInput::deduce(&cli, &vars),
+            FilesInput::Stdin(OsString::from("\0"))
+        );
+    }
+
+    #[test]
+    fn deduce_stdin0_ignores_separator_env() {
+        let cli = mock_cli(vec!["--stdin0"]);
+        let mut vars = MockVars::default();
+        vars.set(LEZ_STDIN_SEPARATOR, &OsString::from(","));
+        vars.set(EZA_STDIN_SEPARATOR, &OsString::from(";"));
+        assert_eq!(
+            FilesInput::deduce(&cli, &vars),
+            FilesInput::Stdin(OsString::from("\0"))
+        );
+    }
+
+    #[test]
+    fn deduce_stdin_and_stdin0_last_wins() {
+        let vars = MockVars::default();
+        assert_eq!(
+            FilesInput::deduce(&mock_cli(vec!["--stdin", "--stdin0"]), &vars),
+            FilesInput::Stdin(OsString::from("\0"))
+        );
+        assert_eq!(
+            FilesInput::deduce(&mock_cli(vec!["--stdin0", "--stdin"]), &vars),
+            FilesInput::Stdin(OsString::from("\n"))
+        );
+    }
 
     #[test]
     fn deduce_stdin_disabled_by_default() {
