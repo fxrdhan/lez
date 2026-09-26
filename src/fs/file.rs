@@ -699,10 +699,20 @@ impl<'dir> File<'dir> {
         self.filetype().is_some_and(FileTypeExt::is_fifo)
     }
 
+    #[cfg(not(unix))]
+    pub fn is_pipe(&self) -> bool {
+        false
+    }
+
     /// Whether this file is a char device on the filesystem.
     #[cfg(unix)]
     pub fn is_char_device(&self) -> bool {
         self.filetype().is_some_and(FileTypeExt::is_char_device)
+    }
+
+    #[cfg(not(unix))]
+    pub fn is_char_device(&self) -> bool {
+        false
     }
 
     /// Whether this file is a block device on the filesystem.
@@ -711,10 +721,20 @@ impl<'dir> File<'dir> {
         self.filetype().is_some_and(FileTypeExt::is_block_device)
     }
 
+    #[cfg(not(unix))]
+    pub fn is_block_device(&self) -> bool {
+        false
+    }
+
     /// Whether this file is a socket on the filesystem.
     #[cfg(unix)]
     pub fn is_socket(&self) -> bool {
         self.filetype().is_some_and(FileTypeExt::is_socket)
+    }
+
+    #[cfg(not(unix))]
+    pub fn is_socket(&self) -> bool {
+        false
     }
 
     /// Determine the full path resolving all symbolic links on demand.

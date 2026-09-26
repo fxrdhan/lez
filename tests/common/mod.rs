@@ -257,3 +257,31 @@ impl TempGitRepo {
             .ok()
     }
 }
+
+/// Flags that reduce the long view to its name column, so a test can compare
+/// the `name -> target` part of a row without dates, sizes or owners.
+pub const NAME_COLUMN_ONLY: [&str; 5] = [
+    "-l",
+    "--no-permissions",
+    "--no-filesize",
+    "--no-user",
+    "--no-time",
+];
+
+/// A `lez` command run from `dir`, with configuration discovery pointed at a
+/// location that does not exist so the user's own theme cannot leak in.
+pub fn lez_in(dir: &Path) -> Command {
+    let mut cmd = lez_cmd();
+    cmd.current_dir(dir)
+        .env("LEZ_CONFIG_DIR", dir.join(".no-lez-config"));
+    cmd
+}
+
+/// Runs `cmd`, returning its exit code and standard output.
+pub fn exit_and_stdout(cmd: &mut Command) -> (Option<i32>, String) {
+    let output = cmd.output().expect("failed to run lez");
+    (
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+    )
+}

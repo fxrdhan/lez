@@ -426,9 +426,16 @@ impl<C: Colours> FileName<'_, '_, C> {
                     bits.push(self.colours.normal_arrow().paint("->"));
                     bits.push(Style::default().paint(" "));
 
-                    let target_style = self.colours.colour_file(target);
-                    let target_parent = target.path.parent();
-                    let target_display_name = target.name.clone();
+                    let target_style = self.resolve_file_style(target);
+                    // A device node is painted as one unit, parent directory
+                    // included, so `/dev/null` reads as a device rather than a
+                    // directory-coloured `/dev/` followed by the node name.
+                    let (target_parent, target_display_name) =
+                        if target.is_char_device() || target.is_block_device() {
+                            (None, target.path.to_string_lossy().to_string())
+                        } else {
+                            (target.path.parent(), target.name.clone())
+                        };
 
                     self.append_path_and_name_bits(
                         &mut bits,
@@ -645,6 +652,26 @@ impl<C: Colours> FileName<'_, '_, C> {
             Absolute::Off => None,
         }
         .unwrap_or(self.file.name.clone())
+    }
+
+    /// Resolves the complete display style for any given file entry,
+    /// honoring plain styling, theme overrides, filekind classifications,
+    /// and extension rules.
+    #[must_use]
+    pub fn resolve_file_style(&self, file: &File<'_>) -> Style {
+        if self.colours.is_plain() {
+            return Style::default();
+        }
+
+        if let Some(FileNameStyle {
+            filename: Some(style),
+            ..
+        }) = self.colours.style_override(file)
+        {
+            return style;
+        }
+
+        self.style_for_file(file)
     }
 
     /// Figures out which colour to paint the filename part of the output,
