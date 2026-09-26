@@ -133,6 +133,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--no-time'                  ,'no-time'             , [CompletionResultType]::ParameterName, 'suppress the time field')
             [CompletionResult]::new('--no-language'              ,'no-language'         , [CompletionResultType]::ParameterName, 'suppress the language field in --loc')
             [CompletionResult]::new('--stdin'                    ,'stdin'               , [CompletionResultType]::ParameterName, 'read file names from stdin, one per line or other separator specified in environment')
+            [CompletionResult]::new('--stdin0'                   ,'stdin0'              , [CompletionResultType]::ParameterName, 'read NUL-separated file names from stdin')
             [CompletionResult]::new('--git'                      ,'git'                 , [CompletionResultType]::ParameterName, 'list each file''s Git status, if tracked or ignored')
             [CompletionResult]::new('--git-glyphs'               ,'git-glyphs'          , [CompletionResultType]::ParameterName, 'display Git status with Nerd Font glyphs / icons')
             [CompletionResult]::new('--no-git'                   ,'no-git'              , [CompletionResultType]::ParameterName, 'suppress Git status (always overrides -git, --git-repos, --git-repos-no-status)')

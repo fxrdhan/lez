@@ -94,6 +94,7 @@ export extern "eza" [
     --tags(-e)                 # List each file's color tags stored in extended attributes
     --smart-group              # Only show group if it has a different name from owner
     --stdin                    # When piping to eza. Read file paths from stdin
+    --stdin0                   # Like --stdin, but paths are separated by NUL
     --print-total              # Display total number of entries
     --mime-types               # Determine file MIME types to better inform styling decisions (unix only)
 ]

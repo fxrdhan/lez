@@ -802,3 +802,76 @@ fn test_stdin_escaped_tab_and_newline_env() {
     assert!(stdout.contains("tab_x.txt"));
     assert!(stdout.contains("tab_y.txt"));
 }
+
+fn run_stdin0(
+    temp: &TempTestDir,
+    extra_env: &[(&str, &str)],
+    input: &[u8],
+) -> std::process::Output {
+    let mut cmd = Command::new(bin_path());
+    cmd.current_dir(&temp.path)
+        .args(["--stdin0", "-1"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (k, v) in extra_env {
+        cmd.env(k, v);
+    }
+    let mut child = cmd.spawn().expect("Failed to spawn lez");
+    {
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        stdin.write_all(input).unwrap();
+    }
+    child.wait_with_output().expect("Failed to wait on child")
+}
+
+#[test]
+fn test_stdin0_flag_reads_null_separated_paths() {
+    let temp = TempTestDir::new("stdin0_basic");
+    temp.create_file("a.txt", b"a");
+    temp.create_file("b.txt", b"b");
+
+    let output = run_stdin0(&temp, &[], b"a.txt\0b.txt\0");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("a.txt"));
+    assert!(stdout.contains("b.txt"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_stdin0_path_with_newline_is_one_entry() {
+    let temp = TempTestDir::new("stdin0_newline");
+    temp.create_file("a\nb", b"x");
+
+    let output = run_stdin0(&temp, &[], b"a\nb\0");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).lines().count(), 1);
+}
+
+#[test]
+fn test_stdin0_ignores_separator_env() {
+    let temp = TempTestDir::new("stdin0_env");
+    temp.create_file("a.txt", b"a");
+    temp.create_file("b.txt", b"b");
+
+    let output = run_stdin0(&temp, &[("LEZ_STDIN_SEPARATOR", ",")], b"a.txt\0b.txt\0");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("a.txt"));
+    assert!(stdout.contains("b.txt"));
+}
+
+#[test]
+fn test_stdin0_skips_empty_entries() {
+    let temp = TempTestDir::new("stdin0_empty");
+    temp.create_file("a.txt", b"a");
+
+    let output = run_stdin0(&temp, &[], b"\0\0a.txt\0\0");
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "a.txt");
+}

@@ -55,7 +55,8 @@ pub fn get_command() -> clap::Command {
         .arg(arg!([FILE]...).value_parser(clap::value_parser!(OsString)).hide_short_help(true))
 
         .next_help_heading("META OPTIONS")
-        .arg(arg!(--stdin "read file names from stdin"))
+        .arg(arg!(--stdin "read file names from stdin").overrides_with("stdin0"))
+        .arg(arg!(--stdin0 "read NUL-separated file names from stdin").overrides_with("stdin"))
         .arg(arg!(--config <PATH> "load custom configuration file")
             .value_parser(value_parser!(PathBuf)))
         .arg(arg!(--"no-config" "do not read any configuration file"))
