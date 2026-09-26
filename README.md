@@ -304,10 +304,6 @@ These options are available when running with `--long` (`-l`):
 - **--no-user**: suppress the user field
 - **--no-time**: suppress the time field
 - **--no-language**: suppress the language field when `--loc` is enabled
-- **--stdin**: read file names from stdin
-- **--stdin0**: read NUL-separated file names from stdin (e.g. `find -print0 | lez --stdin0`)
-- **--config**: load default options from specified configuration file (`.toml`, `.yaml`, or `.yml`)
-- **--no-config**: do not load any global or per-directory configuration files
 
 Some of the options accept parameters:
 
@@ -319,6 +315,20 @@ Some of the options accept parameters:
 See the `man` pages for further documentation of usage. They are available:
 - online [in the repo](https://github.com/fxrdhan/lez/tree/main/man)
 - in your terminal via `man lez`
+</details>
+
+## Meta options
+
+<details>
+<summary>Click to expand</summary>
+
+These options work with every view:
+
+- **--stdin**: read file names from stdin
+- **--stdin0**: read NUL-separated file names from stdin (e.g. `find -print0 | lez --stdin0`)
+- **--config**: load default options from specified configuration file (`.toml`, `.yaml`, or `.yml`)
+- **--no-config**: do not load any global or per-directory configuration files
+
 </details>
 
 ## Configuration Files
