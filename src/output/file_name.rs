@@ -723,17 +723,24 @@ impl<C: Colours> FileName<'_, '_, C> {
             f if f.is_directory()        => self.colours.directory(),
             f if f.is_link()             => match self.colours.symlink() {
                 LinkColouring::AnsiStyle(style) => style,
-                LinkColouring::Target(symlink_style) => match self.target.as_ref() {
-                    // ln=target borrows the colour of the pointed-to file and preserves symlink style attributes.
-                    Some(FileTarget::Ok(target)) => {
-                        let target_style = self.style_for_file(target);
-                        Self::apply_link_style(target_style, &symlink_style)
-                    }
-                    Some(FileTarget::Broken(_)) | Some(FileTarget::Err(_)) => {
-                        self.colours.broken_symlink()
-                    }
-                    _ => symlink_style,
-                },
+                // ln=target borrows the colour of the file at the end of the
+                // chain, keeping the symlink's own style attributes. The first
+                // hop, already followed for the `->` column, is reused when it
+                // ends the chain; otherwise `f` walks the rest itself.
+                LinkColouring::Target(symlink_style) => {
+                    let first_hop = std::ptr::eq(f, self.file)
+                        .then_some(self.target.as_ref())
+                        .flatten();
+                    let end = match first_hop {
+                        Some(FileTarget::Ok(target)) if !target.is_link() => Some(&**target),
+                        Some(FileTarget::Broken(_) | FileTarget::Err(_)) => None,
+                        _ => f.chain_end(),
+                    };
+                    end.map_or_else(
+                        || self.colours.broken_symlink(),
+                        |end| Self::apply_link_style(self.resolve_file_style(end), &symlink_style),
+                    )
+                }
             },
             #[cfg(unix)]
             f if f.is_pipe()             => self.colours.pipe(),
