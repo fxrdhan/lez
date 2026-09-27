@@ -160,6 +160,13 @@ pub struct File<'dir> {
     /// The absolute value of this path, used to look up mount points.
     absolute_path: OnceLock<Option<PathBuf>>,
 
+    /// The file at the end of this symlink’s chain, for `--dereference`.
+    ///
+    /// Type, permissions, size, owner, links, inode and every timestamp read
+    /// from it, and following the chain costs a `readlink` and a `stat` per
+    /// hop, so it is followed once per link rather than once per column.
+    dereferenced: OnceLock<Option<Box<File<'static>>>>,
+
     /// The MIME type of this file.
     mimetype: OnceLock<Option<&'static str>>,
 
@@ -262,6 +269,7 @@ impl<'dir> File<'dir> {
             is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
             extended_attributes: OnceLock::new(),
             absolute_path: OnceLock::new(),
+            dereferenced: OnceLock::new(),
             mimetype: OnceLock::new(),
             loc: OnceLock::new(),
         };
@@ -305,6 +313,7 @@ impl<'dir> File<'dir> {
             points_to_dir: AtomicU8::new(POINTS_TO_DIR_UNKNOWN),
             is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
             absolute_path: OnceLock::new(),
+            dereferenced: OnceLock::new(),
             extended_attributes: OnceLock::new(),
             filetype: OnceLock::new(),
             mimetype: OnceLock::new(),
@@ -567,10 +576,9 @@ impl<'dir> File<'dir> {
             return crate::loc::language_for(&self.name, self.ext.as_deref());
         }
 
-        match self.link_target_recurse() {
-            FileTarget::Ok(target) if target.is_file() => self.language_for_target(&target),
-            _ => None,
-        }
+        self.dereferenced()
+            .filter(|target| target.is_file())
+            .and_then(|target| self.language_for_target(target))
     }
 
     /// Count this file’s lines of code. Returns `None` for anything that
@@ -832,7 +840,7 @@ impl<'dir> File<'dir> {
     /// For a broken symlink, returns where the file *would* be, if it
     /// existed. If this file cannot be read at all, returns the error that
     /// we got when we tried to read it.
-    pub fn link_target(&self) -> FileTarget<'dir> {
+    pub fn link_target(&self) -> FileTarget<'static> {
         // We need to be careful to treat the path actually pointed to by
         // this file — which could be absolute or relative — to the path
         // we actually look up and turn into a `File` — which needs to be
@@ -874,6 +882,7 @@ impl<'dir> File<'dir> {
                     is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
                     extended_attributes,
                     absolute_path: absolute_path_cell,
+                    dereferenced: OnceLock::new(),
                     recursive_size: RecursiveSize::None,
                     mime_read_contents: self.mime_read_contents,
                     dot_filter: self.dot_filter,
@@ -889,6 +898,22 @@ impl<'dir> File<'dir> {
         }
     }
 
+    /// The file at the end of this symlink’s chain when dereferencing is on.
+    ///
+    /// Returns `None` when dereferencing is off, when this is not a link, and
+    /// when the chain is broken, so callers fall back to the link itself.
+    pub(crate) fn dereferenced(&self) -> Option<&File<'static>> {
+        if !self.deref_links || !self.is_link() {
+            return None;
+        }
+        self.dereferenced
+            .get_or_init(|| match self.link_target_recurse() {
+                FileTarget::Ok(target) => Some(target),
+                _ => None,
+            })
+            .as_deref()
+    }
+
     /// Assuming this file is a symlink, follows that link and any further
     /// links recursively, returning the result from following the trail.
     ///
@@ -899,7 +924,7 @@ impl<'dir> File<'dir> {
     /// For a broken symlink, returns where the file *would* be, if it
     /// existed. If this file cannot be read at all, returns the error that
     /// we got when we tried to read it.
-    pub fn link_target_recurse(&self) -> FileTarget<'dir> {
+    pub fn link_target_recurse(&self) -> FileTarget<'static> {
         let target = self.link_target();
         if let FileTarget::Ok(f) = target {
             if f.is_link() {
@@ -919,6 +944,9 @@ impl<'dir> File<'dir> {
     /// more attentively.
     #[cfg(unix)]
     pub fn links(&self) -> f::Links {
+        if let Some(target) = self.dereferenced() {
+            return target.links();
+        }
         let count = self.metadata().map_or(0, MetadataExt::nlink);
 
         f::Links {
@@ -930,6 +958,9 @@ impl<'dir> File<'dir> {
     /// This file’s inode.
     #[cfg(unix)]
     pub fn inode(&self) -> f::Inode {
+        if let Some(target) = self.dereferenced() {
+            return target.inode();
+        }
         f::Inode(self.metadata().map_or(0, MetadataExt::ino))
     }
 
@@ -937,10 +968,8 @@ impl<'dir> File<'dir> {
     #[cfg(unix)]
     pub fn blocksize(&self) -> f::Blocksize {
         if self.deref_links && self.is_link() {
-            match self.link_target() {
-                FileTarget::Ok(f) => f.blocksize(),
-                _ => f::Blocksize::None,
-            }
+            self.dereferenced()
+                .map_or(f::Blocksize::None, File::blocksize)
         } else if self.is_directory() {
             let md = self.metadata();
             self.recursive_size.map_or(f::Blocksize::None, |_, blocks| {
@@ -981,10 +1010,7 @@ impl<'dir> File<'dir> {
     #[cfg(unix)]
     pub fn user(&self) -> Option<f::User> {
         if self.is_link() && self.deref_links {
-            return match self.link_target_recurse() {
-                FileTarget::Ok(f) => f.user(),
-                _ => None,
-            };
+            return self.dereferenced().and_then(File::user);
         }
         Some(f::User(self.metadata().map_or(0, MetadataExt::uid)))
     }
@@ -993,10 +1019,7 @@ impl<'dir> File<'dir> {
     #[cfg(unix)]
     pub fn group(&self) -> Option<f::Group> {
         if self.is_link() && self.deref_links {
-            return match self.link_target_recurse() {
-                FileTarget::Ok(f) => f.group(),
-                _ => None,
-            };
+            return self.dereferenced().and_then(File::group);
         }
         Some(f::Group(self.metadata().map_or(0, MetadataExt::gid)))
     }
@@ -1014,10 +1037,7 @@ impl<'dir> File<'dir> {
     /// links) if dereferencing is enabled, otherwise None.
     pub fn size(&self) -> f::Size {
         if self.deref_links && self.is_link() {
-            return match self.link_target() {
-                FileTarget::Ok(f) => f.size(),
-                _ => f::Size::None,
-            };
+            return self.dereferenced().map_or(f::Size::None, File::size);
         }
 
         if self.is_directory() {
@@ -1106,14 +1126,10 @@ impl<'dir> File<'dir> {
     #[inline]
     pub fn length(&self) -> u64 {
         self.recursive_size.unwrap_bytes_or({
-            if self.is_link() && self.deref_links {
-                match self.link_target_recurse() {
-                    FileTarget::Ok(ref f) => f.metadata().map_or(0, std::fs::Metadata::len),
-                    _ => self.metadata().map_or(0, std::fs::Metadata::len),
-                }
-            } else {
-                self.metadata().map_or(0, std::fs::Metadata::len)
-            }
+            self.dereferenced()
+                .unwrap_or(self)
+                .metadata()
+                .map_or(0, std::fs::Metadata::len)
         })
     }
 
@@ -1236,10 +1252,7 @@ impl<'dir> File<'dir> {
     /// This file’s last modified timestamp, if available on this platform.
     pub fn modified_time(&self) -> Option<NaiveDateTime> {
         if self.is_link() && self.deref_links {
-            return match self.link_target_recurse() {
-                FileTarget::Ok(f) => f.modified_time(),
-                _ => None,
-            };
+            return self.dereferenced().and_then(File::modified_time);
         }
         self.metadata()
             .ok()
@@ -1251,10 +1264,7 @@ impl<'dir> File<'dir> {
     #[cfg(unix)]
     pub fn changed_time(&self) -> Option<NaiveDateTime> {
         if self.is_link() && self.deref_links {
-            return match self.link_target_recurse() {
-                FileTarget::Ok(f) => f.changed_time(),
-                _ => None,
-            };
+            return self.dereferenced().and_then(File::changed_time);
         }
         let md = self.metadata();
         DateTime::from_timestamp(
@@ -1272,10 +1282,7 @@ impl<'dir> File<'dir> {
     /// This file’s last accessed timestamp, if available on this platform.
     pub fn accessed_time(&self) -> Option<NaiveDateTime> {
         if self.is_link() && self.deref_links {
-            return match self.link_target_recurse() {
-                FileTarget::Ok(f) => f.accessed_time(),
-                _ => None,
-            };
+            return self.dereferenced().and_then(File::accessed_time);
         }
         self.metadata()
             .ok()
@@ -1286,10 +1293,7 @@ impl<'dir> File<'dir> {
     /// This file’s created timestamp, if available on this platform.
     pub fn created_time(&self) -> Option<NaiveDateTime> {
         if self.is_link() && self.deref_links {
-            return match self.link_target_recurse() {
-                FileTarget::Ok(f) => f.created_time(),
-                _ => None,
-            };
+            return self.dereferenced().and_then(File::created_time);
         }
         let btime = self.metadata().ok()?.created().ok()?;
         Self::systemtime_to_naivedatetime(btime)
@@ -1302,6 +1306,9 @@ impl<'dir> File<'dir> {
     /// ls puts this character there.
     #[cfg(unix)]
     pub fn type_char(&self) -> f::Type {
+        if let Some(target) = self.dereferenced() {
+            return target.type_char();
+        }
         if self.is_file() {
             f::Type::File
         } else if self.is_directory() {
@@ -1323,6 +1330,9 @@ impl<'dir> File<'dir> {
 
     #[cfg(windows)]
     pub fn type_char(&self) -> f::Type {
+        if let Some(target) = self.dereferenced() {
+            return target.type_char();
+        }
         if self.is_file() {
             f::Type::File
         } else if self.is_directory() {
@@ -1335,14 +1345,10 @@ impl<'dir> File<'dir> {
     /// This file’s permissions, with flags for each bit.
     #[cfg(unix)]
     pub fn permissions(&self) -> Option<f::Permissions> {
-        if self.is_link() && self.deref_links {
-            // If the chain of links is broken, we instead fall through and
-            // return the permissions of the original link, as would have been
-            // done if we were not dereferencing.
-            return match self.link_target_recurse() {
-                FileTarget::Ok(f) => f.permissions(),
-                _ => None,
-            };
+        // A broken chain falls through to the link’s own permissions, as
+        // they would be shown without dereferencing.
+        if let Some(target) = self.dereferenced() {
+            return target.permissions();
         }
         let bits = self.metadata().map_or(0, MetadataExt::mode);
         let has_bit = |bit| bits & bit == bit;
