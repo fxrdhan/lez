@@ -662,7 +662,7 @@ impl FileNameColours for Theme {
     fn symlink_path(&self)        -> Style { self.ui.symlink_path() }
     fn normal_arrow(&self)        -> Style { self.ui.punctuation() }
     fn broken_symlink(&self)      -> Style { self.ui.broken_symlink() }
-    fn broken_filename(&self)     -> Style { apply_overlay(self.ui.broken_symlink(), self.ui.broken_path_overlay()) }
+    fn broken_filename(&self)     -> Style { apply_overlay(self.ui.missing_target.unwrap_or_else(|| self.ui.broken_symlink()), self.ui.broken_path_overlay()) }
     fn control_char(&self)        -> Style { self.ui.control_char() }
     fn broken_control_char(&self) -> Style { apply_overlay(self.ui.control_char(),   self.ui.broken_path_overlay()) }
     fn quote(&self)               -> Style { self.ui.quote() }
@@ -891,6 +891,7 @@ mod customs_test {
     test!(ls_ln_target_case_insensitive: ls "ln=TARGET", exa ""  =>  colours c -> { c.filekinds().symlink = Some(LinkStyle::Target(Style::default())); });
     test!(exa_sv:   ls "", exa "sv=36"  =>  colours c -> { c.filekinds().btrfs_subvol = Some(Cyan.normal()); });
     test!(ls_or:   ls "or=33", exa ""  =>  colours c -> { c.broken_symlink         = Some(Yellow.normal()); });
+    test!(ls_mi:   ls "mi=33", exa ""  =>  colours c -> { c.missing_target         = Some(Yellow.normal()); });
     test!(ls_ca:   ls "ca=33", exa ""  =>  colours c -> { c.capability             = Some(Yellow.normal()); });
     test!(ls_mh:   ls "mh=33", exa ""  =>  colours c -> { c.multi_hardlink         = Some(Yellow.normal()); });
 
