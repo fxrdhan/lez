@@ -55,6 +55,7 @@ pub struct UiStyles {
     pub control_char:         Option<Style>,  // cc
     pub broken_symlink:       Option<Style>,  // or
     pub broken_path_overlay:  Option<Style>,  // bO
+    pub missing_target:       Option<Style>,  // mi
     pub capability:           Option<Style>,  // ca
     pub multi_hardlink:       Option<Style>,  // mh
 
@@ -674,6 +675,7 @@ impl UiStyles {
             capability: Some(Style::default()),
             multi_hardlink: Some(Style::default()),
             broken_path_overlay: Some(Style::default()),
+            missing_target: None,
 
             filenames: None,
             extensions: None,
@@ -766,12 +768,13 @@ impl UiStyles {
                 } // LINK
             }
             "or" => self.broken_symlink         = Some(pair.to_style()),  // ORPHAN
+            "mi" => self.missing_target         = Some(pair.to_style()),  // MISSING
             "ca" => self.capability             = Some(pair.to_style()),  // CAPABILITY
             "mh" => self.multi_hardlink         = Some(pair.to_style()),  // MULTIHARDLINK
              _   => return false,
              // Codes we don’t do anything with:
              // DOOR, SETUID, SETGID,
-             // STICKY_OTHER_WRITABLE, OTHER_WRITABLE, STICKY, MISSING
+             // STICKY_OTHER_WRITABLE, OTHER_WRITABLE, STICKY
         }
         true
     }

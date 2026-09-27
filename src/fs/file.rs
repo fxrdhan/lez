@@ -742,18 +742,28 @@ impl<'dir> File<'dir> {
         self.absolute_path
             .get_or_init(|| {
                 if self.is_link() && self.link_target().is_broken() {
-                    // workaround for broken symlinks to get absolute path for parent and then
-                    // append name of file; std::fs::canonicalize requires all path components
-                    // (including the last one) to exist
-                    self.path
-                        .parent()
-                        .and_then(|parent| std::fs::canonicalize(parent).ok())
-                        .map(|p| p.join(self.name.clone()))
+                    // std::fs::canonicalize requires every component, the
+                    // last one included, to exist.
+                    self.path_with_resolved_parent()
                 } else {
                     std::fs::canonicalize(&self.path).ok()
                 }
             })
             .as_ref()
+    }
+
+    /// This file’s absolute path with its parent directory resolved but its
+    /// own name left alone, so a symlink keeps its name instead of turning
+    /// into its target. A file in the working directory has an empty parent,
+    /// which `canonicalize` rejects, so `.` is resolved in its place.
+    pub fn path_with_resolved_parent(&self) -> Option<PathBuf> {
+        let parent = match self.path.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => parent,
+            _ => Path::new("."),
+        };
+        std::fs::canonicalize(parent)
+            .ok()
+            .map(|parent| parent.join(&self.name))
     }
 
     /// Whether this file is a mount point

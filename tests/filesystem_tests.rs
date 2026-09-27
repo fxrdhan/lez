@@ -30,6 +30,9 @@ mod show_dotfiles;
 #[path = "filesystem/since_duration.rs"]
 mod since_duration;
 #[cfg(unix)]
+#[path = "filesystem/symlink_broken_targets.rs"]
+mod symlink_broken_targets;
+#[cfg(unix)]
 #[path = "filesystem/symlink_target_style.rs"]
 mod symlink_target_style;
 #[path = "filesystem/total_size.rs"]

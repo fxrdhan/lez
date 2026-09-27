@@ -943,6 +943,7 @@ impl FromOverride<UiStylesOverride> for UiStyles {
                 value.broken_path_overlay,
                 default.broken_path_overlay,
             ),
+            missing_target: default.missing_target,
             capability: FromOverride::from(value.capability, default.capability),
             multi_hardlink: FromOverride::from(value.multi_hardlink, default.multi_hardlink),
 

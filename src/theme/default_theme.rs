@@ -128,6 +128,8 @@ impl Default for UiStyles {
             control_char: Some(Red.normal()),
             broken_symlink: Some(Red.normal()),
             broken_path_overlay: Some(Style::default().underline()),
+            // Falls back to `broken_symlink` unless `mi` is set.
+            missing_target: None,
             // Off unless asked for: colouring it costs a getxattr per
             // file, which is why coreutils stopped doing it by default.
             capability: None,

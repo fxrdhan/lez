@@ -78,6 +78,9 @@ LIST OF CODES
 `or`
 : symlinks with no target
 
+`mi`
+: the missing path a broken symlink points to (defaults to the `or` colour)
+
 `ca`
 : files carrying Linux capabilities
 
