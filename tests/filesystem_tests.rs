@@ -36,6 +36,9 @@ mod symlink_broken_targets;
 #[path = "filesystem/symlink_chains.rs"]
 mod symlink_chains;
 #[cfg(unix)]
+#[path = "filesystem/symlink_classify.rs"]
+mod symlink_classify;
+#[cfg(unix)]
 #[path = "filesystem/symlink_dereference.rs"]
 mod symlink_dereference;
 #[cfg(unix)]

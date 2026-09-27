@@ -434,7 +434,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                         if target.is_char_device() || target.is_block_device() {
                             (None, target.path.to_string_lossy().to_string())
                         } else {
-                            (target.path.parent(), target.name.clone())
+                            (target.path.parent(), Self::link_text_name(target))
                         };
 
                     self.append_path_and_name_bits(
@@ -445,7 +445,12 @@ impl<C: Colours> FileName<'_, '_, C> {
                         self.options.quote_style,
                     );
 
-                    if should_add_classify_char && let Some(class) = self.classify_char(target) {
+                    // A target written with a trailing slash, or `/` itself,
+                    // already shows it is a directory.
+                    if should_add_classify_char
+                        && let Some(class) = Self::classify_char(target)
+                        && !(class == "/" && target_display_name.ends_with(std::path::is_separator))
+                    {
                         bits.push(self.colours.classify_char().paint(class));
                     }
                 }
@@ -469,7 +474,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     // Do nothing — the error gets displayed on the next line
                 }
             }
-        } else if should_add_classify_char && let Some(class) = self.classify_char(self.file) {
+        } else if should_add_classify_char && let Some(class) = Self::classify_char(self.file) {
             bits.push(self.colours.classify_char().paint(class));
         }
 
@@ -606,10 +611,26 @@ impl<C: Colours> FileName<'_, '_, C> {
         }
     }
 
+    /// The name of a symlink target as the link spells it. `File::name`
+    /// drops a trailing slash (`ln -s dir/ link`), which is put back here.
+    fn link_text_name(target: &File<'_>) -> String {
+        let text = target.path.to_string_lossy();
+        match text.chars().last() {
+            Some(last) if text.len() > 1 && std::path::is_separator(last) => {
+                format!("{}{last}", target.name)
+            }
+            _ => target.name.clone(),
+        }
+    }
+
     /// The character to be displayed after a file when classifying is on, if
-    /// the file’s type has one associated with it.
+    /// the file’s type has one associated with it. With `--dereference`, a
+    /// link is classified by the file at the end of its chain.
     #[cfg(unix)]
-    pub(crate) fn classify_char(&self, file: &File<'_>) -> Option<&'static str> {
+    pub(crate) fn classify_char(file: &File<'_>) -> Option<&'static str> {
+        if let Some(end) = file.dereferenced() {
+            return Self::classify_char(end);
+        }
         if file.is_executable_file() {
             Some("*")
         } else if file.is_directory() {
@@ -626,7 +647,10 @@ impl<C: Colours> FileName<'_, '_, C> {
     }
 
     #[cfg(windows)]
-    pub(crate) fn classify_char(&self, file: &File<'_>) -> Option<&'static str> {
+    pub(crate) fn classify_char(file: &File<'_>) -> Option<&'static str> {
+        if let Some(end) = file.dereferenced() {
+            return Self::classify_char(end);
+        }
         if file.is_directory() {
             Some("/")
         } else if file.is_link() {
