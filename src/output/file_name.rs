@@ -668,6 +668,18 @@ impl<C: Colours> FileName<'_, '_, C> {
                     .to_str()
                     .map(std::borrow::ToOwned::to_owned)
             }),
+            // When the row is about the link itself (its target is shown after
+            // the arrow, or `--dereference` describes the target in the other
+            // columns), resolve the directories leading to it but keep the
+            // link's own name rather than replacing it with the target's.
+            Absolute::Follow
+                if self.file.is_link()
+                    && (self.link_style == LinkStyle::FullLinkPaths || self.file.deref_links) =>
+            {
+                self.file
+                    .path_with_resolved_parent()
+                    .and_then(|p| p.to_str().map(std::borrow::ToOwned::to_owned))
+            }
             Absolute::Follow => self
                 .file
                 .absolute_path()

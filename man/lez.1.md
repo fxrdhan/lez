@@ -78,7 +78,7 @@ Valid settings are '`on`', '`follow`', and '`off`'.
 When used without a value, defaults to '`on`'. Note: when providing an explicit value, an equals sign is required (`--absolute=WHEN`).
 
 '`on`': Show absolute paths for all entries.
-'`follow`': Show absolute paths and resolve symbolic links to their targets.
+'`follow`': Show absolute paths and resolve symbolic links to their targets. Where a link's target is shown after `->` (the long view), or `--dereference` is in effect, the link keeps its own name and only the directories leading to it are resolved.
 '`off`': Show relative paths (default behavior).
 
 `-F`, `--classify[=WHEN]`
