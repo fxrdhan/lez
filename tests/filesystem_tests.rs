@@ -29,6 +29,9 @@ mod recursive_open_files;
 mod show_dotfiles;
 #[path = "filesystem/since_duration.rs"]
 mod since_duration;
+#[cfg(unix)]
+#[path = "filesystem/symlink_target_style.rs"]
+mod symlink_target_style;
 #[path = "filesystem/total_size.rs"]
 mod total_size;
 #[path = "filesystem/warn_hidden.rs"]
