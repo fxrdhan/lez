@@ -48,6 +48,12 @@ pub fn lez_cmd() -> Command {
     if let Ok(tmpdir) = std::env::var("TMPDIR") {
         cmd.env("TMPDIR", tmpdir);
     }
+    // Under `cargo llvm-cov` the binary is instrumented; without this it
+    // writes `default_*.profraw` into its working directory, which then
+    // shows up in listings of that directory.
+    if let Ok(profile) = std::env::var("LLVM_PROFILE_FILE") {
+        cmd.env("LLVM_PROFILE_FILE", profile);
+    }
     #[cfg(windows)]
     {
         if let Ok(val) = std::env::var("SystemRoot") {

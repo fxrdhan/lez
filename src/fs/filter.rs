@@ -429,14 +429,18 @@ impl FileFilter {
         }
 
         if self.flags.contains(&OnlyDirs)
-            && !(f.is_directory() || (show_symlinks && f.points_to_directory()))
+            && !(f.is_directory() || ((show_symlinks || f.deref_links) && f.points_to_directory()))
         {
             return false;
         }
 
+        // `--show-symlinks` keeps every link that is not a directory, while
+        // `--dereference` judges a link by the file at the end of its chain.
         if self.flags.contains(&OnlyFiles)
             && !is_recurse_or_tree
-            && !(f.is_file() || (show_symlinks && f.is_link() && !f.points_to_directory()))
+            && !(f.is_file()
+                || (show_symlinks && f.is_link() && !f.points_to_directory())
+                || f.dereferenced().is_some_and(File::is_file))
         {
             return false;
         }
