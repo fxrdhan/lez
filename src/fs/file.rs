@@ -66,6 +66,12 @@ const EMPTY_DIR_NO: u8 = 1;
 /// `is_empty_dir` was worked out and the answer was yes.
 const EMPTY_DIR_YES: u8 = 2;
 
+/// How many links a chain may pass through before it is treated as broken.
+///
+/// macOS refuses to resolve a path through more than 32 links (Linux allows
+/// 40), so lez never follows a chain further than the kernel would.
+pub const MAX_SYMLINK_HOPS: usize = 32;
+
 pub struct File<'dir> {
     /// The filename portion of this file’s path, including the extension.
     ///
@@ -160,12 +166,21 @@ pub struct File<'dir> {
     /// The absolute value of this path, used to look up mount points.
     absolute_path: OnceLock<Option<PathBuf>>,
 
-    /// The file at the end of this symlink’s chain, for `--dereference`.
+    /// Where this file can be found from the working directory, when that is
+    /// not `path`.
     ///
-    /// Type, permissions, size, owner, links, inode and every timestamp read
-    /// from it, and following the chain costs a `readlink` and a `stat` per
-    /// hop, so it is followed once per link rather than once per column.
-    dereferenced: OnceLock<Option<Box<File<'static>>>>,
+    /// Only symlink targets set it: their `path` is the text of the link,
+    /// which is relative to the link’s directory, so every filesystem query
+    /// on them goes through here instead (see [`File::fs_path`]).
+    lookup_path: Option<PathBuf>,
+
+    /// The file at the end of this symlink’s chain.
+    ///
+    /// `--dereference` reads type, permissions, size, owner, links, inode and
+    /// timestamps from it, and `ln=target` its colour. Following the chain
+    /// costs a `readlink` and an `lstat` per hop, so it is followed once per
+    /// link rather than once per question.
+    chain_end: OnceLock<Option<Box<File<'static>>>>,
 
     /// The MIME type of this file.
     mimetype: OnceLock<Option<&'static str>>,
@@ -269,7 +284,8 @@ impl<'dir> File<'dir> {
             is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
             extended_attributes: OnceLock::new(),
             absolute_path: OnceLock::new(),
-            dereferenced: OnceLock::new(),
+            lookup_path: None,
+            chain_end: OnceLock::new(),
             mimetype: OnceLock::new(),
             loc: OnceLock::new(),
         };
@@ -313,7 +329,8 @@ impl<'dir> File<'dir> {
             points_to_dir: AtomicU8::new(POINTS_TO_DIR_UNKNOWN),
             is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
             absolute_path: OnceLock::new(),
-            dereferenced: OnceLock::new(),
+            lookup_path: None,
+            chain_end: OnceLock::new(),
             extended_attributes: OnceLock::new(),
             filetype: OnceLock::new(),
             mimetype: OnceLock::new(),
@@ -402,20 +419,26 @@ impl<'dir> File<'dir> {
         Self::ext_from_name(&name.to_string_lossy())
     }
 
+    /// The path to hand to the filesystem when asking about this file.
+    #[must_use]
+    pub fn fs_path(&self) -> &Path {
+        self.lookup_path.as_deref().unwrap_or(&self.path)
+    }
+
     /// Read the extended attributes of a file path.
     fn gather_extended_attributes(&self) -> Vec<Attribute> {
         if xattr::ENABLED {
             let attributes = if self.deref_links {
-                self.path.attributes()
+                self.fs_path().attributes()
             } else {
-                self.path.symlink_attributes()
+                self.fs_path().symlink_attributes()
             };
             match attributes {
                 Ok(xattrs) => xattrs,
                 Err(e) => {
                     error!(
                         "Error looking up extended attributes for {}: {}",
-                        self.path.display(),
+                        self.fs_path().display(),
                         e
                     );
                     Vec::new()
@@ -438,9 +461,9 @@ impl<'dir> File<'dir> {
                 && filetype.is_file()
                 && self.mime_read_contents
             {
-                debug!("Mimetype reading file {:?}", self.path);
-                return tree_magic_mini::from_filepath(&self.path).inspect(|mimetype| {
-                    debug!("Mimetype {:?} file {:?}", mimetype, self.path);
+                debug!("Mimetype reading file {:?}", self.fs_path());
+                return tree_magic_mini::from_filepath(self.fs_path()).inspect(|mimetype| {
+                    debug!("Mimetype {:?} file {:?}", mimetype, self.fs_path());
                 });
             }
             None
@@ -450,11 +473,11 @@ impl<'dir> File<'dir> {
     pub fn metadata(&self) -> Result<&std::fs::Metadata, &io::Error> {
         self.metadata
             .get_or_init(|| {
-                debug!("Statting file {:?}", self.path);
-                if follow_instead_of_stating_the_link(&self.path) {
-                    return std::fs::metadata(&self.path);
+                debug!("Statting file {:?}", self.fs_path());
+                if follow_instead_of_stating_the_link(self.fs_path()) {
+                    return std::fs::metadata(self.fs_path());
                 }
-                std::fs::symlink_metadata(&self.path)
+                std::fs::symlink_metadata(self.fs_path())
             })
             .as_ref()
     }
@@ -475,9 +498,9 @@ impl<'dir> File<'dir> {
             return !xattrs.is_empty();
         }
         if self.deref_links {
-            self.path.has_attributes()
+            self.fs_path().has_attributes()
         } else {
-            self.path.has_symlink_attributes()
+            self.fs_path().has_symlink_attributes()
         }
     }
 
@@ -513,10 +536,7 @@ impl<'dir> File<'dir> {
             _ => {}
         }
 
-        let answer = match self.link_target() {
-            FileTarget::Ok(target) => target.points_to_directory(),
-            _ => false,
-        };
+        let answer = self.chain_end().is_some_and(File::is_directory);
 
         self.points_to_dir.store(
             if answer {
@@ -588,7 +608,7 @@ impl<'dir> File<'dir> {
         *self.loc.get_or_init(|| {
             if self.is_file() {
                 let lang = self.language()?;
-                return crate::loc::LocCounts::from_path(&self.path, lang)
+                return crate::loc::LocCounts::from_path(self.fs_path(), lang)
                     .ok()
                     .flatten();
             }
@@ -670,7 +690,9 @@ impl<'dir> File<'dir> {
 
         const BTRFS_FSTYPE_NAME: &str = "btrfs";
 
-        let start = self.absolute_path().unwrap_or(&self.path);
+        let start = self
+            .absolute_path()
+            .map_or_else(|| self.fs_path(), PathBuf::as_path);
         for part in start.ancestors() {
             if let Some(mount) = all_mounts().get(part) {
                 return mount.fstype == BTRFS_FSTYPE_NAME;
@@ -678,7 +700,7 @@ impl<'dir> File<'dir> {
         }
 
         let mut out = std::mem::MaybeUninit::<libc::statfs>::uninit();
-        let path = match std::ffi::CString::new(self.path.as_os_str().as_bytes()) {
+        let path = match std::ffi::CString::new(self.fs_path().as_os_str().as_bytes()) {
             Ok(path) => path,
             Err(_) => return false,
         };
@@ -693,7 +715,7 @@ impl<'dir> File<'dir> {
     /// because answering costs a syscall.
     #[must_use]
     pub fn has_capabilities(&self) -> bool {
-        xattr::has_capabilities(&self.path)
+        xattr::has_capabilities(self.fs_path())
     }
 
     /// Whether this file is a symlink on the filesystem.
@@ -797,8 +819,8 @@ impl<'dir> File<'dir> {
                 .is_some_and(|p| all_mounts.contains_key(p));
         }
         #[cfg(unix)]
-        if let Ok(x) = std::fs::metadata(&self.path)
-            && let Ok(y) = std::fs::metadata(self.path.join(".."))
+        if let Ok(x) = std::fs::metadata(self.fs_path())
+            && let Ok(y) = std::fs::metadata(self.fs_path().join(".."))
         {
             // .dev() is the traditional fallback used by mountpoint(1). Misses bind mounts.
             // .ino() detects the root directory, which parents itself and is always a mount
@@ -823,10 +845,10 @@ impl<'dir> File<'dir> {
             path.to_path_buf()
         } else if let Some(dir) = self.parent_dir {
             dir.join(path)
-        } else if let Some(parent) = self.path.parent() {
+        } else if let Some(parent) = self.fs_path().parent() {
             parent.join(path)
         } else {
-            self.path.join(path)
+            self.fs_path().join(path)
         }
     }
 
@@ -845,8 +867,8 @@ impl<'dir> File<'dir> {
         // this file — which could be absolute or relative — to the path
         // we actually look up and turn into a `File` — which needs to be
         // absolute to be accessible from any directory.
-        debug!("Reading link {:?}", self.path);
-        let path = match std::fs::read_link(&self.path) {
+        debug!("Reading link {:?}", self.fs_path());
+        let path = match std::fs::read_link(self.fs_path()) {
             Ok(p) => p,
             Err(e) => return FileTarget::Err(e),
         };
@@ -861,14 +883,14 @@ impl<'dir> File<'dir> {
 
         let absolute_path = self.reorient_target_path(&path);
 
-        // Use plain `metadata` instead of `symlink_metadata` - we *want* to
-        // follow links.
-        match std::fs::metadata(&absolute_path) {
+        // `symlink_metadata`, so a target that is itself a link is seen as
+        // one and `link_target_recurse` can carry on from it.
+        match std::fs::symlink_metadata(&absolute_path) {
             Ok(metadata) => {
                 let ext = File::ext(&path);
                 let name = File::filename(&path);
                 let extended_attributes = OnceLock::new();
-                let absolute_path_cell = OnceLock::from(Some(absolute_path));
+                let absolute_path_cell = OnceLock::from(Some(absolute_path.clone()));
                 let file = File {
                     parent_dir: None,
                     path,
@@ -882,7 +904,8 @@ impl<'dir> File<'dir> {
                     is_empty_dir: AtomicU8::new(EMPTY_DIR_UNKNOWN),
                     extended_attributes,
                     absolute_path: absolute_path_cell,
-                    dereferenced: OnceLock::new(),
+                    lookup_path: Some(absolute_path),
+                    chain_end: OnceLock::new(),
                     recursive_size: RecursiveSize::None,
                     mime_read_contents: self.mime_read_contents,
                     dot_filter: self.dot_filter,
@@ -898,20 +921,32 @@ impl<'dir> File<'dir> {
         }
     }
 
-    /// The file at the end of this symlink’s chain when dereferencing is on.
+    /// The file at the end of this symlink’s chain, followed once and kept.
     ///
-    /// Returns `None` when dereferencing is off, when this is not a link, and
-    /// when the chain is broken, so callers fall back to the link itself.
-    pub(crate) fn dereferenced(&self) -> Option<&File<'static>> {
-        if !self.deref_links || !self.is_link() {
+    /// Returns `None` when this is not a link and when the chain is broken,
+    /// loops, or is too long to follow.
+    pub fn chain_end(&self) -> Option<&File<'static>> {
+        if !self.is_link() {
             return None;
         }
-        self.dereferenced
+        self.chain_end
             .get_or_init(|| match self.link_target_recurse() {
                 FileTarget::Ok(target) => Some(target),
                 _ => None,
             })
             .as_deref()
+    }
+
+    /// The file at the end of this symlink’s chain when dereferencing is on.
+    ///
+    /// Returns `None` when dereferencing is off, when this is not a link, and
+    /// when the chain is broken, so callers fall back to the link itself.
+    pub(crate) fn dereferenced(&self) -> Option<&File<'static>> {
+        if self.deref_links {
+            self.chain_end()
+        } else {
+            None
+        }
     }
 
     /// Assuming this file is a symlink, follows that link and any further
@@ -924,15 +959,29 @@ impl<'dir> File<'dir> {
     /// For a broken symlink, returns where the file *would* be, if it
     /// existed. If this file cannot be read at all, returns the error that
     /// we got when we tried to read it.
+    ///
+    /// A chain that comes back to a link it already passed through, or that
+    /// is longer than [`MAX_SYMLINK_HOPS`], is reported as broken.
     pub fn link_target_recurse(&self) -> FileTarget<'static> {
-        let target = self.link_target();
-        if let FileTarget::Ok(f) = target {
-            if f.is_link() {
-                return f.link_target_recurse();
+        let mut visited = HashSet::new();
+        visited.insert(self.fs_path().to_path_buf());
+
+        let mut target = self.link_target();
+        for _ in 1..MAX_SYMLINK_HOPS {
+            match target {
+                FileTarget::Ok(f) if f.is_link() => {
+                    if !visited.insert(f.fs_path().to_path_buf()) {
+                        return FileTarget::Broken(f.path.clone());
+                    }
+                    target = f.link_target();
+                }
+                other => return other,
             }
-            return FileTarget::Ok(f);
         }
-        target
+        match target {
+            FileTarget::Ok(f) if f.is_link() => FileTarget::Broken(f.path.clone()),
+            other => other,
+        }
     }
 
     /// This file’s number of hard links.
@@ -1086,7 +1135,7 @@ impl<'dir> File<'dir> {
 
         let dot_filter = self.dot_filter.unwrap_or(super::DotFilter::Dotfiles);
         let shows_dotfiles = dot_filter.shows_dotfiles();
-        let handle = same_file::Handle::from_path(&self.path).ok();
+        let handle = same_file::Handle::from_path(self.fs_path()).ok();
         let cache_key = (handle, shows_dotfiles);
 
         if let Some(size) = DIRECTORY_SIZE_CACHE
@@ -1104,10 +1153,10 @@ impl<'dir> File<'dir> {
         }
         #[cfg(not(unix))]
         {
-            visited.insert(self.path.clone());
+            visited.insert(self.fs_path().to_path_buf());
         }
 
-        let Ok(dir) = Dir::read_dir(self.path.clone()) else {
+        let Ok(dir) = Dir::read_dir(self.fs_path().to_path_buf()) else {
             return RecursiveSize::Unknown;
         };
 
@@ -1212,7 +1261,7 @@ impl<'dir> File<'dir> {
         //
         // `read_dir` never yields `.` or `..`, which is the filter `Dir` was
         // being asked for here.
-        match std::fs::read_dir(&self.path) {
+        match std::fs::read_dir(self.fs_path()) {
             Ok(mut entries) => entries.next().is_none(),
             Err(_) => false,
         }
@@ -1472,7 +1521,7 @@ impl<'dir> File<'dir> {
             return f::Flags(0);
         }
 
-        let Ok(c_path) = CString::new(self.path.as_os_str().as_bytes()) else {
+        let Ok(c_path) = CString::new(self.fs_path().as_os_str().as_bytes()) else {
             return f::Flags(0);
         };
 

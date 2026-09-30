@@ -30,8 +30,17 @@ mod show_dotfiles;
 #[path = "filesystem/since_duration.rs"]
 mod since_duration;
 #[cfg(unix)]
+#[path = "filesystem/symlink_absolute.rs"]
+mod symlink_absolute;
+#[cfg(unix)]
 #[path = "filesystem/symlink_broken_targets.rs"]
 mod symlink_broken_targets;
+#[cfg(unix)]
+#[path = "filesystem/symlink_chains.rs"]
+mod symlink_chains;
+#[cfg(unix)]
+#[path = "filesystem/symlink_classify.rs"]
+mod symlink_classify;
 #[cfg(unix)]
 #[path = "filesystem/symlink_dereference.rs"]
 mod symlink_dereference;

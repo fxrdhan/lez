@@ -434,7 +434,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                         if target.is_char_device() || target.is_block_device() {
                             (None, target.path.to_string_lossy().to_string())
                         } else {
-                            (target.path.parent(), target.name.clone())
+                            (target.path.parent(), Self::link_text_name(target))
                         };
 
                     self.append_path_and_name_bits(
@@ -445,7 +445,12 @@ impl<C: Colours> FileName<'_, '_, C> {
                         self.options.quote_style,
                     );
 
-                    if should_add_classify_char && let Some(class) = self.classify_char(target) {
+                    // A target written with a trailing slash, or `/` itself,
+                    // already shows it is a directory.
+                    if should_add_classify_char
+                        && let Some(class) = Self::classify_char(target)
+                        && !(class == "/" && target_display_name.ends_with(std::path::is_separator))
+                    {
                         bits.push(self.colours.classify_char().paint(class));
                     }
                 }
@@ -469,7 +474,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     // Do nothing — the error gets displayed on the next line
                 }
             }
-        } else if should_add_classify_char && let Some(class) = self.classify_char(self.file) {
+        } else if should_add_classify_char && let Some(class) = Self::classify_char(self.file) {
             bits.push(self.colours.classify_char().paint(class));
         }
 
@@ -606,10 +611,26 @@ impl<C: Colours> FileName<'_, '_, C> {
         }
     }
 
+    /// The name of a symlink target as the link spells it. `File::name`
+    /// drops a trailing slash (`ln -s dir/ link`), which is put back here.
+    fn link_text_name(target: &File<'_>) -> String {
+        let text = target.path.to_string_lossy();
+        match text.chars().last() {
+            Some(last) if text.len() > 1 && std::path::is_separator(last) => {
+                format!("{}{last}", target.name)
+            }
+            _ => target.name.clone(),
+        }
+    }
+
     /// The character to be displayed after a file when classifying is on, if
-    /// the file’s type has one associated with it.
+    /// the file’s type has one associated with it. With `--dereference`, a
+    /// link is classified by the file at the end of its chain.
     #[cfg(unix)]
-    pub(crate) fn classify_char(&self, file: &File<'_>) -> Option<&'static str> {
+    pub(crate) fn classify_char(file: &File<'_>) -> Option<&'static str> {
+        if let Some(end) = file.dereferenced() {
+            return Self::classify_char(end);
+        }
         if file.is_executable_file() {
             Some("*")
         } else if file.is_directory() {
@@ -626,7 +647,10 @@ impl<C: Colours> FileName<'_, '_, C> {
     }
 
     #[cfg(windows)]
-    pub(crate) fn classify_char(&self, file: &File<'_>) -> Option<&'static str> {
+    pub(crate) fn classify_char(file: &File<'_>) -> Option<&'static str> {
+        if let Some(end) = file.dereferenced() {
+            return Self::classify_char(end);
+        }
         if file.is_directory() {
             Some("/")
         } else if file.is_link() {
@@ -644,6 +668,18 @@ impl<C: Colours> FileName<'_, '_, C> {
                     .to_str()
                     .map(std::borrow::ToOwned::to_owned)
             }),
+            // When the row is about the link itself (its target is shown after
+            // the arrow, or `--dereference` describes the target in the other
+            // columns), resolve the directories leading to it but keep the
+            // link's own name rather than replacing it with the target's.
+            Absolute::Follow
+                if self.file.is_link()
+                    && (self.link_style == LinkStyle::FullLinkPaths || self.file.deref_links) =>
+            {
+                self.file
+                    .path_with_resolved_parent()
+                    .and_then(|p| p.to_str().map(std::borrow::ToOwned::to_owned))
+            }
             Absolute::Follow => self
                 .file
                 .absolute_path()
@@ -723,17 +759,24 @@ impl<C: Colours> FileName<'_, '_, C> {
             f if f.is_directory()        => self.colours.directory(),
             f if f.is_link()             => match self.colours.symlink() {
                 LinkColouring::AnsiStyle(style) => style,
-                LinkColouring::Target(symlink_style) => match self.target.as_ref() {
-                    // ln=target borrows the colour of the pointed-to file and preserves symlink style attributes.
-                    Some(FileTarget::Ok(target)) => {
-                        let target_style = self.style_for_file(target);
-                        Self::apply_link_style(target_style, &symlink_style)
-                    }
-                    Some(FileTarget::Broken(_)) | Some(FileTarget::Err(_)) => {
-                        self.colours.broken_symlink()
-                    }
-                    _ => symlink_style,
-                },
+                // ln=target borrows the colour of the file at the end of the
+                // chain, keeping the symlink's own style attributes. The first
+                // hop, already followed for the `->` column, is reused when it
+                // ends the chain; otherwise `f` walks the rest itself.
+                LinkColouring::Target(symlink_style) => {
+                    let first_hop = std::ptr::eq(f, self.file)
+                        .then_some(self.target.as_ref())
+                        .flatten();
+                    let end = match first_hop {
+                        Some(FileTarget::Ok(target)) if !target.is_link() => Some(&**target),
+                        Some(FileTarget::Broken(_) | FileTarget::Err(_)) => None,
+                        _ => f.chain_end(),
+                    };
+                    end.map_or_else(
+                        || self.colours.broken_symlink(),
+                        |end| Self::apply_link_style(self.resolve_file_style(end), &symlink_style),
+                    )
+                }
             },
             #[cfg(unix)]
             f if f.is_pipe()             => self.colours.pipe(),
