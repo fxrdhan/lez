@@ -1,10 +1,14 @@
 # SPDX-FileCopyrightText: 2026 fxrdhan
 # SPDX-License-Identifier: EUPL-1.2
 name: Nix Cold Build Canary
-# Weekly sanity check that the flake still builds from a completely cold
-# Nix store with binary substitution disabled. Guards against cache-only
-# breakage (missing vendored inputs, sandbox issues) that Cachix hits in
-# the regular CI pipeline would otherwise mask.
+# Weekly sanity check that the flake still builds from a cold Nix store.
+# Guards against cache-only breakage (missing vendored inputs, sandbox
+# issues) that Cachix hits in the regular CI pipeline would otherwise mask.
+#
+# Only cache.nixos.org is allowed to substitute, so every lez derivation is
+# built here while nixpkgs' own toolchain is not. Disabling substitution
+# outright rebuilt all of nixpkgs from source for hours and failed on
+# upstream source URLs that have since gone dead, never reaching lez.
 on:
   schedule:
     # Mondays 05:00 UTC — after the Thursday dependency-update PR has settled
@@ -15,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   cold-build:
-    name: Cold build without binary cache
+    name: Cold build without project cache
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -32,8 +36,8 @@ jobs:
         run: |
           echo 'user-agent = "lez-ci (https://github.com/fxrdhan/lez)"' >> ~/.curlrc
           sudo sh -c 'echo "user-agent = \"lez-ci (https://github.com/fxrdhan/lez)\"" >> /etc/curlrc' 2>/dev/null || true
-      - name: Nix Flake Check (substituters disabled)
-        run: nix flake check -L --option substituters ""
+      - name: Nix Flake Check (cache.nixos.org only)
+        run: nix flake check -L --option substituters https://cache.nixos.org
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt

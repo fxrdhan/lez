@@ -84,7 +84,7 @@
 
         treefmtEval = treefmt-nix.lib.evalModule pkgs .config/treefmt.nix;
 
-        darwinBuildInputs = pkgs.lib.optionals pkgs.stdenv.isDarwin [
+        darwinBuildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
           pkgs.libiconv
           pkgs.apple-sdk
         ];
