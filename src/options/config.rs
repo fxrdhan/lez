@@ -898,7 +898,7 @@ pub struct UiStylesOverride {
 impl FromOverride<UiStylesOverride> for UiStyles {
     fn from(value: UiStylesOverride, default: Self) -> Self {
         UiStyles {
-            colourful: value.colourful,
+            colourful: value.colourful.or(default.colourful),
 
             filekinds: FromOverride::from(value.filekinds, default.filekinds),
             perms: FromOverride::from(value.perms, default.perms),
@@ -1448,6 +1448,22 @@ git:
         assert!(cfg.to_theme().is_none());
 
         let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    /// A theme that leaves `colourful` out keeps the base's setting, as it
+    /// does for every other key.
+    #[test]
+    fn colourful_falls_back_to_the_base() {
+        for (yaml, base, expected) in [
+            ("{}", UiStyles::default(), Some(true)),
+            ("{}", UiStyles::plain(), Some(false)),
+            ("colourful: false", UiStyles::default(), Some(false)),
+            ("colourful: true", UiStyles::plain(), Some(true)),
+        ] {
+            let config: UiStylesOverride = serde_norway::from_str(yaml).unwrap();
+            let resolved = <UiStyles as FromOverride<UiStylesOverride>>::from(config, base);
+            assert_eq!(resolved.colourful, expected, "{yaml}");
+        }
     }
 
     #[test]
