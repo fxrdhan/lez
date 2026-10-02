@@ -70,9 +70,7 @@ fn test_json_cli_short_single_directory() {
 
     let arr = val.as_array().expect("Expected JSON array");
     let items: Vec<&str> = arr.iter().map(|v| v.as_str().unwrap()).collect();
-    assert!(items.contains(&"alpha.txt"));
-    assert!(items.contains(&"beta.rs"));
-    assert!(items.contains(&"gamma_dir"));
+    assert_eq!(items, ["alpha.txt", "beta.rs", "gamma_dir"]);
 }
 
 #[test]
@@ -173,7 +171,14 @@ fn test_json_cli_short_mixed_files_and_directories() {
 fn test_json_cli_long_metadata_schema() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long");
-    temp.create_file("test.txt", b"content of test file");
+    let _file = temp.create_file("test.txt", b"content of test file");
+    #[cfg(unix)]
+    {
+        let file = _file;
+        // Pin the mode rather than inherit it from the process umask.
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
+    }
 
     let output = Command::new(bin_path)
         .args([
@@ -251,8 +256,10 @@ fn test_json_cli_bytes_and_binary_units() {
     temp.create_file("large.bin", &vec![0u8; 1024 * 1024]);
 
     // --bytes mode
+    // Under the C locale there is no digit grouping to vary by machine.
     let out_bytes = Command::new(bin_path)
         .args(["-l", "--bytes", "--json", temp.path.to_str().unwrap()])
+        .env("LC_ALL", "C")
         .output()
         .expect("Failed to run lez");
     assert!(out_bytes.status.success());
@@ -265,11 +272,7 @@ fn test_json_cli_bytes_and_binary_units() {
         .unwrap()
         .as_str()
         .unwrap();
-    assert!(
-        size_bytes == "1,048,576"
-            || size_bytes == "1048576"
-            || size_bytes.replace(',', "") == "1048576"
-    );
+    assert_eq!(size_bytes, crate::common::grouped(1_048_576));
 
     // --binary mode
     let out_binary = Command::new(bin_path)
@@ -293,7 +296,13 @@ fn test_json_cli_bytes_and_binary_units() {
 fn test_json_cli_time_styles() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_time");
-    temp.create_file("stamp.txt", b"timestamp test");
+    let stamp = temp.create_file("stamp.txt", b"timestamp test");
+    // 2023-11-14 22:13:20 UTC: old enough for the full-date form of `iso`.
+    StdFile::options()
+        .write(true)
+        .open(&stamp)
+        .and_then(|f| f.set_modified(UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000)))
+        .unwrap();
 
     let output = Command::new(bin_path)
         .args([
@@ -302,6 +311,7 @@ fn test_json_cli_time_styles() {
             "--json",
             temp.path.to_str().unwrap(),
         ])
+        .env("TZ", "UTC")
         .output()
         .expect("Failed to run lez");
 
@@ -315,9 +325,7 @@ fn test_json_cli_time_styles() {
         .unwrap()
         .as_str()
         .unwrap();
-    // ISO format: YYYY-MM-DD HH:MM
-    assert!(mod_time.contains('-'));
-    assert!(mod_time.contains(':'));
+    assert_eq!(mod_time, "2023-11-14");
 }
 
 #[test]
@@ -483,7 +491,8 @@ fn test_json_cli_git_status() {
         .unwrap()
         .as_str()
         .unwrap();
-    assert!(git_status == "NM" || git_status == "-M" || git_status == "N-");
+    // Staged as new, then modified in the work tree.
+    assert_eq!(git_status, "NM");
 }
 
 #[test]
@@ -587,126 +596,38 @@ fn test_json_smart_group_with_numeric_emits_gid() {
     }
 }
 
+/// `--smart-group` only shortens the table column; JSON carries the same
+/// group as `--group` would. (`render_json` never sees the smart-group
+/// setting, which `render::groups::test::smart_json` pins with mock users.)
 #[test]
 #[cfg(unix)]
-fn test_json_smart_group_when_user_matches_group() {
+fn test_json_smart_group_matches_the_plain_group_column() {
     let bin_path = env!("CARGO_BIN_EXE_lez");
-    // Search candidates where file owner user name commonly matches group name
-    // (e.g. /dev/oslog on macOS (_logd:_logd), or system entries on Linux).
-    let candidates = [
-        "/dev/oslog",
-        "/dev/zero",
-        "/dev/null",
-        "/etc/passwd",
-        "/bin/sh",
-        "/usr/bin/env",
-    ];
+    let temp = TempTestDir::new("json_sg_matches_group");
+    temp.create_file("owned.txt", b"mine");
 
-    let mut matching_path = None;
-    for path in candidates {
-        if std::path::Path::new(path).exists() {
-            let check = Command::new(bin_path)
-                .args(["-ld", "--smart-group", path])
-                .output();
-            if let Ok(out) = check
-                && out.status.success()
-            {
-                let text = String::from_utf8_lossy(&out.stdout);
-                // In smart-group table mode, matching user and group shows a colon ":"
-                if text.contains(" : ") {
-                    matching_path = Some(path);
-                    break;
-                }
-            }
-        }
-    }
-
-    if let Some(target) = matching_path {
-        // 1. Get baseline JSON with plain --group
-        let baseline_out = Command::new(bin_path)
-            .args(["-ld", "--group", "--json", target])
+    let group_of = |flags: &[&str]| -> String {
+        let output = Command::new(bin_path)
+            .args(["-l", "--json"])
+            .args(flags)
+            .arg(temp.path.to_str().unwrap())
             .output()
-            .expect("Failed to run baseline lez");
-        assert!(baseline_out.status.success());
-        let baseline_json: serde_json::Value =
-            serde_json::from_slice(&baseline_out.stdout).expect("Valid baseline JSON");
-        let baseline_obj = baseline_json
-            .as_object()
-            .expect("Expected JSON map")
-            .values()
-            .next()
-            .expect("File entry")
-            .as_object()
-            .expect("Metadata object");
-        let expected_group = baseline_obj
-            .get("Group")
-            .expect("Baseline Group field")
+            .expect("Failed to run lez");
+        assert!(output.status.success());
+        let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
+        json["owned.txt"]["Group"]
             .as_str()
-            .expect("Group is str");
-        assert_ne!(expected_group, ":");
+            .expect("Group field")
+            .to_owned()
+    };
 
-        // 2. Run with --smart-group --json
-        let smart_out = Command::new(bin_path)
-            .args(["-ld", "--smart-group", "--json", target])
-            .output()
-            .expect("Failed to run smart-group lez");
-        assert!(smart_out.status.success());
-        let smart_json: serde_json::Value =
-            serde_json::from_slice(&smart_out.stdout).expect("Valid smart-group JSON");
-        let smart_obj = smart_json
-            .as_object()
-            .expect("Expected JSON map")
-            .values()
-            .next()
-            .expect("File entry")
-            .as_object()
-            .expect("Metadata object");
-        let smart_group = smart_obj
-            .get("Group")
-            .expect("Smart Group field")
-            .as_str()
-            .expect("Group is str");
-
-        assert_ne!(
-            smart_group, ":",
-            "JSON group must NEVER be ':' when user matches group under --smart-group"
-        );
-        assert_eq!(
-            smart_group, expected_group,
-            "JSON group under --smart-group must match the true group name"
-        );
-
-        // 3. Run with --smart-group --numeric --json
-        let num_out = Command::new(bin_path)
-            .args(["-ld", "--smart-group", "--numeric", "--json", target])
-            .output()
-            .expect("Failed to run numeric smart-group lez");
-        assert!(num_out.status.success());
-        let num_json: serde_json::Value =
-            serde_json::from_slice(&num_out.stdout).expect("Valid numeric JSON");
-        let num_obj = num_json
-            .as_object()
-            .expect("Expected JSON map")
-            .values()
-            .next()
-            .expect("File entry")
-            .as_object()
-            .expect("Metadata object");
-        let num_group = num_obj
-            .get("Group")
-            .expect("Numeric Group field")
-            .as_str()
-            .expect("Numeric group is str");
-
-        assert_ne!(
-            num_group, ":",
-            "JSON numeric group must NEVER be ':' under --smart-group"
-        );
-        assert!(
-            num_group.chars().all(|c| c.is_ascii_digit()),
-            "Numeric group must consist of ASCII digits, got: {num_group}"
-        );
-    }
+    let plain = group_of(&["--group"]);
+    assert_ne!(plain, ":");
+    assert_eq!(group_of(&["--smart-group"]), plain);
+    assert_eq!(
+        group_of(&["--smart-group", "--numeric"]),
+        group_of(&["--group", "--numeric"])
+    );
 }
 
 #[test]
@@ -734,7 +655,7 @@ fn test_json_symlink_cycle_does_not_hang() {
 #[test]
 #[cfg(unix)]
 fn test_json_permission_denied_exit_code_and_json() {
-    if unsafe { libc::geteuid() } == 0 {
+    if !crate::common::permission_checks_apply() {
         return;
     }
     use std::os::unix::fs::PermissionsExt;
@@ -763,11 +684,12 @@ fn test_json_permission_denied_exit_code_and_json() {
         Some(13),
         "Must exit with code 13 (PERMISSION_DENIED) on permission error"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
-        panic!("Stdout should be valid JSON even on error: {e}, stdout: {stdout}")
-    });
-    assert!(val.is_object() || val.is_array());
+    // The listing it could not read is an empty array, still valid JSON.
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "[]");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        format!("Permission denied: {} - code: 13\n", restricted.display())
+    );
 }
 
 #[test]

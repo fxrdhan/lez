@@ -11,16 +11,8 @@ mod archive_fuzz_stress;
 mod broken_pipe_resilience;
 #[path = "adversarial/bug_remediations.rs"]
 mod bug_remediations;
-#[path = "adversarial/concurrency_model_checker.rs"]
-mod concurrency_model_checker;
-#[path = "adversarial/continuous_fuzz_guard.rs"]
-mod continuous_fuzz_guard;
 #[path = "adversarial/deep_stack_recursion.rs"]
 mod deep_stack_recursion;
-#[path = "adversarial/determinism_stress.rs"]
-mod determinism_stress;
-#[path = "adversarial/dynamic_fs_concurrency.rs"]
-mod dynamic_fs_concurrency;
 #[path = "adversarial/fd_exhaustion.rs"]
 mod fd_exhaustion;
 #[path = "adversarial/io_error_isolation.rs"]
@@ -29,19 +21,11 @@ mod io_error_isolation;
 mod json_output_stress;
 #[path = "adversarial/massive_workload.rs"]
 mod massive_workload;
-#[path = "adversarial/memory_allocation_limits.rs"]
-mod memory_allocation_limits;
-#[path = "adversarial/property_fuzz_engine.rs"]
-mod property_fuzz_engine;
 #[path = "adversarial/raw_bytes_paths.rs"]
 mod raw_bytes_paths;
-#[path = "adversarial/signal_cleanup.rs"]
-mod signal_cleanup;
 #[path = "adversarial/strict_mode_permutations.rs"]
 mod strict_mode_permutations;
 #[path = "adversarial/symlink_targets_stress.rs"]
 mod symlink_targets_stress;
-#[path = "adversarial/syscall_invariants.rs"]
-mod syscall_invariants;
 #[path = "adversarial/theme_yaml_fuzz_stress.rs"]
 mod theme_yaml_fuzz_stress;

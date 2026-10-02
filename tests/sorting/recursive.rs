@@ -128,3 +128,57 @@ fn recursive_reverse_sort_order() {
         "file_3.txt should precede file_1.txt when reversed"
     );
 }
+
+/// Directories are read on rayon's global pool, so the listing must not
+/// depend on how many threads that pool has. `RAYON_NUM_THREADS` sizes the
+/// pool because lez never builds one of its own.
+#[test]
+fn recursive_listings_do_not_depend_on_the_thread_count() {
+    let dir = crate::common::TempTestDir::new("rayon_threads");
+    for a in 0..3 {
+        for b in 0..3 {
+            for f in 0..4 {
+                dir.create_file(
+                    &format!("branch_{a}/leaf_{b}/file_{f}.rs"),
+                    format!("fn f{a}{b}{f}() {{}}\n").repeat(f + 1).as_bytes(),
+                );
+            }
+        }
+    }
+
+    let listing = |args: &[&str], threads: usize| {
+        crate::common::success_stdout(
+            crate::common::lez_in(dir.path())
+                .env("RAYON_NUM_THREADS", threads.to_string())
+                .args(args),
+        )
+    };
+
+    // Depth first, each directory's entries in name order.
+    let mut expected = String::from("branch_0\nbranch_1\nbranch_2\n");
+    for a in 0..3 {
+        expected.push_str(&format!("\n./branch_{a}:\nleaf_0\nleaf_1\nleaf_2\n"));
+        for b in 0..3 {
+            expected.push_str(&format!("\n./branch_{a}/leaf_{b}:\n"));
+            for f in 0..4 {
+                expected.push_str(&format!("file_{f}.rs\n"));
+            }
+        }
+    }
+    assert_eq!(listing(&["-1", "-R"], 1), crate::common::native(&expected));
+
+    for args in [
+        &["-1", "-R"][..],
+        &["-T"][..],
+        &["-l", "-R", "--total-size", "--no-time", "--no-user"][..],
+    ] {
+        let single = listing(args, 1);
+        for threads in [2, 4, 8, 16] {
+            assert_eq!(
+                listing(args, threads),
+                single,
+                "{args:?} with {threads} threads"
+            );
+        }
+    }
+}

@@ -1,154 +1,95 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Adversarial test suite for broken pipe (EPIPE / SIGPIPE) resilience,
-//! early stream termination, and clean process teardown without panics.
+//! Writing to a pipe whose reader has gone away.
+//!
+//! The read end is closed before lez starts, so its first write is the one
+//! that hits the closed pipe. Closing it after reading a line instead would
+//! race the writer: a short listing fits in the pipe buffer and lez exits
+//! normally before the reader ever leaves.
+//!
+//! Closing it here is not enough on its own under `cargo test`, which runs
+//! tests as threads of one process: a child another test forks in the
+//! meantime holds a copy of every descriptor until it execs, the read end
+//! too, and while it does lez's write lands in the buffer. So the helper
+//! first writes to the pipe itself until that fails, when no read end is
+//! left anywhere and, closed here, none can be copied again.
 
-#![cfg(unix)]
+use std::io::{ErrorKind, Write};
+use std::process::Output;
 
-use std::fs::{self, File as StdFile};
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::process::ExitStatusExt;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use tempfile::TempDir;
+use crate::common::{TempTestDir, lez_in};
 
-struct PipeTestDir {
-    inner: TempDir,
-    path: PathBuf,
-}
-
-impl PipeTestDir {
-    fn new(prefix: &str) -> Self {
-        let inner = tempfile::Builder::new()
-            .prefix(&format!("lez_pipe_{prefix}_"))
-            .tempdir()
-            .expect("Failed to create temp pipe test directory");
-        let path = inner.path().to_path_buf();
-        Self { inner, path }
-    }
-
-    fn populate_large_listing(&self, count: usize) {
-        for i in 0..count {
-            let p = self.path.join(format!("item_{i:04}.dat"));
-            let mut f = StdFile::create(&p).unwrap();
-            let _ = f.write_all(format!("payload line {i}\n").as_bytes());
+fn run_into_closed_pipe(dir: &TempTestDir, args: &[&str]) -> Output {
+    let (reader, mut writer) = std::io::pipe().expect("create pipe");
+    drop(reader);
+    // The test harness ignores SIGPIPE, so a write with no reader fails
+    // with BrokenPipe instead of ending the test.
+    loop {
+        match writer.write(b"x") {
+            Ok(_) => std::thread::yield_now(),
+            Err(error) if error.kind() == ErrorKind::BrokenPipe => break,
+            Err(error) => panic!("probe the pipe: {error}"),
         }
     }
+    lez_in(dir.path())
+        .args(args)
+        .stdout(writer)
+        .output()
+        .expect("failed to run lez")
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
+fn fixture() -> TempTestDir {
+    let dir = TempTestDir::new("closed_pipe");
+    dir.create_file("file.txt", b"payload\n");
+    dir.create_file("sub/nested.txt", b"payload\n");
+    dir
 }
 
+/// lez restores the default `SIGPIPE` disposition (`main.rs`), so like `ls`
+/// it is terminated by the signal, silently, whatever view is writing.
 #[test]
-fn test_broken_pipe_early_reader_closure_does_not_panic() {
-    let fixture = PipeTestDir::new("epipe_pure");
-    fixture.populate_large_listing(300);
+#[cfg(unix)]
+fn a_closed_reader_ends_lez_with_sigpipe_and_no_message() {
+    use std::os::unix::process::ExitStatusExt;
 
-    let dir_str = fixture.path.to_str().unwrap();
-
-    let mut child = Command::new(bin_path())
-        .args(["-1", "--color=never", dir_str])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to spawn lez process");
-
-    // Read only the first line from stdout, then drop the reader (closing the pipe)
-    if let Some(stdout) = child.stdout.take() {
-        let mut reader = BufReader::new(stdout);
-        let mut first_line = String::new();
-        let _ = reader.read_line(&mut first_line);
-        drop(reader);
+    let dir = fixture();
+    for args in [
+        &["-1"][..],
+        &["-l"][..],
+        &["-T"][..],
+        &["-G"][..],
+        &["--json"][..],
+        &["--code"][..],
+    ] {
+        let output = run_into_closed_pipe(&dir, args);
+        assert_eq!(
+            output.status.signal(),
+            Some(libc::SIGPIPE),
+            "{args:?} ended with {:?}",
+            output.status
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
-
-    let output = child.wait_with_output().expect("Failed to wait on child");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    // Stderr must never contain a Rust panic message
-    assert!(
-        !stderr.contains("panicked at"),
-        "lez panicked on broken pipe: {stderr}"
-    );
-    assert!(
-        output.status.code() == Some(0)
-            || output.status.signal() == Some(libc::SIGPIPE)
-            || output.status.code() == Some(128 + libc::SIGPIPE),
-        "lez must exit cleanly on broken pipe, got: {:?}",
-        output.status
-    );
 }
 
+/// Without signals, the write fails with `BrokenPipe`, which lez treats as a
+/// normal end of output rather than an error worth reporting.
 #[test]
-fn test_broken_pipe_on_recursive_tree_listing() {
-    let fixture = PipeTestDir::new("epipe_tree_pure");
-    for d in 0..5 {
-        let sub = fixture.path.join(format!("sub_{d}"));
-        fs::create_dir_all(&sub).unwrap();
-        for f in 0..20 {
-            let p = sub.join(format!("leaf_{f}.txt"));
-            fs::write(p, b"leaf content\n").unwrap();
-        }
+#[cfg(windows)]
+fn a_closed_reader_ends_lez_successfully_and_quietly() {
+    let dir = fixture();
+    for args in [&["-1"][..], &["-l"][..], &["-T"][..], &["--json"][..]] {
+        let output = run_into_closed_pipe(&dir, args);
+        assert_eq!(output.status.code(), Some(0), "{args:?}");
+        assert!(
+            output.stderr.is_empty(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
-
-    let dir_str = fixture.path.to_str().unwrap();
-
-    let mut child = Command::new(bin_path())
-        .args(["-T", "--color=never", dir_str])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to spawn lez process");
-
-    if let Some(stdout) = child.stdout.take() {
-        let mut reader = BufReader::new(stdout);
-        let mut first_line = String::new();
-        let _ = reader.read_line(&mut first_line);
-        drop(reader);
-    }
-
-    let output = child.wait_with_output().expect("Failed to wait on child");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!stderr.contains("panicked at"), "Stderr panicked: {stderr}");
-    assert!(
-        output.status.code() == Some(0)
-            || output.status.signal() == Some(libc::SIGPIPE)
-            || output.status.code() == Some(128 + libc::SIGPIPE),
-        "lez must exit cleanly on broken pipe in tree mode, got: {:?}",
-        output.status
-    );
-}
-
-#[test]
-fn test_broken_pipe_on_long_view_details() {
-    let fixture = PipeTestDir::new("epipe_long_pure");
-    fixture.populate_large_listing(200);
-
-    let dir_str = fixture.path.to_str().unwrap();
-
-    let mut child = Command::new(bin_path())
-        .args(["-l", "--color=never", dir_str])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to spawn lez process");
-
-    if let Some(stdout) = child.stdout.take() {
-        let mut reader = BufReader::new(stdout);
-        let mut first_line = String::new();
-        let _ = reader.read_line(&mut first_line);
-        drop(reader);
-    }
-
-    let output = child.wait_with_output().expect("Failed to wait on child");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!stderr.contains("panicked at"), "Stderr panicked: {stderr}");
-    assert!(
-        output.status.code() == Some(0)
-            || output.status.signal() == Some(libc::SIGPIPE)
-            || output.status.code() == Some(128 + libc::SIGPIPE),
-        "lez must exit cleanly on broken pipe in details mode, got: {:?}",
-        output.status
-    );
 }

@@ -327,3 +327,59 @@ fn test_loc_multi_root_gitignore_isolation() {
         "root2 valid.rs must not be skipped due to root1 git repo"
     );
 }
+
+/// Markdown is the one language whose counts are assembled from a breakdown
+/// (prose, fence markers, and each fenced language) rather than one pass of
+/// the line classifier, so two properties can actually fail there: every
+/// line must land in exactly one bucket of exactly one language, and the
+/// languages together must account for every line of the document.
+#[test]
+fn markdown_breakdown_accounts_for_every_line_exactly_once() {
+    let fragments = [
+        "# Heading\n",
+        "Plain prose with `inline code`.\n",
+        "\n",
+        "   \t \n",
+        "```rust\nfn main() {}\n// comment\n\n```\n",
+        "```python\n# comment\nprint('x')\n```\n",
+        "~~~sh\necho hi # trailing\n~~~\n",
+        "````\n```\nnested fence text\n```\n````\n",
+        "<!-- html comment -->\n",
+        "<!--\nmulti-line html comment\n-->\n",
+        "```unknownlang\nwhatever\n```\n",
+        "```rust\nfn unclosed() {\n",
+        "    indented code block\n",
+        "> quote with ``` inside\n",
+    ];
+    let mut state: u64 = 0x1337_BEEF_A5A5_A5A5;
+    let mut next = |bound: usize| {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        (state % bound as u64) as usize
+    };
+
+    for _ in 0..500 {
+        let mut document = String::new();
+        for _ in 0..next(12) + 1 {
+            document.push_str(fragments[next(fragments.len())]);
+        }
+
+        let breakdown = loc::count_markdown_source(&document);
+        let mut total_lines = 0;
+        for (lang, counts) in &breakdown {
+            assert_eq!(
+                counts.code + counts.comments + counts.blanks,
+                counts.lines,
+                "{} lines were left unclassified in:\n{document}",
+                lang.name
+            );
+            total_lines += counts.lines;
+        }
+        assert_eq!(
+            total_lines,
+            document.lines().count(),
+            "the breakdown should cover every line once:\n{document}"
+        );
+    }
+}

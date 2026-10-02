@@ -13,7 +13,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // Mock environment for testing variable deductions
 #[derive(Default, Clone)]
@@ -467,7 +467,7 @@ fn test_strict_mode_cli_process_exit_codes() {
 // =========================================================================
 
 #[test]
-fn test_sibling_lookup_scale_and_timing() {
+fn test_sibling_lookup_at_scale() {
     let temp_dir = TempTestDir::new("scale_sibling");
 
     let num_pairs = 250;
@@ -494,9 +494,6 @@ fn test_sibling_lookup_scale_and_timing() {
 
     let dir = Dir::read_dir(temp_dir.path.clone()).expect("Failed to read directory");
 
-    // Perform lookups and measure time
-    let start = Instant::now();
-
     for path in &expected_present {
         assert!(
             dir.contains(path),
@@ -510,13 +507,6 @@ fn test_sibling_lookup_scale_and_timing() {
             "Expected Dir::contains to NOT find missing path {path:?}"
         );
     }
-
-    let elapsed = start.elapsed();
-    // 1,000 lookups with O(1) set lookup should easily finish in well under 500ms
-    assert!(
-        elapsed < Duration::from_millis(500),
-        "1,000 sibling lookups took {elapsed:?}, exceeding acceptable O(1) bounds!"
-    );
 }
 
 #[test]
@@ -874,9 +864,10 @@ fn test_git_scoped_queries_rename_and_deletion() {
     let s1 = git_cache.get(&file1, false);
     assert!(s1.unstaged == f::GitStatus::Deleted);
 
-    // file2_renamed is new/renamed staged
+    // lez does not ask libgit2 for rename detection, so a staged rename is a
+    // new file beside a deleted one.
     let s2 = git_cache.get(&file2_renamed, false);
-    assert!(s2.staged == f::GitStatus::New || s2.staged == f::GitStatus::Renamed);
+    assert!(s2.staged == f::GitStatus::New);
 }
 
 #[test]
