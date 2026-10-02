@@ -168,3 +168,44 @@ fn fifos_and_sockets_take_their_own_colours() {
         "\u{1b}[35mdata_stream.pipe\u{1b}[0m\n\u{1b}[36mtest_service.sock\u{1b}[0m\n"
     );
 }
+
+/// Every entry of the live `/dev` (devices, terminals, links into `/proc`,
+/// whatever the machine has) is listed, and the long view renders each of
+/// them without an error. Entries can come and go while the test runs, so
+/// the listing is compared with `read_dir` before and after it, and taken
+/// again if those two disagree.
+#[test]
+fn every_entry_of_the_live_dev_is_listed() {
+    let snapshot = || -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir("/dev")
+            .expect("read /dev")
+            .map(|entry| {
+                entry
+                    .expect("a /dev entry")
+                    .file_name()
+                    .into_string()
+                    .expect("a UTF-8 name")
+            })
+            .collect();
+        names.sort();
+        names
+    };
+
+    for _ in 0..5 {
+        let before = snapshot();
+        let mut listed: Vec<String> =
+            success_stdout(lez_cmd().args(["-1", "-a", "--quotes=never", "/dev"]))
+                .lines()
+                .map(str::to_owned)
+                .collect();
+        let long = success_stdout(lez_cmd().args(["-la", "/dev"]));
+        if snapshot() != before {
+            continue;
+        }
+        listed.sort();
+        assert_eq!(listed, before);
+        assert_eq!(long.lines().count(), before.len(), "{long}");
+        return;
+    }
+    panic!("/dev kept changing while it was being listed");
+}
