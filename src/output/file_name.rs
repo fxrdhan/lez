@@ -238,10 +238,12 @@ pub enum QuoteStyle {
     /// Quote every file name, space or not.
     Always,
 
-    /// Quote file names that contain a space or a quote of either kind, in
+    /// Quote file names holding anything a shell gives a meaning to (a
+    /// space, a quote, `$`, `;`, `*` and the rest GNU `ls` quotes for), in
     /// whichever form a shell reads back as the name on disk: single quotes
-    /// by default, double quotes for a name holding an apostrophe, and for a
-    /// name holding both, single quotes broken out of for each apostrophe.
+    /// by default, double quotes for a name holding an apostrophe and nothing
+    /// they would expand, and otherwise single quotes broken out of for each
+    /// apostrophe.
     #[default]
     Auto,
 
@@ -252,10 +254,10 @@ pub enum QuoteStyle {
 impl QuoteStyle {
     /// Whether the given name needs to be quoted under this style.
     #[must_use]
-    pub fn quotes_needed(self, name_has_spaces: bool) -> bool {
+    pub fn quotes_needed(self, name_needs_quotes: bool) -> bool {
         match self {
             Self::Always => true,
-            Self::Auto => name_has_spaces,
+            Self::Auto => name_needs_quotes,
             Self::Never => false,
         }
     }

@@ -64,8 +64,9 @@ fn undecodable_bytes_in_names_are_shown_as_replacement_characters() {
     }
 }
 
-/// Spaces and quotes earn quoting by default; control characters are
-/// escaped; `--quotes=always` quotes everything. JSON keeps names verbatim.
+/// Spaces, quotes and the other characters a shell reads earn quoting by
+/// default; control characters are escaped; `--quotes=always` quotes
+/// everything. JSON keeps names verbatim.
 #[test]
 #[cfg(unix)]
 fn shell_and_control_characters_are_quoted_and_escaped() {
@@ -91,9 +92,9 @@ fn shell_and_control_characters_are_quoted_and_escaped() {
          'multiple   spaces.txt'\n\
          new\\nline.txt\n\
          'quote\"d.txt'\n\
-         semi;pipe|amp&.txt\n\
+         'semi;pipe|amp&.txt'\n\
          tab_\\t_tab.txt\n\
-         tick`dollar$paren().txt\n\
+         'tick`dollar$paren().txt'\n\
          'trailing_space.txt '\n"
     );
     assert_eq!(
