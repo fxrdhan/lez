@@ -160,6 +160,16 @@ fn json_names_the_group_whatever_the_owner() {
         json(&["--smart-group"]),
         serde_json::json!({"other": owners("other"), "own": owners("own")})
     );
+    // With `-n` both are numbers, the group's even where they match.
+    let numbers = |name: &str| {
+        let (user, group) = cells(&dir.path().join(name), true, false);
+        serde_json::json!({"User": user, "Group": group})
+    };
+    assert_eq!(
+        json(&["--smart-group", "-n"]),
+        serde_json::json!({"other": numbers("other"), "own": numbers("own")})
+    );
+    assert_eq!(json(&["-g"]), json(&["--smart-group"]));
     let user = |name: &str| owners(name)["User"].clone();
     assert_eq!(
         json(&[]),
