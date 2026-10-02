@@ -152,13 +152,13 @@ mod empty_target {
             ),
             "- empty_link\n"
         );
-        assert_eq!(lez(dir.path(), &["--json"]), "[\"empty_link\"]");
+        assert_eq!(lez(dir.path(), &["--json"]), "[\"empty_link\"]\n");
         assert_eq!(
             lez(
                 dir.path(),
                 &[&["--json"][..], &NAME_COLUMN_ONLY[..]].concat()
             ),
-            "{\"empty_link\":{\"Target\": \"\"}}"
+            "{\"empty_link\":{\"Target\": \"\"}}\n"
         );
     }
 }
