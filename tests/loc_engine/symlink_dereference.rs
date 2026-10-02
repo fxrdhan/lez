@@ -499,3 +499,121 @@ fn test_loc_dereference_deduplication_of_identical_files_and_symlinks() {
         }
     }
 }
+
+use crate::common::{lez_in, success_stdout};
+
+#[cfg(unix)]
+/// The language, code and share columns, and the name.
+fn loc_rows(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(
+        lez_in(dir.path())
+            .args([
+                "-l",
+                "--loc",
+                "--no-permissions",
+                "--no-filesize",
+                "--no-user",
+                "--no-time",
+            ])
+            .args(args),
+    )
+}
+
+/// JSON gives the same counts and the same shares as the long view. It
+/// used to take each entry as a root of its own, following links under
+/// `-X`, so a link's target was counted again and the shares here read
+/// 33.3% without `-X` and 20% with it.
+#[test]
+#[cfg(unix)]
+fn json_shares_match_the_long_view() {
+    let dir = TempTestDir::new("json");
+    dir.create_file("main.rs", b"fn main() {}\n");
+    dir.create_file("py_script.py", b"# comment\nprint('hi')\n");
+    dir.create_symlink("main.rs", "sym_with_ext.rs");
+    dir.create_symlink("main.rs", "sym_no_ext");
+    dir.create_symlink("missing.rs", "broken_link.rs");
+    dir.create_symlink("py_script.py", "mismatched.rs");
+
+    let json = |extra: &[&str]| -> serde_json::Value {
+        serde_json::from_str(&loc_rows(&dir, &[&["--json"][..], extra].concat()))
+            .expect("valid JSON")
+    };
+    let counted =
+        |language: &str| serde_json::json!({"Language": language, "Code": "1", "Code %": "50.0%"});
+
+    assert_eq!(
+        json(&[]),
+        serde_json::json!({
+            "broken_link.rs": {"Language": "Rust", "Target": "missing.rs"},
+            "main.rs": counted("Rust"),
+            "mismatched.rs": {"Language": "Rust", "Target": "py_script.py"},
+            "py_script.py": counted("Python"),
+            "sym_no_ext": {"Target": "main.rs"},
+            "sym_with_ext.rs": {"Language": "Rust", "Target": "main.rs"},
+        })
+    );
+    let linked = |language: &str, target: &str| {
+        let mut entry = counted(language);
+        entry["Target"] = target.into();
+        entry
+    };
+    assert_eq!(
+        json(&["-X"]),
+        serde_json::json!({
+            "broken_link.rs": {"Target": "missing.rs"},
+            "main.rs": counted("Rust"),
+            "mismatched.rs": linked("Python", "py_script.py"),
+            "py_script.py": counted("Python"),
+            "sym_no_ext": linked("Rust", "main.rs"),
+            "sym_with_ext.rs": linked("Rust", "main.rs"),
+        })
+    );
+    assert_eq!(
+        loc_rows(&dir, &["-X"]),
+        "-      -     - broken_link.rs\n\
+         Rust   1 50.0% main.rs\n\
+         Python 1 50.0% mismatched.rs\n\
+         Python 1 50.0% py_script.py\n\
+         Rust   1 50.0% sym_no_ext\n\
+         Rust   1 50.0% sym_with_ext.rs\n"
+    );
+}
+
+/// The same holds through `-R`, where each directory is its own listing,
+/// and `-T`, where the whole tree is one.
+#[test]
+#[cfg(unix)]
+fn json_shares_match_the_long_view_when_recursing() {
+    let dir = TempTestDir::new("json_recursive");
+    dir.create_file("top/a.rs", b"fn a() {}\n");
+    dir.create_file("top/sub/b.rs", b"fn b() {}\nfn c() {}\nfn d() {}\n");
+
+    let file = |code: &str, share: &str| serde_json::json!({"Language": "Rust", "Code": code, "Code %": share});
+    let tree = |a: &str, b: &str| {
+        serde_json::json!({"top": {
+            "files": {"a.rs": file("1", a)},
+            "directories": {"sub": {"files": {"b.rs": file("3", b)}, "directories": {}}}
+        }})
+    };
+    let json = |args: &[&str]| -> serde_json::Value {
+        serde_json::from_str(&loc_rows(&dir, &[&["--json"][..], args].concat()))
+            .expect("valid JSON")
+    };
+
+    assert_eq!(
+        loc_rows(&dir, &["-R", "top"]),
+        crate::common::native(
+            "Rust 1 25.0% a.rs\n-    -     - sub\n\ntop/sub:\nRust 3 100.0% b.rs\n"
+        )
+    );
+    assert_eq!(json(&["-R", "top"]), tree("25.0%", "100.0%"));
+
+    assert_eq!(
+        loc_rows(&dir, &["-T", "top"]),
+        "-    -     - top\n\
+         Rust 1 25.0% ├── a.rs\n\
+         -    -     - └── sub\n\
+         Rust 3 75.0%     └── b.rs\n"
+    );
+    assert_eq!(json(&["-T", "top"]), tree("25.0%", "75.0%"));
+}
