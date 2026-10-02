@@ -1,85 +1,54 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! Data files (Parquet, CSV, NumPy arrays, HDF5, SQLite) take the `dt`
+//! colour, and each format its own icon.
 
-use std::fs::{self, File as StdFile};
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
-#[test]
-fn test_data_files_colored_with_dt_code() {
-    let temp_dir = std::env::temp_dir().join("lez_test_data_files_dt");
-    let _ = fs::remove_dir_all(&temp_dir);
-    fs::create_dir_all(&temp_dir).unwrap();
+const NAMES: [&str; 6] = [
+    "database.sqlite",
+    "dataset.parquet",
+    "db.sqlite3",
+    "embeddings.npy",
+    "records.csv",
+    "store.h5",
+];
 
-    let files = [
-        "dataset.parquet",
-        "records.csv",
-        "embeddings.npy",
-        "store.h5",
-        "database.sqlite",
-    ];
-
-    for name in &files {
-        StdFile::create(temp_dir.join(name)).unwrap();
+fn fixture() -> TempTestDir {
+    let dir = TempTestDir::new("data_files");
+    for name in NAMES {
+        dir.create_file(name, b"");
     }
-
-    // Set dt=35;1 (bold magenta)
-    let output = crate::common::lez_cmd()
-        .arg("-1")
-        .arg("--color=always")
-        .arg(&temp_dir)
-        .env("LEZ_COLORS", "dt=35;1")
-        .env_remove("EZA_COLORS")
-        .env_remove("EXA_COLORS")
-        .env_remove("LS_COLORS")
-        .env_remove("NO_COLOR")
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Each data file should be styled with bold magenta
-    for name in &files {
-        assert!(
-            stdout.contains(&format!("\x1b[1;35m{name}\x1b[0m"))
-                || stdout.contains(&format!("\x1b[35;1m{name}\x1b[0m")),
-            "Data file {name} should be styled with dt=35;1, got stdout: {stdout:?}"
-        );
-    }
-
-    let _ = fs::remove_dir_all(&temp_dir);
+    dir
 }
 
 #[test]
-fn test_data_files_icons_present() {
-    let temp_dir = std::env::temp_dir().join("lez_test_data_files_icons");
-    let _ = fs::remove_dir_all(&temp_dir);
-    fs::create_dir_all(&temp_dir).unwrap();
+fn data_files_take_the_dt_colour() {
+    let dir = fixture();
+    let expected: String = NAMES
+        .iter()
+        .map(|name| format!("\x1b[1;35m{name}\x1b[0m\n"))
+        .collect();
+    assert_eq!(
+        success_stdout(
+            lez_in(dir.path())
+                .env("LEZ_COLORS", "dt=35;1")
+                .args(["-1", "--color=always"])
+        ),
+        expected
+    );
+}
 
-    StdFile::create(temp_dir.join("dataset.parquet")).unwrap();
-    StdFile::create(temp_dir.join("data.npy")).unwrap();
-    StdFile::create(temp_dir.join("db.sqlite3")).unwrap();
-
-    let output = crate::common::lez_cmd()
-        .arg("-1")
-        .arg("--icons=always")
-        .arg(&temp_dir)
-        .env_remove("LEZ_COLORS")
-        .env_remove("EZA_COLORS")
-        .env_remove("EXA_COLORS")
-        .env_remove("LS_COLORS")
-        .output()
-        .expect("Failed to execute lez with --icons");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("dataset.parquet"));
-    assert!(stdout.contains("data.npy"));
-    assert!(stdout.contains("db.sqlite3"));
-
-    let _ = fs::remove_dir_all(&temp_dir);
+#[test]
+fn each_data_format_has_its_icon() {
+    let dir = fixture();
+    let (database, sqlite, python, csv) = ('\u{f1c0}', '\u{e7c4}', '\u{e606}', '\u{eefc}');
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(["-1", "--icons=always"])),
+        format!(
+            "{sqlite} database.sqlite\n{database} dataset.parquet\n{sqlite} db.sqlite3\n\
+             {python} embeddings.npy\n{csv} records.csv\n{database} store.h5\n"
+        )
+    );
 }
