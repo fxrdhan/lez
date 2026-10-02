@@ -94,12 +94,29 @@ fn classify_marks_the_link_once_its_target_is_hidden() {
     );
 }
 
+/// The short views, and the grid of long views, print names alone.
 #[test]
 fn views_that_never_show_targets_are_unchanged() {
     let dir = fixture("short");
     let names = "broken\ndir_link\nfolder\nlink.txt\nreal.txt\n'space file.txt'\n'space link'\n";
     assert_eq!(lez(&dir, &["-1"]), names);
     assert_eq!(lez(&dir, &["-1", "--no-symlink-targets"]), names);
+
+    let grid = "broken  dir_link  folder  link.txt  real.txt  'space file.txt'  'space link'\n";
+    assert_eq!(lez(&dir, &["-G", "--width=200"]), grid);
+    assert_eq!(
+        lez(&dir, &["-G", "--width=200", "--no-symlink-targets"]),
+        grid
+    );
+    let grid_details = long(&dir, &["-G", "--width=200"]);
+    assert_eq!(
+        grid_details,
+        " broken     dir_link     folder     link.txt     real.txt     'space file.txt'     'space link'\n"
+    );
+    assert_eq!(
+        long(&dir, &["-G", "--width=200", "--no-symlink-targets"]),
+        grid_details
+    );
 }
 
 /// The flag hides the arrow in the listing; JSON is data, and keeps the
@@ -121,5 +138,73 @@ fn json_keeps_the_target() {
     assert_eq!(
         lez(&dir, &[&args[..], &["--no-symlink-targets"]].concat()),
         expected
+    );
+}
+
+/// A switch: given twice it is the same as once, and a value is refused.
+#[test]
+fn the_flag_may_repeat_and_takes_no_value() {
+    let dir = fixture("parse");
+    assert_eq!(
+        long(
+            &dir,
+            &["--no-symlink-targets", "--no-symlink-targets", "link.txt"]
+        ),
+        "link.txt\n"
+    );
+
+    let output = lez_in(dir.path())
+        .arg("--no-symlink-targets=yes")
+        .output()
+        .expect("run lez");
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "error: unexpected value 'yes' for '--no-symlink-targets' found; no more were expected\n\n\
+         Usage: lez --no-symlink-targets [FILE]...\n\n\
+         For more information, try '--help'.\n"
+    );
+}
+
+/// Icons and hyperlinks belong to the name, so they stay. The hyperlink
+/// leads where the link does.
+#[test]
+fn icons_and_hyperlinks_stay_on_the_name() {
+    let dir = fixture("decorations");
+    let file_icon = '\u{f15c}';
+    let folder_icon = '\u{e5ff}';
+    assert_eq!(
+        long(&dir, &["--icons=always", "-d", "dir_link", "link.txt"]),
+        format!("{folder_icon} dir_link -> folder\n{file_icon} link.txt -> real.txt\n")
+    );
+    assert_eq!(
+        long(
+            &dir,
+            &[
+                "--icons=always",
+                "--no-symlink-targets",
+                "-d",
+                "dir_link",
+                "link.txt"
+            ]
+        ),
+        format!("{folder_icon} dir_link\n{file_icon} link.txt\n")
+    );
+
+    let target = std::fs::canonicalize(dir.path().join("real.txt")).expect("canonicalize");
+    let name = format!(
+        "\x1b]8;;file://{}\x1b\\link.txt\x1b]8;;\x1b\\",
+        target.display()
+    );
+    assert_eq!(
+        long(&dir, &["--hyperlink=always", "link.txt"]),
+        format!("{name} -> real.txt\n")
+    );
+    assert_eq!(
+        long(
+            &dir,
+            &["--hyperlink=always", "--no-symlink-targets", "link.txt"]
+        ),
+        format!("{name}\n")
     );
 }

@@ -7,7 +7,7 @@
 
 use std::process::Output;
 
-use crate::common::{TempTestDir, lez_in};
+use crate::common::{NAME_COLUMN_ONLY, TempTestDir, lez_in};
 
 const DATA_FILES: usize = 1200;
 const EMPTY_FILES: usize = 10;
@@ -143,4 +143,32 @@ fn block_sorting_puts_the_sparse_file_by_its_allocation() {
         .position(|name| name.starts_with("data_"))
         .expect("data files listed");
     assert!(sparse < first_data, "{by_blocks:?}");
+}
+
+/// Two thousand links to one file: the long view gives each its target,
+/// and `--no-symlink-targets` drops exactly those.
+#[test]
+#[cfg(unix)]
+fn two_thousand_links_to_one_file_are_listed_in_full() {
+    let dir = TempTestDir::new("many_links");
+    dir.create_file("shared_target.txt", b"common target");
+    let links: Vec<String> = (0..2000).map(|i| format!("link_{i:04}.lnk")).collect();
+    for link in &links {
+        dir.create_symlink("shared_target.txt", link);
+    }
+    let rows = |extra: &[&str]| run(&dir, &[&NAME_COLUMN_ONLY[..], extra].concat());
+
+    let with_targets: String = links
+        .iter()
+        .map(|link| format!("{link} -> shared_target.txt\n"))
+        .chain(["shared_target.txt\n".to_owned()])
+        .collect();
+    assert_eq!(rows(&[]), with_targets);
+
+    let names: String = links
+        .iter()
+        .map(|link| format!("{link}\n"))
+        .chain(["shared_target.txt\n".to_owned()])
+        .collect();
+    assert_eq!(rows(&["--no-symlink-targets"]), names);
 }
