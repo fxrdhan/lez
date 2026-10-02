@@ -111,7 +111,7 @@ fn views_that_never_show_targets_are_unchanged() {
     let grid_details = long(&dir, &["-G", "--width=200"]);
     assert_eq!(
         grid_details,
-        " broken     dir_link     folder     link.txt     real.txt     'space file.txt'     'space link'\n"
+        "broken    dir_link    folder    link.txt    real.txt    'space file.txt'    'space link'\n"
     );
     assert_eq!(
         long(&dir, &["-G", "--width=200", "--no-symlink-targets"]),

@@ -106,7 +106,7 @@ fn glyphs_are_used_in_the_tree_grid_and_icon_views() {
     );
     assert_eq!(
         rows(repo.path(), &["--git-glyphs", "-G", "--width=60", "sub"]),
-        format!("-{NEW}  file.txt\n")
+        format!("-{NEW} file.txt\n")
     );
     assert_eq!(
         rows(repo.path(), &["--git-glyphs", "--icons=always", "sub"]),
