@@ -396,14 +396,18 @@ fn test_strict_mode_conflicting_options() {
         Err(OptionsError::Useless("one-line", true, "long"))
     ));
 
-    // 3. Clap parser level conflict for --recurse with --treat-dirs-as-files
-    let clap_res =
-        get_command().try_get_matches_from(["lez", "--recurse", "--treat-dirs-as-files"]);
-    assert!(clap_res.is_err());
-
-    // 4. Clap parser level conflict for --tree with --treat-dirs-as-files
-    let clap_res = get_command().try_get_matches_from(["lez", "--tree", "--treat-dirs-as-files"]);
-    assert!(clap_res.is_err());
+    // 3, 4. Recursing and treating directories as files conflict in the
+    // parser, before strict mode is consulted.
+    for walk in ["--recurse", "--tree"] {
+        let error = get_command()
+            .try_get_matches_from(["lez", walk, "--treat-dirs-as-files"])
+            .expect_err("a conflict");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::ArgumentConflict,
+            "{walk}"
+        );
+    }
 
     // 5. -a -a -a (3+ all flags)
     let m = parse_cli_args(&["-a", "-a", "-a"]);
@@ -427,52 +431,44 @@ fn test_strict_mode_conflicting_options() {
     ));
 }
 
+/// The binary reads strict mode from `LEZ_STRICT`, `EZA_STRICT` or
+/// `EXA_STRICT`, reports the useless option, and exits 3.
 #[test]
 fn test_strict_mode_cli_process_exit_codes() {
     let temp = TempTestDir::new("exit_codes");
-    let temp_str = temp.path.to_str().unwrap();
+    let run = |var: Option<&str>, args: &[&str]| {
+        let mut cmd = crate::common::lez_cmd();
+        cmd.args(args).arg(&temp.path);
+        if let Some(var) = var {
+            cmd.env(var, "1");
+        }
+        let output = cmd.output().expect("run lez");
+        (
+            output.status.code(),
+            String::from_utf8(output.stderr).expect("UTF-8 stderr"),
+        )
+    };
 
-    // Success case in strict mode
-    let output = crate::common::lez_cmd()
-        .args(["-l", temp_str])
-        .env("EZA_STRICT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(0));
-
-    // Error case in strict mode: --binary without -l -> Exit 3 (OPTIONS_ERROR)
-    let output = crate::common::lez_cmd()
-        .args(["--binary", temp_str])
-        .env("EZA_STRICT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(3));
-
-    // Same case without strict mode -> Exit 0
-    let output = crate::common::lez_cmd()
-        .args(["--binary", temp_str])
-        .env_remove("EZA_STRICT")
-        .env_remove("EXA_STRICT")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(0));
-
-    // EXA_STRICT fallback in strict mode -> Exit 3
-    let output = crate::common::lez_cmd()
-        .args(["--binary", temp_str])
-        .env_remove("EZA_STRICT")
-        .env("EXA_STRICT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(3));
-
-    // Conflicting args in strict mode -> Exit 3
-    let output = crate::common::lez_cmd()
-        .args(["-l", "-x", temp_str])
-        .env("EZA_STRICT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(run(Some("LEZ_STRICT"), &["-l"]), (Some(0), String::new()));
+    assert_eq!(run(None, &["--binary"]), (Some(0), String::new()));
+    for var in ["LEZ_STRICT", "EZA_STRICT", "EXA_STRICT"] {
+        assert_eq!(
+            run(Some(var), &["--binary"]),
+            (
+                Some(3),
+                "lez: Option binary is useless without option long\n".to_owned()
+            ),
+            "{var}"
+        );
+        assert_eq!(
+            run(Some(var), &["-l", "-x"]),
+            (
+                Some(3),
+                "lez: Option across is useless given option long\n".to_owned()
+            ),
+            "{var}"
+        );
+    }
 }
 
 // =========================================================================
