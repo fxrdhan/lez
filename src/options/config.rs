@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
+use crate::options::vars::{self, Vars};
 use crate::theme::ThemeFileType as FileType;
 use crate::theme::{
     FileKinds, FileNameStyle, Git, GitRepo, IconStyle, Links, Permissions, SELinuxContext,
@@ -20,22 +21,6 @@ use std::path::{Path, PathBuf};
 pub struct ThemeConfig {
     // This is rather bare for now, will be expanded with config file
     location: PathBuf,
-}
-
-impl Default for ThemeConfig {
-    fn default() -> Self {
-        let config_dir = config_dir_from_env(None, None, None);
-        let theme_yml = config_dir.join("theme.yml");
-        let theme_yaml = config_dir.join("theme.yaml");
-        let location = if theme_yml.exists() {
-            theme_yml
-        } else if theme_yaml.exists() {
-            theme_yaml
-        } else {
-            theme_yml
-        };
-        ThemeConfig { location }
-    }
 }
 
 trait FromOverride<T>: Sized {
@@ -1047,15 +1032,29 @@ pub(crate) fn expand_home_path(path: &OsStr, home: Option<&Path>) -> PathBuf {
     PathBuf::from(path)
 }
 
+/// The configuration directory `vars` describes; see [`config_dir_from_env`].
+pub(crate) fn config_dir<V: Vars>(vars: &V) -> PathBuf {
+    config_dir_from_env(
+        vars.get_with_fallback(vars::LEZ_CONFIG_DIR, vars::EZA_CONFIG_DIR)
+            .map(PathBuf::from),
+        vars.get(vars::XDG_CONFIG_HOME).map(PathBuf::from),
+        vars.get(vars::HOME).map(PathBuf::from),
+        vars.platform_config_dir(),
+        vars.platform_home_dir(),
+    )
+}
+
 /// Resolves the configuration directory, prioritizing:
 /// 1. `custom_config_dir` (`LEZ_CONFIG_DIR` or `EZA_CONFIG_DIR`)
 /// 2. `xdg_config_home` (`XDG_CONFIG_HOME`), if set, non-empty, and resolves to an absolute path
-/// 3. Platform configuration directory (`dirs::config_dir()`)
-/// 4. Fallback to `$HOME/.config/lez`
+/// 3. `platform_config_dir`, the platform configuration directory
+/// 4. Fallback to `.config/lez` under `$HOME`, or `platform_home_dir` without it
 pub(crate) fn config_dir_from_env(
     custom_config_dir: Option<PathBuf>,
     xdg_config_home: Option<PathBuf>,
     home_env: Option<PathBuf>,
+    platform_config_dir: Option<PathBuf>,
+    platform_home_dir: Option<PathBuf>,
 ) -> PathBuf {
     if let Some(custom) = custom_config_dir
         && !custom.as_os_str().is_empty()
@@ -1080,7 +1079,7 @@ pub(crate) fn config_dir_from_env(
         }
     }
 
-    if let Some(config_dir) = dirs::config_dir() {
+    if let Some(config_dir) = platform_config_dir {
         let lez_dir = config_dir.join("lez");
         let eza_dir = config_dir.join("eza");
         if lez_dir.exists() {
@@ -1092,7 +1091,7 @@ pub(crate) fn config_dir_from_env(
         }
     }
 
-    if let Some(home) = home_env.or_else(dirs::home_dir) {
+    if let Some(home) = home_env.or(platform_home_dir) {
         let base = home.join(".config");
         let lez_dir = base.join("lez");
         let eza_dir = base.join("eza");
@@ -1340,7 +1339,7 @@ git:
         let xdg = Some(PathBuf::from("/etc/xdg"));
         let home = Some(PathBuf::from("/home/testuser"));
 
-        let resolved = config_dir_from_env(custom, xdg, home);
+        let resolved = config_dir_from_env(custom, xdg, home, None, None);
         assert_eq!(resolved, PathBuf::from("/home/testuser/my_custom_lez"));
     }
 
@@ -1351,7 +1350,7 @@ git:
         let xdg = Some(PathBuf::from("/custom/xdg"));
         let home = Some(PathBuf::from("/home/testuser"));
 
-        let resolved = config_dir_from_env(custom, xdg, home);
+        let resolved = config_dir_from_env(custom, xdg, home, None, None);
         // /custom/xdg is absolute, so it checks /custom/xdg/lez or /custom/xdg/eza
         assert_eq!(resolved, PathBuf::from("/custom/xdg/lez"));
     }
@@ -1363,7 +1362,7 @@ git:
         let xdg = Some(PathBuf::from("~/.config"));
         let home = Some(PathBuf::from("/home/testuser"));
 
-        let resolved = config_dir_from_env(custom, xdg, home);
+        let resolved = config_dir_from_env(custom, xdg, home, None, None);
         assert_eq!(resolved, PathBuf::from("/home/testuser/.config/lez"));
     }
 
@@ -1374,9 +1373,58 @@ git:
         let xdg = Some(PathBuf::from("relative/xdg"));
         let home = Some(PathBuf::from("/home/testuser"));
 
-        let resolved = config_dir_from_env(custom, xdg, home);
-        // Relative XDG is ignored, falling back to dirs::config_dir() or home/.config/lez
-        assert_ne!(resolved, PathBuf::from("relative/xdg/lez"));
+        let resolved = config_dir_from_env(custom, xdg, home, None, None);
+        // A relative XDG_CONFIG_HOME is ignored, as the XDG spec requires.
+        assert_eq!(resolved, PathBuf::from("/home/testuser/.config/lez"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_config_dir_from_env_platform_dir_comes_before_home() {
+        let resolved = config_dir_from_env(
+            None,
+            None,
+            Some(PathBuf::from("/home/testuser")),
+            Some(PathBuf::from("/platform/config")),
+            Some(PathBuf::from("/platform/home")),
+        );
+        assert_eq!(resolved, PathBuf::from("/platform/config/lez"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_config_dir_from_env_home_variable_comes_before_platform_home() {
+        let home = Some(PathBuf::from("/home/testuser"));
+        let platform_home = Some(PathBuf::from("/platform/home"));
+
+        assert_eq!(
+            config_dir_from_env(None, None, home, None, platform_home.clone()),
+            PathBuf::from("/home/testuser/.config/lez")
+        );
+        assert_eq!(
+            config_dir_from_env(None, None, None, None, platform_home),
+            PathBuf::from("/platform/home/.config/lez")
+        );
+        assert_eq!(
+            config_dir_from_env(None, None, None, None, None),
+            PathBuf::new()
+        );
+    }
+
+    /// A mock environment names no platform directories, so it cannot reach
+    /// the configuration of whoever runs the tests.
+    #[test]
+    fn test_config_dir_from_mock_vars_stays_inside_the_mock() {
+        use crate::options::vars::test::MockVars;
+
+        assert_eq!(config_dir(&MockVars::default()), PathBuf::new());
+
+        let mut vars = MockVars::default();
+        vars.set(vars::HOME, &std::ffi::OsString::from("/mock/home"));
+        assert_eq!(
+            config_dir(&vars),
+            PathBuf::from("/mock/home").join(".config").join("lez")
+        );
     }
 
     #[test]

@@ -5,7 +5,7 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use std::ffi::OsString;
-use std::io::{self, IsTerminal};
+use std::path::PathBuf;
 
 // General variables
 
@@ -151,18 +151,36 @@ pub static LEZ_PERCENT_DIGITS: &str = "LEZ_PERCENT_DIGITS";
 pub static EZA_PERCENT_DIGITS: &str = "EZA_PERCENT_DIGITS";
 pub static EXA_PERCENT_DIGITS: &str = "EXA_PERCENT_DIGITS";
 
-/// Mockable wrapper for `std::env::var_os`.
+/// Mockable wrapper for `std::env::var_os` and the few other facts about the
+/// running system that options depend on.
+///
+/// Everything beyond `get` defaults to "unknown", so an implementation only
+/// sees the real system when it asks for it. The binary's live
+/// implementation does; a test's mock does not, and so cannot pick up the
+/// locale, terminal or configuration of the machine running the tests.
 pub trait Vars {
     fn get(&self, name: &'static str) -> Option<OsString>;
 
-    /// Return system locale if available.
+    /// The system locale, when no locale variable names one.
     fn get_locale(&self) -> Option<String> {
-        sys_locale::get_locale()
+        None
     }
 
-    /// Check if stdout is connected to a terminal / TTY.
+    /// Whether stdout is connected to a terminal / TTY.
     fn stdout_is_terminal(&self) -> bool {
-        io::stdout().is_terminal()
+        false
+    }
+
+    /// The platform's per-user configuration directory, consulted when
+    /// neither `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR` nor `XDG_CONFIG_HOME` names
+    /// one.
+    fn platform_config_dir(&self) -> Option<PathBuf> {
+        None
+    }
+
+    /// The user's home directory, consulted when `HOME` is not set.
+    fn platform_home_dir(&self) -> Option<PathBuf> {
+        None
     }
 
     /// Get the variable `name` and if not set get the variable `fallback`.

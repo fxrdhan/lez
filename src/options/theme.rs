@@ -10,9 +10,8 @@ use crate::options::parser::ShowWhen;
 use crate::options::{vars, Vars};
 use crate::output::color_scale::ColorScaleOptions;
 use crate::theme::{Definitions, Options, UseColours};
-use std::path::PathBuf;
 
-use super::config::{ThemeConfig, config_dir_from_env};
+use super::config::{ThemeConfig, config_dir};
 use crate::options::file_config::FileConfig;
 
 impl Options {
@@ -42,13 +41,7 @@ impl Options {
 
 impl ThemeConfig {
     pub(crate) fn deduce<V: Vars>(vars: &V) -> Option<Self> {
-        let custom = vars
-            .get_with_fallback(vars::LEZ_CONFIG_DIR, vars::EZA_CONFIG_DIR)
-            .map(PathBuf::from);
-        let xdg = vars.get(vars::XDG_CONFIG_HOME).map(PathBuf::from);
-        let home = vars.get(vars::HOME).map(PathBuf::from);
-
-        let config_dir = config_dir_from_env(custom, xdg, home);
+        let config_dir = config_dir(vars);
 
         let theme_yml = config_dir.join("theme.yml");
         if theme_yml.exists() {
@@ -113,6 +106,7 @@ mod tests {
     use super::*;
     use crate::options::{parser::test::mock_cli, vars::test::MockVars};
     use std::ffi::OsString;
+    use std::path::PathBuf;
 
     #[test]
     fn deduce_definitions() {
