@@ -1,293 +1,112 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fs;
-use std::path::PathBuf;
-use std::process::Command;
+//! `--mime-types` (or `LEZ_MIME_TYPES`, `EZA_MIME_TYPES`, set to anything)
+//! sniffs the contents of files whose names say nothing, and styles them by
+//! what they turn out to be. Directories are not sniffed. A theme's
+//! `mimetypes` section styles a type of its own.
 
-struct TempTestDir {
-    path: PathBuf,
-}
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
-impl TempTestDir {
-    fn new(label: &str) -> Self {
-        let unique = format!(
-            "lez_mime_test_{label}_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
-        let path = std::env::temp_dir().join(unique);
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("create temp test dir");
-        Self { path }
-    }
-}
+const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\
+                     \x08\x06\x00\x00\x00\x1f\x15c4";
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-#[test]
-fn test_mime_types_cli_flag_png_icon() {
-    let temp = TempTestDir::new("png_icon");
-    let png_no_ext = temp.path.join("image_without_extension");
-    // Standard PNG magic bytes
-    fs::write(
-        &png_no_ext,
-        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4",
-    )
-    .unwrap();
-
-    // 1. Without --mime-types: should not detect image icon
-    let output_without = crate::common::lez_cmd()
-        .args(["--icons=always", png_no_ext.to_str().unwrap()])
-        .output()
-        .expect("run lez without --mime-types");
-    assert!(output_without.status.success());
-    let stdout_without = String::from_utf8_lossy(&output_without.stdout);
-    // Image icon is \u{f1c5} () or \u{f03e}
-    assert!(
-        !stdout_without.contains('\u{f1c5}'),
-        "Without --mime-types, image icon should NOT be shown: {stdout_without}"
+/// Files with no extension holding a PNG, a GIF, a gzip stream, a Python
+/// script, C source and plain text, beside a directory.
+fn fixture() -> TempTestDir {
+    let dir = TempTestDir::new("mime");
+    dir.create_file("png_data", PNG);
+    dir.create_file(
+        "gif_data",
+        b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00,\x00\x00\x00\x00\
+          \x01\x00\x01\x00\x00\x02\x02D\x01\x00;",
     );
-
-    // 2. With --mime-types: should detect image/png icon (\u{f1c5})
-    let output_with = crate::common::lez_cmd()
-        .args([
-            "--icons=always",
-            "--mime-types",
-            png_no_ext.to_str().unwrap(),
-        ])
-        .output()
-        .expect("run lez with --mime-types");
-    assert!(output_with.status.success());
-    let stdout_with = String::from_utf8_lossy(&output_with.stdout);
-    assert!(
-        stdout_with.contains('\u{f1c5}'),
-        "With --mime-types, image icon MUST be shown: {stdout_with}"
-    );
-}
-
-#[test]
-fn test_mime_types_lez_env_var() {
-    let temp = TempTestDir::new("lez_env");
-    let png_file = temp.path.join("png_sample");
-    fs::write(
-        &png_file,
-        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4",
-    )
-    .unwrap();
-
-    let output = crate::common::lez_cmd()
-        .env("LEZ_MIME_TYPES", "1")
-        .args(["--icons=always", png_file.to_str().unwrap()])
-        .output()
-        .expect("run lez with LEZ_MIME_TYPES=1");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains('\u{f1c5}'),
-        "With LEZ_MIME_TYPES=1, image icon MUST be shown: {stdout}"
-    );
-}
-
-#[test]
-fn test_mime_types_eza_env_var() {
-    let temp = TempTestDir::new("eza_env");
-    let png_file = temp.path.join("png_sample");
-    fs::write(
-        &png_file,
-        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4",
-    )
-    .unwrap();
-
-    let output = crate::common::lez_cmd()
-        .env_remove("LEZ_MIME_TYPES")
-        .env("EZA_MIME_TYPES", "1")
-        .args(["--icons=always", png_file.to_str().unwrap()])
-        .output()
-        .expect("run lez with EZA_MIME_TYPES=1");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains('\u{f1c5}'),
-        "With EZA_MIME_TYPES=1, image icon MUST be shown: {stdout}"
-    );
-}
-
-#[test]
-fn test_mime_types_directory_not_sniffed() {
-    let temp = TempTestDir::new("dir_not_sniffed");
-    let subdir = temp.path.join("subfolder");
-    fs::create_dir_all(&subdir).unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args([
-            "--icons=always",
-            "--mime-types",
-            "-d",
-            subdir.to_str().unwrap(),
-        ])
-        .output()
-        .expect("run lez with --mime-types on directory");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Folder icon is \u{e5fe} () or \u{f115} ()
-    assert!(
-        stdout.contains('\u{e5fe}') || stdout.contains('\u{f115}'),
-        "Directory must retain folder icon: {stdout}"
-    );
-}
-
-#[test]
-fn test_mime_types_gzip_archive() {
-    let temp = TempTestDir::new("gzip_archive");
-    let gz_no_ext = temp.path.join("compressed_stream");
-    // GZIP header: \x1f\x8b\x08
-    fs::write(
-        &gz_no_ext,
+    dir.create_file(
+        "gz_data",
         b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00",
-    )
-    .unwrap();
+    );
+    dir.create_file(
+        "py_script",
+        b"#!/usr/bin/env python3\nimport sys\nprint(\"hello\")\n",
+    );
+    dir.create_file(
+        "c_source",
+        b"#include <stdio.h>\nint main(void) { return 0; }\n",
+    );
+    dir.create_file("text_data", b"plain words\n");
+    dir.create_dir("folder");
+    dir
+}
 
-    let output = crate::common::lez_cmd()
-        .args([
-            "--icons=always",
-            "--mime-types",
-            gz_no_ext.to_str().unwrap(),
-        ])
-        .output()
-        .expect("run lez with --mime-types on gzip");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains('\u{f410}') || stdout.contains('\u{f1c6}'),
-        "Gzip archive without extension must show COMPRESSED icon: {stdout}"
+fn run(dir: &TempTestDir, envs: &[(&str, &str)], args: &[&str]) -> String {
+    let mut cmd = lez_in(dir.path());
+    for (key, value) in envs {
+        cmd.env(key, value);
+    }
+    success_stdout(cmd.arg("-1").args(args))
+}
+
+const UNKNOWN: char = '\u{f086f}';
+const FOLDER: char = '\u{f115}';
+
+#[test]
+fn sniffing_gives_each_file_its_types_icon() {
+    let dir = fixture();
+    assert_eq!(
+        run(&dir, &[], &["--icons=always"]),
+        format!(
+            "{UNKNOWN} c_source\n{FOLDER} folder\n{UNKNOWN} gif_data\n{UNKNOWN} gz_data\n\
+             {UNKNOWN} png_data\n{UNKNOWN} py_script\n{UNKNOWN} text_data\n"
+        )
+    );
+    let sniffed = format!(
+        "\u{e61e} c_source\n{FOLDER} folder\n\u{f1c5} gif_data\n\u{f410} gz_data\n\
+         \u{f1c5} png_data\n\u{e606} py_script\n{UNKNOWN} text_data\n"
+    );
+    assert_eq!(run(&dir, &[], &["--icons=always", "--mime-types"]), sniffed);
+    for (var, value) in [
+        ("LEZ_MIME_TYPES", "1"),
+        ("LEZ_MIME_TYPES", ""),
+        ("EZA_MIME_TYPES", "1"),
+    ] {
+        assert_eq!(
+            run(&dir, &[(var, value)], &["--icons=always"]),
+            sniffed,
+            "{var}={value:?}"
+        );
+    }
+}
+
+/// The same for colours: images magenta, archives red, source bold yellow.
+#[test]
+fn sniffing_gives_each_file_its_types_colour() {
+    let dir = fixture();
+    assert_eq!(
+        run(&dir, &[], &["--color=always", "--mime-types"]),
+        "\x1b[1;33mc_source\x1b[0m\n\x1b[1;34mfolder\x1b[0m\n\x1b[35mgif_data\x1b[0m\n\
+         \x1b[31mgz_data\x1b[0m\n\x1b[35mpng_data\x1b[0m\n\x1b[1;33mpy_script\x1b[0m\n\
+         text_data\n"
     );
 }
 
 #[test]
-fn test_mime_types_python_script() {
-    let temp = TempTestDir::new("python_script");
-    let py_no_ext = temp.path.join("script_runner");
-    fs::write(
-        &py_no_ext,
-        b"#!/usr/bin/env python3\nimport sys\nprint('hello')\n",
-    )
-    .unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args([
-            "--icons=always",
-            "--mime-types",
-            py_no_ext.to_str().unwrap(),
-        ])
-        .output()
-        .expect("run lez with --mime-types on python script");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Python icon is \u{e73c} () or \u{e606} ()
-    assert!(
-        stdout.contains('\u{e73c}') || stdout.contains('\u{e606}'),
-        "Python script without extension must show PYTHON icon: {stdout}"
+fn a_theme_can_style_a_type() {
+    let dir = TempTestDir::new("mime_theme");
+    dir.create_file("photo_file", PNG);
+    dir.create_file(
+        ".config/theme.yml",
+        "mimetypes:\n  image/png:\n    filename:\n      foreground: Cyan\n    icon:\n      glyph: \"🖼️\"\n"
+            .as_bytes(),
     );
-}
-
-#[test]
-fn test_mime_types_c_source() {
-    let temp = TempTestDir::new("c_source");
-    let c_no_ext = temp.path.join("c_program");
-    fs::write(
-        &c_no_ext,
-        b"#include <stdio.h>\n\nint main(void) {\n    printf(\"Hello, world!\\n\");\n    return 0;\n}\n",
-    )
-    .unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args(["--icons=always", "--mime-types", c_no_ext.to_str().unwrap()])
-        .output()
-        .expect("run lez with --mime-types on c source");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // C icon is \u{e61e} () or \u{e649}
-    assert!(
-        stdout.contains('\u{e61e}') || stdout.contains('\u{e649}'),
-        "C source without extension must show C icon: {stdout}"
-    );
-}
-
-#[test]
-fn test_mime_types_gif_wildcard_fallback() {
-    let temp = TempTestDir::new("gif_wildcard");
-    let gif_no_ext = temp.path.join("sample_gif");
-    fs::write(
-        &gif_no_ext,
-        b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",
-    )
-    .unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args([
-            "--icons=always",
-            "--mime-types",
-            gif_no_ext.to_str().unwrap(),
-        ])
-        .output()
-        .expect("run lez with --mime-types on gif");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Image wildcard icon is \u{f1c5} ()
-    assert!(
-        stdout.contains('\u{f1c5}'),
-        "GIF image must match image/* wildcard icon: {stdout}"
-    );
-}
-
-#[test]
-fn test_mime_types_theme_yaml_override() {
-    let temp = TempTestDir::new("theme_override");
-    let config_dir = temp.path.join("config");
-    fs::create_dir_all(&config_dir).unwrap();
-
-    // Create theme.yml with custom mimetypes override for image/png
-    let theme_content = r#"
-mimetypes:
-  image/png:
-    filename:
-      foreground: Magenta
-    icon:
-      glyph: "🖼️"
-"#;
-    fs::write(config_dir.join("theme.yml"), theme_content).unwrap();
-
-    let png_file = temp.path.join("photo_file");
-    fs::write(
-        &png_file,
-        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4",
-    )
-    .unwrap();
-
-    let output = crate::common::lez_cmd()
-        .env("LEZ_CONFIG_DIR", &config_dir)
-        .args([
-            "--icons=always",
-            "--mime-types",
-            "--color=always",
-            png_file.to_str().unwrap(),
-        ])
-        .output()
-        .expect("run lez with theme.yml mimetypes override");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Custom glyph 🖼️ should be present
-    assert!(
-        stdout.contains('🖼'),
-        "Custom theme.yml glyph 🖼️ must be rendered for image/png: {stdout}"
+    assert_eq!(
+        run(
+            &dir,
+            &[(
+                "LEZ_CONFIG_DIR",
+                dir.path().join(".config").to_str().expect("UTF-8")
+            )],
+            &["--icons=always", "--mime-types", "--color=always"]
+        ),
+        "\x1b[36m🖼️ photo_file\x1b[0m\n"
     );
 }

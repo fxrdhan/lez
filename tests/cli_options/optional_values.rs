@@ -4,168 +4,120 @@
 //! Flags whose value is optional must be given that value with an equals
 //! sign. Without that, clap treats the next word as the value, so a shell
 //! glob such as `lez --color *.md` is rejected outright and
-//! `lez -T --absolute /some/path` never gets its tree root.
+//! `lez -T --absolute /some/path` never gets its tree root. As with
+//! `ls --color always`, a word after a bare flag is a path.
 
-use std::fs;
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
-struct TempTestDir {
-    path: PathBuf,
+/// A file named like a flag's value, beside one that only shows up if the
+/// whole directory gets listed.
+fn fixture() -> TempTestDir {
+    let dir = TempTestDir::new("optional_values");
+    dir.create_file("always", b"");
+    dir.create_file("bystander.txt", b"");
+    dir
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_optional_value_flags_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
+const FLAGS: [&str; 10] = [
+    "--color",
+    "--colour",
+    "--color-scale",
+    "--icons",
+    "--hyperlink",
+    "--quotes",
+    "--classify",
+    "-F",
+    "--loc",
+    "--absolute",
+];
 
-    fn create_file(&self, rel_path: &str) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(&file_path, b"").unwrap();
-        file_path
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn run_lez(args: &[&str]) -> std::process::Output {
-    crate::common::lez_cmd()
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
-/// The shape a shell hands us after expanding `lez --color *.md`.
+/// Each flag takes its default and leaves `always` to be listed, alone;
+/// the defaults are all off in a pipe but `--absolute`'s.
 #[test]
-fn optional_value_flags_list_the_paths_a_glob_expands_to() {
-    let fixture = TempTestDir::new("glob");
-    let first = fixture.create_file("alpha.md");
-    let second = fixture.create_file("beta.md");
+fn the_word_after_a_bare_flag_is_a_path() {
+    let dir = fixture();
+    for flag in FLAGS {
+        let listed = success_stdout(lez_in(dir.path()).args(["-1", flag, "always"]));
+        if flag == "--absolute" {
+            #[cfg(unix)]
+            assert_eq!(
+                listed,
+                format!(
+                    "{}\n",
+                    std::fs::canonicalize(dir.path())
+                        .expect("canonicalize")
+                        .join("always")
+                        .display()
+                )
+            );
+        } else {
+            assert_eq!(listed, "always\n", "{flag}");
+        }
+    }
+    // `--code` takes the word as a path too, and finds no code in it.
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(["--code", "always"])),
+        "No recognised source code found.\n"
+    );
+}
 
-    for flag in ["--color", "--colour", "--absolute", "--color-scale"] {
-        let output = run_lez(&[flag, first.to_str().unwrap(), second.to_str().unwrap()]);
-
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            output.status.success(),
-            "{flag} rejected the paths that followed it: {stderr}"
+/// The shape a shell hands over after expanding `lez --color *.md`.
+#[test]
+fn a_glob_after_a_bare_flag_is_listed() {
+    let dir = TempTestDir::new("optional_values_glob");
+    dir.create_file("alpha.md", b"");
+    dir.create_file("beta.md", b"");
+    for flag in &FLAGS[..9] {
+        assert_eq!(
+            success_stdout(lez_in(dir.path()).args(["-1", flag, "alpha.md", "beta.md"])),
+            "alpha.md\nbeta.md\n",
+            "{flag}"
         );
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("alpha.md"), "{flag}: missing alpha.md");
-        assert!(stdout.contains("beta.md"), "{flag}: missing beta.md");
     }
 }
 
 /// Upstream eza#995: `--absolute` used to swallow the tree root, so this
-/// printed a usage error instead of a tree.
+/// printed a usage error instead of a tree. The root is already absolute,
+/// and `--absolute=on` resolves no links in it (macOS's temporary directory
+/// sits behind one), so it is printed as given.
+#[cfg(unix)]
 #[test]
-fn absolute_tree_accepts_an_explicit_root() {
-    let fixture = TempTestDir::new("tree");
-    fixture.create_file("nested/leaf.txt");
-
-    // The root has to sit directly behind the flag: that adjacency is what
-    // used to make clap read it as the flag's value.
-    let root = fixture.path.to_str().unwrap();
-    let output = run_lez(&["-T", "--absolute", root]);
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "--absolute -T failed: {stderr}");
-
-    // Compare on the components we created rather than the whole path:
-    // Windows hands back a short 8.3 temp prefix that the binary resolves to
-    // its long form, so only the tail is stable across platforms.
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let dir_name = fixture.path.file_name().unwrap().to_str().unwrap();
-    let leaf_line = stdout
-        .lines()
-        .find(|line| line.contains("leaf.txt"))
-        .unwrap_or_else(|| panic!("no leaf.txt in the tree:\n{stdout}"));
-
-    assert!(
-        leaf_line.contains(dir_name),
-        "the leaf should carry its whole path, got: {leaf_line}"
-    );
-    assert!(
-        leaf_line.contains("nested"),
-        "the leaf should carry its parent directory, got: {leaf_line}"
-    );
-}
-
-/// The equals form is the documented one, and it still carries the value.
-#[test]
-fn attached_values_are_still_honoured() {
-    let fixture = TempTestDir::new("attached");
-    let file = fixture.create_file("gamma.txt");
-    let path = file.to_str().unwrap();
-
-    let absolute = run_lez(&["--absolute=on", "--color=never", path]);
-    assert!(absolute.status.success());
-    assert!(
-        String::from_utf8_lossy(&absolute.stdout).contains(path),
-        "--absolute=on should print the absolute path"
-    );
-
-    let plain = run_lez(&["--absolute=off", "--color=never", path]);
-    assert!(plain.status.success());
+fn an_absolute_tree_takes_the_root_after_the_flag() {
+    let dir = TempTestDir::new("optional_values_tree");
+    dir.create_file("root/nested/leaf.txt", b"");
+    let root = dir.path().join("root");
+    let root = root.display();
     assert_eq!(
-        String::from_utf8_lossy(&plain.stdout).trim(),
-        path,
-        "an explicit path argument is echoed as given"
-    );
-
-    let always = run_lez(&["--color=always", path]);
-    assert!(always.status.success());
-    assert!(
-        String::from_utf8_lossy(&always.stdout).contains('\u{1b}'),
-        "--color=always should emit escape sequences even when piped"
+        success_stdout(
+            lez_in(dir.path())
+                .args(["-T", "--absolute"])
+                .arg(dir.path().join("root"))
+        ),
+        format!("{root}\n└── {root}/nested\n    └── {root}/nested/leaf.txt\n")
     );
 }
 
-/// A value handed over with a space is a path, exactly as it is for
-/// `ls --color always`.
+/// With the equals sign the value is the flag's.
 #[test]
-fn a_spaced_value_is_listed_as_a_path() {
-    let fixture = TempTestDir::new("spaced");
-    fixture.create_file("always");
-    // A second entry separates the two readings: listing only `always`
-    // means it was taken as a path, listing both means it was taken as the
-    // value of --color and the whole directory was listed instead.
-    fixture.create_file("bystander.txt");
-
-    let output = crate::common::lez_cmd()
-        .current_dir(&fixture.path)
-        .args(["--color", "always"])
-        .output()
-        .expect("Failed to execute lez binary");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("always"),
-        "the word after a bare --color is the file to list, got:\n{stdout}"
+fn an_attached_value_is_the_flags() {
+    let dir = fixture();
+    let run = |args: &[&str]| success_stdout(lez_in(dir.path()).args(args));
+    assert_eq!(run(&["-1", "--absolute=off", "always"]), "always\n");
+    assert_eq!(run(&["-1", "--color=always", "always"]), "always\n");
+    assert_eq!(
+        run(&["-1", "--color=always", "bystander.txt"]),
+        "\x1b[32mbystander.txt\x1b[0m\n"
     );
-    assert!(
-        !stdout.contains("bystander.txt"),
-        "--color swallowed its neighbour and listed the directory:\n{stdout}"
+    assert_eq!(run(&["-1", "--quotes=always", "always"]), "'always'\n");
+    #[cfg(unix)]
+    assert_eq!(
+        run(&["-1", "--absolute=on", "always"]),
+        format!(
+            "{}\n",
+            std::fs::canonicalize(dir.path())
+                .expect("canonicalize")
+                .join("always")
+                .display()
+        )
     );
 }

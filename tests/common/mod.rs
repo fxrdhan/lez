@@ -508,9 +508,15 @@ pub const XATTR_NAME: &str = "com.example.field";
 /// test off CI and fails it on CI, whose temp directory supports them.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub fn set_xattr(file: &Path, value: &[u8]) -> bool {
+    set_xattr_named(file, XATTR_NAME, value)
+}
+
+/// Sets the attribute `name` on `file`, as [`set_xattr`] does.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn set_xattr_named(file: &Path, name: &str, value: &[u8]) -> bool {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(file.as_os_str().as_bytes()).expect("no NUL");
-    let name = std::ffi::CString::new(XATTR_NAME).expect("no NUL");
+    let name = std::ffi::CString::new(name).expect("no NUL");
     // SAFETY: valid NUL-terminated strings and a buffer of the given length.
     #[cfg(target_os = "linux")]
     let result = unsafe {
