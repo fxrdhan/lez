@@ -65,7 +65,7 @@ fn with_a_file_among_the_arguments_directories_are_dropped() {
     );
     assert_eq!(
         lez(&dir, &["--json", "-f", "alpha.txt", "folder1"]),
-        "[\"alpha.txt\"]"
+        "[\"alpha.txt\"]\n"
     );
 }
 

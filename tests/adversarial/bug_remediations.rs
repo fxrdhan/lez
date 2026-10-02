@@ -369,7 +369,7 @@ fn json_reports_permission_errors_and_nothing_else_as_code_13() {
     let missing = dir.path().join("non_existent_dir");
     let output = run(&dir, &["--json", missing.to_str().unwrap()]);
     assert_eq!(output.status.code(), Some(2));
-    assert_eq!(text(&output.stdout), "[]");
+    assert_eq!(text(&output.stdout), "[]\n");
     assert_eq!(
         text(&output.stderr),
         format!("{missing:?}: No such file or directory (os error 2)\n")

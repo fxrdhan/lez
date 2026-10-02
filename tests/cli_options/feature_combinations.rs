@@ -168,7 +168,10 @@ fn relative_path_sort_can_be_reversed() {
 #[test]
 fn json_follows_the_path_sort_too() {
     let dir = fixture("json_path_sort", &["b/1.txt", "a/2.txt"]);
-    assert_eq!(lez(dir.path(), &["--json", "--sort=path"]), "[\"a\",\"b\"]");
+    assert_eq!(
+        lez(dir.path(), &["--json", "--sort=path"]),
+        "[\"a\",\"b\"]\n"
+    );
 
     let json: serde_json::Value =
         serde_json::from_str(&lez(dir.path(), &["--json", "--sort=path", "-R"])).expect("JSON");
@@ -322,7 +325,7 @@ fn json_reports_git_letters_even_with_glyphs() {
     let dir = repo_with_ignore("json_glyphs", "", &["f.txt"]);
     let mut args = vec!["--json", "--git-glyphs"];
     args.extend(GIT_COLUMN_ONLY);
-    assert_eq!(lez(dir.path(), &args), "{\"f.txt\":{\"Git\": \"-N\"}}");
+    assert_eq!(lez(dir.path(), &args), "{\"f.txt\":{\"Git\": \"-N\"}}\n");
 }
 
 #[test]

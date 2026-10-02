@@ -133,7 +133,7 @@ fn json_keeps_the_target() {
         "--no-time",
         "link.txt",
     ];
-    let expected = "{\"link.txt\":{\"Target\": \"real.txt\"}}";
+    let expected = "{\"link.txt\":{\"Target\": \"real.txt\"}}\n";
     assert_eq!(lez(&dir, &args), expected);
     assert_eq!(
         lez(&dir, &[&args[..], &["--no-symlink-targets"]].concat()),

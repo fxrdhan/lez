@@ -110,6 +110,9 @@ impl<'a> Render<'a> {
             (0, _, _) => self.render_directories(dirs, w)?,
             (_, _, recurse) => self.render_files_directories(files, dirs, recurse, w)?,
         };
+        // A document ends its line, as text output does, so a shell prompt
+        // after it starts on a line of its own.
+        writeln!(w)?;
         Ok(status)
     }
 

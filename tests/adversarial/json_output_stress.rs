@@ -663,7 +663,7 @@ fn test_json_permission_denied_exit_code_and_json() {
         "Must exit with code 13 (PERMISSION_DENIED) on permission error"
     );
     // The listing it could not read is an empty array, still valid JSON.
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "[]");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "[]\n");
     assert_eq!(
         String::from_utf8_lossy(&output.stderr),
         format!("Permission denied: {} - code: 13\n", restricted.display())
