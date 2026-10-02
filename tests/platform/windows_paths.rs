@@ -71,12 +71,8 @@ fn a_star_matches_the_files_the_shell_left_unexpanded() {
 
     let (code, stdout, stderr) = run_in(&dir.path, &["t*"]);
     assert_eq!(code, 0, "stderr was: {stderr}");
-    assert!(stdout.contains("test1.txt"), "got: {stdout}");
-    assert!(stdout.contains("test2.txt"), "got: {stdout}");
-    assert!(
-        !stdout.contains("other.txt"),
-        "the pattern should not have matched other.txt: {stdout}"
-    );
+    assert_eq!(stdout, "test1.txt\ntest2.txt\n");
+    assert_eq!(stderr, "");
 }
 
 #[test]
@@ -86,11 +82,7 @@ fn a_question_mark_matches_exactly_one_character() {
 
     let (code, stdout, stderr) = run_in(&dir.path, &["test?.txt"]);
     assert_eq!(code, 0, "stderr was: {stderr}");
-    assert!(stdout.contains("test1.txt"), "got: {stdout}");
-    assert!(
-        !stdout.contains("test12.txt"),
-        "`?` matches one character, not two: {stdout}"
-    );
+    assert_eq!(stdout, "test1.txt\n", "`?` matches one character, not two");
 }
 
 /// Windows compares names without regard to case, and `dir` does too.
@@ -99,9 +91,9 @@ fn matching_ignores_case_the_way_windows_does() {
     let dir = Fixture::new("case");
     dir.file("test1.txt");
 
-    let (code, stdout, _) = run_in(&dir.path, &["T*"]);
-    assert_eq!(code, 0);
-    assert!(stdout.contains("test1.txt"), "got: {stdout}");
+    let (code, stdout, stderr) = run_in(&dir.path, &["T*"]);
+    assert_eq!(code, 0, "stderr was: {stderr}");
+    assert_eq!(stdout, "test1.txt\n");
 }
 
 /// A pattern that matches nothing keeps its old behaviour: it is reported as
@@ -111,12 +103,12 @@ fn a_pattern_matching_nothing_is_still_reported() {
     let dir = Fixture::new("nomatch");
     dir.file("test1.txt");
 
-    let (code, _, stderr) = run_in(&dir.path, &["zzz*"]);
+    let (code, stdout, stderr) = run_in(&dir.path, &["zzz*"]);
     assert_eq!(code, 2, "a missing path exits 2");
-    assert!(
-        stderr.contains("zzz*"),
-        "the message should name the pattern: {stderr}"
-    );
+    assert_eq!(stdout, "");
+    // The reason is the system's own words; the pattern comes first.
+    assert!(stderr.starts_with("\"zzz*\": "), "{stderr}");
+    assert_eq!(stderr.lines().count(), 1, "{stderr}");
 }
 
 /// `[` is legal in a Windows file name, so it must not be read as the start of
@@ -128,7 +120,7 @@ fn square_brackets_are_part_of_the_name() {
 
     let (code, stdout, stderr) = run_in(&dir.path, &["file[1].txt"]);
     assert_eq!(code, 0, "stderr was: {stderr}");
-    assert!(stdout.contains("file[1].txt"), "got: {stdout}");
+    assert_eq!(stdout, "file[1].txt\n");
 }
 
 /// Listing from inside a directory symlink has to show what the link points
@@ -199,10 +191,13 @@ fn a_relative_symlink_pointing_up_and_back_down_still_lists() {
         ],
     );
     assert_eq!(code, 0, "stderr was: {stderr}");
-    let rows: Vec<&str> = stdout.lines().collect();
-    assert_eq!(rows.len(), 2, "{stdout}");
-    assert_eq!(rows[0], "inside.txt");
-    assert!(rows[1].starts_with("self -> "), "{stdout}");
+    assert_eq!(
+        stdout,
+        format!(
+            "inside.txt\nself -> {}\n",
+            Path::new("..").join("real").display()
+        )
+    );
 }
 
 #[test]
