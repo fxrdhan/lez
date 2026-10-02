@@ -290,8 +290,35 @@ impl TempGitRepo {
         repo
     }
 
+    /// Like [`TempGitRepo::new`], but the repository is the directory `name`
+    /// inside a temporary directory of its own, for listings of the parent
+    /// (`--git-repos`) that must not take in the rest of the system's temp
+    /// directory.
+    pub fn named(prefix: &str, name: &str) -> Self {
+        require_git();
+        let temp_dir = tempfile::Builder::new()
+            .prefix(&format!("lez_git_{prefix}_"))
+            .tempdir()
+            .expect("failed to create temp dir for git repo");
+        let path = temp_dir.path().join(name);
+        fs::create_dir(&path).expect("failed to create the repository directory");
+
+        let repo = Self {
+            _temp_dir: temp_dir,
+            path,
+        };
+        repo.git(&["-c", "init.defaultBranch=main", "init", "-q"]);
+        repo
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// The directory the repository sits in: its own temporary directory for
+    /// [`TempGitRepo::named`], the system temp directory otherwise.
+    pub fn parent(&self) -> &Path {
+        self.path.parent().expect("a repository has a parent")
     }
 
     pub fn create_file(&self, rel: &str, content: &[u8]) -> PathBuf {
@@ -321,13 +348,7 @@ impl TempGitRepo {
     /// Runs git in the repository and fails the test if it does not succeed,
     /// so a broken fixture cannot pass for the state the test meant to build.
     pub fn git(&self, args: &[&str]) {
-        let output = self.git_allow_failure(args);
-        assert!(
-            output.status.success(),
-            "git {args:?} failed in {}:\n{}",
-            self.path.display(),
-            String::from_utf8_lossy(&output.stderr)
-        );
+        git_in(&self.path, args);
     }
 
     /// Runs git for a step that is expected to fail, such as a merge that
@@ -342,6 +363,23 @@ impl TempGitRepo {
     pub fn git_output(&self, args: &[&str]) -> Option<Output> {
         Some(self.git_allow_failure(args))
     }
+}
+
+/// Runs git in `dir` and fails the test if it does not succeed. For
+/// repositories that are not a [`TempGitRepo`], such as several side by side
+/// in one [`TempTestDir`].
+#[track_caller]
+pub fn git_in(dir: &Path, args: &[&str]) {
+    let output = git_command(dir)
+        .args(args)
+        .output()
+        .expect("failed to run git");
+    assert!(
+        output.status.success(),
+        "git {args:?} failed in {}:\n{}",
+        dir.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 /// A git command for `dir` that ignores the global and system configuration
@@ -374,6 +412,17 @@ pub fn git_command(dir: &Path) -> Command {
 /// the `name -> target` part of a row without dates, sizes or owners.
 pub const NAME_COLUMN_ONLY: [&str; 5] = [
     "-l",
+    "--no-permissions",
+    "--no-filesize",
+    "--no-user",
+    "--no-time",
+];
+
+/// Flags that reduce the long view to the Git column and the name, so a test
+/// can compare whole rows such as `-N untracked_dir`.
+pub const GIT_COLUMN_ONLY: [&str; 6] = [
+    "-l",
+    "--git",
     "--no-permissions",
     "--no-filesize",
     "--no-user",
