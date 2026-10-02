@@ -538,6 +538,22 @@
         "broken_path_overlay": {
             "$ref": "#/$defs/style"
         },
+        "capability": {
+            "description": "Files with Linux capabilities (LS_COLORS `ca`)",
+            "$ref": "#/$defs/style"
+        },
+        "multi_hardlink": {
+            "description": "Regular files with more than one hard link (LS_COLORS `mh`)",
+            "$ref": "#/$defs/style"
+        },
+        "hidden_warning": {
+            "description": "The `--warn-hidden` tally",
+            "$ref": "#/$defs/style"
+        },
+        "colourful": {
+            "description": "Whether the totals of `--summary` and `--code` are drawn in bold",
+            "type": "boolean"
+        },
         "filenames": {
             "type": "object",
             "patternProperties": {
