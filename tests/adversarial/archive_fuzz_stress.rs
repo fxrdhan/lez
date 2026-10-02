@@ -211,3 +211,78 @@ fn an_archive_cut_mid_way_keeps_the_complete_entries() {
         ]
     );
 }
+
+/// Past the 8 GiB a ustar size field holds, writers put the size in a PAX
+/// `size` record and leave the field at zero. The record is the entry's
+/// size, and it is also what places the next header.
+#[test]
+fn a_pax_size_record_overrides_the_header_field() {
+    let dir = TempTestDir::new("arc_pax_size");
+    let mut builder = tar::Builder::new(Vec::new());
+    builder
+        .append_pax_extensions([("size", &b"5"[..])])
+        .expect("append a PAX record");
+    builder
+        .append_data(&mut regular_header(0), "big.img", &b"hello"[..])
+        .expect("append the entry");
+    builder
+        .append_data(&mut regular_header(2), "after.txt", &b"ok"[..])
+        .expect("append the next entry");
+    let path = write(
+        &dir,
+        "pax_size.tar",
+        &builder.into_inner().expect("finish archive"),
+    );
+    assert_eq!(
+        entries(&path),
+        [("big.img".to_owned(), 5), ("after.txt".to_owned(), 2)]
+    );
+}
+
+/// A PAX `path` record replaces the name in the header.
+#[test]
+fn a_pax_path_record_names_the_entry() {
+    let dir = TempTestDir::new("arc_pax_path");
+    let long_path = format!("{}/payload.txt", "long_directory_name_".repeat(8));
+    let mut builder = tar::Builder::new(Vec::new());
+    builder
+        .append_pax_extensions([("path", long_path.as_bytes())])
+        .expect("append a PAX record");
+    builder
+        .append_data(&mut regular_header(2), "placeholder", &b"ok"[..])
+        .expect("append the entry");
+    let path = write(
+        &dir,
+        "pax_path.tar",
+        &builder.into_inner().expect("finish archive"),
+    );
+    assert_eq!(entries(&path), [(long_path, 2)]);
+}
+
+/// A GNU sparse entry stores only its data blocks; its size is the length
+/// of the file it describes.
+#[test]
+fn a_sparse_entry_has_the_size_of_the_whole_file() {
+    let dir = TempTestDir::new("arc_sparse");
+    let real_size = 1 << 20;
+    let mut header = regular_header(512);
+    header.set_entry_type(tar::EntryType::GNUSparse);
+    let gnu = header.as_gnu_mut().expect("a GNU header");
+    gnu.set_real_size(real_size);
+    // One block of data at the start, and the empty block GNU tar writes
+    // to mark where the file ends.
+    gnu.sparse[0].set_offset(0);
+    gnu.sparse[0].set_length(512);
+    gnu.sparse[1].set_offset(real_size);
+    gnu.sparse[1].set_length(0);
+    let mut builder = tar::Builder::new(Vec::new());
+    builder
+        .append_data(&mut header, "sparse.img", &[b'x'; 512][..])
+        .expect("append the entry");
+    let path = write(
+        &dir,
+        "sparse.tar",
+        &builder.into_inner().expect("finish archive"),
+    );
+    assert_eq!(entries(&path), [("sparse.img".to_owned(), real_size)]);
+}
