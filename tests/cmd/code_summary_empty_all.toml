@@ -1,4 +1,5 @@
 bin.name = "lez"
 args = "--code tests/itest-loc/empty"
+env.inherit = false
 [env.add]
 LC_ALL = "C"

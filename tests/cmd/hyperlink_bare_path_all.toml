@@ -2,3 +2,4 @@
 # SPDX-License-Identifier: EUPL-1.2
 bin.name = "lez"
 args = "-al --hyperlink tests/cmd"
+env.inherit = false

@@ -1,2 +1,3 @@
 bin.name = "lez"
 args = "tests/itest/index.svg --hyperlink=always"
+env.inherit = false

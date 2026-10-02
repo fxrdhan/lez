@@ -1,2 +1,3 @@
 bin.name = "lez"
 args = "tests/itest --follow-symlinks -T"
+env.inherit = false
