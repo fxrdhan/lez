@@ -121,15 +121,15 @@ fn test_systemtime_to_naivedatetime_far_past_dates() {
     assert_eq!(dt_1901.and_utc().timestamp(), -2_147_483_648);
     assert_eq!(dt_1901.year(), 1901);
 
-    // Year 1800 (~170 years before 1970 = ~5,364,792,000s)
-    let st_1800 = UNIX_EPOCH - Duration::from_secs(5_364_792_000);
-    let dt_1800 = File::systemtime_to_naivedatetime(st_1800).expect("1800 date");
-    assert!(dt_1800.year() <= 1800);
+    // 62092.5 days before the epoch, across the 1800 non-leap year.
+    let st_1799 = UNIX_EPOCH - Duration::from_secs(5_364_792_000);
+    let dt_1799 = File::systemtime_to_naivedatetime(st_1799).expect("1799 date");
+    assert_eq!(dt_1799.to_string(), "1799-12-30 12:00:00");
 
-    // Year 1600 (leap year)
+    // 135140 days before the epoch, across the 1600 leap year.
     let st_1600 = UNIX_EPOCH - Duration::from_secs(11_676_096_000);
     let dt_1600 = File::systemtime_to_naivedatetime(st_1600).expect("1600 date");
-    assert!(dt_1600.year() <= 1600);
+    assert_eq!(dt_1600.to_string(), "1600-01-01 00:00:00");
 }
 
 #[test]
@@ -247,8 +247,16 @@ fn test_time_style_cli_process_exit_code() {
         Some(3),
         "Expected exit code 3 for invalid --time-style"
     );
-    let stderr = String::from_utf8_lossy(&output_invalid.stderr);
-    assert!(stderr.contains("error:"));
+    assert!(output_invalid.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output_invalid.stderr),
+        "error: invalid value 'bogus_time_style' for '--time-style <STYLE>'\n  \
+         [possible values: default, iso, long-iso, full-iso, relative, relative-recent, \
+         +<CUSTOM_FORMAT>]\n\n\
+         Please start the format with a plus sign (+) to indicate a custom format.\n\
+         For example: \"+%Y-%m-%d %H:%M:%S\"\n\n\
+         For more information, try '--help'.\n"
+    );
 }
 
 #[test]

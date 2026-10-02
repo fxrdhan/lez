@@ -1,233 +1,73 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fs::{self, File as StdFile};
-use std::path::PathBuf;
-use std::process::Command;
+//! `-A` and `-aa` override each other, the last one given winning; and in
+//! strict mode the newer long-view flags, and `--follow-symlinks` without
+//! recursion, are options errors rather than silently doing nothing.
 
-struct TempTestDir {
-    path: PathBuf,
-}
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
-impl TempTestDir {
-    fn new(label: &str) -> Self {
-        let unique = format!(
-            "lez_opt_test_{label}_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
-        let path = std::env::temp_dir().join(unique);
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("create temp test dir");
-        Self { path }
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
+fn fixture() -> TempTestDir {
+    let dir = TempTestDir::new("options_hardening");
+    dir.create_file("regular.txt", b"");
+    dir.create_file(".hidden.txt", b"");
+    dir
 }
 
 #[test]
-fn test_cli_order_precedence_between_almost_all_and_double_all() {
-    let temp = TempTestDir::new("all_almost_all_order");
-    let sample = temp.path.join("regular.txt");
-    let hidden = temp.path.join(".hidden.txt");
-    StdFile::create(&sample).expect("create regular");
-    StdFile::create(&hidden).expect("create hidden");
-
-    // 1. -a -a without -A shows "." and ".."
-    let out_double_all = crate::common::lez_cmd()
-        .arg("-a")
-        .arg("-a")
-        .arg(&temp.path)
-        .output()
-        .expect("run lez -a -a");
-    assert!(out_double_all.status.success());
-    let stdout_double_all = String::from_utf8_lossy(&out_double_all.stdout);
-    let entries_double: Vec<&str> = stdout_double_all.split_whitespace().collect();
-    assert!(
-        entries_double.contains(&"."),
-        "lez -a -a must show '.', got: {stdout_double_all:?}"
-    );
-    assert!(
-        entries_double.contains(&".."),
-        "lez -a -a must show '..', got: {stdout_double_all:?}"
-    );
-
-    // 2. -A alone hides "." and ".."
-    let out_almost_all = crate::common::lez_cmd()
-        .arg("-A")
-        .arg(&temp.path)
-        .output()
-        .expect("run lez -A");
-    assert!(out_almost_all.status.success());
-    let stdout_almost = String::from_utf8_lossy(&out_almost_all.stdout);
-    let entries_almost: Vec<&str> = stdout_almost.split_whitespace().collect();
-    assert!(
-        !entries_almost.contains(&"."),
-        "lez -A must not show '.', got: {stdout_almost:?}"
-    );
-    assert!(
-        !entries_almost.contains(&".."),
-        "lez -A must not show '..', got: {stdout_almost:?}"
-    );
-    assert!(
-        entries_almost.iter().any(|s| s.contains(".hidden.txt")),
-        "lez -A must show .hidden.txt"
-    );
-
-    // 3. -A followed by -a -a: -a -a is later on command line, so -a -a wins and "." / ".." are shown
-    let out_almost_then_double = crate::common::lez_cmd()
-        .arg("-A")
-        .arg("-a")
-        .arg("-a")
-        .arg(&temp.path)
-        .output()
-        .expect("run lez -A -a -a");
-    assert!(out_almost_then_double.status.success());
-    let stdout_almost_then_double = String::from_utf8_lossy(&out_almost_then_double.stdout);
-    let entries_atd: Vec<&str> = stdout_almost_then_double.split_whitespace().collect();
-    assert!(
-        entries_atd.contains(&"."),
-        "lez -A -a -a must show '.' because -a -a was passed after -A, got: {stdout_almost_then_double:?}"
-    );
-    assert!(
-        entries_atd.contains(&".."),
-        "lez -A -a -a must show '..' because -a -a was passed after -A, got: {stdout_almost_then_double:?}"
-    );
-
-    // 4. -a -a followed by -A: -A is later on command line, so -A wins and "." / ".." are suppressed
-    let out_double_then_almost = crate::common::lez_cmd()
-        .arg("-a")
-        .arg("-a")
-        .arg("-A")
-        .arg(&temp.path)
-        .output()
-        .expect("run lez -a -a -A");
-    assert!(out_double_then_almost.status.success());
-    let stdout_double_then_almost = String::from_utf8_lossy(&out_double_then_almost.stdout);
-    let entries_dta: Vec<&str> = stdout_double_then_almost.split_whitespace().collect();
-    assert!(
-        !entries_dta.contains(&"."),
-        "lez -a -a -A must suppress '.' because -A was passed after -a -a, got: {stdout_double_then_almost:?}"
-    );
-    assert!(
-        !entries_dta.contains(&".."),
-        "lez -a -a -A must suppress '..' because -A was passed after -a -a, got: {stdout_double_then_almost:?}"
-    );
-}
-
-#[test]
-fn test_strict_mode_rejects_modern_long_flags_without_long() {
-    let temp = TempTestDir::new("strict_modern_flags");
-    let sample = temp.path.join("file.txt");
-    StdFile::create(&sample).expect("create file");
-
-    for flag_arg in &[
-        "--color-scale=size",
-        "--color-scale-mode=gradient",
-        "--no-symlink-targets",
+fn the_last_of_almost_all_and_all_all_wins() {
+    let dir = fixture();
+    let with_dots = ".\n..\n.hidden.txt\nregular.txt\n";
+    let without_dots = ".hidden.txt\nregular.txt\n";
+    for (flags, expected) in [
+        (&["-a"][..], without_dots),
+        (&["-a", "-a"], with_dots),
+        (&["-A"], without_dots),
+        (&["-A", "-a"], without_dots),
+        (&["-A", "-a", "-a"], with_dots),
+        (&["-a", "-a", "-A"], without_dots),
     ] {
-        let out = crate::common::lez_cmd()
-            .env("LEZ_STRICT", "1")
-            .env_remove("EZA_STRICT")
-            .arg(flag_arg)
-            .arg(&sample)
-            .output()
-            .expect("run lez in strict mode");
-
         assert_eq!(
-            out.status.code(),
-            Some(3),
-            "LEZ_STRICT=1 must exit with code 3 (OPTIONS_ERROR) when passing '{flag_arg}' without -l"
-        );
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        assert!(
-            stderr.contains("is useless without option long"),
-            "Expected 'is useless without option long' in stderr for '{flag_arg}', got: {stderr}"
-        );
-    }
-
-    // With -l, they must be accepted in strict mode
-    for flag_arg in &[
-        "--color-scale=size",
-        "--color-scale-mode=gradient",
-        "--no-symlink-targets",
-    ] {
-        let out = crate::common::lez_cmd()
-            .env("LEZ_STRICT", "1")
-            .env_remove("EZA_STRICT")
-            .arg("-l")
-            .arg(flag_arg)
-            .arg(&sample)
-            .output()
-            .expect("run lez in strict mode with -l");
-
-        assert!(
-            out.status.success(),
-            "LEZ_STRICT=1 must accept '{flag_arg}' when -l is present"
+            success_stdout(lez_in(dir.path()).arg("-1").args(flags)),
+            expected,
+            "{flags:?}"
         );
     }
 }
 
 #[test]
-fn test_strict_mode_rejects_follow_symlinks_without_recurse_or_tree() {
-    let temp = TempTestDir::new("strict_follow_symlinks");
-    let sample = temp.path.join("file.txt");
-    StdFile::create(&sample).expect("create file");
+fn strict_mode_refuses_flags_their_view_ignores() {
+    let dir = fixture();
+    for (flag, needs, accepted_with) in [
+        ("--color-scale=size", "option long", "-l"),
+        ("--color-scale-mode=gradient", "option long", "-l"),
+        ("--no-symlink-targets", "option long", "-l"),
+        ("--follow-symlinks", "options recurse or tree", "-R"),
+        ("--follow-symlinks", "options recurse or tree", "-T"),
+    ] {
+        let strict = |extra: &[&str]| {
+            lez_in(dir.path())
+                .env("LEZ_STRICT", "1")
+                .args(extra)
+                .args([flag, "regular.txt"])
+                .output()
+                .expect("run lez")
+        };
+        let refused = strict(&[]);
+        assert_eq!(refused.status.code(), Some(3), "{flag}");
+        assert!(refused.stdout.is_empty(), "{flag}");
+        let name = flag
+            .trim_start_matches("--")
+            .split('=')
+            .next()
+            .unwrap_or_default();
+        assert_eq!(
+            String::from_utf8_lossy(&refused.stderr),
+            format!("lez: Option {name} is useless without {needs}\n")
+        );
 
-    // Without -R or -T, --follow-symlinks in strict mode must return exit code 3
-    let out = crate::common::lez_cmd()
-        .env("LEZ_STRICT", "1")
-        .env_remove("EZA_STRICT")
-        .arg("--follow-symlinks")
-        .arg(&sample)
-        .output()
-        .expect("run lez in strict mode with --follow-symlinks");
-
-    assert_eq!(
-        out.status.code(),
-        Some(3),
-        "LEZ_STRICT=1 must exit with code 3 when --follow-symlinks is passed without recurse or tree"
-    );
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("is useless without options recurse or tree"),
-        "Expected useless without options recurse or tree error, got: {stderr}"
-    );
-
-    // With -R (recurse), --follow-symlinks in strict mode must succeed
-    let out_recurse = crate::common::lez_cmd()
-        .env("LEZ_STRICT", "1")
-        .env_remove("EZA_STRICT")
-        .arg("-R")
-        .arg("--follow-symlinks")
-        .arg(&sample)
-        .output()
-        .expect("run lez in strict mode with -R --follow-symlinks");
-
-    assert!(
-        out_recurse.status.success(),
-        "LEZ_STRICT=1 must accept --follow-symlinks when -R is active"
-    );
-
-    // With -T (tree), --follow-symlinks in strict mode must succeed
-    let out_tree = crate::common::lez_cmd()
-        .env("LEZ_STRICT", "1")
-        .env_remove("EZA_STRICT")
-        .arg("-T")
-        .arg("--follow-symlinks")
-        .arg(&sample)
-        .output()
-        .expect("run lez in strict mode with -T --follow-symlinks");
-
-    assert!(
-        out_tree.status.success(),
-        "LEZ_STRICT=1 must accept --follow-symlinks when -T is active"
-    );
+        let accepted = strict(&[accepted_with]);
+        assert_eq!(accepted.status.code(), Some(0), "{flag} {accepted_with}");
+        assert!(accepted.stderr.is_empty(), "{flag} {accepted_with}");
+    }
 }

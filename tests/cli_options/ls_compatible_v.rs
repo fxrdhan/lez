@@ -63,11 +63,7 @@ fn run(args: &[&str]) -> String {
 }
 
 fn lines(output: &str) -> Vec<&str> {
-    output
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .collect()
+    output.lines().collect()
 }
 
 #[test]
@@ -94,11 +90,20 @@ fn long_version_flag_still_prints_the_version() {
         .expect("failed to run lez");
     let text = String::from_utf8_lossy(&out.stdout);
 
-    assert!(out.status.success());
-    assert!(
-        text.contains("A modern, fast"),
-        "--version did not print the version banner:\n{text}"
+    assert_eq!(out.status.code(), Some(0));
+    assert!(out.stderr.is_empty());
+    // The rest of the second line says how this binary was built.
+    let banner: Vec<&str> = text.lines().collect();
+    assert_eq!(banner.len(), 4, "{text}");
+    assert_eq!(
+        banner[0],
+        "lez A modern, fast, and feature-rich replacement for ls written in Rust"
     );
+    assert!(
+        banner[1].starts_with(&format!("v{} ", env!("CARGO_PKG_VERSION"))),
+        "{text}"
+    );
+    assert_eq!(banner[2..], ["https://github.com/fxrdhan/lez", ""]);
 }
 
 #[test]

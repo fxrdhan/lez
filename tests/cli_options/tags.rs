@@ -1,130 +1,56 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! `--tags` (`-e`) lists the Finder tags a file carries, each in its
+//! colour, after the name in the long view. macOS keeps them in
+//! `com.apple.metadata:_kMDItemUserTags`; elsewhere a copy made by Samba
+//! or rsync keeps them under a longer name containing it.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
-struct TempTestDir {
-    path: PathBuf,
-}
+use std::path::Path;
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_tags_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-
-    fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut file = StdFile::create(&file_path).unwrap();
-        file.write_all(content).unwrap();
-        file_path
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
+use crate::common::{NAME_COLUMN_ONLY, TempTestDir, lez_in, set_xattr_named, success_stdout};
 
 #[cfg(target_os = "macos")]
-fn set_macos_tags(file_path: &Path, tags: &[&str]) {
-    let plist_arr: Vec<plist::Value> = tags
-        .iter()
-        .map(|t| plist::Value::String((*t).to_string()))
-        .collect();
-    let val = plist::Value::Array(plist_arr);
-    let mut buf = Vec::new();
-    val.to_writer_binary(&mut buf)
-        .expect("Failed to serialize binary plist");
+const TAGS: &str = "com.apple.metadata:_kMDItemUserTags";
+#[cfg(target_os = "linux")]
+const TAGS: &str = "user.com.apple.metadata:_kMDItemUserTags";
 
-    use std::os::unix::ffi::OsStrExt;
-    let c_path = std::ffi::CString::new(file_path.as_os_str().as_bytes()).unwrap();
-    let c_name = std::ffi::CString::new("com.apple.metadata:_kMDItemUserTags").unwrap();
-    unsafe {
-        let ret = libc::setxattr(
-            c_path.as_ptr(),
-            c_name.as_ptr(),
-            buf.as_ptr() as *const libc::c_void,
-            buf.len(),
-            0,
-            0,
-        );
-        assert_eq!(ret, 0, "libc::setxattr for macOS tags should succeed");
-    }
+/// Gives `file` these tags, each a name with an optional colour code after
+/// a newline, as a binary plist the way Finder writes them.
+fn set_tags(file: &Path, tags: &[&str]) -> bool {
+    let value = plist::Value::Array(
+        tags.iter()
+            .map(|tag| plist::Value::String((*tag).to_owned()))
+            .collect(),
+    );
+    let mut plist = Vec::new();
+    value
+        .to_writer_binary(&mut plist)
+        .expect("write a binary plist");
+    set_xattr_named(file, TAGS, &plist)
 }
 
 #[test]
-fn test_tags_cli_flag() {
-    let temp = TempTestDir::new("tags_flag");
-    let _file = temp.create_file("document.pdf", b"pdf content");
-
-    #[cfg(target_os = "macos")]
-    set_macos_tags(&_file, &["Work\n6", "Review\n1"]);
-
-    let output = crate::common::lez_cmd()
-        .arg("-l")
-        .arg("--tags")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to execute lez with --tags");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("document.pdf"));
-
-    #[cfg(target_os = "macos")]
-    {
-        assert!(
-            stdout.contains("Work"),
-            "Output should render 'Work' tag: {stdout}"
-        );
-        assert!(
-            stdout.contains("Review"),
-            "Output should render 'Review' tag: {stdout}"
-        );
+fn tags_follow_the_name_each_in_its_colour() {
+    let dir = TempTestDir::new("tags");
+    let tagged = dir.create_file("document.pdf", b"");
+    dir.create_file("plain.txt", b"");
+    if !set_tags(&tagged, &["Work\n6", "Review\n1", "Plain"]) {
+        return;
     }
-}
+    let listing =
+        |args: &[&str]| success_stdout(lez_in(dir.path()).args(NAME_COLUMN_ONLY).args(args));
 
-#[test]
-#[cfg(target_os = "macos")]
-fn test_macos_finder_tags_display() {
-    let temp = TempTestDir::new("macos_tags");
-    let file = temp.create_file("tagged_file.txt", b"tagged content");
-
-    set_macos_tags(&file, &["Important\n6"]);
-
-    let output = crate::common::lez_cmd()
-        .arg("-l")
-        .arg("-e")
-        .arg(&file)
-        .output()
-        .expect("Failed to execute lez -l -e");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("tagged_file.txt"));
-    assert!(
-        stdout.contains("Important"),
-        "Output should render 'Important' tag with -l -e: {stdout}"
+    let plain = "document.pdf Work Review Plain\nplain.txt\n";
+    assert_eq!(listing(&["--tags"]), plain);
+    assert_eq!(listing(&["-e"]), plain);
+    assert_eq!(listing(&["-e", "-h"]), format!("Name\n{plain}"));
+    assert_eq!(listing(&[]), "document.pdf\nplain.txt\n");
+    assert_eq!(
+        listing(&["--tags", "--color=always"]),
+        "\x1b[32mdocument.pdf\x1b[0m \x1b[48;5;9;30mWork\x1b[0m \
+         \x1b[48;5;248;30mReview\x1b[0m Plain\n\x1b[32mplain.txt\x1b[0m\n"
     );
 }
