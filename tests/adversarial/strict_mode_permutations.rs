@@ -46,6 +46,20 @@ fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
         .expect("Failed to parse CLI args in mock")
 }
 
+/// A status with nothing staged and `status` in the working tree.
+fn unstaged(status: f::GitStatus) -> f::Git {
+    both(f::GitStatus::NotModified, status)
+}
+
+/// A status with `status` staged and the working tree matching it.
+fn staged(status: f::GitStatus) -> f::Git {
+    both(status, f::GitStatus::NotModified)
+}
+
+fn both(staged: f::GitStatus, unstaged: f::GitStatus) -> f::Git {
+    f::Git { staged, unstaged }
+}
+
 // Temporary directory helper with automatic cleanup
 struct TempTestDir {
     path: PathBuf,
@@ -633,21 +647,21 @@ fn test_git_scoped_queries_nested_structure() {
     assert!(git_cache_a.has_anything_for(&pkg_a_path));
 
     let status_a1 = git_cache_a.get(&sub_a_file1, false);
-    assert!(status_a1.unstaged == f::GitStatus::Modified);
+    assert_eq!(status_a1, unstaged(f::GitStatus::Modified));
 
     let status_untracked_a = git_cache_a.get(&untracked_a, false);
-    assert!(status_untracked_a.unstaged == f::GitStatus::New);
+    assert_eq!(status_untracked_a, unstaged(f::GitStatus::New));
 
     let dir_status_a = git_cache_a.get(&pkg_a_path, true);
     // Since pkg_a has both WT_MODIFIED and WT_NEW, WT_NEW takes precedence in working_tree_status match order
-    assert!(dir_status_a.unstaged == f::GitStatus::New);
+    assert_eq!(dir_status_a, unstaged(f::GitStatus::New));
 
     // Files outside pkg_a MUST NOT be scanned in scoped query
     let status_b = git_cache_a.get(&sub_b_file1, false);
-    assert!(status_b.unstaged == f::GitStatus::NotModified);
+    assert_eq!(status_b, unstaged(f::GitStatus::NotModified));
 
     let status_root = git_cache_a.get(&root_file, false);
-    assert!(status_root.unstaged == f::GitStatus::NotModified);
+    assert_eq!(status_root, unstaged(f::GitStatus::NotModified));
 
     // Scenario 2: Multi-path scoped query: pkg_b and pkg_c/deep/nested
     let git_cache_bc = lez::fs::feature::git::GitCache::from_iter(vec![
@@ -656,22 +670,37 @@ fn test_git_scoped_queries_nested_structure() {
     ]);
 
     let status_b1 = git_cache_bc.get(&sub_b_file1, false);
-    assert!(status_b1.unstaged == f::GitStatus::Modified);
+    assert_eq!(status_b1, unstaged(f::GitStatus::Modified));
 
     let status_c1 = git_cache_bc.get(&sub_c_file1, false);
-    assert!(status_c1.unstaged == f::GitStatus::Modified);
+    assert_eq!(status_c1, unstaged(f::GitStatus::Modified));
 
     // pkg_a files must NOT be in cache
     let status_a_in_bc = git_cache_bc.get(&sub_a_file1, false);
-    assert!(status_a_in_bc.unstaged == f::GitStatus::NotModified);
+    assert_eq!(status_a_in_bc, unstaged(f::GitStatus::NotModified));
 
     // Scenario 3: Repo root fallback
     let git_cache_all = lez::fs::feature::git::GitCache::from_iter(vec![repo.path.clone()]);
-    assert!(git_cache_all.get(&root_file, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache_all.get(&sub_a_file1, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache_all.get(&sub_b_file1, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache_all.get(&sub_c_file1, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache_all.get(&untracked_a, false).unstaged == f::GitStatus::New);
+    assert_eq!(
+        git_cache_all.get(&root_file, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache_all.get(&sub_a_file1, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache_all.get(&sub_b_file1, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache_all.get(&sub_c_file1, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache_all.get(&untracked_a, false),
+        unstaged(f::GitStatus::New)
+    );
 }
 
 #[test]
@@ -696,10 +725,10 @@ fn test_git_scoped_queries_staged_and_ignored() {
     let git_cache = lez::fs::feature::git::GitCache::from_iter(vec![sub_dir_path.clone()]);
 
     let staged_status = git_cache.get(&file_staged, false);
-    assert!(staged_status.staged == f::GitStatus::Modified);
+    assert_eq!(staged_status, staged(f::GitStatus::Modified));
 
     let ignored_status = git_cache.get(&file_ignored, false);
-    assert!(ignored_status.unstaged == f::GitStatus::Ignored);
+    assert_eq!(ignored_status, unstaged(f::GitStatus::Ignored));
 }
 
 #[test]
@@ -861,12 +890,12 @@ fn test_git_scoped_queries_rename_and_deletion() {
 
     // file1 is deleted (unstaged)
     let s1 = git_cache.get(&file1, false);
-    assert!(s1.unstaged == f::GitStatus::Deleted);
+    assert_eq!(s1, unstaged(f::GitStatus::Deleted));
 
     // lez does not ask libgit2 for rename detection, so a staged rename is a
     // new file beside a deleted one.
     let s2 = git_cache.get(&file2_renamed, false);
-    assert!(s2.staged == f::GitStatus::New);
+    assert_eq!(s2, staged(f::GitStatus::New));
 }
 
 #[test]
@@ -885,11 +914,20 @@ fn test_git_scoped_queries_deep_pathspec() {
     let git_cache = lez::fs::feature::git::GitCache::from_iter(vec![deep_dir.clone()]);
 
     // Both files in deep_dir should be detected as modified
-    assert!(git_cache.get(&deep_file, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache.get(&sibling_file, false).unstaged == f::GitStatus::Modified);
+    assert_eq!(
+        git_cache.get(&deep_file, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache.get(&sibling_file, false),
+        unstaged(f::GitStatus::Modified)
+    );
 
     // root_file should NOT be in the scoped scan
-    assert!(git_cache.get(&root_file, false).unstaged == f::GitStatus::NotModified);
+    assert_eq!(
+        git_cache.get(&root_file, false),
+        unstaged(f::GitStatus::NotModified)
+    );
 }
 
 #[test]
@@ -905,5 +943,8 @@ fn test_git_scoped_queries_relative_and_dot_dot_paths() {
 
     // When querying with the path constructed under weird_path (as DirEntry does when listing weird_path)
     let queried_file = weird_path.join("file.txt");
-    assert!(git_cache.get(&queried_file, false).unstaged == f::GitStatus::Modified);
+    assert_eq!(
+        git_cache.get(&queried_file, false),
+        unstaged(f::GitStatus::Modified)
+    );
 }
