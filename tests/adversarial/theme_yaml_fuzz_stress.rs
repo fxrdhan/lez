@@ -1,237 +1,178 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Adversarial fuzzing and resilience test suite for YAML theme configuration:
-//! - Recursive YAML anchor bombs and alias expansion limits
-//! - Schema type mismatch fuzzing (arrays/ints where strings/objects expected)
-//! - Malformed, oversized, and truncated hex colors and color names
-//! - Massive theme configuration files (5,000+ custom rules)
-//! - Control characters and exotic glyph inputs in theme mappings
-//! - Safe fallback to default styles without crashes or panics
+//! Hostile and oversized `theme.yml` files.
+//!
+//! Each case compares against the listing lez prints with no theme at all,
+//! so "it did not crash" is never the whole assertion: a theme that cannot be
+//! used must leave the default styling exactly as it was, and one that can
+//! must actually take effect.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::Output;
 
-struct ThemeFuzzDir {
-    path: PathBuf,
+use crate::common::{TempTestDir, lez_in};
+
+struct Fixture {
+    dir: TempTestDir,
 }
 
-impl ThemeFuzzDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_themefuzz_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp theme fuzz directory");
-        Self { path }
+impl Fixture {
+    fn new(label: &str) -> Self {
+        let dir = TempTestDir::new(label);
+        dir.create_file("samples/normal.rs", b"fn main() {}\n");
+        dir.create_file("samples/doc.md", b"# doc\n");
+        dir.create_file("samples/a.ext_0007", b"x");
+        dir.create_file("samples/space in name.rs", b"x");
+        dir.create_dir("config");
+        Self { dir }
     }
 
-    fn write_theme(&self, content: &str) -> PathBuf {
-        let config_dir = self.path.join("config");
-        fs::create_dir_all(&config_dir).unwrap();
-        let theme_file = config_dir.join("theme.yml");
-        let mut f = StdFile::create(&theme_file).unwrap();
-        f.write_all(content.as_bytes()).unwrap();
-        config_dir
+    fn samples(&self) -> PathBuf {
+        self.dir.path().join("samples")
     }
 
-    fn create_sample_files(&self) {
-        let sample_dir = self.path.join("samples");
-        fs::create_dir_all(&sample_dir).unwrap();
-        for name in [
-            "normal.rs",
-            "doc.md",
-            "archive.tar",
-            "special_file.xyz",
-            "another.bin",
-        ] {
-            fs::write(sample_dir.join(name), b"test content").unwrap();
-        }
+    fn theme_path(&self) -> PathBuf {
+        self.dir.path().join("config").join("theme.yml")
     }
-}
 
-impl Drop for ThemeFuzzDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
+    fn write_theme(&self, yaml: &str) {
+        std::fs::write(self.theme_path(), yaml).expect("write theme");
+    }
+
+    fn run(&self, config_dir: &Path) -> Output {
+        lez_in(&self.samples())
+            .env("LEZ_CONFIG_DIR", config_dir)
+            .args(["-1", "--color=always"])
+            .output()
+            .expect("failed to run lez")
+    }
+
+    fn with_theme(&self) -> Output {
+        self.run(&self.dir.path().join("config"))
+    }
+
+    fn without_theme(&self) -> Output {
+        self.run(&self.dir.path().join("no-config-here"))
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
+fn stdout(output: &Output) -> &str {
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    std::str::from_utf8(&output.stdout).expect("UTF-8 stdout")
 }
 
-fn run_lez_with_theme(
-    target_dir: &Path,
-    config_dir: &Path,
-    args: &[&str],
-) -> (bool, String, String) {
-    let output = Command::new(bin_path())
-        .current_dir(target_dir)
-        .args(args)
-        .env("LEZ_CONFIG_DIR", config_dir)
-        .env("NO_COLOR", "")
-        .output()
-        .expect("Failed to execute lez binary with theme");
-
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stdout).to_string(),
-        String::from_utf8_lossy(&output.stderr).to_string(),
-    )
-}
-
+/// A "billion laughs" of anchors and aliases expands to 9^4 elements; it
+/// has to finish, and since none of its keys are theme keys it styles
+/// nothing.
 #[test]
-fn test_yaml_anchor_bomb_resilience() {
-    let fixture = ThemeFuzzDir::new("anchor_bomb");
-    fixture.create_sample_files();
-
-    // Exponential anchor definition (Billion Laughs in YAML)
-    let bomb_yaml = r#"
+fn an_anchor_bomb_finishes_and_changes_nothing() {
+    let fixture = Fixture::new("theme_anchor_bomb");
+    fixture.write_theme(
+        r#"
 a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]
 b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]
 c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]
 d: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]
-extensions:
-  rs:
-    foreground: "green"
-"#;
-    let config_dir = fixture.write_theme(bomb_yaml);
-    let sample_dir = fixture.path.join("samples");
-
-    // lez must parse or safely reject without OOM panic or hanging
-    let (success, stdout, stderr) = run_lez_with_theme(
-        &sample_dir,
-        &config_dir,
-        &["-1", "--color=always", "--icons=always"],
+"#,
     );
 
-    assert!(success, "lez failed on YAML anchor bomb: {stderr}");
-    assert!(!stderr.contains("panicked at"));
-    assert!(stdout.contains("normal.rs"));
+    let themed = fixture.with_theme();
+    assert!(
+        themed.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&themed.stderr)
+    );
+    assert_eq!(stdout(&themed), stdout(&fixture.without_theme()));
 }
 
+/// Values of the wrong type make the whole file unusable: lez says which
+/// key it choked on and falls back to the default theme.
 #[test]
-fn test_type_mismatch_and_garbage_types() {
-    let fixture = ThemeFuzzDir::new("type_mismatch");
-    fixture.create_sample_files();
+fn a_theme_with_wrongly_typed_values_is_reported_and_ignored() {
+    let fixture = Fixture::new("theme_types");
+    fixture.write_theme("filekinds: 12345\nextensions:\n  rs: {filename: {foreground: Red}}\n");
 
-    let invalid_types_yaml = r#"
-filekinds: 12345
-perms:
-  - "not"
-  - "an"
-  - "object"
-size: "huge"
-users: true
-filenames:
-  normal.rs: 99999
-extensions:
-  rs:
-    foreground:
-      nested: "invalid_color_struct"
-    bold: "not_a_bool"
-    underline: [1, 2, 3]
-punctuation: 0.42
-header: null
-"#;
-    let config_dir = fixture.write_theme(invalid_types_yaml);
-    let sample_dir = fixture.path.join("samples");
-
-    let (success, stdout, stderr) =
-        run_lez_with_theme(&sample_dir, &config_dir, &["-l", "--color=always"]);
-
-    assert!(success, "lez failed on invalid YAML types: {stderr}");
-    assert!(!stderr.contains("panicked at"));
-    assert!(stdout.contains("normal.rs"));
+    let themed = fixture.with_theme();
+    let stderr = String::from_utf8_lossy(&themed.stderr);
+    assert!(
+        stderr.starts_with(&format!(
+            "lez: Failed to parse theme file {:?}: filekinds: invalid type: integer `12345`",
+            fixture.theme_path()
+        )),
+        "{stderr}"
+    );
+    assert_eq!(stdout(&themed), stdout(&fixture.without_theme()));
 }
 
+/// A colour that does not parse leaves its rule with no style at all, so the
+/// file loses the default colour too, and nothing is reported. This pins
+/// the current behaviour.
 #[test]
-fn test_malformed_and_exotic_color_codes() {
-    let fixture = ThemeFuzzDir::new("malformed_colors");
-    fixture.create_sample_files();
-
-    let malformed_colors_yaml = r##"
-extensions:
-  rs:
-    foreground: "#GGGGGG"
-  md:
-    foreground: "#12"
-  tar:
-    foreground: "#"
-  xyz:
-    foreground: "1234567890ABCDEF"
-  bin:
-    foreground: "ultra_invisible_nonexistent_color"
-    background: "#FF00FF00FF"
-"##;
-    let config_dir = fixture.write_theme(malformed_colors_yaml);
-    let sample_dir = fixture.path.join("samples");
-
-    let (success, stdout, stderr) =
-        run_lez_with_theme(&sample_dir, &config_dir, &["-1", "--color=always"]);
-
-    assert!(success, "lez failed on malformed hex color codes: {stderr}");
-    assert!(!stderr.contains("panicked at"));
-    assert!(stdout.contains("normal.rs"));
-    assert!(stdout.contains("doc.md"));
-}
-
-#[test]
-fn test_massive_theme_configuration_scale() {
-    let fixture = ThemeFuzzDir::new("massive_theme");
-    fixture.create_sample_files();
-
-    let mut massive_yaml = String::from("extensions:\n");
-    for i in 0..250 {
-        massive_yaml.push_str(&format!(
-            "  ext_{i:04}:\n    foreground: \"#{:06x}\"\n    icon:\n      glyph: \"📦\"\n",
-            (i * 12345) % 0xFFFFFF
-        ));
-    }
-    massive_yaml.push_str("filenames:\n");
-    for i in 0..250 {
-        massive_yaml.push_str(&format!(
-            "  custom_file_{i:04}.dat:\n    foreground: \"#{:06x}\"\n",
-            (i * 54321) % 0xFFFFFF
-        ));
-    }
-
-    let config_dir = fixture.write_theme(&massive_yaml);
-    let sample_dir = fixture.path.join("samples");
-
-    let (success, stdout, stderr) = run_lez_with_theme(
-        &sample_dir,
-        &config_dir,
-        &["-l", "--color=always", "--icons=always"],
+fn an_unparseable_colour_leaves_the_matching_files_unstyled() {
+    let fixture = Fixture::new("theme_bad_colours");
+    fixture.write_theme(
+        "extensions:\n  rs: {filename: {foreground: \"#GGGGGG\"}}\n  md: {filename: {foreground: \"#12\"}}\n",
     );
 
-    assert!(success, "lez failed on 500-rule massive theme: {stderr}");
-    assert!(!stderr.contains("panicked at"));
-    assert!(stdout.contains("normal.rs"));
+    let themed = fixture.with_theme();
+    assert!(
+        themed.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&themed.stderr)
+    );
+    assert_eq!(
+        stdout(&themed),
+        "a.ext_0007\ndoc.md\nnormal.rs\n\
+         \u{1b}[1;90m'\u{1b}[0mspace in name.rs\u{1b}[1;90m'\u{1b}[0m\n"
+    );
+    // Without the theme the same files are coloured, which is what makes
+    // the comparison above meaningful.
+    assert!(stdout(&fixture.without_theme()).contains("\u{1b}[1;33mnormal.rs"));
 }
 
+/// Hundreds of rules are read in full: rules near the end of each table
+/// still apply, including a file-name key containing spaces.
 #[test]
-fn test_theme_with_control_characters_and_whitespace_keys() {
-    let fixture = ThemeFuzzDir::new("ctrl_chars_theme");
-    fixture.create_sample_files();
+fn a_theme_with_hundreds_of_rules_applies_every_one() {
+    let fixture = Fixture::new("theme_massive");
+    let mut yaml = String::from("extensions:\n");
+    for i in 0..250 {
+        let rgb = (i * 0x0a0b0c) % 0xff_ffff;
+        yaml.push_str(&format!(
+            "  ext_{i:04}: {{filename: {{foreground: \"#{rgb:06x}\"}}}}\n"
+        ));
+    }
+    yaml.push_str("filenames:\n");
+    for i in 0..250 {
+        yaml.push_str(&format!(
+            "  custom_file_{i:04}.dat: {{filename: {{foreground: Red}}}}\n"
+        ));
+    }
+    yaml.push_str("  \"space in name.rs\": {filename: {foreground: Cyan}}\n");
+    fixture.write_theme(&yaml);
 
-    let control_chars_yaml = "filenames:\n  \"space in name.rs\":\n    foreground: \"yellow\"\n  \"tab\tname.md\":\n    foreground: \"cyan\"\n  \"newline\nname.tar\":\n    foreground: \"green\"\n";
-    let config_dir = fixture.write_theme(control_chars_yaml);
-    let sample_dir = fixture.path.join("samples");
-
-    let (success, stdout, stderr) =
-        run_lez_with_theme(&sample_dir, &config_dir, &["-1", "--color=always"]);
-
-    assert!(success, "lez failed on theme with control chars: {stderr}");
-    assert!(!stderr.contains("panicked at"));
-    assert!(stdout.contains("normal.rs"));
+    let themed = fixture.with_theme();
+    assert!(
+        themed.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&themed.stderr)
+    );
+    let out = stdout(&themed);
+    // ext_0007 is rule 7: 7 * 0x0a0b0c = 0x464d54.
+    assert!(
+        out.contains("\u{1b}[38;2;70;77;84ma.ext_0007\u{1b}[0m"),
+        "{out:?}"
+    );
+    assert!(
+        out.contains("\u{1b}[1;90m'\u{1b}[0m\u{1b}[36mspace in name.rs\u{1b}[1;90m'"),
+        "{out:?}"
+    );
+    // Files no rule mentions keep their default styling.
+    assert!(out.contains("\u{1b}[1;33mnormal.rs\u{1b}[0m"), "{out:?}");
 }

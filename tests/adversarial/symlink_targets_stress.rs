@@ -118,7 +118,12 @@ fn test_cli_invalid_value_passed_to_flag() {
 #[cfg(unix)]
 fn test_cli_interaction_with_dereference() {
     let temp = TempEnv::new("cli_deref");
-    temp.create_file("target.txt", b"data inside target");
+    let target = temp.create_file("target.txt", b"data inside target");
+    {
+        // Pin the target's mode rather than inherit it from the umask.
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644)).unwrap();
+    }
     temp.create_symlink("target.txt", "link.txt");
 
     // With --dereference (-X), symlinks are followed and shown as regular files
@@ -137,14 +142,9 @@ fn test_cli_interaction_with_dereference() {
         .lines()
         .find(|l| l.contains("link.txt"))
         .expect("link.txt found");
-    // When dereferenced, type indicator is '-' (regular file), not 'l'
+    // Dereferenced, the row describes the target: a regular file, mode 644.
     assert!(!link_line.contains("->"));
-    assert!(
-        link_line.starts_with(".r")
-            || link_line.starts_with("-r")
-            || link_line.starts_with("dr")
-            || link_line.contains("link.txt")
-    );
+    assert!(link_line.starts_with(".rw-r--r--"), "{link_line}");
 }
 
 #[test]
@@ -238,7 +238,21 @@ fn test_cli_interaction_with_octal_and_time_style() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("time_link.txt"));
-    assert!(stdout.contains("777") || stdout.contains("755") || stdout.contains("lrwx"));
+    // A symlink's own mode is 777 on Linux and 755 on macOS; read it rather
+    // than accept either.
+    let mode = {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::symlink_metadata(temp.path().join("sub/time_link.txt"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777
+    };
+    let row = stdout
+        .lines()
+        .find(|l| l.ends_with("time_link.txt"))
+        .expect("link row");
+    assert!(row.starts_with(&format!("{mode:04o} l")), "{row}");
     assert!(!stdout.contains("->"));
     assert!(!stdout.contains("time_target.txt"));
 }
@@ -525,7 +539,8 @@ fn test_unicode_and_spaces_in_symlinks() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("space 'link' name.txt") || stdout.contains("space"));
+    // A name holding single quotes is wrapped in double quotes.
+    assert!(stdout.contains("\"space 'link' name.txt\""), "{stdout}");
     assert!(stdout.contains("🔗_link_⭐.dat"));
     assert!(!stdout.contains("->"));
     assert!(!stdout.contains("secret space target"));

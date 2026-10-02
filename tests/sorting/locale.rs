@@ -483,3 +483,79 @@ fn test_sort_field_variants_with_collator() {
         Ordering::Less
     );
 }
+
+/// Sorting panics or misorders when the comparator is not a total order, so
+/// collation has to be reflexive, antisymmetric and transitive for every
+/// locale lez enables it in, across both case modes and over words that mix
+/// diacritics, case and digit runs.
+#[test]
+fn locale_collation_is_a_total_order() {
+    let locales = [
+        "sv_SE.UTF-8",
+        "hu_HU.UTF-8",
+        "de_DE.UTF-8",
+        "es_ES.UTF-8",
+        "en_US.UTF-8",
+    ];
+    let words = [
+        "apple",
+        "Apple",
+        "APPLE",
+        "ápple",
+        "äpple",
+        "åska",
+        "Banane",
+        "banana",
+        "file1.txt",
+        "file2.txt",
+        "file10.txt",
+        "file100.txt",
+        "nudo",
+        "ñandú",
+        "ola",
+        "zene",
+        "zebra",
+        "öken",
+        "Über",
+        "Uhr",
+        "Vogel",
+        "123",
+        "456",
+        "001",
+        "01",
+        "1",
+        "data_2026.log",
+        "data_2025.log",
+    ];
+
+    for locale in locales {
+        let collator = LocaleCollator::try_from_locale_str(locale)
+            .unwrap_or_else(|| panic!("no collator for {locale}"));
+        for case in [SortCase::ABCabc, SortCase::AaBbCc] {
+            for a in words {
+                assert_eq!(
+                    collator.compare(a, a, case),
+                    Ordering::Equal,
+                    "{locale}: {a}"
+                );
+                for b in words {
+                    let ab = collator.compare(a, b, case);
+                    assert_eq!(
+                        ab,
+                        collator.compare(b, a, case).reverse(),
+                        "{locale}: antisymmetry of {a} / {b}"
+                    );
+                    for c in words {
+                        if ab == Ordering::Less && collator.compare(b, c, case) == Ordering::Less {
+                            assert_eq!(
+                                collator.compare(a, c, case),
+                                Ordering::Less,
+                                "{locale}: transitivity of {a} < {b} < {c}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

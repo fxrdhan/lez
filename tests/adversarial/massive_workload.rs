@@ -1,186 +1,146 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Adversarial test suite for massive file workloads, special file types
-//! (FIFOs, sockets, sparse files, zero-byte files), and high-volume summary counts.
+//! A directory of well over a thousand entries of mixed kinds, checked by
+//! exact counts: a large listing is where an entry quietly going missing
+//! would hide.
 
-use std::fs::{self, File as StdFile};
-use std::io::{Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::Output;
 
-struct MassiveTestDir {
-    path: PathBuf,
+use crate::common::{TempTestDir, lez_in};
+
+const DATA_FILES: usize = 1200;
+const EMPTY_FILES: usize = 10;
+const SUBFOLDERS: usize = 5;
+
+/// Entries every platform gets: data files, empty files, one sparse file and
+/// some subfolders. Unix adds a FIFO and two symlinks.
+fn corpus() -> TempTestDir {
+    let dir = TempTestDir::new("massive");
+    for i in 0..DATA_FILES {
+        dir.create_file(
+            &format!("data_{i:04}.dat"),
+            format!("payload {i}\n").as_bytes(),
+        );
+    }
+    for i in 0..EMPTY_FILES {
+        dir.create_empty_file(&format!("empty_{i}.zero"));
+    }
+    std::fs::File::create(dir.path().join("sparse_large.bin"))
+        .and_then(|f| f.set_len(10 * 1024 * 1024))
+        .expect("create sparse file");
+    for d in 0..SUBFOLDERS {
+        dir.create_file(&format!("subfolder_{d}/nested.txt"), b"nested");
+    }
+    #[cfg(unix)]
+    {
+        let fifo =
+            std::ffi::CString::new(dir.path().join("test_pipe.fifo").to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o644) }, 0, "mkfifo");
+        dir.create_symlink("data_0000.dat", "link_valid.lnk");
+        dir.create_symlink("non_existent_target.missing", "link_dangling.lnk");
+    }
+    dir
 }
 
-impl MassiveTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_mass_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
+const SPECIAL: usize = if cfg!(unix) { 3 } else { 0 };
+const TOTAL: usize = DATA_FILES + EMPTY_FILES + 1 + SUBFOLDERS + SPECIAL;
 
-    fn populate_massive_corpus(&self, file_count: usize) {
-        // 1. Bulk files
-        for i in 0..file_count {
-            let path = self.path.join(format!("data_{i:04}.dat"));
-            let mut f = StdFile::create(&path).unwrap();
-            let _ = f.write_all(format!("payload {i}\n").as_bytes());
-        }
-
-        // 2. Zero-byte files
-        for i in 0..10 {
-            StdFile::create(self.path.join(format!("empty_{i}.zero"))).unwrap();
-        }
-
-        // 3. Sparse file (large logical size, minimal actual blocks)
-        let sparse_path = self.path.join("sparse_large.bin");
-        if let Ok(mut sf) = StdFile::create(&sparse_path) {
-            let _ = sf.seek(SeekFrom::Start(10 * 1024 * 1024)); // 10 MB seek
-            let _ = sf.write_all(b"end of sparse");
-        }
-
-        // 4. Subdirectories
-        for d in 0..5 {
-            let sub = self.path.join(format!("subfolder_{d}"));
-            fs::create_dir_all(&sub).unwrap();
-            StdFile::create(sub.join("nested.txt"))
-                .unwrap()
-                .write_all(b"nested")
-                .unwrap();
-        }
-
-        // 5. Special Unix file types (FIFOs and Sockets)
-        #[cfg(unix)]
-        {
-            use std::ffi::CString;
-            use std::os::unix::fs::symlink;
-
-            // FIFO (Named Pipe)
-            let fifo_path = self.path.join("test_pipe.fifo");
-            let c_path = CString::new(fifo_path.to_str().unwrap()).unwrap();
-            unsafe {
-                libc::mkfifo(c_path.as_ptr(), 0o644);
-            }
-
-            // Symlinks
-            let _ = symlink(
-                self.path.join("data_0000.dat"),
-                self.path.join("link_valid.lnk"),
-            );
-            let _ = symlink(
-                self.path.join("non_existent_target.missing"),
-                self.path.join("link_dangling.lnk"),
-            );
-        }
-    }
-}
-
-impl Drop for MassiveTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn run_lez(dir: &Path, args: &[&str]) -> (bool, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
-        .current_dir(dir)
+fn run(dir: &TempTestDir, args: &[&str]) -> String {
+    let output: Output = lez_in(dir.path())
         .args(args)
-        .env("NO_COLOR", "1")
-        .env("LEZ_COLORS", "reset")
         .output()
-        .expect("Failed to execute lez binary");
-
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stdout).to_string(),
-        String::from_utf8_lossy(&output.stderr).to_string(),
-    )
+        .expect("failed to run lez");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{args:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("UTF-8 stdout")
 }
 
 #[test]
-fn massive_corpus_grid_and_oneline_listing() {
-    let fixture = MassiveTestDir::new("massive_grid");
-    fixture.populate_massive_corpus(1200);
+fn every_entry_is_listed_exactly_once_in_lines_and_grid() {
+    let dir = corpus();
 
-    let (g_success, g_out, g_err) = run_lez(&fixture.path, &["-G", "--color=never"]);
-    assert!(g_success, "lez -G failed: {g_err}");
-    assert!(!g_out.is_empty());
-    assert!(g_out.contains("data_0000.dat"));
-    assert!(g_out.contains("data_1199.dat"));
+    let lines = run(&dir, &["-1"]);
+    assert_eq!(lines.lines().count(), TOTAL);
+    let mut sorted: Vec<&str> = lines.lines().collect();
+    sorted.sort_unstable();
+    sorted.dedup();
+    assert_eq!(sorted.len(), TOTAL, "no entry may repeat");
 
-    let (o_success, o_out, o_err) = run_lez(&fixture.path, &["-1", "--color=never"]);
-    assert!(o_success, "lez -1 failed: {o_err}");
-    let line_count = o_out.lines().count();
-    // At least 1200 + 10 empty + 1 sparse + 5 subfolders + special files
-    assert!(
-        line_count >= 1216,
-        "Expected >= 1216 lines, got {line_count}"
+    let grid = run(&dir, &["-G", "--width=120"]);
+    let mut cells: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for cell in grid.split_whitespace() {
+        *cells.entry(cell).or_default() += 1;
+    }
+    for name in lines.lines() {
+        assert_eq!(cells.get(name), Some(&1), "{name} in the grid");
+    }
+    assert_eq!(cells.len(), TOTAL, "the grid holds nothing else");
+}
+
+#[test]
+fn the_long_view_and_json_hold_one_record_per_entry() {
+    let dir = corpus();
+
+    assert_eq!(run(&dir, &["-l"]).lines().count(), TOTAL);
+
+    let json: serde_json::Value =
+        serde_json::from_str(&run(&dir, &["--json"])).expect("valid JSON");
+    assert_eq!(json.as_array().expect("JSON array").len(), TOTAL);
+}
+
+#[test]
+fn summary_and_print_total_count_every_entry() {
+    let dir = corpus();
+    let files = DATA_FILES + EMPTY_FILES + 1 + usize::from(cfg!(unix));
+    let symlinks = if cfg!(unix) { 2 } else { 0 };
+
+    let summary = run(&dir, &["-l", "--summary"]);
+    assert_eq!(
+        summary.lines().last(),
+        Some(
+            format!("{SUBFOLDERS} directories, {files} files, {symlinks} symlinks ({TOTAL} total)")
+                .as_str()
+        )
+    );
+
+    let total = run(&dir, &["-l", "--print-total"]);
+    assert_eq!(
+        total.lines().last(),
+        Some(format!("total: {TOTAL}").as_str())
     );
 }
 
 #[test]
-fn massive_corpus_summary_flag_accuracy() {
-    let fixture = MassiveTestDir::new("massive_summary");
-    fixture.populate_massive_corpus(800);
+fn size_sorting_puts_the_sparse_file_by_its_length() {
+    let dir = corpus();
 
-    let (success, stdout, stderr) = run_lez(&fixture.path, &["-l", "--summary", "--color=never"]);
-    assert!(success, "lez -l --summary failed: {stderr}");
-    assert!(stdout.contains("directories") && stdout.contains("files"));
-    assert!(stdout.contains("data_0799.dat"));
+    let by_size = run(&dir, &["-1", "--sort=size", "-r"]);
+    assert_eq!(by_size.lines().next(), Some("sparse_large.bin"));
 }
 
 #[test]
-fn massive_corpus_print_total_flag() {
-    let fixture = MassiveTestDir::new("massive_print_total");
-    fixture.populate_massive_corpus(500);
+#[cfg(unix)]
+fn block_sorting_puts_the_sparse_file_by_its_allocation() {
+    let dir = corpus();
 
-    let (success, stdout, stderr) =
-        run_lez(&fixture.path, &["-l", "--print-total", "--color=never"]);
-    assert!(success, "lez -l --print-total failed: {stderr}");
-    assert!(stdout.contains("total"));
-}
-
-#[test]
-fn massive_corpus_size_and_blocks_sorting() {
-    let fixture = MassiveTestDir::new("massive_blocks_sort");
-    fixture.populate_massive_corpus(600);
-
-    let (sz_success, sz_out, sz_err) =
-        run_lez(&fixture.path, &["-1", "--sort=size", "-r", "--color=never"]);
-    assert!(sz_success, "lez --sort=size failed: {sz_err}");
-    // Sparse file (10MB) should appear near the top of reverse size sort
-    let lines: Vec<&str> = sz_out.lines().collect();
-    assert!(lines.iter().any(|l| l.contains("sparse_large.bin")));
-
-    #[cfg(unix)]
-    {
-        let (bl_success, bl_out, bl_err) =
-            run_lez(&fixture.path, &["-1", "--sort=blocks", "--color=never"]);
-        assert!(bl_success, "lez --sort=blocks failed: {bl_err}");
-        assert!(!bl_out.is_empty());
-    }
-}
-
-#[test]
-fn massive_corpus_json_mode_completeness() {
-    let fixture = MassiveTestDir::new("massive_json");
-    fixture.populate_massive_corpus(400);
-
-    let (success, stdout, stderr) = run_lez(&fixture.path, &["--json", "--color=never"]);
-    assert!(success, "lez --json failed: {stderr}");
-    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
-    assert!(parsed.is_ok(), "JSON was invalid: {stderr}");
-    let arr = parsed.unwrap().as_array().unwrap().len();
-    assert!(arr >= 415, "Expected >= 415 JSON entries, got {arr}");
+    // Nothing is allocated for the sparse file, so it sorts among the empty
+    // entries and ahead of every data file.
+    let by_blocks: Vec<String> = run(&dir, &["-1", "--sort=blocks"])
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    let sparse = by_blocks
+        .iter()
+        .position(|name| name == "sparse_large.bin")
+        .expect("sparse file listed");
+    let first_data = by_blocks
+        .iter()
+        .position(|name| name.starts_with("data_"))
+        .expect("data files listed");
+    assert!(sparse < first_data, "{by_blocks:?}");
 }

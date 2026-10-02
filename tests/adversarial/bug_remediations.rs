@@ -1,663 +1,463 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Adversarial tests covering edge case regressions and robustness remediations.
+//! Regression tests for the defects in `docs/audit/bug_bounty_report.md`.
+//! Each one pins the corrected output, not merely the absence of a panic.
 
-use std::fs::{self, File as StdFile};
+use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Output, Stdio};
 
-struct TestDir {
-    path: PathBuf,
-}
+use crate::common::{TempGitRepo, TempTestDir, lez_in};
 
-impl TestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_remed_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-}
-
-impl Drop for TestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn lez_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
-#[test]
-fn test_spacing_multiplication_overflow_does_not_panic() {
-    let output = Command::new(lez_bin())
-        .arg("-l")
-        .arg("--spacing")
-        .arg("5000000000000000000")
-        .arg("Cargo.toml")
+fn run(dir: &TempTestDir, args: &[&str]) -> Output {
+    lez_in(dir.path())
+        .args(args)
         .output()
-        .expect("Failed to execute lez binary");
+        .expect("failed to run lez")
+}
 
-    assert_ne!(
-        output.status.code(),
-        Some(101),
-        "Process should not panic with exit 101 on large spacing"
+fn text(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// Bug 1: the column width sum overflowed and panicked. The spacing is now
+/// capped at a thousand columns.
+#[test]
+fn huge_spacing_is_capped_instead_of_overflowing() {
+    let dir = TempTestDir::new("spacing_overflow");
+    dir.create_file("f.txt", b"x");
+
+    let output = run(
+        &dir,
+        &[
+            "-l",
+            "--spacing",
+            "5000000000000000000",
+            "--no-permissions",
+            "--no-user",
+            "--no-time",
+            "f.txt",
+        ],
     );
-    assert!(output.status.success());
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(
+        text(&output.stdout),
+        format!("1{}f.txt\n", " ".repeat(1000))
+    );
 }
 
+/// Bug 2: following a directory symlink back to an ancestor recursed until
+/// `ELOOP`. The link is listed but not entered.
 #[test]
-fn test_symlink_cycle_recursion_pruned() {
-    let dir = TestDir::new("symlink_cycle");
-    let sub = dir.path.join("sub");
-    fs::create_dir_all(&sub).unwrap();
+#[cfg(unix)]
+fn a_symlink_cycle_is_listed_once_and_not_entered() {
+    let dir = TempTestDir::new("symlink_cycle");
+    dir.create_dir("cyc/sub");
+    dir.create_symlink("..", "cyc/sub/loop_to_root");
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::symlink;
-        symlink(&dir.path, sub.join("loop_to_root")).unwrap();
-
-        // JSON recursion must prune cycles cleanly and succeed
-        let out_json = Command::new(lez_bin())
-            .arg("--json")
-            .arg("-R")
-            .arg("--follow-symlinks")
-            .arg(&dir.path)
-            .output()
-            .expect("Failed to run lez --json -R");
-        assert_eq!(
-            out_json.status.code(),
-            Some(0),
-            "lez --json -R --follow-symlinks should prune cycles cleanly"
-        );
-
-        // Standard -R recursion must prune cycles cleanly and succeed with exit code 0
-        let out_r = Command::new(lez_bin())
-            .arg("-R")
-            .arg("--follow-symlinks")
-            .arg(&dir.path)
-            .output()
-            .expect("Failed to run lez -R");
-        assert_eq!(
-            out_r.status.code(),
-            Some(0),
-            "lez -R --follow-symlinks should prune cycles cleanly with exit code 0: {}",
-            String::from_utf8_lossy(&out_r.stderr)
-        );
-        let stdout_r = String::from_utf8_lossy(&out_r.stdout);
-        assert!(
-            stdout_r.contains("loop_to_root"),
-            "stdout should list the symlink entry itself: {stdout_r}"
-        );
-    }
+    let output = run(&dir, &["-R", "--follow-symlinks", "cyc"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(text(&output.stdout), "sub\n\ncyc/sub:\nloop_to_root\n");
+    assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
 }
 
+/// Bug 3: a non-UTF-8 path on stdin aborted the whole read. It is now looked
+/// up like any other path, so only that entry fails.
 #[test]
-fn test_non_utf8_stdin_stream_error_handling() {
-    let mut child = Command::new(lez_bin())
+#[cfg(unix)]
+fn a_non_utf8_stdin_path_fails_alone() {
+    let dir = TempTestDir::new("stdin_raw");
+    dir.create_file("f.txt", b"x");
+
+    let mut child = lez_in(dir.path())
         .arg("--stdin")
         .env("LEZ_STDIN_SEPARATOR", "\\0")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn lez --stdin");
+        .expect("failed to spawn lez");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b"f.txt\0\xff\xfe\0")
+        .expect("write stdin");
+    let output = child.wait_with_output().expect("wait for lez");
 
-    if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(b"Cargo.toml\0\xff\xfe\0");
-    }
-
-    let output = child.wait_with_output().expect("Failed to wait on child");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Cargo.toml"),
-        "Expected Cargo.toml in stdout: {stdout}"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !stderr.contains("Failed to read from stdin"),
-        "Stdin reader should not fail on reading raw byte stream: {stderr}"
-    );
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(text(&output.stdout), "f.txt\n");
     assert_eq!(
-        output.status.code(),
-        Some(2),
-        "Expected exit code 2 (MISSING_INPUT_PATH) for nonexistent raw byte path, got: {:?}",
-        output.status.code()
+        text(&output.stderr),
+        "\"\\xFF\\xFE\": No such file or directory (os error 2)\n"
     );
 }
 
+/// Bug 4: an explicit `--config` that was missing or broken was ignored
+/// without a word.
 #[test]
-fn test_explicit_invalid_config_error_warning() {
-    // 1. Nonexistent explicit config file must warn to stderr
-    let out_nonexistent = Command::new(lez_bin())
-        .arg("--config")
-        .arg("/nonexistent/custom_config.toml")
-        .arg("Cargo.toml")
-        .output()
-        .expect("Failed to run lez");
-    assert!(out_nonexistent.status.success());
-    let stderr1 = String::from_utf8_lossy(&out_nonexistent.stderr);
-    assert!(
-        stderr1.contains("Failed to read config file"),
-        "Should warn on missing config file: {stderr1}"
-    );
+fn an_explicit_config_that_cannot_be_used_is_reported() {
+    let dir = TempTestDir::new("explicit_config");
+    dir.create_file("f.txt", b"x");
+    dir.create_file("bad.toml", b"[[[ syntax");
+    dir.create_file("config.yaml", b"display:\n  header: true\n");
 
-    // 2. Syntax-corrupted config file must warn to stderr
-    let dir = TestDir::new("bad_config");
-    let bad_config = dir.path.join("bad.toml");
-    fs::write(&bad_config, b"[[[ syntax error").unwrap();
-
-    let out_corrupted = Command::new(lez_bin())
-        .arg("--config")
-        .arg(&bad_config)
-        .arg("Cargo.toml")
-        .output()
-        .expect("Failed to run lez");
-    let stderr2 = String::from_utf8_lossy(&out_corrupted.stderr);
-    assert!(
-        stderr2.contains("Failed to parse config file"),
-        "Should warn on corrupted config file: {stderr2}"
-    );
-
-    // 3. Valid YAML config file must succeed without parse errors
-    let dir_yaml = TestDir::new("yaml_config");
-    let yaml_config = dir_yaml.path.join("config.yaml");
-    fs::write(&yaml_config, b"display:\n  header: true\n").unwrap();
-
-    let out_yaml = Command::new(lez_bin())
-        .arg("--config")
-        .arg(&yaml_config)
-        .arg("-l")
-        .arg("Cargo.toml")
-        .output()
-        .expect("Failed to run lez");
-    assert!(out_yaml.status.success());
-    let stderr_yaml = String::from_utf8_lossy(&out_yaml.stderr);
-    assert!(
-        !stderr_yaml.contains("Failed to parse config file"),
-        "Valid YAML config must not produce parse errors: {stderr_yaml}"
-    );
-}
-
-#[test]
-fn test_config_tree_mode_with_double_all_rejected() {
-    let dir = TestDir::new("tree_cfg");
-    let cfg_path = dir.path.join("tree.toml");
-    fs::write(&cfg_path, b"[display]\nmode = \"tree\"\n").unwrap();
-
-    let output = Command::new(lez_bin())
-        .arg("--config")
-        .arg(&cfg_path)
-        .arg("-a")
-        .arg("-a")
-        .arg("Cargo.toml")
-        .output()
-        .expect("Failed to run lez");
-
+    let missing = dir.path().join("missing.toml");
+    // The OS words "not found" differently per platform, so ask it.
+    let not_found = fs::read(&missing).expect_err("the config must be missing");
+    let output = run(&dir, &["--config", missing.to_str().unwrap(), "f.txt"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(text(&output.stdout), "f.txt\n");
     assert_eq!(
-        output.status.code(),
-        Some(3),
-        "Config mode = 'tree' with -a -a should fail with OptionsError::TreeAllAll (exit 3)"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("Option --tree is useless given --all --all"),
-        "Unexpected stderr: {stderr}"
+        text(&output.stderr),
+        format!("lez: Failed to read config file {missing:?}: {not_found}\n")
     );
 
-    // When CLI explicitly overrides mode with oneline or grid, TreeAllAll must not trigger
-    let out_override = Command::new(lez_bin())
-        .arg("--config")
-        .arg(&cfg_path)
-        .arg("-1")
-        .arg("-a")
-        .arg("-a")
-        .arg("Cargo.toml")
-        .output()
-        .expect("Failed to run lez");
-    assert!(out_override.status.success());
+    let output = run(&dir, &["--config", "bad.toml", "f.txt"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(text(&output.stdout), "f.txt\n");
+    assert!(
+        text(&output.stderr).starts_with(
+            "lez: Failed to parse config file \"bad.toml\": TOML parse error at line 1, column 3\n"
+        ),
+        "{}",
+        text(&output.stderr)
+    );
+
+    // A YAML config is a supported format, not a parse failure.
+    let output = run(
+        &dir,
+        &[
+            "--config",
+            "config.yaml",
+            "-l",
+            "--no-permissions",
+            "--no-user",
+            "--no-time",
+            "f.txt",
+        ],
+    );
+    assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
+    assert_eq!(text(&output.stdout), "Size Name\n   1 f.txt\n");
 }
 
+/// Bug 5: `mode = "tree"` from the config skipped the `-a -a` check that the
+/// `--tree` flag gets.
 #[test]
-fn test_strict_mode_rejects_modern_long_flags_without_long() {
-    for flag in [
-        "--git-repos",
-        "--octal-permissions",
-        "--total-size",
-        "--flags",
-        "--context",
-        "--smart-group",
-        "--extended",
-        "--no-permissions",
+fn tree_mode_from_config_rejects_all_all_like_the_flag() {
+    let dir = TempTestDir::new("tree_cfg");
+    dir.create_file("f.txt", b"x");
+    dir.create_file("tree.toml", b"[display]\nmode = \"tree\"\n");
+
+    let output = run(&dir, &["--config", "tree.toml", "-a", "-a", "f.txt"]);
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(
+        text(&output.stderr),
+        "lez: Option --tree is useless given --all --all\n"
+    );
+
+    // A view chosen on the command line replaces the configured tree.
+    let output = run(&dir, &["--config", "tree.toml", "-1", "-a", "-a", "f.txt"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(text(&output.stdout), "f.txt\n");
+}
+
+/// Bug 6: strict mode let newer long-view columns through without `--long`.
+#[test]
+fn strict_mode_rejects_long_view_columns_without_long() {
+    let dir = TempTestDir::new("strict_long_only");
+    dir.create_file("f.txt", b"x");
+
+    for (flag, option) in [
+        ("--git-repos", "git-repos"),
+        ("--octal-permissions", "octal-permissions"),
+        ("--total-size", "total-size"),
+        ("--flags", "flags"),
+        ("--context", "context"),
+        ("--smart-group", "smart-group"),
+        ("--extended", "extended"),
+        ("--no-permissions", "no-permissions"),
     ] {
-        let out = Command::new(lez_bin())
+        let output = lez_in(dir.path())
             .env("LEZ_STRICT", "1")
-            .args([flag, "Cargo.toml"])
+            .args([flag, "f.txt"])
             .output()
-            .expect("Failed to run lez in strict mode");
+            .expect("failed to run lez");
+        assert_eq!(output.status.code(), Some(3), "{flag}");
         assert_eq!(
-            out.status.code(),
-            Some(3),
-            "LEZ_STRICT=1 must reject modern long-only flag '{flag}' without -l"
+            text(&output.stderr),
+            format!("lez: Option {option} is useless without option long\n"),
+            "{flag}"
         );
     }
 
-    let out_valid = Command::new(lez_bin())
+    let output = lez_in(dir.path())
         .env("LEZ_STRICT", "1")
-        .args(["-l", "--octal-permissions", "Cargo.toml"])
+        .args(["-l", "--octal-permissions", "f.txt"])
         .output()
-        .expect("Failed to run lez in strict mode with -l");
-    assert!(
-        out_valid.status.success(),
-        "LEZ_STRICT=1 must accept long-only flag when -l is present"
-    );
+        .expect("failed to run lez");
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
 }
 
+/// Bug 7: `--ignore-submodule-contents` still descended into submodules.
 #[test]
 #[cfg(feature = "git")]
-fn test_ignore_submodule_contents_prunes_contents() {
-    let dir = TestDir::new("submodule_ignore");
-    let child_dir = dir.path.join("child");
-    let parent_dir = dir.path.join("parent");
-    fs::create_dir_all(&child_dir).unwrap();
-    fs::create_dir_all(&parent_dir).unwrap();
+fn ignore_submodule_contents_lists_the_submodule_but_not_its_files() {
+    let child = TempGitRepo::new("submodule_child");
+    child.write_file("child.txt", b"child\n");
+    child.git(&["add", "."]);
+    child.git(&["commit", "-q", "-m", "child"]);
 
-    let run_git = |cwd: &Path, args: &[&str]| {
-        Command::new("git")
-            .current_dir(cwd)
-            .args(args)
-            .status()
-            .is_ok_and(|s| s.success())
-    };
+    let parent = TempGitRepo::new("submodule_parent");
+    parent.write_file("parent.txt", b"parent\n");
+    parent.git(&["add", "."]);
+    parent.git(&["commit", "-q", "-m", "parent"]);
+    parent.git(&[
+        "submodule",
+        "add",
+        "-q",
+        child.path().to_str().unwrap(),
+        "sub",
+    ]);
+    parent.git(&["commit", "-q", "-m", "add submodule"]);
 
-    if !run_git(&child_dir, &["init", "-q", "-b", "main"])
-        || !run_git(&child_dir, &["config", "user.name", "Tester"])
-        || !run_git(&child_dir, &["config", "user.email", "tester@example.com"])
-    {
-        return;
-    }
-    fs::write(child_dir.join("child.txt"), b"child\n").unwrap();
-    if !run_git(&child_dir, &["add", "."])
-        || !run_git(&child_dir, &["commit", "-q", "-m", "child_init"])
-    {
-        return;
-    }
-
-    if !run_git(&parent_dir, &["init", "-q", "-b", "main"])
-        || !run_git(&parent_dir, &["config", "user.name", "Tester"])
-        || !run_git(&parent_dir, &["config", "user.email", "tester@example.com"])
-    {
-        return;
-    }
-    fs::write(parent_dir.join("parent.txt"), b"parent\n").unwrap();
-    if !run_git(&parent_dir, &["add", "."])
-        || !run_git(&parent_dir, &["commit", "-q", "-m", "parent_init"])
-    {
-        return;
-    }
-
-    if !run_git(
-        &parent_dir,
-        &[
-            "-c",
-            "protocol.file.allow=always",
-            "submodule",
-            "add",
-            "-q",
-            child_dir.to_str().unwrap(),
-            "sub",
-        ],
-    ) || !run_git(&parent_dir, &["commit", "-q", "-m", "sub_added"])
-    {
-        return;
-    }
-
-    let output = Command::new(lez_bin())
-        .current_dir(&parent_dir)
+    let output = crate::common::lez_in(parent.path())
         .args(["-T", "--ignore-submodule-contents"])
         .output()
-        .expect("Failed to run lez -T --ignore-submodule-contents");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("sub"),
-        "Submodule folder itself must be listed: {stdout}"
+        .expect("failed to run lez");
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(
+        text(&output.stdout),
+        ".\n├── parent.txt\n└── sub\n",
+        "the submodule is listed, its contents are not"
     );
+
+    // Without the flag the same tree does show the submodule's file, which is
+    // what makes the assertion above mean something.
+    let output = crate::common::lez_in(parent.path())
+        .arg("-T")
+        .output()
+        .expect("failed to run lez");
     assert!(
-        !stdout.contains("child.txt"),
-        "Submodule contents must be pruned with --ignore-submodule-contents: {stdout}"
+        text(&output.stdout).contains("child.txt"),
+        "{}",
+        text(&output.stdout)
     );
 }
 
+/// Bug 8: a work tree described by `GIT_DIR`/`GIT_WORK_TREE` (a bare-repo
+/// dotfiles setup) lost its git column.
 #[test]
 #[cfg(feature = "git")]
-fn test_bare_git_worktree_status_modified() {
-    let dir = TestDir::new("bare_git");
-    let bare_dir = dir.path.join("bare.git");
-    let work_dir = dir.path.join("work");
-    fs::create_dir_all(&bare_dir).unwrap();
-    fs::create_dir_all(&work_dir).unwrap();
+fn a_bare_repository_work_tree_from_the_environment_shows_status() {
+    crate::common::require_git();
+    let dir = TempTestDir::new("bare_git");
+    let bare = dir.create_dir("bare.git");
+    let work = dir.create_dir("work");
+    let git = |args: &[&str]| {
+        let status = crate::common::git_command(&work)
+            .env("GIT_DIR", &bare)
+            .env("GIT_WORK_TREE", &work)
+            .args(args)
+            .status()
+            .expect("failed to run git");
+        assert!(status.success(), "git {args:?}");
+    };
 
-    // Initialize bare repo
-    let init_bare = Command::new("git")
+    crate::common::git_command(&bare)
         .args(["init", "--bare", "-q"])
-        .current_dir(&bare_dir)
-        .status();
-    if !init_bare.is_ok_and(|s| s.success()) {
-        return;
-    }
+        .status()
+        .expect("git init --bare")
+        .success()
+        .then_some(())
+        .expect("git init --bare failed");
+    fs::write(work.join("test.txt"), b"hello\n").unwrap();
+    git(&["add", "test.txt"]);
+    git(&["commit", "-q", "-m", "init"]);
+    fs::write(work.join("test.txt"), b"hello\nmodified\n").unwrap();
 
-    // Configure worktree
-    let test_file = work_dir.join("test.txt");
-    fs::write(&test_file, b"hello\n").unwrap();
-
-    let git_cmd = |args: &[&str]| {
-        Command::new("git")
-            .current_dir(&work_dir)
-            .env("GIT_DIR", &bare_dir)
-            .env("GIT_WORK_TREE", &work_dir)
-            .args(args)
-            .status()
-            .is_ok_and(|s| s.success())
-    };
-
-    if !git_cmd(&["config", "user.name", "Tester"])
-        || !git_cmd(&["config", "user.email", "tester@example.com"])
-        || !git_cmd(&["add", "test.txt"])
-        || !git_cmd(&["commit", "-q", "-m", "init"])
-    {
-        return;
-    }
-
-    // Modify test.txt
-    fs::write(&test_file, b"hello\nmodified\n").unwrap();
-
-    let output = Command::new(lez_bin())
-        .args(["-l", "--git"])
-        .current_dir(&work_dir)
-        .env("GIT_DIR", &bare_dir)
-        .env("GIT_WORK_TREE", &work_dir)
+    let output = crate::common::lez_in(&work)
+        .args([
+            "-l",
+            "--git",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "--no-time",
+        ])
+        .env("GIT_DIR", &bare)
+        .env("GIT_WORK_TREE", &work)
         .output()
-        .expect("Failed to run lez -l --git");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("-M") || stdout.contains("[ M]"),
-        "Expected git status column to show modified status for bare worktree file: {stdout}"
-    );
+        .expect("failed to run lez");
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(text(&output.stdout), "-M test.txt\n");
 }
 
+/// Bug 9: git-ignored files were left out of the `--loc=percent`
+/// denominator but not the numerator, giving `1000.0%`.
 #[test]
 #[cfg(feature = "git")]
-fn test_loc_percentage_not_distorted_by_git_ignored_files() {
-    let dir = TestDir::new("loc_git_ignored");
-    let git_cmd = |args: &[&str]| {
-        Command::new("git")
-            .current_dir(&dir.path)
-            .args(args)
-            .status()
-            .is_ok_and(|s| s.success())
-    };
+fn loc_percent_shares_one_denominator_with_ignored_files() {
+    let repo = TempGitRepo::new("loc_git_ignored");
+    repo.write_file("tracked.rs", b"fn main() {}\n");
+    let ignored: String = (0..10).map(|i| format!("fn f{i}() {{}}\n")).collect();
+    repo.write_file("ignored.rs", ignored.as_bytes());
+    repo.write_file(".gitignore", b"ignored.rs\n");
+    repo.git(&["add", ".gitignore", "tracked.rs"]);
+    repo.git(&["commit", "-q", "-m", "init"]);
 
-    if !git_cmd(&["init", "-q", "-b", "main"])
-        || !git_cmd(&["config", "user.name", "Tester"])
-        || !git_cmd(&["config", "user.email", "tester@example.com"])
-    {
-        return;
+    for view in [&["-l"][..], &["-l", "--grid"][..]] {
+        let mut args = view.to_vec();
+        args.extend([
+            "--loc=percent",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "--no-time",
+        ]);
+        let output = crate::common::lez_in(repo.path())
+            .args(&args)
+            .output()
+            .expect("failed to run lez");
+        assert_eq!(output.status.code(), Some(0), "{args:?}");
+        assert_eq!(
+            text(&output.stdout),
+            "Rust 90.9% ignored.rs\nRust  9.1% tracked.rs\n",
+            "{args:?}"
+        );
     }
-
-    fs::write(dir.path.join("tracked.rs"), b"fn main() {}\n").unwrap();
-    let mut ignored_content = String::new();
-    for i in 0..10 {
-        ignored_content.push_str(&format!("fn f{i}() {{}}\n"));
-    }
-    fs::write(dir.path.join("ignored.rs"), ignored_content).unwrap();
-    fs::write(dir.path.join(".gitignore"), b"ignored.rs\n").unwrap();
-
-    if !git_cmd(&["add", ".gitignore", "tracked.rs"]) || !git_cmd(&["commit", "-q", "-m", "init"]) {
-        return;
-    }
-
-    let output = Command::new(lez_bin())
-        .args(["-l", "--loc=percent"])
-        .current_dir(&dir.path)
-        .output()
-        .expect("Failed to run lez -l --loc=percent");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        !stdout.contains("1000.0%"),
-        "LOC percentage should not be distorted to 1000.0%: {stdout}"
-    );
-
-    let output_grid = Command::new(lez_bin())
-        .args(["-l", "--grid", "--loc=percent"])
-        .current_dir(&dir.path)
-        .output()
-        .expect("Failed to run lez -l --grid --loc=percent");
-
-    assert!(output_grid.status.success());
-    let stdout_grid = String::from_utf8_lossy(&output_grid.stdout);
-    assert!(
-        !stdout_grid.contains("1000.0%"),
-        "GridDetails LOC percentage should not be distorted to 1000.0%: {stdout_grid}"
-    );
 }
 
+/// Bug 10: `--code` counted a path once per time it was named.
 #[test]
-fn test_loc_code_deduplicate_repeated_paths() {
-    let output = Command::new(lez_bin())
-        .args(["--code", "Cargo.toml", "Cargo.toml"])
-        .output()
-        .expect("Failed to run lez --code");
+fn code_summary_counts_a_repeated_path_once() {
+    let dir = TempTestDir::new("loc_dedupe");
+    dir.create_file("main.rs", b"fn main() {}\n");
 
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Total         1"),
-        "lez --code should deduplicate repeated paths to 1 file: {stdout}"
+    let output = run(&dir, &["--code", "main.rs", "main.rs", "./main.rs"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let stdout = text(&output.stdout);
+    let total = stdout
+        .lines()
+        .find(|line| line.trim_start().starts_with("Total"))
+        .unwrap_or_else(|| panic!("no total row:\n{stdout}"));
+    assert_eq!(
+        total.split_whitespace().collect::<Vec<_>>(),
+        ["Total", "1", "1", "1", "0", "0", "100.0%"]
     );
 }
 
+/// Bug 11: a literal `%%Z` in a custom time style panicked; it prints `%Z`.
 #[test]
-fn test_time_style_escaped_percent_z_does_not_panic() {
-    let out1 = Command::new(lez_bin())
-        .args(["-l", "--time-style=+%%Z", "Cargo.toml"])
-        .output()
-        .expect("Failed to run lez");
-    assert_ne!(out1.status.code(), Some(101), "Should not panic on +%%Z");
-    assert!(out1.status.success());
+fn an_escaped_percent_z_in_a_time_style_prints_literally() {
+    let dir = TempTestDir::new("percent_z");
+    let path = dir.create_file("f.txt", b"x");
+    let mtime = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+    fs::File::options()
+        .write(true)
+        .open(&path)
+        .and_then(|f| f.set_modified(mtime))
+        .expect("set mtime");
 
-    let out2 = Command::new(lez_bin())
-        .args(["--json", "-l", "--time-style=+%Y-%%Z", "Cargo.toml"])
+    let output = lez_in(dir.path())
+        .env("TZ", "UTC")
+        .args([
+            "-l",
+            "--time-style=+%%Z|%Y",
+            "--no-permissions",
+            "--no-user",
+            "f.txt",
+        ])
         .output()
-        .expect("Failed to run lez");
-    assert_ne!(
-        out2.status.code(),
-        Some(101),
-        "Should not panic on +%Y-%%Z in json mode"
-    );
-    assert!(out2.status.success());
+        .expect("failed to run lez");
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(text(&output.stdout), "1 %Z|2023 f.txt\n");
+
+    let output = lez_in(dir.path())
+        .env("TZ", "UTC")
+        .args([
+            "--json",
+            "-l",
+            "--time-style=+%Y-%%Z",
+            "--no-permissions",
+            "--no-user",
+            "f.txt",
+        ])
+        .output()
+        .expect("failed to run lez");
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
+    assert_eq!(json["f.txt"]["Date Modified"], "2023-%Z");
 }
 
-#[test]
-fn test_ansi_c1_control_characters_escaped_in_output() {
-    let dir = TestDir::new("c1_controls");
-    let test_file = dir.path.join("test\u{0085}nel\u{009b}31mcsi.txt");
-    StdFile::create(&test_file).unwrap();
-
-    let output = Command::new(lez_bin())
-        .args(["--color=never", dir.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout_bytes = output.stdout;
-    // Verify stdout does not contain raw C1 control bytes (U+0085: 0xC2 0x85; U+009B: 0xC2 0x9B)
-    let has_raw_nel = stdout_bytes.windows(2).any(|w| w == [0xc2, 0x85]);
-    let has_raw_csi = stdout_bytes.windows(2).any(|w| w == [0xc2, 0x9b]);
-
-    assert!(
-        !has_raw_nel && !has_raw_csi,
-        "C1 control characters must be escaped, raw bytes found in stdout"
-    );
-}
-
+/// Bug 12: C1 control characters reached the terminal raw, so U+009B could
+/// start an escape sequence. They are printed as `\u{..}` escapes.
 #[test]
 #[cfg(unix)]
-fn test_json_directory_error_telemetry_reports_permission_code_13() {
-    if unsafe { libc::geteuid() } == 0 {
-        // Root ignores 000 permissions
+fn c1_control_characters_in_names_are_escaped() {
+    let dir = TempTestDir::new("c1_controls");
+    dir.create_file("test\u{0085}nel\u{009b}31mcsi.txt", b"");
+
+    let output = run(&dir, &["--color=never", "-1"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(text(&output.stdout), "test\\u{85}nel\\u{9b}31mcsi.txt\n");
+}
+
+/// Bug 13: JSON reported every directory error as a permission failure.
+#[test]
+#[cfg(unix)]
+fn json_reports_permission_errors_and_nothing_else_as_code_13() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = TempTestDir::new("json_error_code");
+    let missing = dir.path().join("non_existent_dir");
+    let output = run(&dir, &["--json", missing.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(text(&output.stdout), "[]");
+    assert_eq!(
+        text(&output.stderr),
+        format!("{missing:?}: No such file or directory (os error 2)\n")
+    );
+
+    if !crate::common::permission_checks_apply() {
         return;
     }
-    use std::os::unix::fs::PermissionsExt;
-    let dir = TestDir::new("bug13_telemetry");
-    let locked = dir.path.join("locked_dir");
-    fs::create_dir_all(&locked).unwrap();
-    fs::write(locked.join("file.txt"), b"data").unwrap();
+    let locked = dir.create_dir("locked_dir");
+    dir.create_file("locked_dir/file.txt", b"data");
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    let output = run(&dir, &["--json", "locked_dir"]);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
 
-    let orig_perms = fs::metadata(&locked).unwrap().permissions();
-    let mut no_perms = orig_perms.clone();
-    no_perms.set_mode(0o000);
-    fs::set_permissions(&locked, no_perms).unwrap();
-
-    let output = Command::new(lez_bin())
-        .arg("--json")
-        .arg(&locked)
-        .output()
-        .expect("Failed to run lez --json");
-
-    // Restore permissions so cleanup succeeds
-    let mut restore_perms = orig_perms;
-    restore_perms.set_mode(0o755);
-    let _ = fs::set_permissions(&locked, restore_perms);
-
-    assert_eq!(
-        output.status.code(),
-        Some(13),
-        "Must exit with code 13 (PERMISSION_DENIED) on permission error"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(13));
+    let stderr = text(&output.stderr);
     assert!(
         stderr.contains("Permission denied: ") && stderr.contains("code: 13"),
-        "Permission error must report code: 13 to stderr: {stderr}"
-    );
-
-    // Non-permission error (e.g. nonexistent path) must NOT emit "code: 13" or false "Permission denied"
-    let non_existent = dir.path.join("non_existent_dir");
-    let out_nonexist = Command::new(lez_bin())
-        .arg("--json")
-        .arg(&non_existent)
-        .output()
-        .expect("Failed to run lez --json");
-
-    assert_ne!(
-        out_nonexist.status.code(),
-        Some(13),
-        "Nonexistent directory must not exit with code 13"
-    );
-    let stderr_nonexist = String::from_utf8_lossy(&out_nonexist.stderr);
-    assert!(
-        !stderr_nonexist.contains("code: 13") && !stderr_nonexist.contains("Permission denied"),
-        "Non-permission error must not emit false permission denied code 13: {stderr_nonexist}"
+        "{stderr}"
     );
 }
 
+/// Bug 14: the JSON permission string lost the `D` that marks a mount point.
 #[test]
 #[cfg(unix)]
-fn test_json_mount_point_permissions_uppercase_indicator() {
-    // 1. Root directory '/' is always a mount point on Unix
-    let out_root = Command::new(lez_bin())
-        .args(["--json", "-l", "-d", "/"])
-        .output()
-        .expect("Failed to run lez --json -l -d /");
+fn json_permissions_mark_mount_points_with_an_upper_case_d() {
+    let dir = TempTestDir::new("json_mount");
+    dir.create_dir("plain");
 
-    assert!(out_root.status.success());
-    let stdout_root = String::from_utf8_lossy(&out_root.stdout);
-    let val_root: serde_json::Value =
-        serde_json::from_str(&stdout_root).expect("Must be valid JSON");
-    let root_obj = val_root
-        .get("/")
-        .and_then(|v| v.as_object())
-        .expect("Must have '/' entry");
-    let perms_root = root_obj
-        .get("Permissions")
-        .and_then(|v| v.as_str())
-        .expect("Must have Permissions string");
+    let output = run(&dir, &["--json", "-l", "-d", "--no-user", "--no-time", "/"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
+    let root = json["/"]["Permissions"].as_str().expect("root permissions");
+    assert!(root.starts_with('D'), "{root}");
 
-    assert!(
-        perms_root.starts_with('D'),
-        "JSON permissions for mount point directory '/' must start with uppercase 'D', got: {perms_root}"
+    let output = run(
+        &dir,
+        &["--json", "-l", "-d", "--no-user", "--no-time", "plain"],
     );
-
-    // 2. A regular temporary directory is not a mount point and must start with lowercase 'd'
-    let dir = TestDir::new("bug14_non_mount");
-    let out_regular = Command::new(lez_bin())
-        .args(["--json", "-l", "-d", dir.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez --json -l -d <dir>");
-
-    assert!(out_regular.status.success());
-    let stdout_regular = String::from_utf8_lossy(&out_regular.stdout);
-    let val_reg: serde_json::Value =
-        serde_json::from_str(&stdout_regular).expect("Must be valid JSON");
-    let name = dir.path.file_name().unwrap().to_str().unwrap();
-    let reg_obj = val_reg
-        .get(name)
-        .or_else(|| val_reg.get(dir.path.to_str().unwrap()))
-        .or_else(|| val_reg.as_object().and_then(|m| m.values().next()))
-        .and_then(|v| v.as_object())
-        .expect("Must have entry for temp dir");
-    let perms_reg = reg_obj
-        .get("Permissions")
-        .and_then(|v| v.as_str())
-        .expect("Must have Permissions string");
-
-    assert!(
-        perms_reg.starts_with('d'),
-        "JSON permissions for regular directory must start with lowercase 'd', got: {perms_reg}"
-    );
-}
-
-#[test]
-fn test_since_future_skew_not_hidden() {
-    let dir = TestDir::new("since_future_skew");
-    let file_path = dir.path.join("future_file.txt");
-    fs::write(&file_path, b"test content").expect("Failed to create file");
-
-    let future_time = SystemTime::now() + std::time::Duration::from_secs(60);
-    let f = StdFile::options()
-        .write(true)
-        .open(&file_path)
-        .expect("Failed to open file");
-    f.set_modified(future_time).expect("Failed to set mtime");
-
-    let output = Command::new(lez_bin())
-        .arg("--since")
-        .arg("24h")
-        .arg(&dir.path)
-        .output()
-        .expect("Failed to run lez --since");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("future_file.txt"),
-        "File with future timestamp should not be hidden by --since 24h: {stdout}"
-    );
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
+    let plain = json["plain"]["Permissions"]
+        .as_str()
+        .expect("plain permissions");
+    assert!(plain.starts_with('d'), "{plain}");
 }
