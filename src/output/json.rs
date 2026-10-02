@@ -6,7 +6,7 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use log::debug;
 
@@ -105,7 +105,7 @@ impl<'a> Render<'a> {
                         visited.insert(canon);
                     }
                 }
-                self.render_recursive_directories(&mut dirs, false, w, 0, &visited)?
+                self.render_recursive_directories(&mut dirs, false, w, 0, &visited, None)?
             }
             (0, _, _) => self.render_directories(dirs, w)?,
             (_, _, recurse) => self.render_files_directories(files, dirs, recurse, w)?,
@@ -113,7 +113,22 @@ impl<'a> Render<'a> {
         Ok(status)
     }
 
+    /// Renders files named on the command line, whose code share is taken
+    /// of their own total.
     fn render_files<W: Write>(&self, files: Vec<File<'a>>, w: &mut W) -> io::Result<()> {
+        let roots: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+        self.render_files_under(files, &roots, w)
+    }
+
+    /// Renders files whose code share is taken of everything under `roots`,
+    /// counted as the long view counts it: the listed directory, walked
+    /// once, with links followed only under `--follow-symlinks`.
+    fn render_files_under<W: Write>(
+        &self,
+        files: Vec<File<'a>>,
+        roots: &[PathBuf],
+        w: &mut W,
+    ) -> io::Result<()> {
         match &self.opts.details {
             None => {
                 let fnames: Vec<String> = files.iter().map(|f| self.render_file(f, None)).collect();
@@ -126,14 +141,12 @@ impl<'a> Render<'a> {
                             t.columns.loc,
                             Some(CodeContent::Percent | CodeContent::Both)
                         ) {
-                            let roots: Vec<PathBuf> =
-                                files.iter().map(|f| f.path.clone()).collect();
                             let report = crate::loc::count_roots_filtered(
-                                &roots,
+                                roots,
                                 self.dots.shows_dotfiles(),
                                 Some(self.file_filter),
                                 !self.git_ignoring,
-                                self.deref_links,
+                                self.view.follow_links,
                             );
 
                             Some(report.total().code)
@@ -211,7 +224,7 @@ impl<'a> Render<'a> {
         self.file_filter.filter_child_files(false, &mut files);
         self.file_filter.sort_files(&mut files);
 
-        self.render_files(files, w)?;
+        self.render_files_under(files, &[dir_path], w)?;
 
         Ok(crate::exits::SUCCESS)
     }
@@ -223,6 +236,7 @@ impl<'a> Render<'a> {
         w: &mut W,
         depth: usize,
         ancestors: &std::collections::HashSet<PathBuf>,
+        tree_root: Option<&Path>,
     ) -> io::Result<i32> {
         write!(w, "{{")?;
         let mut first = true;
@@ -235,8 +249,18 @@ impl<'a> Render<'a> {
             })
         };
 
+        let is_tree = self
+            .dir_action
+            .recurse_options()
+            .is_some_and(|recurse| recurse.tree);
         for dir in dirs {
             let dir_path = dir.path.clone();
+            // A tree is one listing, so every level's code share is taken of
+            // the whole tree; `-R` lists each directory on its own.
+            let loc_root = match tree_root {
+                Some(root) if is_tree => root.to_path_buf(),
+                _ => dir_path.clone(),
+            };
             if first {
                 first = false;
             } else {
@@ -336,7 +360,7 @@ impl<'a> Render<'a> {
                     }
 
                     write!(w, "\"files\":")?;
-                    self.render_files(leaf_files, w)?;
+                    self.render_files_under(leaf_files, std::slice::from_ref(&loc_root), w)?;
                     write!(w, ", \"directories\":")?;
                     let child_status = self.render_recursive_directories(
                         &mut child_dirs,
@@ -344,6 +368,7 @@ impl<'a> Render<'a> {
                         w,
                         child_depth,
                         &next_ancestors,
+                        Some(&loc_root),
                     )?;
                     if child_status != crate::exits::SUCCESS {
                         exit_status = child_status;
@@ -355,7 +380,7 @@ impl<'a> Render<'a> {
                         cutoff_files.extend(child_dir_files);
                         self.file_filter.sort_files(&mut cutoff_files);
                     }
-                    self.render_files(cutoff_files, w)?;
+                    self.render_files_under(cutoff_files, std::slice::from_ref(&loc_root), w)?;
                     if recurse_opts.tree {
                         write!(w, ", \"directories\":{{}}")?;
                     }
@@ -367,7 +392,7 @@ impl<'a> Render<'a> {
                     cutoff_files.extend(child_dir_files);
                     self.file_filter.sort_files(&mut cutoff_files);
                 }
-                self.render_files(cutoff_files, w)?;
+                self.render_files_under(cutoff_files, std::slice::from_ref(&loc_root), w)?;
             }
             write!(w, "}}")?;
         }
@@ -414,7 +439,7 @@ impl<'a> Render<'a> {
                     visited.insert(canon);
                 }
             }
-            self.render_recursive_directories(&mut dirs, false, w, 0, &visited)?
+            self.render_recursive_directories(&mut dirs, false, w, 0, &visited, None)?
         } else {
             self.render_directories(dirs, w)?
         };
