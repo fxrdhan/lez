@@ -1,276 +1,158 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! Mount points: the `D` in place of `d` in the permissions column, and the
+//! `[source on dest (fstype)]` that `-M`/`--mounts` adds after the name.
+//!
+//! Which directories are mount points depends on the machine (a container,
+//! the Nix build sandbox and macOS all differ), so the expected output is
+//! worked out from the kernel's own mount table, read independently of how
+//! lez reads it: `/proc/self/mountinfo` on Linux, `mount` on macOS.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
+#![cfg(any(target_os = "linux", target_os = "macos"))]
+
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-struct TempTestDir {
-    path: PathBuf,
+use crate::common::{TempTestDir, lez_cmd, success_stdout};
+
+struct Mount {
+    source: String,
+    fstype: String,
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_mount_test_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp dir");
-        Self { path }
-    }
-
-    fn create_file(&self, name: &str, content: &[u8]) -> PathBuf {
-        let p = self.path.join(name);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).unwrap();
+/// Every mount point and what is mounted there; where mounts are stacked,
+/// the last one listed is the one in effect.
+#[cfg(target_os = "linux")]
+fn mount_table() -> HashMap<PathBuf, Mount> {
+    // Spaces, tabs, newlines and backslashes are written as octal escapes.
+    fn unescape(field: &str) -> String {
+        let mut out = String::new();
+        let mut rest = field;
+        while let Some(at) = rest.find('\\') {
+            out.push_str(&rest[..at]);
+            let code = u8::from_str_radix(&rest[at + 1..at + 4], 8).expect("an octal escape");
+            out.push(char::from(code));
+            rest = &rest[at + 4..];
         }
-        let mut f = StdFile::create(&p).unwrap();
-        f.write_all(content).unwrap();
-        p
+        out.push_str(rest);
+        out
     }
 
-    fn create_dir(&self, name: &str) -> PathBuf {
-        let p = self.path.join(name);
-        fs::create_dir_all(&p).unwrap();
-        p
+    let table = std::fs::read_to_string("/proc/self/mountinfo").expect("read the mount table");
+    table
+        .lines()
+        .map(|line| {
+            // `id parent dev root dest options [optional...] - fstype source superoptions`
+            let (before, after) = line.split_once(" - ").expect("a separator");
+            let dest = before.split(' ').nth(4).expect("a mount point");
+            let mut after = after.split(' ');
+            let fstype = after.next().expect("a filesystem type");
+            let source = after.next().expect("a source");
+            (
+                PathBuf::from(unescape(dest)),
+                Mount {
+                    source: unescape(source),
+                    fstype: fstype.to_owned(),
+                },
+            )
+        })
+        .collect()
+}
+
+#[cfg(target_os = "macos")]
+fn mount_table() -> HashMap<PathBuf, Mount> {
+    let output = std::process::Command::new("/sbin/mount")
+        .output()
+        .expect("run mount");
+    assert!(output.status.success(), "mount failed");
+    String::from_utf8(output.stdout)
+        .expect("UTF-8 mount table")
+        .lines()
+        .map(|line| {
+            // `source on dest (fstype, flags...)`
+            let (source, rest) = line.split_once(" on ").expect("a mount line");
+            let (dest, details) = rest.rsplit_once(" (").expect("mount details");
+            let fstype = details.split([',', ')']).next().expect("a filesystem type");
+            (
+                PathBuf::from(dest),
+                Mount {
+                    source: source.to_owned(),
+                    fstype: fstype.to_owned(),
+                },
+            )
+        })
+        .collect()
+}
+
+/// Directories to check: the root, which is always a mount point, a few
+/// that usually are, and one that cannot be.
+fn candidates(temp: &TempTestDir) -> Vec<PathBuf> {
+    let fresh = temp.create_dir("not_a_mount");
+    ["/", "/dev", "/proc", "/sys", "/System/Volumes/Data"]
+        .into_iter()
+        .map(PathBuf::from)
+        .filter(|path| path.is_dir())
+        .chain([fresh])
+        .collect()
+}
+
+fn long(path: &Path, extra: &[&str]) -> String {
+    success_stdout(
+        lez_cmd()
+            .args(["-ld", "--no-filesize", "--no-user", "--no-time"])
+            .args(extra)
+            .arg(path),
+    )
+}
+
+#[test]
+fn a_mount_point_is_marked_d_in_every_format() {
+    let table = mount_table();
+    assert!(table.contains_key(Path::new("/")), "/ is always mounted");
+    let temp = TempTestDir::new("mount_marks");
+
+    for path in candidates(&temp) {
+        let canonical = path.canonicalize().expect("canonicalize");
+        let expected = if table.contains_key(&canonical) {
+            'D'
+        } else {
+            'd'
+        };
+
+        assert_eq!(long(&path, &[]).chars().next(), Some(expected), "{path:?}");
+        let json: serde_json::Value =
+            serde_json::from_str(&long(&path, &["--json"])).expect("valid JSON");
+        let permissions = json
+            .as_object()
+            .and_then(|entries| entries.values().next())
+            .and_then(|entry| entry["Permissions"].as_str())
+            .expect("a permissions field");
+        assert_eq!(permissions.chars().next(), Some(expected), "{path:?}");
     }
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
+/// `-M` names what is mounted: its source, where (except for `/`), and the
+/// filesystem type. Other directories get nothing.
 #[test]
-#[cfg(unix)]
-fn test_root_mount_point_permissions_indicator_d_capital() {
-    let output = crate::common::lez_cmd()
-        .arg("-ld")
-        .arg("--color=never")
-        .arg("/")
-        .output()
-        .expect("Failed to execute lez -ld /");
+fn mounts_describes_what_is_mounted() {
+    let table = mount_table();
+    let temp = TempTestDir::new("mount_details");
 
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout
-        .lines()
-        .next()
-        .expect("Expected at least one line of output");
-    let trimmed = line.trim();
-    assert!(
-        trimmed.starts_with('D'),
-        "Root directory '/' must have permissions starting with 'D' (mount point indicator), got line: {trimmed}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_regular_directory_permissions_indicator_d_lowercase() {
-    let temp = TempTestDir::new("reg_dir");
-    let subdir = temp.create_dir("normal_folder");
-
-    let output = crate::common::lez_cmd()
-        .arg("-ld")
-        .arg("--color=never")
-        .arg(&subdir)
-        .output()
-        .expect("Failed to execute lez -ld on normal directory");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout
-        .lines()
-        .next()
-        .expect("Expected at least one line of output");
-    let trimmed = line.trim();
-    assert!(
-        trimmed.starts_with('d'),
-        "Regular directory must have permissions starting with 'd' (lowercase), got line: {trimmed}"
-    );
-    assert!(
-        !trimmed.starts_with('D'),
-        "Regular directory must not start with 'D', got line: {trimmed}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_regular_file_permissions_indicator_not_directory() {
-    let temp = TempTestDir::new("reg_file");
-    let file_path = temp.create_file("example.txt", b"hello mount test");
-
-    let output = crate::common::lez_cmd()
-        .arg("-l")
-        .arg("--color=never")
-        .arg(&file_path)
-        .output()
-        .expect("Failed to execute lez -l on regular file");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout
-        .lines()
-        .next()
-        .expect("Expected at least one line of output");
-    let trimmed = line.trim();
-    assert!(
-        trimmed.starts_with('.') || trimmed.starts_with('-'),
-        "Regular file must start with '.' or '-', got line: {trimmed}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_mount_indicator_json_compatibility() {
-    let output = crate::common::lez_cmd()
-        .arg("-ld")
-        .arg("--json")
-        .arg("/")
-        .output()
-        .expect("Failed to execute lez -ld --json /");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("Must be valid JSON");
-    let obj = parsed.as_object().expect("Expected root JSON object");
-
-    // Check permissions field in JSON representation for mount point
-    let entry = obj
-        .get("/")
-        .expect("Expected '/' entry in root JSON object");
-    let perm = entry
-        .get("Permissions")
-        .and_then(|p| p.as_str())
-        .expect("Expected 'Permissions' string in '/' entry");
-    assert!(
-        perm.starts_with('D'),
-        "JSON permissions for root mount point must start with 'D' (mount point indicator), got: {perm}"
-    );
-
-    // Check permissions field in JSON representation for non-mount directory
-    let temp = TempTestDir::new("json_reg_dir");
-    let subdir = temp.create_dir("normal_folder");
-    let output_sub = crate::common::lez_cmd()
-        .arg("-ld")
-        .arg("--json")
-        .arg(&subdir)
-        .output()
-        .expect("Failed to execute lez -ld --json on normal directory");
-
-    assert!(output_sub.status.success());
-    let stdout_sub = String::from_utf8_lossy(&output_sub.stdout);
-    let parsed_sub: serde_json::Value =
-        serde_json::from_str(&stdout_sub).expect("Must be valid JSON");
-    let obj_sub = parsed_sub
-        .as_object()
-        .expect("Expected JSON object for normal directory");
-    let sub_name = subdir.file_name().unwrap().to_str().unwrap();
-    let sub_entry = obj_sub
-        .get(sub_name)
-        .or_else(|| obj_sub.get(subdir.to_str().unwrap()))
-        .or_else(|| obj_sub.values().next())
-        .expect("Expected entry in JSON object");
-    let sub_perm = sub_entry
-        .get("Permissions")
-        .and_then(|p| p.as_str())
-        .expect("Expected 'Permissions' string in directory entry");
-    assert!(
-        sub_perm.starts_with('d'),
-        "JSON permissions for regular directory must start with 'd' (lowercase), got: {sub_perm}"
-    );
-    assert!(
-        !sub_perm.starts_with('D'),
-        "JSON permissions for regular directory must not start with 'D', got: {sub_perm}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_mount_indicator_with_octal_permissions() {
-    let output = crate::common::lez_cmd()
-        .arg("-ld")
-        .arg("--octal-permissions")
-        .arg("--color=never")
-        .arg("/")
-        .output()
-        .expect("Failed to execute lez -ld --octal-permissions /");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout
-        .lines()
-        .next()
-        .expect("Expected at least one line of output");
-    let trimmed = line.trim();
-    assert!(
-        trimmed.contains("Drw"),
-        "Root directory line must contain 'Drw' in permissions column with --octal-permissions, got: {trimmed}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_mount_indicator_with_header() {
-    let output = crate::common::lez_cmd()
-        .arg("-ld")
-        .arg("--header")
-        .arg("--color=never")
-        .arg("/")
-        .output()
-        .expect("Failed to execute lez -ld --header /");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let lines: Vec<&str> = stdout.lines().collect();
-    assert!(lines.len() >= 2, "Expected header and data line");
-    let data_line = lines[1].trim();
-    assert!(
-        data_line.starts_with('D'),
-        "Root directory data line must start with 'D', got: {data_line}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_nested_subdirectories_in_temp_dir() {
-    let temp = TempTestDir::new("nested");
-    let _sub1 = temp.create_dir("level1");
-    let _sub2 = temp.create_dir("level1/level2");
-    let _f = temp.create_file("level1/level2/deep.txt", b"deep");
-
-    let output = crate::common::lez_cmd()
-        .arg("-l")
-        .arg("--recurse")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to execute lez -l --recurse");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    for line in stdout.lines() {
-        let trimmed = line.trim();
-        if trimmed.ends_with("level1") || trimmed.ends_with("level2") {
-            assert!(
-                trimmed.starts_with('d'),
-                "Non-mount nested directories must start with 'd', got line: {trimmed}"
-            );
-            assert!(
-                !trimmed.starts_with('D'),
-                "Non-mount nested directory must not start with 'D', got line: {trimmed}"
-            );
-        }
+    for path in candidates(&temp) {
+        let canonical = path.canonicalize().expect("canonicalize");
+        let details = table.get(&canonical).map_or_else(String::new, |mount| {
+            let on = if canonical == Path::new("/") {
+                String::new()
+            } else {
+                format!(" on {}", canonical.display())
+            };
+            format!(" [{}{on} ({})]", mount.source, mount.fstype)
+        });
+        assert_eq!(
+            long(&path, &["-M", "--no-permissions"]),
+            format!("{}{details}\n", path.display()),
+            "{path:?}"
+        );
     }
 }

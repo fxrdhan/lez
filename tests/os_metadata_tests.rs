@@ -7,8 +7,6 @@ mod common;
 
 #[path = "os_metadata/file_flags.rs"]
 mod file_flags;
-#[path = "os_metadata/fuse_remote_fs_resilience.rs"]
-mod fuse_remote_fs_resilience;
 #[path = "os_metadata/linux_caps_selinux_resilience.rs"]
 mod linux_caps_selinux_resilience;
 #[path = "os_metadata/linux_caps_synthetic_invariants.rs"]
