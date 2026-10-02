@@ -114,23 +114,19 @@ impl ShowIcons {
     }
 
     fn get_width<V: Vars>(vars: &V, config: &FileConfig) -> Result<u32, OptionsError> {
-        if let Some(columns) = vars
-            .get(vars::LEZ_ICON_SPACING)
-            .or_else(|| vars.get(vars::EZA_ICON_SPACING))
-            .or_else(|| vars.get(vars::EXA_ICON_SPACING))
-            .map(|s| s.to_string_lossy().to_string())
-        {
+        if let Some((name, value)) = vars.first_set(&[
+            vars::LEZ_ICON_SPACING,
+            vars::EZA_ICON_SPACING,
+            vars::EXA_ICON_SPACING,
+        ]) {
+            let columns = value.to_string_lossy().to_string();
             match columns.parse() {
                 Ok(width) => Ok(width),
-                Err(e) => {
-                    let source = NumberSource::Env(if vars.get(vars::LEZ_ICON_SPACING).is_some() {
-                        vars::LEZ_ICON_SPACING
-                    } else {
-                        vars.source(vars::EZA_ICON_SPACING, vars::EXA_ICON_SPACING)
-                            .unwrap_or(vars::LEZ_ICON_SPACING)
-                    });
-                    Err(OptionsError::FailedParse(columns.clone(), source, e))
-                }
+                Err(e) => Err(OptionsError::FailedParse(
+                    columns,
+                    NumberSource::Env(name),
+                    e,
+                )),
             }
         } else if let Some(spacing) = config.icons.spacing {
             Ok(spacing as u32)

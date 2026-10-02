@@ -188,17 +188,12 @@ pub trait Vars {
         self.get(name).or_else(|| self.get(fallback))
     }
 
-    /// Get the source of the value.  If the variable `name` is set return
-    /// `Some(name)` else if the variable `fallback` is set return
-    /// `Some(fallback)` else `None`.
-    fn source(&self, name: &'static str, fallback: &'static str) -> Option<&'static str> {
-        match self.get(name) {
-            Some(v) if !v.is_empty() => Some(name),
-            _ => match self.get(fallback) {
-                Some(v) if !v.is_empty() => Some(fallback),
-                _ => None,
-            },
-        }
+    /// The first of `names` that is set, together with its value, so that an
+    /// error about the value names the variable it actually came from.
+    fn first_set(&self, names: &[&'static str]) -> Option<(&'static str, OsString)> {
+        names
+            .iter()
+            .find_map(|&name| self.get(name).map(|value| (name, value)))
     }
 }
 
@@ -623,20 +618,27 @@ pub mod test {
     }
 
     #[test]
-    fn test_vars_source_fallback_logic() {
+    fn first_set_names_the_variable_that_supplied_the_value() {
+        let names = [LEZ_ICON_SPACING, EZA_ICON_SPACING, EXA_ICON_SPACING];
         let mut vars = MockVars::default();
-        assert_eq!(vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING), None);
+        assert_eq!(vars.first_set(&names), None);
+
+        vars.set(EXA_ICON_SPACING, &OsString::from("3"));
+        assert_eq!(
+            vars.first_set(&names),
+            Some((EXA_ICON_SPACING, OsString::from("3")))
+        );
 
         vars.set(EZA_ICON_SPACING, &OsString::from("2"));
         assert_eq!(
-            vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING),
-            Some(EZA_ICON_SPACING)
+            vars.first_set(&names),
+            Some((EZA_ICON_SPACING, OsString::from("2")))
         );
 
         vars.set(LEZ_ICON_SPACING, &OsString::from("4"));
         assert_eq!(
-            vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING),
-            Some(LEZ_ICON_SPACING)
+            vars.first_set(&names),
+            Some((LEZ_ICON_SPACING, OsString::from("4")))
         );
     }
 }
