@@ -598,12 +598,15 @@ fn collect_entry<F>(
             {
                 return;
             }
-            if let Some(lang) = language_for_path(path).or_else(|| {
-                std::fs::canonicalize(path)
-                    .ok()
-                    .as_deref()
-                    .and_then(language_for_path)
-            }) {
+            // A followed link is in the language of what it leads to, as in
+            // the long view; its own name counts only when the target's
+            // says nothing.
+            if let Some(lang) = std::fs::canonicalize(path)
+                .ok()
+                .as_deref()
+                .and_then(language_for_path)
+                .or_else(|| language_for_path(path))
+            {
                 jobs.push((path.to_path_buf(), lang));
             }
         }

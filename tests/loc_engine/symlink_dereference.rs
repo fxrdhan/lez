@@ -617,3 +617,27 @@ fn json_shares_match_the_long_view_when_recursing() {
     );
     assert_eq!(json(&["-T", "top"]), tree("25.0%", "75.0%"));
 }
+
+#[cfg(unix)]
+fn code(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(dir.path()).arg("--code").args(args))
+}
+
+/// A followed link is in its target's language in `--code` too: this link
+/// named `.rs` holds Python, whose `#` line is a comment. Counted as Rust,
+/// that line was code.
+#[test]
+#[cfg(unix)]
+fn code_mode_names_a_followed_link_by_its_target() {
+    let dir = TempTestDir::new("code_language");
+    dir.create_file("py_script.py", b"# comment\nprint('hi')\n");
+    dir.create_symlink("py_script.py", "mismatched.rs");
+
+    assert_eq!(
+        code(&dir, &["-X"]),
+        " Language  Files  Lines  Code  Comments  Blanks  Code %\n \
+         Python        2      4     2         2       0  100.0%  ████████████████\n\
+         ─────────────────────────────────────────────────────────────────────────\n \
+         Total         2      4     2         2       0  100.0%\n"
+    );
+}
