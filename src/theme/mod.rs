@@ -693,7 +693,9 @@ impl FileNameColours for Theme {
                 return Some(dir_override.clone());
             }
 
-            if let Some(ref ext_overrides) = self.ui.extensions {
+            if let Some(ref ext_overrides) = self.ui.extensions
+                && !crate::output::icons::has_specific_icon(file)
+            {
                 if ext_overrides.contains_key(FileDefaults::DIRECTORY_EMPTY)
                     && file.is_empty_dir()
                     && let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY_EMPTY)
@@ -725,7 +727,9 @@ impl FileNameColours for Theme {
                 return Some(file_override.clone());
             }
 
-            if let Some(ref ext_overrides) = self.ui.extensions {
+            if let Some(ref ext_overrides) = self.ui.extensions
+                && !crate::output::icons::has_specific_icon(file)
+            {
                 if file.ext.is_some() {
                     if let Some(file_override) = ext_overrides.get(FileDefaults::FILE) {
                         return Some(file_override.clone());
