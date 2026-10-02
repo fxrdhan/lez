@@ -117,7 +117,9 @@ impl Options {
 
         match self.theme_config {
             Some(ref theme) => {
-                if let Some(mut ui) = theme.to_theme() {
+                // A theme file is laid over the same built-in theme a run
+                // without one gets, size palette and all.
+                if let Some(mut ui) = theme.to_theme(UiStyles::default_theme(self.colour_scale)) {
                     if !use_colours {
                         ui = ui.plain_colors();
                         return Theme {
