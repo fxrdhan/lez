@@ -115,3 +115,36 @@ fn every_source_under_man_is_built() {
         );
     }
 }
+
+/// Every flag `--help` lists is documented in the man page and the README,
+/// as a new flag must be. A mention counts only where the flag's name ends,
+/// so `--color-scale` does not stand in for `--color`. The README lacked
+/// the three Windows filters and `--percent-digits`.
+#[test]
+fn every_flag_is_documented() {
+    let flags: Vec<String> = lez::options::parser::get_command()
+        .get_arguments()
+        .filter(|arg| !arg.is_hide_set())
+        .filter_map(clap::Arg::get_long)
+        .filter(|long| !["help", "version"].contains(long))
+        .map(|long| format!("--{long}"))
+        .collect();
+    assert!(flags.len() > 80, "only {} flags found", flags.len());
+
+    let mentions = |text: &str, before: &str, flag: &str| {
+        text.match_indices(&format!("{before}{flag}"))
+            .any(|(at, found)| {
+                !text[at + found.len()..]
+                    .starts_with(|c: char| c.is_ascii_alphanumeric() || c == '-')
+            })
+    };
+    for (page, before) in [("man/lez.1.md", "`"), ("README.md", "**")] {
+        // The README writes both spellings at once, as `--colo[u]r`.
+        let text = workspace_file(page).replace("colo[u]r", "color");
+        let missing: Vec<&String> = flags
+            .iter()
+            .filter(|flag| !mentions(&text, before, flag))
+            .collect();
+        assert!(missing.is_empty(), "{page} does not document {missing:?}");
+    }
+}
