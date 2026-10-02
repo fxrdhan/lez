@@ -3,182 +3,155 @@
 
 //! `--only-files` (`-f`) combined with recursion.
 //!
-//! Tree mode must keep descending into directories while hiding the
-//! directories themselves, with tree edges left intact; other modes keep
-//! filtering directories out entirely.
+//! A tree keeps descending into directories while hiding their rows: what
+//! is left is the `-T` tree with the directory rows taken out, every other
+//! row keeping the edges it has there. `-R` drops the directories from each
+//! listing but still visits them.
 
-use std::fs;
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::{NAME_COLUMN_ONLY, TempTestDir, lez_in, native, success_stdout};
 
-struct TempTestDir {
-    path: PathBuf,
-}
-
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_only_files_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-
-    fn create_file(&self, rel_path: &str) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::File::create(&file_path).unwrap();
-        file_path
-    }
-
-    fn create_dir(&self, rel_path: &str) -> PathBuf {
-        let dir_path = self.path.join(rel_path);
-        fs::create_dir_all(&dir_path).unwrap();
-        dir_path
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn run_lez(args: &[&str]) -> std::process::Output {
-    crate::common::lez_cmd()
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
-fn fixture(prefix: &str) -> TempTestDir {
+/// A directory holding `files` (with their parents) and the empty `dirs`.
+fn fixture(prefix: &str, files: &[&str], dirs: &[&str]) -> TempTestDir {
     let dir = TempTestDir::new(prefix);
-    dir.create_file("top.txt");
-    dir.create_file("sub/mid.txt");
-    dir.create_file("sub/deeper/leaf.txt");
-    dir.create_dir("empty_dir");
+    for file in files {
+        dir.create_file(file, b"\n");
+    }
+    for empty in dirs {
+        dir.create_dir(empty);
+    }
     dir
 }
 
-/// Renders `args` against the fixture and replaces the fixture's own path
-/// with `<ROOT>`, so the whole block can be compared literally.
-fn tree_of(fixture: &TempTestDir, args: &[&str]) -> String {
-    let root = fixture.path.to_str().unwrap();
-    let mut argv: Vec<&str> = args.to_vec();
-    argv.push("--color=never");
-    argv.push(root);
-
-    let output = run_lez(&argv);
-    assert!(output.status.success(), "lez {argv:?} should succeed");
-
-    String::from_utf8_lossy(&output.stdout)
-        .replace(root, "<ROOT>")
-        .trim_end()
-        .to_string()
+fn the_usual(prefix: &str) -> TempTestDir {
+    fixture(
+        prefix,
+        &["top.txt", "sub/mid.txt", "sub/deeper/leaf.txt"],
+        &["empty_dir"],
+    )
 }
 
-/// Directories are hidden but still descended into, so the files keep the
-/// indentation of the level they actually live at.
-///
-/// Asserted as a whole block on purpose. Checking only that each name appears
-/// and that some edge character is present passes on mangled output: the
-/// prefixes of the hidden directory rows used to be concatenated onto the
-/// surviving rows, printing "├── ├── └── leaf.txt", which satisfies every
-/// containment check while being structurally meaningless.
-#[test]
-fn tree_with_only_files_indents_files_under_hidden_directories() {
-    let fixture = fixture("tree");
-
-    assert_eq!(
-        tree_of(&fixture, &["-T", "-f"]),
-        concat!(
-            "        \u{2514}\u{2500}\u{2500} leaf.txt\n",
-            "    \u{2514}\u{2500}\u{2500} mid.txt\n",
-            "\u{2514}\u{2500}\u{2500} top.txt",
-        )
-    );
+fn run(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(dir.path()).args(args))
 }
 
-/// No row is emitted for a level whose directory was hidden, so no connector
-/// may be drawn for it either — those columns have to be blank.
-#[test]
-fn tree_with_only_files_draws_no_connector_for_hidden_levels() {
-    let fixture = fixture("tree_edges");
-    let rendered = tree_of(&fixture, &["-T", "-f"]);
+/// The `-T` tree with `extra` flags, minus the rows `--classify` marks as
+/// directories, the root included.
+fn tree_without_directory_rows(dir: &TempTestDir, extra: &[&str]) -> String {
+    run(dir, &[&["-T", "--classify=always"][..], extra].concat())
+        .lines()
+        .filter(|line| !line.ends_with('/'))
+        .map(|line| format!("{line}\n"))
+        .collect()
+}
 
-    for line in rendered.lines() {
-        let prefix: String = line
-            .chars()
-            .take_while(|c| *c == ' ' || "\u{2502}\u{251c}\u{2514}\u{2500}".contains(*c))
-            .collect();
-        assert_eq!(
-            prefix.matches('\u{2514}').count() + prefix.matches('\u{251c}').count(),
-            1,
-            "each row carries exactly one connector, its own: {rendered}"
-        );
+/// Hidden directories first, last, between files, nested in each other,
+/// and holding nothing to show.
+#[test]
+fn a_tree_of_files_is_the_tree_without_its_directory_rows() {
+    let shapes: [(&[&str], &[&str]); 6] = [
+        (
+            &["top.txt", "sub/mid.txt", "sub/deeper/leaf.txt"],
+            &["empty_dir"],
+        ),
+        (&["docs/x.txt", "z.txt"], &[]),
+        (&["a.txt", "docs/x.txt"], &[]),
+        (&["a.txt", "docs/x.txt", "z.txt"], &[]),
+        (
+            &[
+                "a/b/c/one.txt",
+                "a/b/two.txt",
+                "a/three.txt",
+                "b/c/four.txt",
+                "five.txt",
+            ],
+            &["a/b/c/d", "e"],
+        ),
+        (&[], &["only/empty/dirs"]),
+    ];
+    let long = [&NAME_COLUMN_ONLY[..], &["--classify=always"]].concat();
+    for (files, dirs) in shapes {
+        let dir = fixture("shapes", files, dirs);
+        for extra in [&[][..], &long, &["-L2"]] {
+            assert_eq!(
+                run(
+                    &dir,
+                    &[&["-T", "-f", "--classify=always"][..], extra].concat()
+                ),
+                tree_without_directory_rows(&dir, extra),
+                "{files:?} {dirs:?} {extra:?}"
+            );
+        }
     }
 }
 
-/// Without `--only-files` the tree is untouched, which is what pins that the
-/// blank fill above did not change ordinary rendering.
+/// The same, written out. The first two used to come out with blank
+/// columns where the tree goes on, and the third with a line to nothing,
+/// depending on whether a file came before the hidden directory.
 #[test]
-fn tree_without_only_files_still_shows_directories() {
-    let fixture = fixture("tree_plain");
-
+fn files_keep_the_edges_they_have_in_the_whole_tree() {
     assert_eq!(
-        tree_of(&fixture, &["-T"]),
-        concat!(
-            "<ROOT>\n",
-            "\u{251c}\u{2500}\u{2500} empty_dir\n",
-            "\u{251c}\u{2500}\u{2500} sub\n",
-            "\u{2502}   \u{251c}\u{2500}\u{2500} deeper\n",
-            "\u{2502}   \u{2502}   \u{2514}\u{2500}\u{2500} leaf.txt\n",
-            "\u{2502}   \u{2514}\u{2500}\u{2500} mid.txt\n",
-            "\u{2514}\u{2500}\u{2500} top.txt",
-        )
+        run(&the_usual("usual"), &["-T", "-f"]),
+        "│   │   └── leaf.txt\n│   └── mid.txt\n└── top.txt\n"
+    );
+    assert_eq!(
+        run(
+            &fixture("first", &["docs/x.txt", "z.txt"], &[]),
+            &["-T", "-f"]
+        ),
+        "│   └── x.txt\n└── z.txt\n"
+    );
+    assert_eq!(
+        run(
+            &fixture("last", &["a.txt", "docs/x.txt"], &[]),
+            &["-T", "-f"]
+        ),
+        "├── a.txt\n    └── x.txt\n"
     );
 }
 
+/// Without `--only-files` the tree is untouched.
 #[test]
-fn recursive_lines_mode_hides_directory_entries() {
-    let fixture = fixture("lines");
+fn the_tree_without_only_files_still_shows_directories() {
+    assert_eq!(
+        run(&the_usual("plain"), &["-T"]),
+        ".\n\
+         ├── empty_dir\n\
+         ├── sub\n\
+         │   ├── deeper\n\
+         │   │   └── leaf.txt\n\
+         │   └── mid.txt\n\
+         └── top.txt\n"
+    );
+}
 
-    let output = run_lez(&["-R", "-f", "--color=never", fixture.path.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("mid.txt"));
-    assert!(stdout.contains("leaf.txt"));
-    for line in stdout.lines() {
-        let trimmed = line.trim();
-        assert!(
-            trimmed != "sub" && trimmed != "deeper" && trimmed != "empty_dir",
-            "non-tree recursion must not list directory entries: {stdout}"
-        );
-    }
+/// `-R` lists no directories, but still gives each one its own listing.
+#[test]
+fn recursion_lists_no_directories_but_visits_them() {
+    assert_eq!(
+        run(&the_usual("lines"), &["-R", "-f"]),
+        format!(
+            "top.txt\n\n{}:\n\n{}:\nmid.txt\n\n{}:\nleaf.txt\n",
+            native("./empty_dir"),
+            native("./sub"),
+            native("./sub/deeper")
+        )
+    );
 }
 
 #[test]
 fn tree_with_only_files_summary_and_total_match_displayed_files() {
-    let fixture = fixture("tree_summary");
+    let fixture = the_usual("tree_summary");
 
-    let output_summary = run_lez(&[
-        "-T",
-        "-f",
-        "--summary",
-        "--color=never",
-        fixture.path.to_str().unwrap(),
-    ]);
+    let output_summary = crate::common::lez_cmd()
+        .args([
+            "-T",
+            "-f",
+            "--summary",
+            "--color=never",
+            fixture.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to execute lez binary");
     assert!(output_summary.status.success());
     let stdout_summary = String::from_utf8_lossy(&output_summary.stdout);
     let summary_line = stdout_summary.lines().last().expect("summary line");
@@ -187,13 +160,16 @@ fn tree_with_only_files_summary_and_total_match_displayed_files() {
         "0 directories, 3 files, 0 symlinks (3 total)"
     );
 
-    let output_total = run_lez(&[
-        "-T",
-        "-f",
-        "--print-total",
-        "--color=never",
-        fixture.path.to_str().unwrap(),
-    ]);
+    let output_total = crate::common::lez_cmd()
+        .args([
+            "-T",
+            "-f",
+            "--print-total",
+            "--color=never",
+            fixture.path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to execute lez binary");
     assert!(output_total.status.success());
     let stdout_total = String::from_utf8_lossy(&output_total.stdout);
     let total_line = stdout_total.lines().last().expect("total line");

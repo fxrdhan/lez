@@ -121,14 +121,13 @@ impl TreeTrunk {
         // part into it.
         //
         // The fill only ever survives for levels this trunk never saw a row
-        // for. In the ordinary case depth grows one level at a time and the
-        // slot at `params.depth` is overwritten immediately below, so the fill
-        // is invisible. A level gets skipped when a row is filtered out of the
-        // output but still recursed into — `--only-files` hides directory rows
-        // while listing their contents. Such a level has no row for a
-        // connector to attach to, so it has to be blank: filling it with an
-        // edge drew a connector to nothing, and stacked one per skipped level
-        // ("├── ├── └── file").
+        // for. Depth grows one level at a time, even through the directories
+        // `--only-files` hides, which are handed over without being printed,
+        // so the slot at `params.depth` is overwritten immediately below and
+        // the fill is invisible. Should a caller ever skip a level, it has no
+        // row for a connector to attach to and has to be blank: filling it
+        // with an edge drew a connector to nothing, and stacked one per
+        // skipped level ("├── ├── └── file").
         self.stack.resize(params.depth.0 + 1, TreePart::Blank);
         self.stack[params.depth.0] = if params.last {
             TreePart::Corner
@@ -263,10 +262,9 @@ mod trunk_test {
         assert_eq!(tt.new_row(params(2, true)),  &[ TreePart::Blank, TreePart::Corner ]);
     }
 
-    /// `--only-files` hides directory rows but still recurses into them, so
-    /// the trunk is handed a depth several levels below the last row it saw.
-    /// The levels in between have no row to attach a connector to and must be
-    /// blank, not edges pointing at nothing.
+    /// A trunk handed a depth several levels below the last row it saw has
+    /// no row to attach a connector to for the levels in between, so they
+    /// must be blank, not edges pointing at nothing.
     #[rustfmt::skip]
     #[test]
     fn skipped_levels_are_blank_not_edges() {
