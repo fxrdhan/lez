@@ -469,3 +469,202 @@ fn a_discovered_config_that_does_not_parse_is_reported() {
         ("1 file.txt\n".to_owned(), String::new())
     );
 }
+
+/// Each key of the config file does what its flag does: the listing with
+/// the key set is the listing with the flag given, and differs from the
+/// one with neither, so a key that is read but goes nowhere is caught.
+/// `absolute` was such a key: `--absolute` has a default of its own, which
+/// stood in front of the config file's. `icons.spacing` has no flag and is
+/// compared with `LEZ_ICON_SPACING`, and `loc.sub_files` with its other
+/// values. Unix only: several keys need a link, a mode or a group.
+#[cfg(unix)]
+#[test]
+fn every_config_key_does_what_its_flag_does() {
+    crate::common::require_git();
+    let repo = crate::common::TempGitRepo::new("config_keys");
+    repo.create_file("a.rs", b"fn main() {}\n");
+    repo.create_file("big.bin", &[0; 3000]);
+    repo.create_file("b.txt", b"x\n");
+    repo.create_file(".hidden", b"h\n");
+    repo.create_file("sub/inner.txt", b"i\n");
+    repo.create_file("space name.txt", b"");
+    repo.create_file(".gitignore", b"b.txt\n");
+    repo.create_file("notes.md", b"# Notes\n\n```rust\nfn x() {}\n```\n");
+    repo.create_symlink("b.txt", "link");
+    repo.git(&["add", "a.rs"]);
+    let config = crate::common::TempTestDir::new("config_keys_file");
+    let path = config.path().join("config.toml");
+    let path_arg = path.to_str().expect("UTF-8 path");
+
+    let run = |args: &[&str], envs: &[(&str, &str)]| {
+        let mut cmd = crate::common::lez_in(repo.path());
+        for (key, value) in envs {
+            cmd.env(key, value);
+        }
+        crate::common::success_stdout(cmd.args(args))
+    };
+    let long = [
+        "-l",
+        "--no-permissions",
+        "--no-filesize",
+        "--no-user",
+        "--no-time",
+    ];
+    let sized = ["-l", "--no-permissions", "--no-user", "--no-time"];
+    let coloured = [
+        "-l",
+        "--no-permissions",
+        "--no-user",
+        "--no-time",
+        "--color=always",
+    ];
+    let scaled = [&coloured[..], &["--color-scale=size"]].concat();
+    let long_loc = [&long[..], &["--loc"]].concat();
+    let long_percent = [&long[..], &["--loc=percent"]].concat();
+    let long_git = [&long[..], &["--git"]].concat();
+    let long_repos = [&long[..], &["-d", "sub", "."]].concat();
+    let numeric = ["-l", "--no-permissions", "--no-filesize", "--no-time"];
+    let octal = ["-l", "--no-filesize", "--no-user", "--no-time"];
+    let timed = ["-l", "--no-permissions", "--no-filesize", "--no-user"];
+
+    let cases: [(&str, &[&str], &[&str]); 40] = [
+        ("[display]\nmode = \"tree\"", &[], &["--tree"]),
+        ("[display]\nmode = \"long\"", &[], &["-l"]),
+        ("[display]\nmode = \"lines\"", &["--width=200"], &["-1"]),
+        ("[display]\nmode = \"grid\"", &[], &["--grid"]),
+        ("[display]\nmode = \"code\"", &[], &["--code"]),
+        ("[display]\nheader = true", &long, &["-h"]),
+        ("[display]\ngroup = true", &long, &["-g"]),
+        ("[display]\nnumeric = true", &numeric, &["-n"]),
+        ("[display]\nlinks = true", &long, &["-H"]),
+        ("[display]\ninode = true", &long, &["-i"]),
+        ("[display]\nblocksize = true", &long, &["-S"]),
+        ("[display]\nblocks = true", &long, &["--blocks"]),
+        ("[display]\ntotal_size = true", &sized, &["--total-size"]),
+        ("[display]\nsize_digits = 4", &sized, &["--size-digits=4"]),
+        (
+            "[display]\ntime_style = \"long-iso\"",
+            &timed,
+            &["--time-style=long-iso"],
+        ),
+        ("[display]\noctal_permissions = true", &octal, &["-o"]),
+        ("[display]\ndereference = true", &long, &["-X"]),
+        ("[display]\nfile_flags = true", &long, &["-O"]),
+        ("[display]\nsmart_group = true", &long, &["--smart-group"]),
+        ("[display]\nabsolute = \"on\"", &["-1"], &["--absolute=on"]),
+        (
+            "[display]\nhyperlink = \"always\"",
+            &["-1"],
+            &["--hyperlink=always"],
+        ),
+        (
+            "[display]\nquotes = \"never\"",
+            &["-1"],
+            &["--quotes=never"],
+        ),
+        ("[display]\nlanguage = false", &long_loc, &["--no-language"]),
+        ("[filter]\nall = true", &["-1"], &["-a"]),
+        ("[filter]\nalmost_all = true", &["-1"], &["-A"]),
+        ("[filter]\nonly_dirs = true", &["-1"], &["-D"]),
+        ("[filter]\nonly_files = true", &["-1"], &["-f"]),
+        (
+            "[filter]\nshow_dotfiles = true",
+            &["-1"],
+            &["--show-dotfiles"],
+        ),
+        (
+            "[filter]\nignore_globs = [\"*.txt\"]",
+            &["-1"],
+            &["-I", "*.txt"],
+        ),
+        ("[filter]\ngit_ignore = true", &["-1"], &["--git-ignore"]),
+        ("[filter]\nsort = \"size\"", &["-1"], &["-s", "size"]),
+        ("[filter]\nreverse = true", &["-1"], &["-r"]),
+        ("[filter]\nlevel = 1", &["-T"], &["-L1"]),
+        ("[git]\ngit = true", &long, &["--git"]),
+        ("[git]\ngit_glyphs = true", &long_git, &["--git-glyphs"]),
+        ("[git]\ngit_repos = true", &long_repos, &["--git-repos"]),
+        (
+            "[git]\ngit_repos_no_status = true",
+            &long_repos,
+            &["--git-repos-no-status"],
+        ),
+        ("[icons]\nicons = \"always\"", &["-1"], &["--icons=always"]),
+        ("[theme]\ncolor = \"always\"", &["-1"], &["--color=always"]),
+        (
+            "[theme]\ncolor_scale = \"size\"",
+            &coloured,
+            &["--color-scale=size"],
+        ),
+    ];
+    let more: [(&str, &[&str], &[&str]); 2] = [
+        (
+            "[theme]\ncolor_scale_mode = \"fixed\"",
+            &scaled,
+            &["--color-scale-mode=fixed"],
+        ),
+        (
+            "[loc]\npercent_digits = 3",
+            &long_percent,
+            &["--percent-digits=3"],
+        ),
+    ];
+    // The security context column exists on Linux alone.
+    #[cfg(target_os = "linux")]
+    let platform: &[(&str, &[&str], &[&str])] =
+        &[("[display]\nsecurity_context = true", &long, &["-Z"])];
+    #[cfg(not(target_os = "linux"))]
+    let platform: &[(&str, &[&str], &[&str])] = &[];
+    for (toml, base, flags) in cases
+        .into_iter()
+        .chain(more)
+        .chain(platform.iter().copied())
+    {
+        std::fs::write(&path, format!("{toml}\n")).expect("write the config");
+        let from_flags = run(&[base, flags].concat(), &[]);
+        assert_eq!(
+            run(&[&["--config", path_arg][..], base].concat(), &[]),
+            from_flags,
+            "{toml}"
+        );
+        assert_ne!(from_flags, run(base, &[]), "{toml} changes nothing");
+    }
+
+    // `extended` needs an attribute to show; set last, so it cannot touch
+    // the cases above.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if crate::common::set_xattr(&repo.path().join("a.rs"), b"v") {
+        std::fs::write(&path, "[display]\nextended = true\n").expect("write the config");
+        let from_flag = run(&[&octal[..], &["-@"]].concat(), &[]);
+        assert_eq!(
+            run(&[&["--config", path_arg][..], &octal].concat(), &[]),
+            from_flag
+        );
+        assert_ne!(from_flag, run(&octal, &[]));
+    }
+
+    std::fs::write(&path, "[icons]\nspacing = 3\n").expect("write the config");
+    let spaced = run(&["-1", "--icons=always"], &[("LEZ_ICON_SPACING", "3")]);
+    assert_eq!(
+        run(&["--config", path_arg, "-1", "--icons=always"], &[]),
+        spaced
+    );
+    assert_ne!(run(&["-1", "--icons=always"], &[]), spaced);
+
+    let sub_files: Vec<String> = ["symbol", "count", "blank"]
+        .iter()
+        .map(|mode| {
+            std::fs::write(&path, format!("[loc]\nsub_files = \"{mode}\"\n"))
+                .expect("write the config");
+            run(&["--config", path_arg, "--code=lines"], &[])
+        })
+        .collect();
+    assert_eq!(
+        sub_files[0],
+        run(&["--code=lines"], &[]),
+        "symbol is the default"
+    );
+    assert_ne!(sub_files[0], sub_files[1]);
+    assert_ne!(sub_files[1], sub_files[2]);
+    assert_ne!(sub_files[0], sub_files[2]);
+}
