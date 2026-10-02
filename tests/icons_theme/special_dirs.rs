@@ -1,124 +1,75 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! The user's own folders (home, configuration, desktop, documents,
+//! downloads, music, pictures, videos) have icons of their own. lez finds
+//! them where the platform says they are: under `$HOME` on macOS, and
+//! through `$XDG_CONFIG_HOME/user-dirs.dirs` on Linux. The test gives lez a
+//! home of its own, so the host's folders never come into it. (Windows asks
+//! the shell for them, which an environment variable cannot redirect.)
 
-use std::fs::{self, File as StdFile};
-use std::path::{Path, PathBuf};
-use std::process::Command;
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
-struct TempSpecialDir {
-    path: PathBuf,
-}
-
-impl TempSpecialDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_special_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp special dir");
-        Self { path }
-    }
-
-    fn create_dir(&self, rel_path: &str) -> PathBuf {
-        let dir_path = self.path.join(rel_path);
-        fs::create_dir_all(&dir_path).unwrap();
-        dir_path
-    }
-}
-
-impl Drop for TempSpecialDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
+use crate::common::{TempTestDir, lez_cmd, lez_in, success_stdout};
 
 #[test]
-fn test_special_dirs_icons_cli() {
-    let mut tested_any = false;
-
-    // 1. If download_dir or document_dir exists on the system, running lez -d --icons=always on it should succeed
-    if let Some(doc_dir) = dirs::document_dir()
-        && doc_dir.exists()
-    {
-        let output = crate::common::lez_cmd()
-            .arg("-d")
-            .arg("--icons=always")
-            .arg(&doc_dir)
-            .output()
-            .expect("Failed to run lez on documents dir");
-        assert!(output.status.success());
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let doc_glyph = '\u{f0c82}'.to_string(); // 󰲂
-        assert!(
-            stdout.contains(&doc_glyph),
-            "Output should contain documents icon for {doc_dir:?}: {stdout}"
-        );
-        tested_any = true;
+fn the_users_folders_get_their_own_icons() {
+    let dir = TempTestDir::new("special_dirs");
+    // Matched against the absolute path lez builds from its working
+    // directory, which macOS reports with `/private` in front.
+    let home = dir.path().canonicalize().expect("canonicalize");
+    for folder in [
+        "Desktop",
+        "Documents",
+        "Downloads",
+        "Music",
+        "Pictures",
+        "Plain",
+    ] {
+        dir.create_dir(folder);
     }
 
-    if let Some(dl_dir) = dirs::download_dir()
-        && dl_dir.exists()
-    {
-        let output = crate::common::lez_cmd()
-            .arg("-d")
-            .arg("--icons=always")
-            .arg(&dl_dir)
-            .output()
-            .expect("Failed to run lez on downloads dir");
-        assert!(output.status.success());
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let dl_glyph = '\u{f024d}'.to_string(); // 󰉍
-        assert!(
-            stdout.contains(&dl_glyph),
-            "Output should contain downloads icon for {dl_dir:?}: {stdout}"
+    #[cfg(target_os = "linux")]
+    let expected = {
+        dir.create_dir("Videos");
+        dir.create_file(
+            ".config/user-dirs.dirs",
+            b"XDG_DESKTOP_DIR=\"$HOME/Desktop\"\n\
+              XDG_DOCUMENTS_DIR=\"$HOME/Documents\"\n\
+              XDG_DOWNLOAD_DIR=\"$HOME/Downloads\"\n\
+              XDG_MUSIC_DIR=\"$HOME/Music\"\n\
+              XDG_PICTURES_DIR=\"$HOME/Pictures\"\n\
+              XDG_VIDEOS_DIR=\"$HOME/Videos\"\n",
         );
-        tested_any = true;
-    }
+        "\u{e5fc} .config\n\u{f108} Desktop\n\u{f0c82} Documents\n\u{f024d} Downloads\n\
+         \u{f1359} Music\n\u{f024f} Pictures\n\u{f115} Plain\n\u{f03d} Videos\n"
+    };
+    // The configuration folder is `Library/Application Support`, so
+    // `Library` itself is a plain folder.
+    #[cfg(target_os = "macos")]
+    let expected = {
+        dir.create_dir("Movies");
+        dir.create_dir("Library/Application Support");
+        "\u{f108} Desktop\n\u{f0c82} Documents\n\u{f024d} Downloads\n\u{e5ff} Library\n\
+         \u{f0fce} Movies\n\u{f1359} Music\n\u{f024f} Pictures\n\u{f115} Plain\n"
+    };
 
-    // 2. Deterministic isolated test: create simulated environment
-    let temp = TempSpecialDir::new("isolated_special");
-    let docs = temp.create_dir("Documents");
-    let dls = temp.create_dir("Downloads");
-    let music = temp.create_dir("Music");
-    let pics = temp.create_dir("Pictures");
-
-    let output = crate::common::lez_cmd()
-        .arg("--icons=always")
-        .arg(&temp.path)
-        .env("HOME", &temp.path)
-        .env("XDG_DOCUMENTS_DIR", &docs)
-        .env("XDG_DOWNLOAD_DIR", &dls)
-        .env("XDG_MUSIC_DIR", &music)
-        .env("XDG_PICTURES_DIR", &pics)
-        .output()
-        .expect("Failed to run lez on simulated special dirs");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Documents"));
-    assert!(stdout.contains("Downloads"));
-    assert!(stdout.contains("Music"));
-    assert!(stdout.contains("Pictures"));
-
-    // Ensure icon rendering succeeded on all folders
-    assert!(
-        stdout.contains('\u{f0c82}')
-            || stdout.contains('\u{f024d}')
-            || stdout.contains('\u{e5ff}')
-            || stdout.contains('\u{f115}'),
-        "Output should render folder icons for special directories: {stdout}"
+    assert_eq!(
+        success_stdout(
+            lez_in(&home)
+                .env("HOME", &home)
+                .args(["-1", "-a", "--icons=always"])
+        ),
+        expected
     );
-
-    // If host didn't have special dirs, the simulated isolated test guaranteed test execution
-    let _ = tested_any;
+    // The home folder itself, as an entry.
+    assert_eq!(
+        success_stdout(
+            lez_cmd()
+                .env("HOME", &home)
+                .args(["-d", "--icons=always"])
+                .arg(&home)
+        ),
+        format!("\u{f10b5} {}\n", home.display())
+    );
 }

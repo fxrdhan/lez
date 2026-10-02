@@ -7,141 +7,127 @@
 //! disk that is invisible; on a FUSE mount or a network share each one is a
 //! round trip, which is what the reports behind this are about.
 //!
-//! `LEZ_NO_EMPTY_DIR_ICON` gives every directory the same glyph and asks the
-//! filesystem nothing.
+//! `LEZ_NO_EMPTY_DIR_ICON` (or `EZA_`, `EXA_`) gives every directory the
+//! full one's glyph and asks the filesystem nothing.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use crate::common::{TempTestDir, lez_cmd, success_stdout};
 
 const DIRS: usize = 30;
+const FULL: char = '\u{e5ff}';
+const EMPTY: char = '\u{f115}';
 
-/// One directory with something in it, the rest empty.
-fn fixture(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lez-empty-dir-icon-{name}"));
-    let _ = fs::remove_dir_all(&root);
-    for i in 0..DIRS {
-        fs::create_dir_all(root.join(format!("d{i:02}"))).expect("fixture directory");
+/// `d00` with a file in it, then 29 empty directories.
+fn fixture() -> TempTestDir {
+    let dir = TempTestDir::new("empty_dir_icon");
+    dir.create_file("d00/inside", b"");
+    for i in 1..DIRS {
+        dir.create_dir(&format!("d{i:02}"));
     }
-    fs::write(root.join("d00/inside"), b"").expect("file inside the first one");
-    root
+    dir
 }
 
-fn run(env: Option<&str>, root: &Path) -> Output {
-    let mut cmd = crate::common::lez_cmd();
-    if let Some(value) = env {
-        cmd.env("LEZ_NO_EMPTY_DIR_ICON", value);
+fn listing(dir: &TempTestDir, var: Option<(&str, &str)>) -> String {
+    let mut cmd = lez_cmd();
+    if let Some((name, value)) = var {
+        cmd.env(name, value);
     }
-    cmd.args(["-1", "--icons=always", "--color=never"])
-        .arg(root.to_str().unwrap())
-        .output()
-        .expect("failed to execute lez")
+    success_stdout(
+        cmd.args(["-1", "--icons=always", "--color=never"])
+            .arg(dir.path()),
+    )
 }
 
-fn glyphs(out: &Output) -> Vec<char> {
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .filter_map(|line| line.chars().next())
+fn rows(glyph_of: impl Fn(usize) -> char) -> String {
+    (0..DIRS)
+        .map(|i| format!("{} d{i:02}\n", glyph_of(i)))
         .collect()
 }
 
-/// The distinction is on by default, so the full directory and the empty
-/// ones do not share a glyph.
 #[test]
 fn an_empty_directory_looks_different_by_default() {
-    let root = fixture("default");
-    let out = run(None, &root);
-
-    assert!(out.status.success());
-    let glyphs = glyphs(&out);
-    assert_eq!(glyphs.len(), DIRS, "one glyph per directory");
-
-    let full = glyphs[0];
-    assert!(
-        glyphs[1..].iter().all(|&g| g != full),
-        "the empty directories should not share the full one's glyph",
+    let dir = fixture();
+    assert_eq!(
+        listing(&dir, None),
+        rows(|i| if i == 0 { FULL } else { EMPTY })
     );
-
-    let _ = fs::remove_dir_all(&root);
 }
 
-/// With the variable set they all look the same, and it is the full
-/// directory's glyph they settle on — the listing never claims a directory
-/// is empty without having looked.
+/// Presence is the switch, as with the other icon variables: an empty
+/// value, or `0`, still turns the distinction off. Every directory then
+/// gets the full one's glyph, so the listing never claims a directory is
+/// empty without having looked.
 #[test]
-fn the_variable_gives_every_directory_the_same_glyph() {
-    let root = fixture("off");
-    let out = run(Some("1"), &root);
-
-    assert!(out.status.success());
-    let glyphs = glyphs(&out);
-    assert_eq!(glyphs.len(), DIRS, "one glyph per directory");
-
-    let full = glyphs[0];
-    assert!(
-        glyphs.iter().all(|&g| g == full),
-        "every directory should share one glyph, got {glyphs:?}",
-    );
-
-    let _ = fs::remove_dir_all(&root);
-}
-
-/// Presence is the switch, as with the other icon variables. Reading the
-/// value as a boolean would make `=0` mean the opposite of what it says.
-#[test]
-fn an_empty_value_still_counts_as_set() {
-    let root = fixture("emptyvalue");
-    let glyphs = glyphs(&run(Some(""), &root));
-
-    let full = glyphs[0];
-    assert!(
-        glyphs.iter().all(|&g| g == full),
-        "an empty value should still turn the distinction off, got {glyphs:?}",
-    );
-
-    let _ = fs::remove_dir_all(&root);
+fn the_variable_gives_every_directory_the_full_glyph() {
+    let dir = fixture();
+    for name in [
+        "LEZ_NO_EMPTY_DIR_ICON",
+        "EZA_NO_EMPTY_DIR_ICON",
+        "EXA_NO_EMPTY_DIR_ICON",
+    ] {
+        for value in ["1", "", "0"] {
+            assert_eq!(
+                listing(&dir, Some((name, value))),
+                rows(|_| FULL),
+                "{name}={value:?}"
+            );
+        }
+    }
 }
 
 /// And the point of all this: with it set, the listing stops asking the
-/// filesystem about each directory. `LEZ_DEBUG` logs every trip.
+/// filesystem about each directory. `LEZ_DEBUG` logs every stat and every
+/// read of a directory's contents.
 #[cfg(unix)]
 #[test]
 fn the_variable_stops_the_filesystem_being_asked() {
-    let root = fixture("syscalls");
-
-    let count = |value: Option<&str>| {
-        let mut cmd = crate::common::lez_cmd();
-        cmd.env("LEZ_DEBUG", "trace");
-        if let Some(v) = value {
-            cmd.env("LEZ_NO_EMPTY_DIR_ICON", v);
+    let dir = fixture();
+    let trips = |var: Option<&str>| {
+        let mut cmd = lez_cmd();
+        if let Some(value) = var {
+            cmd.env("LEZ_NO_EMPTY_DIR_ICON", value);
         }
-        let out = cmd
+        let output = cmd
+            .env("LEZ_DEBUG", "trace")
             .args(["-1", "--icons=always", "--color=never"])
-            .arg(root.to_str().unwrap())
+            .arg(dir.path())
             .output()
-            .expect("failed to execute lez");
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        (
-            stderr.matches("Statting file").count(),
-            stderr.matches("is_empty_directory").count(),
-        )
+            .expect("run lez");
+        assert_eq!(output.status.code(), Some(0));
+        let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+        let mut statted: Vec<String> = stderr
+            .lines()
+            .filter_map(|line| {
+                line.split_once(" Statting file ")
+                    .map(|(_, path)| path.to_owned())
+            })
+            .collect();
+        statted.sort();
+        let reads = stderr.matches("is_empty_directory: reading dir").count();
+        (statted, reads)
+    };
+    let logged = |paths: &mut dyn Iterator<Item = std::path::PathBuf>| {
+        let mut paths: Vec<String> = paths.map(|path| format!("{path:?}")).collect();
+        paths.sort();
+        paths
     };
 
-    let (stats_on, reads_on) = count(None);
-    let (stats_off, reads_off) = count(Some("1"));
+    let (statted, reads) = trips(None);
+    assert_eq!(
+        statted,
+        logged(
+            &mut std::iter::once(dir.path().to_path_buf())
+                .chain((0..DIRS).map(|i| dir.path().join(format!("d{i:02}"))))
+        )
+    );
+    // Each empty directory has to be read; the full one may be settled by
+    // its link count, depending on the filesystem.
+    assert!(
+        (DIRS - 1..=DIRS).contains(&reads),
+        "{reads} reads for {DIRS} directories"
+    );
 
-    assert!(
-        stats_on >= DIRS,
-        "by default each directory is statted; got {stats_on} for {DIRS}",
+    assert_eq!(
+        trips(Some("1")),
+        (logged(&mut std::iter::once(dir.path().to_path_buf())), 0)
     );
-    assert!(
-        stats_off < DIRS,
-        "with the variable set they should not be; got {stats_off} for {DIRS}",
-    );
-    assert!(
-        reads_off < reads_on,
-        "and the contents should stop being read: {reads_off} against {reads_on}",
-    );
-
-    let _ = fs::remove_dir_all(&root);
 }
