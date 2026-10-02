@@ -3,6 +3,7 @@
 
 //! Regression tests for the defects in `docs/audit/bug_bounty_report.md`.
 //! Each one pins the corrected output, not merely the absence of a panic.
+//! Bug 7 (`--ignore-submodule-contents`) is covered in `git/submodules.rs`.
 
 use std::fs;
 use std::io::Write;
@@ -198,52 +199,6 @@ fn strict_mode_rejects_long_view_columns_without_long() {
         .output()
         .expect("failed to run lez");
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
-}
-
-/// Bug 7: `--ignore-submodule-contents` still descended into submodules.
-#[test]
-#[cfg(feature = "git")]
-fn ignore_submodule_contents_lists_the_submodule_but_not_its_files() {
-    let child = TempGitRepo::new("submodule_child");
-    child.write_file("child.txt", b"child\n");
-    child.git(&["add", "."]);
-    child.git(&["commit", "-q", "-m", "child"]);
-
-    let parent = TempGitRepo::new("submodule_parent");
-    parent.write_file("parent.txt", b"parent\n");
-    parent.git(&["add", "."]);
-    parent.git(&["commit", "-q", "-m", "parent"]);
-    parent.git(&[
-        "submodule",
-        "add",
-        "-q",
-        child.path().to_str().unwrap(),
-        "sub",
-    ]);
-    parent.git(&["commit", "-q", "-m", "add submodule"]);
-
-    let output = crate::common::lez_in(parent.path())
-        .args(["-T", "--ignore-submodule-contents"])
-        .output()
-        .expect("failed to run lez");
-    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
-    assert_eq!(
-        text(&output.stdout),
-        ".\n├── parent.txt\n└── sub\n",
-        "the submodule is listed, its contents are not"
-    );
-
-    // Without the flag the same tree does show the submodule's file, which is
-    // what makes the assertion above mean something.
-    let output = crate::common::lez_in(parent.path())
-        .arg("-T")
-        .output()
-        .expect("failed to run lez");
-    assert!(
-        text(&output.stdout).contains("child.txt"),
-        "{}",
-        text(&output.stdout)
-    );
 }
 
 /// Bug 8: a work tree described by `GIT_DIR`/`GIT_WORK_TREE` (a bare-repo

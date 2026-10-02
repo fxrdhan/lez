@@ -1,225 +1,86 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! Repositories in the middle of something: a merge stopped on a conflict, a
+//! detached HEAD, a rebase stopped on a conflict. Each state is reached with
+//! real git commands, not by faking the marker files git leaves behind.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::{GIT_COLUMN_ONLY, NAME_COLUMN_ONLY, TempGitRepo, lez_in, success_stdout};
 
-struct TempGitRepo {
-    path: PathBuf,
+fn git_rows(repo: &TempGitRepo) -> String {
+    success_stdout(lez_in(repo.path()).args(GIT_COLUMN_ONLY))
 }
 
-impl TempGitRepo {
-    fn new(prefix: &str) -> Option<Self> {
-        if !git_available() {
-            return None;
-        }
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_git_conflict_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp git repo root");
-
-        let repo = Self { path };
-        if !repo.git(&["init", "-q", "-b", "main"]) {
-            // Older git might not support -b in init
-            if !repo.git(&["init", "-q"]) {
-                return None;
-            }
-        }
-        repo.git(&["config", "user.name", "Test User"]);
-        repo.git(&["config", "user.email", "test@example.com"]);
-        Some(repo)
-    }
-
-    fn write_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
-        let p = self.path.join(rel_path);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut f = StdFile::create(&p).unwrap();
-        f.write_all(content).unwrap();
-        p
-    }
-
-    fn git(&self, args: &[&str]) -> bool {
-        let output = Command::new("git")
-            .args(
-                [
-                    "-c",
-                    "user.name=Test User",
-                    "-c",
-                    "user.email=test@example.com",
-                ]
-                .iter()
-                .chain(args.iter()),
-            )
-            .current_dir(&self.path)
-            .env("GIT_CONFIG_GLOBAL", "/dev/null")
-            .env("GIT_CONFIG_SYSTEM", "/dev/null")
-            .output()
-            .expect("Failed to spawn git");
-        output.status.success()
-    }
+/// The `--git-repos` row for the repository, listed from its parent.
+fn repo_row(repo: &TempGitRepo) -> String {
+    success_stdout(
+        lez_in(repo.parent())
+            .args(NAME_COLUMN_ONLY)
+            .arg("--git-repos"),
+    )
 }
 
-impl Drop for TempGitRepo {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
+/// `conflict.txt` changed differently on two branches, then one is merged
+/// into the other.
+fn stopped_on_a_conflict(repo: &TempGitRepo, how: &[&str]) {
+    repo.create_file("conflict.txt", b"base line 1\nbase line 2\n");
+    repo.git(&["add", "conflict.txt"]);
+    repo.git(&["commit", "-q", "-m", "base"]);
+    repo.git(&["checkout", "-q", "-b", "theirs"]);
+    repo.create_file("conflict.txt", b"their line 1\nbase line 2\n");
+    repo.git(&["commit", "-q", "-a", "-m", "theirs"]);
+    repo.git(&["checkout", "-q", "main"]);
+    repo.git(&["checkout", "-q", "-b", "ours"]);
+    repo.create_file("conflict.txt", b"our line 1\nbase line 2\n");
+    repo.git(&["commit", "-q", "-a", "-m", "ours"]);
+
+    let output = repo.git_allow_failure(how);
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "{how:?} should stop on the conflict"
+    );
 }
 
-fn git_available() -> bool {
-    Command::new("git")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success())
-}
-
-fn run_lez(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    Command::new(bin_path)
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
-// ----------------------------------------------------------------------------
-// 1. Merge Conflict Detection (Both Modified UU)
-// ----------------------------------------------------------------------------
+/// lez shows a conflicted path in the working-tree half of the column; the
+/// index half has no conflict state of its own, so the column reads `-U`.
 #[test]
-fn test_git_merge_conflict_both_modified() {
-    let Some(repo) = TempGitRepo::new("conflict_uu") else {
-        return;
-    };
+fn a_merge_conflict_is_marked_in_the_working_tree_column() {
+    let repo = TempGitRepo::new("merge_conflict");
+    stopped_on_a_conflict(&repo, &["merge", "-q", "theirs"]);
 
-    repo.write_file("conflict.txt", b"base line 1\nbase line 2\n");
-    assert!(repo.git(&["add", "conflict.txt"]));
-    assert!(repo.git(&["commit", "-q", "-m", "initial commit"]));
+    assert_eq!(git_rows(&repo), "-U conflict.txt\n");
 
-    // Create branch-a and modify conflict.txt
-    assert!(repo.git(&["checkout", "-q", "-b", "branch-a"]));
-    repo.write_file("conflict.txt", b"branch A line 1\nbase line 2\n");
-    assert!(repo.git(&["commit", "-q", "-a", "-m", "commit from branch A"]));
-
-    // Create branch-b from main and modify conflict.txt with conflicting change
-    assert!(repo.git(&["checkout", "-q", "main"]));
-    assert!(repo.git(&["checkout", "-q", "-b", "branch-b"]));
-    repo.write_file("conflict.txt", b"branch B line 1\nbase line 2\n");
-    assert!(repo.git(&["commit", "-q", "-a", "-m", "commit from branch B"]));
-
-    // Merge branch-a into branch-b to cause conflict
-    let _ = repo.git(&["merge", "branch-a"]);
-
-    let output = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let conflict_line = stdout
-        .lines()
-        .find(|l| l.contains("conflict.txt"))
-        .expect("conflict.txt line in output");
-
-    // Conflicted status must show 'U' (either UU or modified conflict)
-    assert!(
-        conflict_line.contains("U"),
-        "Conflicted file must contain 'U' status, got: {conflict_line}"
-    );
-
-    // Verify JSON output
-    let json_out = run_lez(&["--json", "-l", "--git", repo.path.to_str().unwrap()]);
-    assert!(json_out.status.success());
-    let json_str = String::from_utf8_lossy(&json_out.stdout);
-    assert!(
-        json_str.contains("\"Git\":") || json_str.contains("\"git\":"),
-        "JSON output must contain Git field: {json_str}"
-    );
-    assert!(
-        json_str.contains("U"),
-        "JSON Git status must indicate conflict: {json_str}"
-    );
+    let json: serde_json::Value = serde_json::from_str(&success_stdout(
+        lez_in(repo.path()).arg("--json").args(GIT_COLUMN_ONLY),
+    ))
+    .expect("valid JSON");
+    assert_eq!(json, serde_json::json!({"conflict.txt": {"Git": "-U"}}));
 }
 
-// ----------------------------------------------------------------------------
-// 2. Detached HEAD State Detection
-// ----------------------------------------------------------------------------
 #[test]
-fn test_git_detached_head_repo_status() {
-    let Some(repo) = TempGitRepo::new("detached_head") else {
-        return;
-    };
+fn a_rebase_stopped_on_a_conflict_marks_the_file_and_detaches_the_repository() {
+    let repo = TempGitRepo::named("rebase_conflict", "repo");
+    stopped_on_a_conflict(&repo, &["rebase", "-q", "theirs"]);
+    assert!(repo.path().join(".git/rebase-merge").is_dir());
 
-    repo.write_file("file.txt", b"content v1\n");
-    assert!(repo.git(&["add", "file.txt"]));
-    assert!(repo.git(&["commit", "-q", "-m", "v1"]));
-
-    repo.write_file("file.txt", b"content v2\n");
-    assert!(repo.git(&["commit", "-q", "-a", "-m", "v2"]));
-
-    // Checkout HEAD~1 in detached HEAD state
-    assert!(repo.git(&["checkout", "-q", "HEAD~1"]));
-
-    let parent_dir = repo.path.parent().unwrap();
-    let output = run_lez(&[
-        "-l",
-        "--git-repos",
-        "--color=never",
-        parent_dir.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let repo_dir_name = repo.path.file_name().unwrap().to_str().unwrap();
-
-    let repo_line = stdout
-        .lines()
-        .find(|l| l.contains(repo_dir_name))
-        .expect("repo directory in output");
-
-    // Must not crash or panic on detached HEAD; outputs branch status or short hash / HEAD info
-    assert!(
-        !repo_line.is_empty(),
-        "Detached HEAD repo must display valid row"
-    );
+    assert_eq!(git_rows(&repo), "-U conflict.txt\n");
+    assert_eq!(repo_row(&repo), "+ HEAD repo\n");
 }
 
-// ----------------------------------------------------------------------------
-// 3. Rebase-in-progress and Bisect Resilience
-// ----------------------------------------------------------------------------
+/// A detached HEAD has no branch to name, so the repository column shows
+/// `HEAD`, as `git status` does.
 #[test]
-fn test_git_rebase_state_resilience() {
-    let Some(repo) = TempGitRepo::new("rebase_state") else {
-        return;
-    };
+fn a_detached_head_is_shown_as_head() {
+    let repo = TempGitRepo::named("detached_head", "repo");
+    repo.create_file("file.txt", b"content v1\n");
+    repo.git(&["add", "file.txt"]);
+    repo.git(&["commit", "-q", "-m", "v1"]);
+    repo.create_file("file.txt", b"content v2\n");
+    repo.git(&["commit", "-q", "-a", "-m", "v2"]);
 
-    repo.write_file("common.txt", b"base\n");
-    assert!(repo.git(&["add", "common.txt"]));
-    assert!(repo.git(&["commit", "-q", "-m", "base commit"]));
-
-    assert!(repo.git(&["checkout", "-q", "-b", "feat"]));
-    repo.write_file("feat.txt", b"feat\n");
-    assert!(repo.git(&["add", "feat.txt"]));
-    assert!(repo.git(&["commit", "-q", "-m", "feat commit"]));
-
-    // Simulate rebase directory markers (.git/rebase-apply or .git/rebase-merge)
-    let git_dir = repo.path.join(".git");
-    let rebase_apply = git_dir.join("rebase-apply");
-    fs::create_dir_all(&rebase_apply).unwrap();
-    fs::write(rebase_apply.join("head-name"), b"refs/heads/feat\n").unwrap();
-
-    let output = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("common.txt"));
-    assert!(stdout.contains("feat.txt"));
+    assert_eq!(repo_row(&repo), "| main repo\n");
+    repo.git(&["checkout", "-q", "HEAD~1"]);
+    assert_eq!(repo_row(&repo), "| HEAD repo\n");
+    assert_eq!(git_rows(&repo), "-- file.txt\n");
 }
