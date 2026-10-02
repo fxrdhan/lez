@@ -17,8 +17,9 @@ pub enum Quoting {
     /// Wrap in single quotes. Nothing inside them needs escaping.
     Single,
 
-    /// Wrap in double quotes, for a name holding an apostrophe but no double
-    /// quote. Kept over escaping because it reads better.
+    /// Wrap in double quotes, for a name holding an apostrophe and nothing a
+    /// shell still reads inside double quotes (`"`, `$`, `` ` ``, `\`, `!`).
+    /// Kept over escaping because it reads better.
     Double,
 
     /// Wrap in single quotes and break out of them for each apostrophe, the
@@ -29,19 +30,56 @@ pub enum Quoting {
     SingleEscaped,
 }
 
+/// Whether a shell gives `c` a meaning of its own anywhere in a word, so a
+/// name holding it has to be quoted to be read back. The same characters
+/// GNU `ls` quotes for, less two on Windows: `\` separates the parts of
+/// every path there, and neither cmd nor PowerShell reads it or `[` as
+/// anything but itself in a word.
+fn is_shell_special(c: char) -> bool {
+    matches!(
+        c,
+        ' ' | '!'
+            | '"'
+            | '$'
+            | '&'
+            | '\''
+            | '('
+            | ')'
+            | '*'
+            | ';'
+            | '<'
+            | '='
+            | '>'
+            | '?'
+            | '^'
+            | '`'
+            | '|'
+    ) || (cfg!(not(windows)) && matches!(c, '[' | '\\'))
+}
+
+/// Whether a shell still gives `c` a meaning inside double quotes: it
+/// expands `$` and `` ` ``, ends the quotes at `"`, reads `\` as an escape
+/// (except on Windows, where it separates paths) and, at a prompt, `!` as
+/// history.
+fn is_read_inside_double_quotes(c: char) -> bool {
+    matches!(c, '"' | '$' | '`' | '!') || (cfg!(not(windows)) && c == '\\')
+}
+
 impl Quoting {
     /// Determines the quoting strategy required for the given string.
     #[must_use]
     pub fn for_string(string: &str, quote_style: QuoteStyle) -> Self {
         let has_apostrophe = string.contains('\'');
-        let has_double_quote = string.contains('"');
-        let needs_quotes = string.contains(' ') || has_apostrophe || has_double_quote;
+        // A comment and a home directory start only at the start of a word.
+        let needs_quotes = string.starts_with(['#', '~']) || string.chars().any(is_shell_special);
 
         if quote_style.quotes_needed(needs_quotes) {
-            match (has_apostrophe, has_double_quote) {
-                (true, true) => Self::SingleEscaped,
-                (true, false) => Self::Double,
-                _ => Self::Single,
+            if !has_apostrophe {
+                Self::Single
+            } else if string.chars().any(is_read_inside_double_quotes) {
+                Self::SingleEscaped
+            } else {
+                Self::Double
             }
         } else {
             Self::None
@@ -303,6 +341,83 @@ mod test {
             quoted(r#"julia's "file".txt"#, QuoteStyle::Always),
             r#"'julia'\''s "file".txt'"#
         );
+    }
+
+    /// Every character a shell gives a meaning to quotes the name, as GNU
+    /// `ls` quotes it; `#` and `~` only at the start, where they begin a
+    /// comment or a home directory.
+    #[test]
+    fn shell_specials_take_quotes_as_in_ls() {
+        for name in [
+            "amp&er",
+            "bang!",
+            "caret^",
+            "dollar$sign",
+            "eq=sign",
+            "lt<gt>",
+            "paren(s)",
+            "pipe|x",
+            "q?",
+            "semi;colon",
+            "star*",
+            "tick`",
+            "#hash",
+            "~tilde",
+        ] {
+            assert_eq!(
+                quoted(name, QuoteStyle::Auto),
+                format!("'{name}'"),
+                "{name}"
+            );
+        }
+        for name in [
+            "at@x",
+            "brace{x}",
+            "colon:x",
+            "comma,x",
+            "pct%x",
+            "plus+x",
+            "mid#hash",
+            "mid~tilde",
+        ] {
+            assert_eq!(quoted(name, QuoteStyle::Auto), name, "{name}");
+        }
+    }
+
+    /// Inside double quotes a shell still expands `$` and `` ` `` and,
+    /// interactively, reads `!` as history; with any of those an apostrophe
+    /// is broken out of single quotes instead.
+    #[test]
+    fn an_apostrophe_beside_what_double_quotes_expand_breaks_out_of_single_ones() {
+        for (name, expected) in [
+            ("it's $HOME", r"'it'\''s $HOME'"),
+            ("it's `x`", r"'it'\''s `x`'"),
+            ("it's !x", r"'it'\''s !x'"),
+        ] {
+            assert_eq!(quoted(name, QuoteStyle::Auto), expected, "{name}");
+        }
+    }
+
+    /// `\` and `[` are quoted as `ls` quotes them, except on Windows: `\`
+    /// separates the parts of every path there, and neither cmd nor
+    /// PowerShell reads either as anything but itself. Nor does a Windows
+    /// shell read `\` as an escape inside double quotes.
+    #[test]
+    fn backslash_and_bracket_are_plain_on_windows() {
+        for name in ["back\\slash", "br[ack]et"] {
+            let expected = if cfg!(windows) {
+                name.to_owned()
+            } else {
+                format!("'{name}'")
+            };
+            assert_eq!(quoted(name, QuoteStyle::Auto), expected, "{name}");
+        }
+        let expected = if cfg!(windows) {
+            r#""it's \x""#
+        } else {
+            r"'it'\''s \x'"
+        };
+        assert_eq!(quoted("it's \\x", QuoteStyle::Auto), expected);
     }
 
     /// Control characters keep their visible escape and their own style; the
