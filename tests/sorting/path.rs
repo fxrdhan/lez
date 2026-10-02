@@ -48,8 +48,7 @@ impl Drop for TempDirSetup {
 }
 
 fn run_lez_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    Command::new(bin_path)
+    crate::common::lez_cmd()
         .current_dir(working_dir)
         // Pin collation to the POSIX C locale so expectations rely on plain
         // byte order instead of the OS locale. Without this, macOS/Windows

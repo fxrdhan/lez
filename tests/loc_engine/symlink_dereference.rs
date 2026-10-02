@@ -5,7 +5,7 @@
 
 use std::process::Command;
 
-use crate::common::{TempTestDir, bin_path};
+use crate::common::TempTestDir;
 
 #[test]
 #[cfg(unix)]
@@ -19,7 +19,7 @@ fn test_loc_dereference_symlinks_with_and_without_extension() {
     tmp.create_symlink("target.rs", "link_no_ext");
 
     // 1. Without dereference (-l --loc): symlinks must show '-' for LOC
-    let out_no_deref = Command::new(bin_path())
+    let out_no_deref = crate::common::lez_cmd()
         .args(["-l", "--loc", "--color=never"])
         .arg(tmp.path())
         .output()
@@ -44,7 +44,7 @@ fn test_loc_dereference_symlinks_with_and_without_extension() {
     }
 
     // 2. With dereference (-l -X --loc): both symlinks must show Rust and 3 lines of code
-    let out_deref = Command::new(bin_path())
+    let out_deref = crate::common::lez_cmd()
         .args(["-l", "-X", "--loc", "--color=never"])
         .arg(tmp.path())
         .output()
@@ -123,7 +123,7 @@ fn test_loc_dereference_broken_symlinks_and_directory_symlinks() {
     tmp.create_symlink("loop_a", "loop_b");
 
     // Run lez -ld -X --loc to list entries as items (not descending into dirs)
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["-l", "-d", "-X", "--loc", "--color=never"])
         .arg(tmp.path().join("broken.rs"))
         .arg(tmp.path().join("broken_no_ext"))
@@ -186,7 +186,7 @@ fn test_loc_dereference_chained_and_relative_symlinks() {
     // Symlink with extension pointing to file without extension
     tmp.create_symlink("noext_script", "link_with_ext.py");
 
-    let out_sub = Command::new(bin_path())
+    let out_sub = crate::common::lez_cmd()
         .args(["-l", "-X", "--loc", "--color=never"])
         .arg(&sub)
         .output()
@@ -205,7 +205,7 @@ fn test_loc_dereference_chained_and_relative_symlinks() {
         }
     }
 
-    let out_chain = Command::new(bin_path())
+    let out_chain = crate::common::lez_cmd()
         .args(["-l", "-X", "--loc", "--color=never"])
         .arg(tmp.path())
         .output()
@@ -253,7 +253,7 @@ fn test_loc_dereference_mismatched_extension() {
     tmp.create_symlink("real.py", "link_as_rust.rs");
 
     // 1. With -l -X --loc: dereferenced target real.py is Python, so must report Python and 2 LOC
-    let out_deref = Command::new(bin_path())
+    let out_deref = crate::common::lez_cmd()
         .args(["-l", "-X", "--loc", "--color=never"])
         .arg(tmp.path().join("link_as_rust.rs"))
         .output()
@@ -274,7 +274,7 @@ fn test_loc_dereference_mismatched_extension() {
     );
 
     // 2. Without -X: non-dereferenced symlink shows link's own name extension (Rust) and '-' for LOC
-    let out_no_deref = Command::new(bin_path())
+    let out_no_deref = crate::common::lez_cmd()
         .args(["-l", "--loc", "--color=never"])
         .arg(tmp.path().join("link_as_rust.rs"))
         .output()
@@ -304,7 +304,7 @@ fn test_loc_dereference_json_output() {
     tmp.create_symlink("py_script.py", "mismatched.rs");
 
     // 1. JSON with -X --loc
-    let out_deref = Command::new(bin_path())
+    let out_deref = crate::common::lez_cmd()
         .args(["--json", "-l", "-X", "--loc"])
         .arg(tmp.path())
         .output()
@@ -349,7 +349,7 @@ fn test_loc_dereference_json_output() {
     assert!(broken.get("Language").is_none());
 
     // 2. JSON without -X: symlinks must NOT have Code
-    let out_no_deref = Command::new(bin_path())
+    let out_no_deref = crate::common::lez_cmd()
         .args(["--json", "-l", "--loc"])
         .arg(tmp.path())
         .output()
@@ -387,7 +387,7 @@ fn test_loc_dereference_positional_files() {
     let link_ext = tmp.create_symlink("code.go", "pos_link.go");
     let link_noext = tmp.create_symlink("code.go", "pos_link_noext");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["-l", "-X", "--loc", "--color=never"])
         .arg(&link_ext)
         .arg(&link_noext)
@@ -416,7 +416,7 @@ fn test_code_mode_symlink_dereference_flags() {
     tmp.create_symlink("main.rs", "symlink.rs");
 
     // 1. Without -X: symlinks must NOT be dereferenced/counted in --code (Files: 1, not 2)
-    let out_no_deref = Command::new(bin_path())
+    let out_no_deref = crate::common::lez_cmd()
         .args(["--code", "--color=never"])
         .arg(tmp.path())
         .output()
@@ -434,7 +434,7 @@ fn test_code_mode_symlink_dereference_flags() {
     }
 
     // 2. With -X: symlink IS dereferenced and counted (Files: 2)
-    let out_deref = Command::new(bin_path())
+    let out_deref = crate::common::lez_cmd()
         .args(["--code", "-X", "--color=never"])
         .arg(tmp.path())
         .output()
@@ -452,7 +452,7 @@ fn test_code_mode_symlink_dereference_flags() {
     }
 
     // 3. With -X --no-symlinks: symlinks ignored even if -X is passed (Files: 1)
-    let out_no_sym = Command::new(bin_path())
+    let out_no_sym = crate::common::lez_cmd()
         .args(["--code", "-X", "--no-symlinks", "--color=never"])
         .arg(tmp.path())
         .output()
@@ -477,7 +477,7 @@ fn test_loc_dereference_deduplication_of_identical_files_and_symlinks() {
     let src_path = tmp.path().join("source.rs");
 
     // Pass the same file twice (as absolute and dot-prefixed paths) with -X
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["--code", "-X", "--color=never"])
         .arg(&src_path)
         .arg(&src_path)

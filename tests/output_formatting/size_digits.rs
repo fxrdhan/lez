@@ -45,23 +45,13 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("failed to get current_exe");
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.push("lez");
-    path
-}
-
 #[test]
 fn test_size_digits_default_3() {
     let temp = TempTestDir::new("default");
     // 2_345_678 bytes: in decimal = 2.345... MB (default 3 digits => 2.3M)
     temp.create_sparse_file("test_file.bin", 2_345_678);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg(&temp.path)
@@ -81,7 +71,7 @@ fn test_size_digits_flag_4() {
     let temp = TempTestDir::new("flag_4");
     temp.create_sparse_file("test_file.bin", 2_345_678);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--size-digits=4")
         .arg("--color=never")
@@ -102,7 +92,7 @@ fn test_size_digits_alias_digits() {
     let temp = TempTestDir::new("alias_digits");
     temp.create_sparse_file("test_file.bin", 2_345_678);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--digits=5")
         .arg("--color=never")
@@ -125,7 +115,7 @@ fn test_size_digits_binary_prefixes() {
     temp.create_sparse_file("large.bin", 2_510_000_000);
 
     // Default 3 digits: "2.3Gi"
-    let output_3 = Command::new(bin_path())
+    let output_3 = crate::common::lez_cmd()
         .arg("-l")
         .arg("-b")
         .arg("--color=never")
@@ -139,7 +129,7 @@ fn test_size_digits_binary_prefixes() {
     );
 
     // 4 digits: "2.34Gi"
-    let output_4 = Command::new(bin_path())
+    let output_4 = crate::common::lez_cmd()
         .arg("-l")
         .arg("-b")
         .arg("--size-digits=4")
@@ -159,7 +149,7 @@ fn test_size_digits_env_var() {
     let temp = TempTestDir::new("env_var");
     temp.create_sparse_file("test_file.bin", 2_345_678);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg(&temp.path)
@@ -180,7 +170,7 @@ fn test_size_digits_cli_overrides_env_var() {
     let temp = TempTestDir::new("cli_overrides_env");
     temp.create_sparse_file("test_file.bin", 2_345_678);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--size-digits=5")
         .arg("--color=never")
@@ -202,7 +192,7 @@ fn test_size_digits_json_view() {
     let temp = TempTestDir::new("json_view");
     temp.create_sparse_file("test_file.bin", 2_345_678);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--json")
         .arg("-l")
         .arg("--size-digits=4")
@@ -220,14 +210,14 @@ fn test_size_digits_json_view() {
 
 #[test]
 fn test_size_digits_invalid_range_rejected() {
-    let output_zero = Command::new(bin_path())
+    let output_zero = crate::common::lez_cmd()
         .arg("-l")
         .arg("--size-digits=0")
         .output()
         .expect("Failed to run lez");
     assert!(!output_zero.status.success());
 
-    let output_large = Command::new(bin_path())
+    let output_large = crate::common::lez_cmd()
         .arg("-l")
         .arg("--size-digits=99")
         .output()

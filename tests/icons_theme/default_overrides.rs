@@ -49,8 +49,7 @@ extensions:
     let unmapped_file = temp.path.join("data.unmapped_custom_ext_xyz");
     fs::write(&unmapped_file, b"content").unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -87,8 +86,7 @@ extensions:
     let no_ext_file = temp.path.join("extensionless_binary");
     fs::write(&no_ext_file, b"content").unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -123,8 +121,7 @@ extensions:
     let no_ext_file = temp.path.join("extensionless_document");
     fs::write(&no_ext_file, b"content").unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -165,10 +162,8 @@ extensions:
     let empty_dir = temp.path.join("my_empty_folder");
     fs::create_dir_all(&empty_dir).unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
     // 1. Non-empty directory should render .default_directory (📁)
-    let output_non_empty = Command::new(lez_bin)
+    let output_non_empty = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -186,7 +181,7 @@ extensions:
     );
 
     // 2. Empty directory should render .default_directory_empty (📂)
-    let output_empty = Command::new(lez_bin)
+    let output_empty = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -222,8 +217,7 @@ extensions:
     let empty_dir = temp.path.join("empty_folder");
     fs::create_dir_all(&empty_dir).unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -281,10 +275,8 @@ extensions:
     fs::create_dir_all(&special_dir).unwrap();
     fs::write(special_dir.join("sub.txt"), b"sub").unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
     // Specific filename matches ⭐ instead of 📄
-    let out_file = Command::new(lez_bin)
+    let out_file = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -296,7 +288,7 @@ extensions:
     assert!(String::from_utf8_lossy(&out_file.stdout).contains('⭐'));
 
     // Specific extension matches 🦀 instead of 📄
-    let out_rs = Command::new(lez_bin)
+    let out_rs = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -308,7 +300,7 @@ extensions:
     assert!(String::from_utf8_lossy(&out_rs.stdout).contains('🦀'));
 
     // Specific directoryname matches 💎 instead of 📁
-    let out_dir = Command::new(lez_bin)
+    let out_dir = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -346,10 +338,8 @@ extensions:
     let other_ext_file = temp.path.join("other.unknown_ext_123");
     fs::write(&other_ext_file, b"content").unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
     // my_sample.default_file should match explicit extension `default_file` (🎯)
-    let out_real = Command::new(lez_bin)
+    let out_real = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",
@@ -361,7 +351,7 @@ extensions:
     assert!(String::from_utf8_lossy(&out_real.stdout).contains('🎯'));
 
     // other.unknown_ext_123 should match fallback `.default_file` (📄)
-    let out_other = Command::new(lez_bin)
+    let out_other = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",

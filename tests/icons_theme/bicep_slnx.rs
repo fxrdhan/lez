@@ -46,15 +46,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_bicep_and_slnx_icons() {
     let temp = TempTestDir::new("bicep_slnx");
@@ -64,7 +55,7 @@ fn test_bicep_and_slnx_icons() {
     temp.create_file("Solution.slnx", b"<Solution></Solution>");
     temp.create_file("Legacy.sln", b"Microsoft Visual Studio Solution File");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=always")
         .arg(&temp.path)
         .output()

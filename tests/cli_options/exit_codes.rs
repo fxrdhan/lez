@@ -45,16 +45,12 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_exit_code_0_on_success() {
     let temp = TempTestDir::new("success");
     fs::write(temp.path.join("file.txt"), b"test").unwrap();
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg(&temp.path)
         .output()
@@ -73,7 +69,7 @@ fn test_exit_code_3_on_strict_mode_long_only_options() {
     let temp_str = temp.path.to_str().unwrap();
 
     // In strict mode (LEZ_STRICT=1), passing long-only flags like --binary without -l triggers OptionsError (Exit 3)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .args(["--binary", temp_str])
         .env("LEZ_STRICT", "1")
         .output()
@@ -93,7 +89,7 @@ fn test_exit_code_3_on_strict_mode_conflicting_options() {
     let temp_str = temp.path.to_str().unwrap();
 
     // In strict mode (EZA_STRICT=1), passing -l with --across triggers OptionsError::Useless (Exit 3)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .args(["-l", "-x", temp_str])
         .env("EZA_STRICT", "1")
         .output()
@@ -108,7 +104,7 @@ fn test_exit_code_3_on_strict_mode_conflicting_options() {
 
 #[test]
 fn test_exit_code_3_on_invalid_cli_arguments() {
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--completely-invalid-nonexistent-flag-xyz")
         .output()
         .expect("run lez with invalid option");
@@ -125,7 +121,7 @@ fn test_exit_code_on_missing_input_path() {
     let temp = TempTestDir::new("missing_path");
     let non_existent = temp.path.join("definitely_missing_subdir_12345");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg(&non_existent)
         .output()
         .expect("run lez on missing path");
@@ -142,7 +138,7 @@ fn test_exit_code_on_code_mode_missing_input_path() {
     let temp = TempTestDir::new("code_missing_path");
     let non_existent = temp.path.join("definitely_missing_code_subdir_12345");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&non_existent)
         .output()

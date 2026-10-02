@@ -15,15 +15,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 struct SecMountTestDir {
     path: PathBuf,
 }
@@ -109,7 +100,7 @@ fn test_smack_and_apparmor_label_structure() {
 #[cfg(unix)]
 fn test_mount_point_flag_on_system_mounts() {
     // Root directory '/' is always a mount point on Unix
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("-M")
         .arg("--color=never")
@@ -122,7 +113,7 @@ fn test_mount_point_flag_on_system_mounts() {
     assert!(stdout.contains('/'));
 
     // Long flag --mounts should produce identical success
-    let output_long = Command::new(bin_path())
+    let output_long = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--mounts")
         .arg("--color=never")
@@ -139,7 +130,7 @@ fn test_full_privileged_options_combination_resilience() {
     let file = dir.create_file("demo.dat", b"Payload data");
 
     // Combine -l, -Z (context), -M (mounts), -O (flags), -@ (extended attrs)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-Z")
         .arg("-M")
@@ -155,7 +146,7 @@ fn test_full_privileged_options_combination_resilience() {
     assert!(stdout.contains("demo.dat"));
 
     // JSON mode with the same combination
-    let output_json = Command::new(bin_path())
+    let output_json = crate::common::lez_cmd()
         .arg("--json")
         .arg("-l")
         .arg("-Z")

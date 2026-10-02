@@ -23,7 +23,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn run_with_colors(colors: &str, root: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lez"))
+    crate::common::lez_cmd()
         .env("LEZ_COLORS", colors)
         .args(["-1", "--color=always"])
         .arg(root.to_str().unwrap())

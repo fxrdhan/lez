@@ -47,10 +47,6 @@ impl Drop for TempDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 // 1. Janet String Literals with '#' and Escaped Quotes (CLI)
 #[test]
 fn test_janet_string_literals_with_hash_and_escapes() {
@@ -63,7 +59,7 @@ fn test_janet_string_literals_with_hash_and_escapes() {
 "##;
     temp.create_file("test.janet", content.as_bytes());
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -87,7 +83,7 @@ fn test_janet_unicode_strings_and_comments() {
 "##;
     temp.create_file("unicode.janet", content.as_bytes());
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -116,7 +112,7 @@ fn test_jdn_complex_structures_and_comments() {
 "##;
     temp.create_file("config.jdn", content.as_bytes());
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -146,7 +142,7 @@ fn test_janet_large_file_stress_and_performance() {
     temp.create_file("large.janet", large_content.as_bytes());
 
     let start = Instant::now();
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -179,7 +175,7 @@ fn test_janet_empty_blanks_comments_boundary() {
         b"(def a 1)\n(def b 2)\n(print (+ a b))\n",
     );
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -200,7 +196,7 @@ fn test_janet_nerd_font_icons_cli_permutations() {
     let janet_icon = '\u{f0af7}'; // 󰫷
 
     // --icons=always
-    let out_always = Command::new(bin_path())
+    let out_always = crate::common::lez_cmd()
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
@@ -214,7 +210,7 @@ fn test_janet_nerd_font_icons_cli_permutations() {
     );
 
     // --icons=never
-    let out_never = Command::new(bin_path())
+    let out_never = crate::common::lez_cmd()
         .arg("--icons=never")
         .arg(&temp.path)
         .output()
@@ -228,7 +224,7 @@ fn test_janet_nerd_font_icons_cli_permutations() {
     );
 
     // --icons=auto
-    let out_auto = Command::new(bin_path())
+    let out_auto = crate::common::lez_cmd()
         .arg("--icons=auto")
         .arg(&temp.path)
         .output()
@@ -236,7 +232,7 @@ fn test_janet_nerd_font_icons_cli_permutations() {
     assert!(out_auto.status.success());
 
     // Bare --icons flag
-    let out_bare = Command::new(bin_path())
+    let out_bare = crate::common::lez_cmd()
         .arg("--icons")
         .arg(&temp.path)
         .output()
@@ -256,7 +252,7 @@ fn test_janet_loc_in_long_view_and_sorting() {
     temp.create_file("data.jdn", b"# JDN\n{:version \"1.0\"}\n");
 
     // lez -l --loc
-    let out_loc = Command::new(bin_path())
+    let out_loc = crate::common::lez_cmd()
         .arg("-l")
         .arg("--loc")
         .arg(&temp.path)
@@ -270,7 +266,7 @@ fn test_janet_loc_in_long_view_and_sorting() {
     assert!(stdout_loc.contains("data.jdn"));
 
     // lez -l --loc --sort=extension
-    let out_sort_ext = Command::new(bin_path())
+    let out_sort_ext = crate::common::lez_cmd()
         .arg("-l")
         .arg("--loc")
         .arg("--sort=extension")
@@ -294,7 +290,7 @@ fn test_janet_in_nested_directory_tree() {
     temp.create_file("config/app.jdn", b"# App settings\n{:env :production}\n");
     temp.create_file("build.rs", b"fn main() {}\n");
 
-    let out_tree = Command::new(bin_path())
+    let out_tree = crate::common::lez_cmd()
         .arg("--tree")
         .arg("--code")
         .arg(&temp.path)
@@ -315,7 +311,7 @@ fn test_janet_symlink_handling() {
     let link = temp.path.join("symlink.janet");
     std::os::unix::fs::symlink(&target, &link).unwrap();
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--loc")
         .arg("--icons=always")
@@ -339,7 +335,7 @@ fn test_janet_hidden_files_long_listing() {
     temp.create_file(".secret_config.jdn", b"{:secret \"xyz\"}\n");
 
     // Without -a (should not list hidden files)
-    let out_no_a = Command::new(bin_path())
+    let out_no_a = crate::common::lez_cmd()
         .arg("-l")
         .arg("--loc")
         .arg(&temp.path)
@@ -350,7 +346,7 @@ fn test_janet_hidden_files_long_listing() {
     assert!(!stdout_no_a.contains(".janet_init.janet"));
 
     // With -a (should include hidden Janet files in long listing with LOC info)
-    let out_a = Command::new(bin_path())
+    let out_a = crate::common::lez_cmd()
         .arg("-a")
         .arg("-l")
         .arg("--loc")

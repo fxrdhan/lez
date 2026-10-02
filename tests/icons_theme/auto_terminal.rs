@@ -50,10 +50,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 const RUST_ICON: char = '\u{e68b}'; // 
 const FOLDER_ICON: char = '\u{e5ff}'; // 
 const FILE_ICON: char = '\u{f15b}'; // 
@@ -65,7 +61,7 @@ fn test_icons_auto_in_pipe_with_columns_does_not_render_icons() {
     temp.create_file("doc.txt", b"notes");
     temp.create_dir("subdir");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=auto")
         .arg(&temp.path)
         .env("COLUMNS", "120")
@@ -101,7 +97,7 @@ fn test_icons_always_in_pipe_renders_icons() {
     temp.create_file("doc.txt", b"notes");
     temp.create_dir("subdir");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=always")
         .arg(&temp.path)
         .env("COLUMNS", "120")
@@ -128,7 +124,7 @@ fn test_icons_never_in_pipe_does_not_render_icons() {
     temp.create_file("main.rs", b"fn main() {}");
     temp.create_file("doc.txt", b"notes");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=never")
         .arg(&temp.path)
         .env("COLUMNS", "120")
@@ -149,7 +145,7 @@ fn test_icons_auto_long_view_in_pipe_with_columns_does_not_render_icons() {
     temp.create_file("doc.txt", b"notes");
     temp.create_dir("subdir");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--icons=auto")
         .arg(&temp.path)
@@ -181,7 +177,7 @@ fn test_icons_always_long_view_in_pipe_renders_icons() {
     temp.create_file("doc.txt", b"notes");
     temp.create_dir("subdir");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--icons=always")
         .arg(&temp.path)
@@ -205,7 +201,7 @@ fn test_eza_icons_auto_env_in_pipe_with_columns() {
     temp.create_file("doc.txt", b"notes");
     temp.create_dir("subdir");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg(&temp.path)
         .env("EZA_ICONS_AUTO", "1")
         .env("COLUMNS", "120")
@@ -232,7 +228,7 @@ fn test_icons_auto_width_flag_in_pipe_does_not_render_icons() {
     temp.create_file("doc.txt", b"notes");
     temp.create_dir("subdir");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--width=100")
         .arg("--icons=auto")
         .arg(&temp.path)
@@ -252,7 +248,7 @@ fn test_icons_precedence_always_overrides_auto() {
     temp.create_file("main.rs", b"fn main() {}");
 
     // --icons=auto followed by --icons=always -> always wins
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=auto")
         .arg("--icons=always")
         .arg(&temp.path)
@@ -270,7 +266,7 @@ fn test_icons_precedence_auto_overrides_always() {
     temp.create_file("main.rs", b"fn main() {}");
 
     // --icons=always followed by --icons=auto -> auto wins, in pipe icons suppressed
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=always")
         .arg("--icons=auto")
         .arg(&temp.path)
@@ -289,7 +285,7 @@ fn test_icons_auto_tree_mode_in_pipe_with_columns() {
     temp.create_dir("subdir");
     temp.create_file("subdir/nested.rs", b"fn nested() {}");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--tree")
         .arg("--icons=auto")
         .arg(&temp.path)

@@ -15,15 +15,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 struct SpecialNodeTestDir {
     path: PathBuf,
 }
@@ -77,7 +68,7 @@ fn test_char_device_major_minor_numbers_in_long_view() {
         return;
     }
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg("/dev/null")
@@ -109,7 +100,7 @@ fn test_char_device_major_minor_in_json_mode() {
         return;
     }
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--json")
         .arg("-l")
         .arg("/dev/zero")
@@ -133,7 +124,7 @@ fn test_unix_domain_socket_creation_and_classification() {
     let (sock_path, _listener) = sock_res.unwrap();
 
     // 1. Long view -l: type character must be 's' (socket)
-    let output_long = Command::new(bin_path())
+    let output_long = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg(&sock_path)
@@ -149,7 +140,7 @@ fn test_unix_domain_socket_creation_and_classification() {
     assert!(stdout_long.contains("test_service.sock"));
 
     // 2. Classification flag -F=always / --classify=always: must append '=' to socket names
-    let output_classify = Command::new(bin_path())
+    let output_classify = crate::common::lez_cmd()
         .arg("-F=always")
         .arg(&sock_path)
         .output()
@@ -163,7 +154,7 @@ fn test_unix_domain_socket_creation_and_classification() {
     );
 
     // 3. JSON mode: must not hang and must list socket name
-    let output_json = Command::new(bin_path())
+    let output_json = crate::common::lez_cmd()
         .arg("--json")
         .arg(&sock_path)
         .output()
@@ -185,7 +176,7 @@ fn test_named_pipe_fifo_creation_and_classification() {
     let fifo_path = fifo_res.unwrap();
 
     // 1. Long view -l: type character must be 'p' or '|' (pipe)
-    let output_long = Command::new(bin_path())
+    let output_long = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg(&fifo_path)
@@ -204,7 +195,7 @@ fn test_named_pipe_fifo_creation_and_classification() {
     assert!(stdout_long.contains("data_stream.pipe"));
 
     // 2. Classification flag -F=always / --classify=always: must append '|' to FIFO names
-    let output_classify = Command::new(bin_path())
+    let output_classify = crate::common::lez_cmd()
         .arg("-F=always")
         .arg(&fifo_path)
         .output()
@@ -218,7 +209,7 @@ fn test_named_pipe_fifo_creation_and_classification() {
     );
 
     // 3. JSON mode: must not hang and must list pipe name
-    let output_json = Command::new(bin_path())
+    let output_json = crate::common::lez_cmd()
         .arg("--json")
         .arg(&fifo_path)
         .output()
@@ -240,7 +231,7 @@ fn test_mixed_special_nodes_directory_listing_does_not_block() {
     drop(f);
 
     // Run recursive, long, classified, colored listing across the directory
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-la")
         .arg("-F")
         .arg("--color=always")

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::common::{TempTestDir, bin_path};
+use crate::common::TempTestDir;
 use std::path::MAIN_SEPARATOR;
 use std::process::Command;
 
@@ -12,7 +12,7 @@ fn test_full_path_with_spaces_quoted_as_single_token() {
     temp.create_file("parent with space/child with space.txt", b"content");
 
     let rel_path = format!("parent with space{MAIN_SEPARATOR}child with space.txt");
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .arg("-1")
         .arg("--color=never")
@@ -37,7 +37,7 @@ fn test_path_without_spaces_not_quoted() {
     temp.create_file("parent_dir/child_file.txt", b"content");
 
     let rel_path = format!("parent_dir{MAIN_SEPARATOR}child_file.txt");
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .arg("-1")
         .arg("--color=never")
@@ -62,7 +62,7 @@ fn test_path_with_space_in_parent_only_quoted() {
     temp.create_file("parent space/child.txt", b"content");
 
     let rel_path = format!("parent space{MAIN_SEPARATOR}child.txt");
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .arg("-1")
         .arg("--color=never")
@@ -87,7 +87,7 @@ fn test_path_with_space_in_child_only_quoted() {
     temp.create_file("parent/child space.txt", b"content");
 
     let rel_path = format!("parent{MAIN_SEPARATOR}child space.txt");
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .arg("-1")
         .arg("--color=never")
@@ -112,7 +112,7 @@ fn test_quote_style_override_qu() {
     temp.create_file("dir a/file b.txt", b"content");
 
     let rel_path = format!("dir a{MAIN_SEPARATOR}file b.txt");
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .env("LEZ_COLORS", "qu=35;1")
         .arg("-1")
@@ -138,7 +138,7 @@ fn test_no_quotes_flag_suppresses_quotes_on_paths() {
     temp.create_file("parent with space/child with space.txt", b"content");
 
     let rel_path = format!("parent with space{MAIN_SEPARATOR}child with space.txt");
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .arg("-1")
         .arg("--color=never")
@@ -164,7 +164,7 @@ fn test_quotes_always_quotes_paths_even_without_spaces() {
     temp.create_file("parent/child.txt", b"content");
 
     let rel_path = format!("parent{MAIN_SEPARATOR}child.txt");
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .arg("-1")
         .arg("--color=never")
@@ -191,7 +191,7 @@ fn test_symlink_target_quotes_always_quotes_target() {
     temp.create_file("target.txt", b"hello");
     symlink("target.txt", temp.path().join("link")).unwrap();
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .args(["-l", "--color=never", "--quotes=always", "link"])
         .output()
@@ -213,7 +213,7 @@ fn test_symlink_target_quotes_never_suppresses_quotes_on_target_with_space() {
     temp.create_file("target file.txt", b"hello");
     symlink("target file.txt", temp.path().join("link file")).unwrap();
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(temp.path())
         .args(["-l", "--color=never", "--quotes=never", "link file"])
         .output()

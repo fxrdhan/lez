@@ -78,8 +78,7 @@ impl Drop for TempTestDir {
 }
 
 fn run_lez_in<P: AsRef<Path>>(working_dir: P, args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    Command::new(bin_path)
+    crate::common::lez_cmd()
         .current_dir(working_dir)
         .args(args)
         .output()

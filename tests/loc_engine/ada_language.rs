@@ -43,15 +43,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_ada_icons_cli() {
     let temp = TempTestDir::new("icons");
@@ -60,7 +51,7 @@ fn test_ada_icons_cli() {
     temp.create_file("legacy.ada", b"procedure Legacy is begin null; end;\n");
     temp.create_file("project.gpr", b"project Project is end Project;\n");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
@@ -94,7 +85,7 @@ fn test_ada_code_summary_cli() {
         b"-- GNAT Project\nproject Build is\n    for Source_Dirs use (\"src\");\nend Build;\n",
     );
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -148,7 +139,7 @@ fn test_ada_code_summary_with_icons_cli() {
         b"procedure Example is\nbegin\n    null;\nend Example;\n",
     );
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg("--icons=always")
         .arg(&temp.path)
@@ -174,7 +165,7 @@ fn test_ada_comment_counting_edge_cases() {
     let content = b"-- First comment line\n-- Second comment line\nwith Ada.Text_IO;\n\nprocedure Edge is\n   S : String := \"-- not a comment\";\nbegin\n   Ada.Text_IO.Put_Line (S); -- trailing comment\nend Edge;\n";
     temp.create_file("edge.adb", content);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()

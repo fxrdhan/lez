@@ -15,15 +15,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 struct FlagTestDir {
     path: PathBuf,
     flagged_files: Vec<PathBuf>,
@@ -131,7 +122,7 @@ fn test_real_kernel_bsd_nodump_flag_rendering() {
     }
 
     // 1. lez -l -O (short flags option)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-O")
         .arg("--color=never")
@@ -147,7 +138,7 @@ fn test_real_kernel_bsd_nodump_flag_rendering() {
     );
 
     // 2. lez -l --flags
-    let output_long = Command::new(bin_path())
+    let output_long = crate::common::lez_cmd()
         .arg("-l")
         .arg("--flags")
         .arg("--color=never")
@@ -163,7 +154,7 @@ fn test_real_kernel_bsd_nodump_flag_rendering() {
     );
 
     // 3. JSON representation contains flag
-    let output_json = Command::new(bin_path())
+    let output_json = crate::common::lez_cmd()
         .arg("-l")
         .arg("-O")
         .arg("--json")
@@ -194,7 +185,7 @@ fn test_real_kernel_macos_hidden_flag_filtering() {
     }
 
     // 1. Default listing: normal_file visible, hidden_file with UF_HIDDEN flag
-    let output_default = Command::new(bin_path())
+    let output_default = crate::common::lez_cmd()
         .arg(&dir.path)
         .output()
         .expect("Failed to run lez");
@@ -204,7 +195,7 @@ fn test_real_kernel_macos_hidden_flag_filtering() {
     assert!(stdout_default.contains("visible.txt"));
 
     // 2. lez -l -O (check that UF_HIDDEN renders as 'hidden')
-    let output_flags = Command::new(bin_path())
+    let output_flags = crate::common::lez_cmd()
         .arg("-l")
         .arg("-O")
         .arg("-a")
@@ -226,7 +217,7 @@ fn test_zero_flags_file_displays_dash_placeholder() {
     let dir = FlagTestDir::new("zero_flags");
     let file = dir.create_file("regular.txt", b"clean file with no flags");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-O")
         .arg("--color=never")

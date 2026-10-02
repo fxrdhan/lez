@@ -51,8 +51,7 @@ icons = "never"
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .arg("--config")
         .arg(&config_path)
         .arg("-l")
@@ -86,9 +85,8 @@ header = true
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
     // With LEZ_CONFIG_DIR pointing to config_dir, but with --no-config
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .arg("-l")
         .arg("--no-config")
@@ -121,8 +119,7 @@ header = true
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .arg("-l")
         .arg(&temp.path)
@@ -167,8 +164,7 @@ header = true
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .current_dir(&workdir)
         .env("LEZ_CONFIG_DIR", &config_dir)
         .arg("-l")
@@ -199,9 +195,8 @@ header = true
     let file_a = temp.path.join("file_a.txt");
     fs::write(&file_a, b"test").unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
     // Config enables header, but CLI explicitly runs without long table (e.g. oneline)
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .arg("--config")
         .arg(&config_path)
         .arg("--oneline")
@@ -233,8 +228,7 @@ header = true
     let file_a = temp.path.join("file.txt");
     fs::write(&file_a, b"test").unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_CONFIG_FILE", &config_path)
         .arg("-l")
         .arg(&temp.path)
@@ -258,8 +252,7 @@ fn test_malformed_config_file_handled_gracefully() {
     let file_a = temp.path.join("file.txt");
     fs::write(&file_a, b"test").unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .arg("--config")
         .arg(&config_path)
         .arg(&temp.path)
@@ -294,8 +287,7 @@ absolute = "on"
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .arg("--config")
         .arg(&config_path)
         .arg(&temp.path)
@@ -328,8 +320,7 @@ mode = "tree"
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .arg("--config")
         .arg(&config_path)
         .arg(&temp.path)
@@ -360,8 +351,7 @@ mode = "code"
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .arg("--config")
         .arg(&config_path)
         .arg(&temp.path)
@@ -392,11 +382,10 @@ color = "always"
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
     // Under Command::output(), stdout is a pipe (non-TTY).
     // With --color=auto, colors must be suppressed because stdout is not a TTY,
     // overriding the config file's color = "always".
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .arg("--config")
         .arg(&config_path)
         .arg("-l")

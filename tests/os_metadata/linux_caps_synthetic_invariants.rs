@@ -14,15 +14,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 struct CapTestDir {
     path: PathBuf,
 }
@@ -204,7 +195,7 @@ fn test_cli_execution_with_extended_attributes_on_clean_dir() {
     let dir = CapTestDir::new("clean_caps");
     let file = dir.create_file("normal_app.bin", b"\x7fELF\x02\x01\x01\x00");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-@")
         .arg("--color=never")

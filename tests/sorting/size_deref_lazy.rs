@@ -54,17 +54,8 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("Failed to get current test binary path");
-    path.pop(); // Remove test binary name
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 fn run_lez(args: &[&str], dir: &Path) -> Vec<String> {
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .args(args)
         .current_dir(dir)
         .output()

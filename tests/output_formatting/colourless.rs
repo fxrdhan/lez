@@ -31,7 +31,7 @@ fn plain_files(name: &str) -> PathBuf {
 }
 
 fn run(args: &[&str], root: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lez"))
+    crate::common::lez_cmd()
         .args(args)
         .arg(root.to_str().unwrap())
         .output()
@@ -40,7 +40,7 @@ fn run(args: &[&str], root: &Path) -> Output {
 
 #[cfg(unix)]
 fn stat_count(args: &[&str], root: &Path) -> usize {
-    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let out = crate::common::lez_cmd()
         .env("LEZ_DEBUG", "1")
         .args(args)
         .arg(root.to_str().unwrap())
@@ -96,7 +96,7 @@ fn a_coloured_listing_still_looks_for_executables() {
 #[test]
 fn a_coloured_listing_still_paints_executables() {
     let root = one_of_everything("painted");
-    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let out = crate::common::lez_cmd()
         .env("LEZ_COLORS", "ex=31")
         .args(["-1", "--color=always"])
         .arg(root.to_str().unwrap())

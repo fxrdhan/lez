@@ -744,11 +744,9 @@ fn test_grid_formatting_under_extreme_widths() {
         fs::write(temp.path.join(name), b"test").unwrap();
     }
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
     // Execute with width = 1, 2, 3, 40, 80, 65535, 100000
     for width in ["1", "2", "3", "40", "80", "65535", "100000"] {
-        let output = Command::new(lez_bin)
+        let output = crate::common::lez_cmd()
             .args(["--grid", "--width", width, temp.path.to_str().unwrap()])
             .output()
             .expect("lez command");
@@ -767,10 +765,8 @@ fn test_size_format_precedence_in_details_and_grid_modes() {
     let test_file = temp.path.join("file_2048.txt");
     fs::write(&test_file, vec![0u8; 2048]).unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
     // Permutation 1: -b then -B -> shows 2048 or 2,048 (bytes)
-    let out1 = Command::new(lez_bin)
+    let out1 = crate::common::lez_cmd()
         .args(["-l", "-b", "-B", test_file.to_str().unwrap()])
         .output()
         .unwrap();
@@ -779,7 +775,7 @@ fn test_size_format_precedence_in_details_and_grid_modes() {
     assert!(!s1.contains("KiB"));
 
     // Permutation 2: -B then -b -> shows 2.0 KiB or 2.0K (binary)
-    let out2 = Command::new(lez_bin)
+    let out2 = crate::common::lez_cmd()
         .args(["-l", "-B", "-b", test_file.to_str().unwrap()])
         .output()
         .unwrap();
@@ -787,7 +783,7 @@ fn test_size_format_precedence_in_details_and_grid_modes() {
     assert!(s2.contains("KiB") || s2.contains("2.0K"));
 
     // Permutation 3: -b -B -b -B -> shows bytes
-    let out3 = Command::new(lez_bin)
+    let out3 = crate::common::lez_cmd()
         .args(["-l", "-b", "-B", "-b", "-B", test_file.to_str().unwrap()])
         .output()
         .unwrap();
@@ -795,7 +791,7 @@ fn test_size_format_precedence_in_details_and_grid_modes() {
     assert!(s3.contains("2048") || s3.contains("2,048"));
 
     // Permutation 4: -B -b -B -b -> shows binary
-    let out4 = Command::new(lez_bin)
+    let out4 = crate::common::lez_cmd()
         .args(["-l", "-B", "-b", "-B", "-b", test_file.to_str().unwrap()])
         .output()
         .unwrap();

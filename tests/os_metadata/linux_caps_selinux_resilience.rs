@@ -46,15 +46,6 @@ impl Drop for SecurityTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("Failed to get current test binary path");
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_security_context_label_parsing_and_formatting() {
     let selinux_labels = [
@@ -108,7 +99,7 @@ fn test_context_flag_cli_execution_and_placeholder() {
     let fixture = SecurityTestDir::new("ctx_cli");
     fixture.create_file("test.txt", b"content");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .args(["-l", "-Z", "--color=never", fixture.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez with -Z");
@@ -118,7 +109,7 @@ fn test_context_flag_cli_execution_and_placeholder() {
     assert!(stdout.contains("test.txt"));
 
     // Verify JSON mode includes context or runs cleanly without panic
-    let json_output = Command::new(bin_path())
+    let json_output = crate::common::lez_cmd()
         .args(["--json", "-l", "-Z", fixture.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez with --json -Z");

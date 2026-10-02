@@ -62,10 +62,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 // ---------------------------------------------------------------------------
 // 1. BASIC LONG DETAILS (-l) SYMLINK TARGET SUPPRESSION
 // ---------------------------------------------------------------------------
@@ -77,7 +73,7 @@ fn test_long_details_shows_symlink_target_by_default() {
     temp.create_file("target_file.txt", b"hello world");
     temp.create_symlink("target_file.txt", "link_file");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg(&temp.path)
@@ -108,7 +104,7 @@ fn test_long_details_suppresses_symlink_target_with_flag() {
     temp.create_file("target_file.txt", b"hello world");
     temp.create_symlink("target_file.txt", "link_file");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -154,7 +150,7 @@ fn test_oneline_does_not_show_symlink_target_by_default() {
     temp.create_file("real.txt", b"data");
     temp.create_symlink("real.txt", "sym.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg("--color=never")
         .arg(&temp.path)
@@ -190,7 +186,7 @@ fn test_piped_output_does_not_show_symlink_target() {
     temp.create_file("real.txt", b"data");
     temp.create_symlink("real.txt", "sym.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--color=never")
         .arg(&temp.path)
         .output()
@@ -221,7 +217,7 @@ fn test_oneline_suppresses_symlink_target_with_flag() {
     temp.create_file("real.txt", b"data");
     temp.create_symlink("real.txt", "sym.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -262,7 +258,7 @@ fn test_broken_symlink_with_no_symlink_targets() {
     temp.create_symlink("nonexistent_destination_file.bin", "broken_link");
 
     // In long details mode:
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -278,7 +274,7 @@ fn test_broken_symlink_with_no_symlink_targets() {
     assert!(!stdout.contains("nonexistent_destination_file.bin"));
 
     // In oneline mode:
-    let output_1 = Command::new(bin_path())
+    let output_1 = crate::common::lez_cmd()
         .arg("-1")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -304,7 +300,7 @@ fn test_classify_flag_with_no_symlink_targets() {
     temp.create_file("target.txt", b"data");
     temp.create_symlink("target.txt", "my_symlink");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--classify=always")
         .arg("--no-symlink-targets")
@@ -346,7 +342,7 @@ fn test_directory_symlink_with_no_symlink_targets() {
     temp.create_dir("actual_folder");
     temp.create_symlink("actual_folder", "dir_link");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -384,7 +380,7 @@ fn test_tree_mode_with_no_symlink_targets() {
     let _ = temp.create_file("subdir/child.txt", b"child");
     let _ = temp.create_symlink("child.txt", "subdir/child_link");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-T")
         .arg("--no-symlink-targets")
@@ -421,7 +417,7 @@ fn test_multiple_special_symlinks() {
     temp.create_file("unicode_🚀.dat", b"2");
     temp.create_symlink("unicode_🚀.dat", "link_🚀");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -454,7 +450,7 @@ fn test_no_symlinks_vs_no_symlink_targets() {
     temp.create_symlink("regular.txt", "symlink.txt");
 
     // Case A: --no-symlinks filters symlink.txt completely out
-    let out_a = Command::new(bin_path())
+    let out_a = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlinks")
         .arg("--color=never")
@@ -468,7 +464,7 @@ fn test_no_symlinks_vs_no_symlink_targets() {
     assert!(stdout_a.contains("regular.txt"));
 
     // Case B: --no-symlink-targets keeps symlink.txt but hides target
-    let out_b = Command::new(bin_path())
+    let out_b = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")

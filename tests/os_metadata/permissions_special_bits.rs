@@ -8,10 +8,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 use tempfile::TempDir;
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_live_filesystem_special_permission_bits_formatting() {
     let temp = TempDir::new().expect("create temp dir");
@@ -39,7 +35,7 @@ fn test_live_filesystem_special_permission_bits_formatting() {
         .map(|m| (m.permissions().mode() & 0o1000) != 0)
         .unwrap_or(false);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .env_clear()
         .env("PATH", std::env::var("PATH").unwrap_or_default())
         .args(["-l", "-o", "--color=never", temp.path().to_str().unwrap()])

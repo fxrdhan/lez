@@ -63,15 +63,6 @@ impl Drop for FuseTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("Failed to get current test binary path");
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_in_memory_fast_path_bypasses_redundant_metadata_probing() {
     let fixture = FuseTestDir::new("fast_path");
@@ -120,7 +111,7 @@ fn test_simulated_inaccessible_mount_path_error_isolation() {
     let fixture = FuseTestDir::new("mount_error");
     let non_existent_mount = fixture.path.join("unmounted_cifs_share");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg(&non_existent_mount)
@@ -143,7 +134,7 @@ fn test_large_directory_traversal_zero_panic_invariant() {
         fixture.create_file(&format!("item_{i:03}.txt"), b"data");
     }
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .args(["-l", "--color=never", fixture.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -164,7 +155,7 @@ fn test_live_kernel_mount_points_detection_and_formatting() {
             continue;
         }
 
-        let output = Command::new(bin_path())
+        let output = crate::common::lez_cmd()
             .arg("-ld")
             .arg("-M")
             .arg("--color=never")
@@ -202,7 +193,7 @@ fn test_real_kernel_virtual_devfs_device_nodes_traversal() {
     }
 
     // Traversal of live /dev (contains real character devices, block devices, ptys, fifos)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg("/dev")
@@ -233,7 +224,7 @@ fn test_real_disk_block_allocation_reporting() {
     let file = fixture.create_file("test_blocks.dat", &[b'A'; 8192]); // 8 KiB
 
     // Test with --blocks
-    let output_blocks = Command::new(bin_path())
+    let output_blocks = crate::common::lez_cmd()
         .args(["-l", "--blocks", "--color=never", file.to_str().unwrap()])
         .output()
         .expect("Failed to run lez with --blocks");
@@ -243,7 +234,7 @@ fn test_real_disk_block_allocation_reporting() {
     assert!(stdout_blocks.contains("test_blocks.dat"));
 
     // Test with -S / --blocksize
-    let output_bs = Command::new(bin_path())
+    let output_bs = crate::common::lez_cmd()
         .args(["-l", "-S", "--color=never", file.to_str().unwrap()])
         .output()
         .expect("Failed to run lez with -S");
@@ -265,7 +256,7 @@ fn test_remote_or_system_mount_traversal_resilience() {
     ] {
         let p = std::path::Path::new(candidate);
         if p.exists() {
-            let output = Command::new(bin_path())
+            let output = crate::common::lez_cmd()
                 .arg("-ld")
                 .arg("-M")
                 .arg("--color=never")

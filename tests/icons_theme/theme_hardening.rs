@@ -33,15 +33,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_no_config_flag_suppresses_theme_yml() {
     let config_dir = TempTestDir::new("noconfig_theme");
@@ -58,7 +49,7 @@ fn test_no_config_flag_suppresses_theme_yml() {
     StdFile::create(&sample).expect("create sample file");
 
     // 1. Without --no-config: theme.yml is loaded and applies Red color (\x1b[31m)
-    let out_themed = Command::new(bin_path())
+    let out_themed = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir.path)
         .env_remove("EZA_CONFIG_DIR")
         .env_remove("XDG_CONFIG_HOME")
@@ -77,7 +68,7 @@ fn test_no_config_flag_suppresses_theme_yml() {
     );
 
     // 2. With --no-config: theme.yml MUST NOT be loaded
-    let out_noconfig = Command::new(bin_path())
+    let out_noconfig = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir.path)
         .env_remove("EZA_CONFIG_DIR")
         .env_remove("XDG_CONFIG_HOME")
@@ -108,7 +99,7 @@ fn test_corrupt_theme_yml_falls_back_to_default_theme_with_warning() {
     let sample = work_dir.path.join("sample_file.txt");
     StdFile::create(&sample).expect("create sample file");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir.path)
         .env_remove("EZA_CONFIG_DIR")
         .env_remove("XDG_CONFIG_HOME")

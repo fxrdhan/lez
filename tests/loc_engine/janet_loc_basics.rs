@@ -44,17 +44,13 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_janet_code_summary() {
     let temp = TempTestDir::new("janet_summary");
     let janet_content = b"# Janet language example\n(defn square [x]\n  # Computes square\n  (* x x))\n\n(print (square 5))\n";
     temp.create_file("main.janet", janet_content);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -80,7 +76,7 @@ fn test_jdn_code_summary() {
     let jdn_content = b"# Janet Data Notation\n{:name \"lez\"\n :version \"0.24.0\"\n # configuration data\n :features [:loc :icons]}\n";
     temp.create_file("config.jdn", jdn_content);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -102,7 +98,7 @@ fn test_mixed_janet_and_other_languages() {
     temp.create_file("data.jdn", b"# JDN\n{:a 1}\n");
     temp.create_file("main.rs", b"// Rust\nfn main() {}\n");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -120,7 +116,7 @@ fn test_janet_loc_columns_in_long_view() {
     temp.create_file("app.janet", b"# Line 1 comment\n(defn foo [] 42)\n");
     temp.create_file("settings.jdn", b"# Config\n{:k :v}\n");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--loc")
         .arg(&temp.path)
@@ -144,7 +140,7 @@ fn test_janet_empty_file_and_blanks() {
     temp.create_file("empty.janet", b"");
     temp.create_file("blanks.janet", b"\n\n   \n\t\n");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -159,7 +155,7 @@ fn test_janet_comments_and_strings() {
     let content = b"(def str \"# not a comment # really\")\n# actual comment\n";
     temp.create_file("strings.janet", content);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--code")
         .arg(&temp.path)
         .output()
@@ -175,14 +171,14 @@ fn test_code_summary_modes() {
     let temp = TempTestDir::new("janet_modes");
     temp.create_file("test.janet", b"(print \"hello\")\n");
 
-    let output_lines = Command::new(bin_path())
+    let output_lines = crate::common::lez_cmd()
         .arg("--code=lines")
         .arg(&temp.path)
         .output()
         .expect("Failed to execute lez");
     assert!(output_lines.status.success());
 
-    let output_percent = Command::new(bin_path())
+    let output_percent = crate::common::lez_cmd()
         .arg("--code=percent")
         .arg(&temp.path)
         .output()

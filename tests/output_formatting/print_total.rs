@@ -42,10 +42,9 @@ fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
 
 #[test]
 fn test_print_total_empty_directory() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_empty");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--print-total", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to execute lez binary");
@@ -60,7 +59,6 @@ fn test_print_total_empty_directory() {
 
 #[test]
 fn test_print_total_multiple_files_and_dirs() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_entries");
 
     temp.create_file("f1.txt", b"1");
@@ -70,7 +68,7 @@ fn test_print_total_multiple_files_and_dirs() {
     temp.create_dir("d2");
 
     // Total should be 5 (3 files + 2 dirs)
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--print-total", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to execute lez binary");
@@ -83,7 +81,7 @@ fn test_print_total_multiple_files_and_dirs() {
     );
 
     // In long mode (-l)
-    let output_l = Command::new(bin_path)
+    let output_l = crate::common::lez_cmd()
         .args(["-l", "--print-total", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to execute lez binary");
@@ -95,7 +93,7 @@ fn test_print_total_multiple_files_and_dirs() {
     );
 
     // In oneline mode (-1)
-    let output_1 = Command::new(bin_path)
+    let output_1 = crate::common::lez_cmd()
         .args(["-1", "--print-total", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to execute lez binary");
@@ -109,7 +107,6 @@ fn test_print_total_multiple_files_and_dirs() {
 
 #[test]
 fn test_print_total_with_filters_only_dirs_and_only_files() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_filters");
 
     temp.create_file("file1.txt", b"a");
@@ -119,7 +116,7 @@ fn test_print_total_with_filters_only_dirs_and_only_files() {
     temp.create_dir("dir3");
 
     // --only-dirs (-D): total should be 3
-    let output_dirs = Command::new(bin_path)
+    let output_dirs = crate::common::lez_cmd()
         .args(["-D", "--print-total", temp.path.to_str().unwrap()])
         .output()
         .unwrap();
@@ -130,7 +127,7 @@ fn test_print_total_with_filters_only_dirs_and_only_files() {
     );
 
     // --only-files (-f): total should be 2
-    let output_files = Command::new(bin_path)
+    let output_files = crate::common::lez_cmd()
         .args(["-f", "--print-total", temp.path.to_str().unwrap()])
         .output()
         .unwrap();
@@ -143,7 +140,6 @@ fn test_print_total_with_filters_only_dirs_and_only_files() {
 
 #[test]
 fn test_print_total_with_hidden_files() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_hidden");
 
     temp.create_file("normal.txt", b"norm");
@@ -151,7 +147,7 @@ fn test_print_total_with_hidden_files() {
     temp.create_dir(".dotdir");
 
     // Without -a: total should be 1 (normal.txt only)
-    let output_no_a = Command::new(bin_path)
+    let output_no_a = crate::common::lez_cmd()
         .args(["--print-total", temp.path.to_str().unwrap()])
         .output()
         .unwrap();
@@ -162,7 +158,7 @@ fn test_print_total_with_hidden_files() {
     );
 
     // With -a: total should be 3 (normal.txt, .dotfile, .dotdir)
-    let output_a = Command::new(bin_path)
+    let output_a = crate::common::lez_cmd()
         .args(["-a", "--print-total", temp.path.to_str().unwrap()])
         .output()
         .unwrap();
@@ -175,7 +171,6 @@ fn test_print_total_with_hidden_files() {
 
 #[test]
 fn test_print_total_tree_mode() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_tree");
 
     temp.create_file("root_file.txt", b"root");
@@ -183,7 +178,7 @@ fn test_print_total_tree_mode() {
     temp.create_file("subdir/child2.txt", b"c2");
 
     // -T --print-total: root dir + 1 root file + 1 subdir + 2 files in subdir = 5 total entries
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-T", "--print-total", temp.path.to_str().unwrap()])
         .output()
         .unwrap();
@@ -197,7 +192,6 @@ fn test_print_total_tree_mode() {
 
 #[test]
 fn test_print_total_tree_mode_with_only_files() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("total_tree_only_files");
 
     temp.create_file("root_file.txt", b"root");
@@ -205,7 +199,7 @@ fn test_print_total_tree_mode_with_only_files() {
     temp.create_file("subdir/child2.txt", b"c2");
 
     // -T -f --print-total: root dir and subdir hidden, only 3 files counted
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-T", "-f", "--print-total", temp.path.to_str().unwrap()])
         .output()
         .unwrap();
@@ -230,7 +224,6 @@ fn test_view_deduce_print_total() {
 
 #[test]
 fn test_print_total_with_stdin() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("stdin_total");
 
     let f1 = temp.create_file("file_alpha.txt", b"a");
@@ -244,7 +237,7 @@ fn test_print_total_with_stdin() {
         f3.to_str().unwrap()
     );
 
-    let mut child = Command::new(bin_path)
+    let mut child = crate::common::lez_cmd()
         .args(["--stdin", "--print-total", "-1"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

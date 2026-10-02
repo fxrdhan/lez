@@ -7,15 +7,6 @@ use std::fs::{self, File as StdFile};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_color_scale_max_luminance_cli_execution() {
     let temp_dir = std::env::temp_dir().join("lez_test_color_scale_max_luminance");
@@ -28,7 +19,7 @@ fn test_color_scale_max_luminance_cli_execution() {
     fs::write(&f2, vec![0u8; 50000]).unwrap();
 
     // Test with LEZ_MAX_LUMINANCE=80 and --color-scale=all
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg("--color-scale=all")
@@ -59,7 +50,7 @@ fn test_color_scale_max_luminance_eza_fallback() {
     fs::write(&f1, vec![0u8; 500]).unwrap();
 
     // With EZA_MAX_LUMINANCE=60 and LEZ_MAX_LUMINANCE unset
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg("--color-scale=size")
@@ -85,7 +76,7 @@ fn test_color_scale_max_luminance_exa_fallback() {
     fs::write(&f1, vec![0u8; 500]).unwrap();
 
     // With EXA_MAX_LUMINANCE=70 and others unset
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg("--color-scale=size")
@@ -111,7 +102,7 @@ fn test_color_scale_max_luminance_precedence() {
     fs::write(&f1, vec![0u8; 1000]).unwrap();
 
     // LEZ_MAX_LUMINANCE takes precedence over EZA_MAX_LUMINANCE and EXA_MAX_LUMINANCE
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg("--color-scale=size")
@@ -137,7 +128,7 @@ fn test_color_scale_invalid_and_out_of_bounds_luminance() {
     fs::write(&f1, vec![0u8; 1000]).unwrap();
 
     // Invalid string non-numeric
-    let output_invalid = Command::new(bin_path())
+    let output_invalid = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg("--color-scale=size")
@@ -153,7 +144,7 @@ fn test_color_scale_invalid_and_out_of_bounds_luminance() {
     );
 
     // Out of range values > 100 or < -100
-    let output_oor = Command::new(bin_path())
+    let output_oor = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg("--color-scale=size")

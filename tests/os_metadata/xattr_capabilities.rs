@@ -46,15 +46,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[cfg(unix)]
 fn set_test_xattr(file_path: &Path, name: &str, value: &[u8]) -> bool {
     use std::os::unix::ffi::OsStrExt;
@@ -115,7 +106,7 @@ fn test_extended_attributes_cli_flag() {
         (name, set_test_xattr(&file, name, b"12345678"))
     };
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-@")
         .arg(&file)
@@ -153,7 +144,7 @@ fn test_extended_attributes_long_option() {
         (name, set_test_xattr(&file, name, b"binary_value_payload"))
     };
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--extended")
         .arg(&file)

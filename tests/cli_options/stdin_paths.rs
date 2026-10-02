@@ -46,22 +46,13 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_stdin_ignored_by_default_without_flag() {
     let temp = TempTestDir::new("ignore_default");
     temp.create_file("alpha.txt", b"alpha content");
     temp.create_file("beta.txt", b"beta content");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .arg("-1")
         .stdin(Stdio::piped())
@@ -92,7 +83,7 @@ fn test_stdin_ignored_with_positional_arguments() {
     let file1 = temp.create_file("target1.txt", b"target1");
     let file2 = temp.create_file("target2.txt", b"target2");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .args([&file1, &file2])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -120,7 +111,7 @@ fn test_stdin_explicit_flag_reads_paths() {
     temp.create_file("included2.txt", b"inc2");
     temp.create_file("excluded.txt", b"exc");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .args(["--stdin", "-1"])
         .stdin(Stdio::piped())
@@ -147,7 +138,7 @@ fn test_stdin_explicit_flag_with_empty_input() {
     let temp = TempTestDir::new("empty_stdin");
     temp.create_file("file.txt", b"content");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .arg("--stdin")
         .stdin(Stdio::piped())
@@ -174,7 +165,7 @@ fn test_stdin_custom_separator_lez_env() {
     temp.create_file("item_b.txt", b"b");
     temp.create_file("item_c.txt", b"c");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", ",")
         .args(["--stdin", "-1"])
@@ -204,7 +195,7 @@ fn test_stdin_custom_separator_eza_fallback() {
     temp.create_file("item_y.txt", b"y");
     temp.create_file("item_z.txt", b"z");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env_remove("LEZ_STDIN_SEPARATOR")
         .env("EZA_STDIN_SEPARATOR", ";")
@@ -234,7 +225,7 @@ fn test_stdin_lez_separator_precedence_over_eza() {
     temp.create_file("doc1.txt", b"1");
     temp.create_file("doc2.txt", b"2");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", ":")
         .env("EZA_STDIN_SEPARATOR", ";")
@@ -264,7 +255,7 @@ fn test_stdin_combined_positional_and_stdin() {
     temp.create_file("pipe.txt", b"piped");
     temp.create_file("other.txt", b"other");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .args(["--stdin", "-1", "pos.txt"])
         .stdin(Stdio::piped())
@@ -290,7 +281,7 @@ fn test_stdin_combined_positional_and_stdin() {
 fn test_stdin_invalid_utf8_returns_exit_code_1_without_panic() {
     let temp = TempTestDir::new("invalid_utf8_stdin");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .arg("--stdin")
         .stdin(Stdio::piped())
@@ -325,7 +316,7 @@ fn test_stdin_crlf_line_endings() {
     temp.create_file("hello.txt", b"content");
     temp.create_file("world.rs", b"content");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .arg("--stdin")
         .stdin(Stdio::piped())
@@ -356,7 +347,7 @@ fn test_stdin_empty_separator_env_falls_back_to_newline() {
     let file_a = temp.create_file("alpha.txt", b"a");
     let file_b = temp.create_file("beta.txt", b"b");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", "")
         .args(["--stdin", "-1"])
@@ -397,7 +388,7 @@ fn test_stdin_empty_quotes_separator_env_falls_back_to_newline() {
     let file_a = temp.create_file("alpha.txt", b"a");
     let file_b = temp.create_file("beta.txt", b"b");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", "\"\"")
         .args(["--stdin", "-1"])
@@ -438,7 +429,7 @@ fn test_stdin_empty_lez_falls_back_to_eza_separator() {
     let file_1 = temp.create_file("one.txt", b"1");
     let file_2 = temp.create_file("two.txt", b"2");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", "")
         .env("EZA_STDIN_SEPARATOR", ",")
@@ -480,7 +471,7 @@ fn test_stdin_empty_quotes_lez_falls_back_to_eza_separator() {
     let file_1 = temp.create_file("one.txt", b"1");
     let file_2 = temp.create_file("two.txt", b"2");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", "\"\"")
         .env("EZA_STDIN_SEPARATOR", ",")
@@ -522,7 +513,7 @@ fn test_stdin_null_separator_escaped_env() {
     temp.create_file("file_01.txt", b"01");
     temp.create_file("file_02.txt", b"02");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", r"\0")
         .args(["--stdin", "-1"])
@@ -555,7 +546,7 @@ fn test_stdin_null_separator_hex_env() {
     temp.create_file("hex_b.txt", b"b");
 
     for sep in [r"\x00", r"\x0", r"\X00", r"\X0"] {
-        let mut child = Command::new(bin_path())
+        let mut child = crate::common::lez_cmd()
             .current_dir(&temp.path)
             .env("LEZ_STDIN_SEPARATOR", sep)
             .args(["--stdin", "-1"])
@@ -589,7 +580,7 @@ fn test_stdin_null_separator_unicode_env() {
     temp.create_file("uni_b.txt", b"b");
 
     for sep in [r"\u0000", r"\u{0}", r"\u{0000}", r"\U00000000"] {
-        let mut child = Command::new(bin_path())
+        let mut child = crate::common::lez_cmd()
             .current_dir(&temp.path)
             .env("LEZ_STDIN_SEPARATOR", sep)
             .args(["--stdin", "-1"])
@@ -623,7 +614,7 @@ fn test_stdin_null_separator_keyword_env() {
     temp.create_file("kw_2.txt", b"2");
 
     for kw in ["null", "NUL", "NULL", "  null  ", "  NUL  "] {
-        let mut child = Command::new(bin_path())
+        let mut child = crate::common::lez_cmd()
             .current_dir(&temp.path)
             .env("LEZ_STDIN_SEPARATOR", kw)
             .args(["--stdin", "-1"])
@@ -657,7 +648,7 @@ fn test_stdin_quoted_null_separator_env() {
     temp.create_file("q_2.txt", b"2");
 
     for q in [r#""\0""#, r#"'\0'"#, r#""\x00""#, r#""null""#] {
-        let mut child = Command::new(bin_path())
+        let mut child = crate::common::lez_cmd()
             .current_dir(&temp.path)
             .env("LEZ_STDIN_SEPARATOR", q)
             .args(["--stdin", "-1"])
@@ -691,7 +682,7 @@ fn test_stdin_custom_multibyte_unicode_separator() {
     temp.create_file("fire_b.txt", b"b");
 
     for sep in ["🔥", r"\u{1f525}"] {
-        let mut child = Command::new(bin_path())
+        let mut child = crate::common::lez_cmd()
             .current_dir(&temp.path)
             .env("LEZ_STDIN_SEPARATOR", sep)
             .args(["--stdin", "-1"])
@@ -726,7 +717,7 @@ fn test_stdin_consecutive_null_delimiters() {
     temp.create_file("item_1.txt", b"1");
     temp.create_file("item_2.txt", b"2");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", r"\0")
         .args(["--stdin", "-1"])
@@ -759,7 +750,7 @@ fn test_stdin_escaped_tab_and_newline_env() {
     temp.create_file("tab_y.txt", b"y");
 
     // Test tab escape \t
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", r"\t")
         .args(["--stdin", "-1"])
@@ -781,7 +772,7 @@ fn test_stdin_escaped_tab_and_newline_env() {
     assert!(stdout.contains("tab_y.txt"));
 
     // Test newline escape \n
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .current_dir(&temp.path)
         .env("LEZ_STDIN_SEPARATOR", r"\n")
         .args(["--stdin", "-1"])
@@ -808,7 +799,7 @@ fn run_stdin0(
     extra_env: &[(&str, &str)],
     input: &[u8],
 ) -> std::process::Output {
-    let mut cmd = Command::new(bin_path());
+    let mut cmd = crate::common::lez_cmd();
     cmd.current_dir(&temp.path)
         .args(["--stdin0", "-1"])
         .stdin(Stdio::piped())

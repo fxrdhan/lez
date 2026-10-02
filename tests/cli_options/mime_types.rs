@@ -43,10 +43,8 @@ fn test_mime_types_cli_flag_png_icon() {
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
     // 1. Without --mime-types: should not detect image icon
-    let output_without = Command::new(lez_bin)
+    let output_without = crate::common::lez_cmd()
         .args(["--icons=always", png_no_ext.to_str().unwrap()])
         .output()
         .expect("run lez without --mime-types");
@@ -59,7 +57,7 @@ fn test_mime_types_cli_flag_png_icon() {
     );
 
     // 2. With --mime-types: should detect image/png icon (\u{f1c5})
-    let output_with = Command::new(lez_bin)
+    let output_with = crate::common::lez_cmd()
         .args([
             "--icons=always",
             "--mime-types",
@@ -85,9 +83,7 @@ fn test_mime_types_lez_env_var() {
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_MIME_TYPES", "1")
         .args(["--icons=always", png_file.to_str().unwrap()])
         .output()
@@ -110,9 +106,7 @@ fn test_mime_types_eza_env_var() {
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env_remove("LEZ_MIME_TYPES")
         .env("EZA_MIME_TYPES", "1")
         .args(["--icons=always", png_file.to_str().unwrap()])
@@ -132,9 +126,7 @@ fn test_mime_types_directory_not_sniffed() {
     let subdir = temp.path.join("subfolder");
     fs::create_dir_all(&subdir).unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .args([
             "--icons=always",
             "--mime-types",
@@ -163,9 +155,7 @@ fn test_mime_types_gzip_archive() {
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .args([
             "--icons=always",
             "--mime-types",
@@ -191,9 +181,7 @@ fn test_mime_types_python_script() {
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .args([
             "--icons=always",
             "--mime-types",
@@ -220,9 +208,7 @@ fn test_mime_types_c_source() {
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .args(["--icons=always", "--mime-types", c_no_ext.to_str().unwrap()])
         .output()
         .expect("run lez with --mime-types on c source");
@@ -245,9 +231,7 @@ fn test_mime_types_gif_wildcard_fallback() {
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .args([
             "--icons=always",
             "--mime-types",
@@ -288,9 +272,7 @@ mimetypes:
     )
     .unwrap();
 
-    let lez_bin = env!("CARGO_BIN_EXE_lez");
-
-    let output = Command::new(lez_bin)
+    let output = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", &config_dir)
         .args([
             "--icons=always",

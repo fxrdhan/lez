@@ -52,10 +52,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 // -----------------------------------------------------------------------------
 // 1. Alias Simulation Tests
 // -----------------------------------------------------------------------------
@@ -66,7 +62,7 @@ fn test_alias_sim_ll_with_smart_group() {
     let temp = TempTestDir::new("alias_ll");
     temp.create_file("sample.txt", b"content");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l") // from alias
         .arg("--smart-group") // user argument
         .arg(&temp.path)
@@ -87,7 +83,7 @@ fn test_alias_sim_lsg_with_flag_overrides() {
     temp.create_file("beta.doc", b"beta data");
 
     // Case 1: lsg -g (explicit group added to smart-group)
-    let out_g = Command::new(bin_path())
+    let out_g = crate::common::lez_cmd()
         .args(["-l", "--smart-group"])
         .arg("-g")
         .arg(&temp.path)
@@ -96,7 +92,7 @@ fn test_alias_sim_lsg_with_flag_overrides() {
     assert!(out_g.status.success());
 
     // Case 2: lsg --no-user (suppress owner user column while smart-group is active)
-    let out_no_user = Command::new(bin_path())
+    let out_no_user = crate::common::lez_cmd()
         .args(["-l", "--smart-group"])
         .arg("--no-user")
         .arg(&temp.path)
@@ -107,7 +103,7 @@ fn test_alias_sim_lsg_with_flag_overrides() {
     assert!(stdout_no_user.contains("alpha.txt"));
 
     // Case 3: lsg --no-permissions
-    let out_no_perm = Command::new(bin_path())
+    let out_no_perm = crate::common::lez_cmd()
         .args(["-l", "--smart-group"])
         .arg("--no-permissions")
         .arg(&temp.path)
@@ -116,7 +112,7 @@ fn test_alias_sim_lsg_with_flag_overrides() {
     assert!(out_no_perm.status.success());
 
     // Case 4: lsg --no-filesize
-    let out_no_sz = Command::new(bin_path())
+    let out_no_sz = crate::common::lez_cmd()
         .args(["-l", "--smart-group"])
         .arg("--no-filesize")
         .arg(&temp.path)
@@ -125,7 +121,7 @@ fn test_alias_sim_lsg_with_flag_overrides() {
     assert!(out_no_sz.status.success());
 
     // Case 5: lsg --no-time
-    let out_no_time = Command::new(bin_path())
+    let out_no_time = crate::common::lez_cmd()
         .args(["-l", "--smart-group"])
         .arg("--no-time")
         .arg(&temp.path)
@@ -134,7 +130,7 @@ fn test_alias_sim_lsg_with_flag_overrides() {
     assert!(out_no_time.status.success());
 
     // Case 6: lsg -1 (one-line mode overrides details mode)
-    let out_oneline = Command::new(bin_path())
+    let out_oneline = crate::common::lez_cmd()
         .args(["-l", "--smart-group"])
         .arg("-1")
         .arg(&temp.path)
@@ -146,7 +142,7 @@ fn test_alias_sim_lsg_with_flag_overrides() {
     assert!(stdout_oneline.contains("beta.doc"));
 
     // Case 7: lsg --grid (grid mode overrides details mode)
-    let out_grid = Command::new(bin_path())
+    let out_grid = crate::common::lez_cmd()
         .args(["-l", "--smart-group"])
         .arg("--grid")
         .arg(&temp.path)
@@ -163,7 +159,7 @@ fn test_alias_sim_ls_bare_smart_group() {
     temp.create_file("two.txt", b"two");
 
     // Case 1: bare `ls` (default grid mode without -l)
-    let out_bare = Command::new(bin_path())
+    let out_bare = crate::common::lez_cmd()
         .arg("--smart-group")
         .arg(&temp.path)
         .output()
@@ -174,7 +170,7 @@ fn test_alias_sim_ls_bare_smart_group() {
     assert!(stdout_bare.contains("two.txt"));
 
     // Case 2: `ls -l` (long mode added dynamically)
-    let out_long = Command::new(bin_path())
+    let out_long = crate::common::lez_cmd()
         .arg("--smart-group")
         .arg("-l")
         .arg(&temp.path)
@@ -195,7 +191,7 @@ fn test_flag_order_permutations_smart_group_and_g() {
     temp.create_file("test.txt", b"data");
 
     // Permutation 1: -l -g --smart-group
-    let out1 = Command::new(bin_path())
+    let out1 = crate::common::lez_cmd()
         .args(["-l", "-g", "--smart-group"])
         .arg(&temp.path)
         .output()
@@ -203,7 +199,7 @@ fn test_flag_order_permutations_smart_group_and_g() {
     assert!(out1.status.success());
 
     // Permutation 2: -l --smart-group -g
-    let out2 = Command::new(bin_path())
+    let out2 = crate::common::lez_cmd()
         .args(["-l", "--smart-group", "-g"])
         .arg(&temp.path)
         .output()
@@ -211,7 +207,7 @@ fn test_flag_order_permutations_smart_group_and_g() {
     assert!(out2.status.success());
 
     // Permutation 3: -l --group --smart-group
-    let out3 = Command::new(bin_path())
+    let out3 = crate::common::lez_cmd()
         .args(["-l", "--group", "--smart-group"])
         .arg(&temp.path)
         .output()
@@ -219,7 +215,7 @@ fn test_flag_order_permutations_smart_group_and_g() {
     assert!(out3.status.success());
 
     // Permutation 4: -l --smart-group --group
-    let out4 = Command::new(bin_path())
+    let out4 = crate::common::lez_cmd()
         .args(["-l", "--smart-group", "--group"])
         .arg(&temp.path)
         .output()
@@ -238,7 +234,7 @@ fn test_smart_group_with_numeric_and_octal() {
     let temp = TempTestDir::new("num_oct");
     temp.create_file("item.bin", b"\x00\x01\x02");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["-l", "--smart-group", "--numeric", "--octal-permissions"])
         .arg(&temp.path)
         .output()
@@ -257,7 +253,7 @@ fn test_smart_group_with_header_alignment() {
     temp.create_file("file_c.txt", b"ccc");
 
     // Case 1: -l -h (without smart group)
-    let out_no_sg = Command::new(bin_path())
+    let out_no_sg = crate::common::lez_cmd()
         .args(["-l", "--header", "--color=never", "--icons=never"])
         .arg(&temp.path)
         .output()
@@ -266,7 +262,7 @@ fn test_smart_group_with_header_alignment() {
     let _stdout_no_sg = String::from_utf8_lossy(&out_no_sg.stdout);
 
     // Case 2: -l -h --smart-group
-    let out_sg = Command::new(bin_path())
+    let out_sg = crate::common::lez_cmd()
         .args([
             "-l",
             "--header",
@@ -332,7 +328,7 @@ fn test_smart_group_with_time_styles() {
         "relative",
         "relative-recent",
     ] {
-        let out = Command::new(bin_path())
+        let out = crate::common::lez_cmd()
             .args(["-l", "--smart-group", &format!("--time-style={style}")])
             .arg(&temp.path)
             .output()
@@ -352,7 +348,7 @@ fn test_smart_group_with_tree_and_level() {
     let mut f = StdFile::create(sub.join("child.txt")).unwrap();
     f.write_all(b"child").unwrap();
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["-l", "--smart-group", "--tree", "--level=2"])
         .arg(&temp.path)
         .output()
@@ -371,7 +367,7 @@ fn test_smart_group_json_consistency() {
     temp.create_file("entry1.txt", b"data1");
     temp.create_file("entry2.txt", b"data2");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["-l", "--smart-group", "--json"])
         .arg(&temp.path)
         .output()
@@ -402,7 +398,7 @@ fn test_smart_group_json_consistency() {
             );
         }
 
-        let num_out = Command::new(bin_path())
+        let num_out = crate::common::lez_cmd()
             .args(["-l", "--smart-group", "--numeric", "--json"])
             .arg(&temp.path)
             .output()
@@ -430,7 +426,7 @@ fn test_smart_group_json_consistency() {
 fn test_smart_group_empty_directory() {
     let temp = TempTestDir::new("empty_dir");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["-l", "--smart-group", "--header"])
         .arg(&temp.path)
         .output()
@@ -447,7 +443,7 @@ fn test_smart_group_special_filenames() {
     temp.create_file("file_with_underscores.rs", b"code");
     temp.create_file("ümlaut-fïle.txt", b"unicode");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["-l", "--smart-group"])
         .arg(&temp.path)
         .output()
@@ -467,7 +463,7 @@ fn test_smart_group_strict_mode_env() {
     temp.create_file("file.txt", b"test");
 
     // EZA_STRICT=1 with -l --smart-group should succeed
-    let out_eza = Command::new(bin_path())
+    let out_eza = crate::common::lez_cmd()
         .env("EZA_STRICT", "1")
         .args(["-l", "--smart-group"])
         .arg(&temp.path)
@@ -476,7 +472,7 @@ fn test_smart_group_strict_mode_env() {
     assert!(out_eza.status.success());
 
     // EXA_STRICT=1 with -l --smart-group should succeed
-    let out_exa = Command::new(bin_path())
+    let out_exa = crate::common::lez_cmd()
         .env("EXA_STRICT", "1")
         .args(["-l", "--smart-group"])
         .arg(&temp.path)
@@ -497,7 +493,7 @@ fn test_smart_group_symlinks_and_dereference() {
         let _ = symlink(&_target, &link_path);
 
         // Run with -l --smart-group
-        let out_sym = Command::new(bin_path())
+        let out_sym = crate::common::lez_cmd()
             .args(["-l", "--smart-group"])
             .arg(&temp.path)
             .output()
@@ -507,7 +503,7 @@ fn test_smart_group_symlinks_and_dereference() {
         assert!(stdout_sym.contains("link_to_target"));
 
         // Run with -l --smart-group --dereference (-L)
-        let out_deref = Command::new(bin_path())
+        let out_deref = crate::common::lez_cmd()
             .args(["-l", "--smart-group", "--dereference"])
             .arg(&temp.path)
             .output()
@@ -529,7 +525,7 @@ fn test_smart_group_with_git_integration() {
             let _ = index.write();
         }
 
-        let out = Command::new(bin_path())
+        let out = crate::common::lez_cmd()
             .args(["-l", "--smart-group", "--git"])
             .arg(&temp.path)
             .output()

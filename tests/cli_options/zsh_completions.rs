@@ -20,10 +20,6 @@ fn get_zsh_compat_completion_path() -> PathBuf {
     get_repo_root().join("completions").join("zsh").join("_eza")
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_zsh_completion_file_exists() {
     let path = get_zsh_completion_path();
@@ -120,21 +116,21 @@ fn test_zsh_completion_syntax_check() {
 #[test]
 fn test_cli_f_flag_and_classify_option_parity() {
     // Verify that the CLI itself accepts -F with no args
-    let output_short = Command::new(bin_path())
+    let output_short = crate::common::lez_cmd()
         .arg("-F")
         .output()
         .expect("Failed to run lez -F");
     assert!(output_short.status.success());
 
     // Verify that the CLI accepts --classify=always
-    let output_long = Command::new(bin_path())
+    let output_long = crate::common::lez_cmd()
         .arg("--classify=always")
         .output()
         .expect("Failed to run lez --classify=always");
     assert!(output_long.status.success());
 
     // Verify that the CLI accepts --classify=never
-    let output_never = Command::new(bin_path())
+    let output_never = crate::common::lez_cmd()
         .arg("--classify=never")
         .output()
         .expect("Failed to run lez --classify=never");
