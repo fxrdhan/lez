@@ -8,6 +8,7 @@ use crate::fs::feature::git::GitCache;
 use crate::fs::fields::GitStatus;
 use crate::output::hidden_count::HiddenCount;
 use std::collections::HashSet;
+use std::ffi::OsString;
 use std::fs;
 use std::fs::DirEntry;
 use std::io;
@@ -30,7 +31,7 @@ use crate::fs::File;
 #[derive(Debug)]
 pub struct Dir {
     /// A vector of the files that have been read from this directory.
-    contents: Vec<DirEntry>,
+    contents: Vec<Entry>,
 
     /// The path that was read.
     pub path: PathBuf,
@@ -38,6 +39,37 @@ pub struct Dir {
     /// The same paths as `contents`, in a form that can be searched in
     /// constant time. Built on first use, since most listings never ask.
     paths: OnceLock<HashSet<PathBuf>>,
+}
+
+/// What a listing needs from one `readdir` entry, copied out of it.
+///
+/// A `DirEntry` keeps its directory open: on Unix it holds the `ReadDir`
+/// handle so it can `fstatat` relative to it. Holding the entries themselves
+/// would keep one descriptor open per directory read for as long as the
+/// `Dir` lives, and a tree or a recursive size reads many directories before
+/// it lets any of them go.
+#[derive(Debug)]
+struct Entry {
+    path: PathBuf,
+    name: OsString,
+    /// The kind `readdir` reported, when it is worth trusting.
+    file_type: Option<fs::FileType>,
+}
+
+impl From<DirEntry> for Entry {
+    fn from(entry: DirEntry) -> Self {
+        Self {
+            path: entry.path(),
+            name: entry.file_name(),
+            file_type: type_worth_trusting(entry.file_type()),
+        }
+    }
+}
+
+fn read_entries(path: &Path) -> io::Result<Vec<Entry>> {
+    fs::read_dir(path)?
+        .map(|entry| entry.map(Entry::from))
+        .collect()
 }
 
 #[cfg(unix)]
@@ -59,15 +91,12 @@ impl Dir {
         }
     }
 
-    /// Reads the contents of the directory into `DirEntry`.
-    ///
-    /// It is recommended to use this method in conjunction with `new` in recursive
-    /// calls, rather than `read_dir`, to avoid holding multiple open file descriptors
-    /// simultaneously, which can lead to "too many open files" errors.
+    /// Reads the contents of the directory. The directory handle is closed
+    /// before this returns, so a `Dir` holds no file descriptor.
     pub fn read(&mut self) -> io::Result<&Self> {
         info!("Reading directory {:?}", self.path);
 
-        self.contents = fs::read_dir(&self.path)?.collect::<Result<Vec<_>, _>>()?;
+        self.contents = read_entries(&self.path)?;
         // The contents just changed, so anything derived from them is stale.
         self.paths = OnceLock::new();
 
@@ -86,7 +115,7 @@ impl Dir {
     pub fn read_dir(path: PathBuf) -> io::Result<Self> {
         info!("Reading directory {:?}", path);
 
-        let contents = fs::read_dir(&path)?.collect::<Result<Vec<_>, _>>()?;
+        let contents = read_entries(&path)?;
 
         info!("Read directory success {:?}", path);
         Ok(Self {
@@ -140,7 +169,7 @@ impl Dir {
     #[must_use]
     pub fn contains(&self, path: &Path) -> bool {
         self.paths
-            .get_or_init(|| self.contents.iter().map(DirEntry::path).collect())
+            .get_or_init(|| self.contents.iter().map(|e| e.path.clone()).collect())
             .contains(path)
     }
 
@@ -221,7 +250,7 @@ impl Dir {
 #[allow(clippy::struct_excessive_bools)]
 pub struct Files<'dir, 'ig, 'hc> {
     /// The internal iterator over the paths that have been read already.
-    inner: SliceIter<'dir, DirEntry>,
+    inner: SliceIter<'dir, Entry>,
 
     /// The directory that begat those paths.
     dir: &'dir Dir,
@@ -284,18 +313,15 @@ impl<'dir> Files<'dir, '_, '_> {
     fn next_visible_file(&mut self) -> Option<File<'dir>> {
         loop {
             if let Some(entry) = self.inner.next() {
-                let file_name = entry.file_name();
-                if !self.dotfiles && file_name.as_encoded_bytes().starts_with(b".") {
+                if !self.dotfiles && entry.name.as_encoded_bytes().starts_with(b".") {
                     if let Some(count) = &mut self.hidden_count {
                         count.inc_hidden();
                     }
                     continue;
                 }
 
-                let path = entry.path();
-                let filename = file_name
-                    .into_string()
-                    .unwrap_or_else(|os| os.to_string_lossy().into_owned());
+                let path = entry.path.clone();
+                let filename = entry.name.to_string_lossy().into_owned();
 
                 if self.git_ignoring {
                     let git_status = self
@@ -317,7 +343,7 @@ impl<'dir> Files<'dir, '_, '_> {
                     self.deref_links,
                     self.total_size,
                     self.mime_read_contents,
-                    type_worth_trusting(entry),
+                    entry.file_type,
                     Some(self.dot_filter),
                 );
 
@@ -591,8 +617,8 @@ mod windows_tests {
 /// dropped, leaving `File` to stat the entry when it needs the answer. The
 /// extra stat only falls on FIFOs, sockets and device nodes, which are rare
 /// enough that the saving this is protecting stays intact.
-fn type_worth_trusting(entry: &DirEntry) -> Option<fs::FileType> {
-    let file_type = entry.file_type().ok()?;
+fn type_worth_trusting(file_type: io::Result<fs::FileType>) -> Option<fs::FileType> {
+    let file_type = file_type.ok()?;
     let ordinary = file_type.is_dir() || file_type.is_file() || file_type.is_symlink();
     ordinary.then_some(file_type)
 }
@@ -634,7 +660,7 @@ mod tests {
             .filter_map(Result::ok)
             .find(|e| e.file_name() == name)
             .unwrap_or_else(|| panic!("{name} should be in the directory"));
-        type_worth_trusting(&entry)
+        type_worth_trusting(entry.file_type())
     }
 
     #[test]
