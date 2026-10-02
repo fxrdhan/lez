@@ -919,6 +919,15 @@ mod tests {
     use std::fs::{self, File as StdFile};
     use std::io::Write;
 
+    /// A status with nothing staged and `status` in the working tree.
+    fn unstaged(status: f::GitStatus) -> f::Git {
+        both(f::GitStatus::NotModified, status)
+    }
+
+    fn both(staged: f::GitStatus, unstaged: f::GitStatus) -> f::Git {
+        f::Git { staged, unstaged }
+    }
+
     struct TestGitRepo {
         _temp: tempfile::TempDir,
         path: PathBuf,
@@ -1052,18 +1061,18 @@ mod tests {
 
         // Status for sub_a/file_a.txt should be Modified
         let file_a_status = git_status.file_status(&file_a);
-        assert!(file_a_status.unstaged == f::GitStatus::Modified);
+        assert_eq!(file_a_status, unstaged(f::GitStatus::Modified));
 
         // Status for sub_a directory should be Modified
         let dir_a_status = git_status.dir_status(&sub_a_path);
-        assert!(dir_a_status.unstaged == f::GitStatus::Modified);
+        assert_eq!(dir_a_status, unstaged(f::GitStatus::Modified));
 
         // Because query was scoped to sub_a, file_b and root.txt should NOT be in scanned statuses
         let file_b_status = git_status.file_status(&file_b);
-        assert!(file_b_status.unstaged == f::GitStatus::NotModified);
+        assert_eq!(file_b_status, unstaged(f::GitStatus::NotModified));
 
         let root_status = git_status.file_status(&file_root);
-        assert!(root_status.unstaged == f::GitStatus::NotModified);
+        assert_eq!(root_status, unstaged(f::GitStatus::NotModified));
     }
 
     #[test]
@@ -1090,9 +1099,18 @@ mod tests {
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // All modified files must be detected
-        assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::Modified);
-        assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
-        assert!(git_status.file_status(&file_b).unstaged == f::GitStatus::Modified);
+        assert_eq!(
+            git_status.file_status(&file_root),
+            unstaged(f::GitStatus::Modified)
+        );
+        assert_eq!(
+            git_status.file_status(&file_a),
+            unstaged(f::GitStatus::Modified)
+        );
+        assert_eq!(
+            git_status.file_status(&file_b),
+            unstaged(f::GitStatus::Modified)
+        );
     }
 
     #[test]
@@ -1111,7 +1129,10 @@ mod tests {
         let roots = vec![reorient(&outside_path)];
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
-        assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
+        assert_eq!(
+            git_status.file_status(&file_a),
+            unstaged(f::GitStatus::Modified)
+        );
     }
 
     /// A lone `*` makes libgit2 drop ignored files from the status walk
@@ -1129,30 +1150,32 @@ mod tests {
 
         let git_cache = GitCache::from_iter(vec![test_repo.path.clone()]);
 
-        assert!(
-            git_cache.get(&dropped, false).unstaged == f::GitStatus::Ignored,
+        assert_eq!(
+            git_cache.get(&dropped, false),
+            unstaged(f::GitStatus::Ignored),
             "a file the status walk never reported is still ignored"
         );
-        assert!(
-            git_cache.get(&sub, true).unstaged == f::GitStatus::Ignored,
+        assert_eq!(
+            git_cache.get(&sub, true),
+            unstaged(f::GitStatus::Ignored),
             "ignored directories were already reported and must stay reported"
         );
-        assert!(
-            git_cache.get(&kept, false).unstaged == f::GitStatus::New,
+        assert_eq!(
+            git_cache.get(&kept, false),
+            unstaged(f::GitStatus::New),
             "a negated file is not ignored"
         );
-        assert!(
-            git_cache
-                .get_child(&test_repo.path, &dropped, false)
-                .unstaged
-                == f::GitStatus::Ignored,
+        assert_eq!(
+            git_cache.get_child(&test_repo.path, &dropped, false),
+            unstaged(f::GitStatus::Ignored),
             "the same holds when the file is reached through its parent"
         );
 
         // Listing the ignored directory itself does not paint its contents
         // ignored — you already know where you are.
-        assert!(
-            git_cache.get_child(&sub, &sub_file, false).unstaged != f::GitStatus::Ignored,
+        assert_eq!(
+            git_cache.get_child(&sub, &sub_file, false),
+            unstaged(f::GitStatus::NotModified),
             "contents of a directory being listed are not marked by its own rule"
         );
     }
@@ -1171,12 +1194,14 @@ mod tests {
 
         let git_cache = GitCache::from_iter(vec![test_repo.path.clone()]);
 
-        assert!(
-            git_cache.get(&tracked, false).unstaged == f::GitStatus::NotModified,
+        assert_eq!(
+            git_cache.get(&tracked, false),
+            unstaged(f::GitStatus::NotModified),
             "a tracked file stays tracked even though `*` matches it"
         );
-        assert!(
-            git_cache.get(&untracked, false).unstaged == f::GitStatus::Ignored,
+        assert_eq!(
+            git_cache.get(&untracked, false),
+            unstaged(f::GitStatus::Ignored),
             "its untracked neighbour is still ignored"
         );
     }
@@ -1202,10 +1227,10 @@ mod tests {
             "parent of repo must match has_anything_for"
         );
         let status_a = git_cache.get(&file_a, false);
-        assert!(status_a.unstaged == f::GitStatus::Modified);
+        assert_eq!(status_a, unstaged(f::GitStatus::Modified));
 
         let dir_status_a = git_cache.get(&sub_a_path, true);
-        assert!(dir_status_a.unstaged == f::GitStatus::Modified);
+        assert_eq!(dir_status_a, unstaged(f::GitStatus::Modified));
     }
 
     #[test]
@@ -1278,12 +1303,24 @@ mod tests {
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // sub_a and sub_b files should be modified
-        assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
-        assert!(git_status.file_status(&file_b).unstaged == f::GitStatus::Modified);
+        assert_eq!(
+            git_status.file_status(&file_a),
+            unstaged(f::GitStatus::Modified)
+        );
+        assert_eq!(
+            git_status.file_status(&file_b),
+            unstaged(f::GitStatus::Modified)
+        );
 
         // sub_c and root.txt should not be in the scoped scan
-        assert!(git_status.file_status(&file_c).unstaged == f::GitStatus::NotModified);
-        assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::NotModified);
+        assert_eq!(
+            git_status.file_status(&file_c),
+            unstaged(f::GitStatus::NotModified)
+        );
+        assert_eq!(
+            git_status.file_status(&file_root),
+            unstaged(f::GitStatus::NotModified)
+        );
     }
 
     #[test]
@@ -1303,11 +1340,20 @@ mod tests {
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // Within sub_a: untracked is New, ignored is Ignored
-        assert!(git_status.file_status(&untracked_a).unstaged == f::GitStatus::New);
-        assert!(git_status.file_status(&ignored_a).unstaged == f::GitStatus::Ignored);
+        assert_eq!(
+            git_status.file_status(&untracked_a),
+            unstaged(f::GitStatus::New)
+        );
+        assert_eq!(
+            git_status.file_status(&ignored_a),
+            unstaged(f::GitStatus::Ignored)
+        );
 
         // Outside sub_a: untracked_b was not scanned
-        assert!(git_status.file_status(&untracked_b).unstaged == f::GitStatus::NotModified);
+        assert_eq!(
+            git_status.file_status(&untracked_b),
+            unstaged(f::GitStatus::NotModified)
+        );
     }
 
     #[test]
@@ -1333,9 +1379,18 @@ mod tests {
         let roots = vec![reorient(&sub_a_path), reorient(&test_repo.path)];
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
-        assert!(git_status.file_status(&file_root).unstaged == f::GitStatus::Modified);
-        assert!(git_status.file_status(&file_a).unstaged == f::GitStatus::Modified);
-        assert!(git_status.file_status(&file_b).unstaged == f::GitStatus::Modified);
+        assert_eq!(
+            git_status.file_status(&file_root),
+            unstaged(f::GitStatus::Modified)
+        );
+        assert_eq!(
+            git_status.file_status(&file_a),
+            unstaged(f::GitStatus::Modified)
+        );
+        assert_eq!(
+            git_status.file_status(&file_b),
+            unstaged(f::GitStatus::Modified)
+        );
     }
 
     #[cfg(windows)]
@@ -1384,13 +1439,17 @@ mod tests {
 
         // Symlink status must be Modified
         let link_status = git_status.file_status(&link);
-        assert!(link_status.unstaged == f::GitStatus::Modified);
-        assert!(link_status.staged == f::GitStatus::NotModified);
+        assert_eq!(
+            link_status,
+            both(f::GitStatus::NotModified, f::GitStatus::Modified)
+        );
 
         // Target file status must remain NotModified
         let target_status = git_status.file_status(&target);
-        assert!(target_status.unstaged == f::GitStatus::NotModified);
-        assert!(target_status.staged == f::GitStatus::NotModified);
+        assert_eq!(
+            target_status,
+            both(f::GitStatus::NotModified, f::GitStatus::NotModified)
+        );
     }
 
     #[cfg(unix)]
@@ -1411,13 +1470,17 @@ mod tests {
 
         // Symlink itself is unmodified
         let link_status = git_status.file_status(&link);
-        assert!(link_status.unstaged == f::GitStatus::NotModified);
-        assert!(link_status.staged == f::GitStatus::NotModified);
+        assert_eq!(
+            link_status,
+            both(f::GitStatus::NotModified, f::GitStatus::NotModified)
+        );
 
         // Target file is modified
         let target_status = git_status.file_status(&target);
-        assert!(target_status.unstaged == f::GitStatus::Modified);
-        assert!(target_status.staged == f::GitStatus::NotModified);
+        assert_eq!(
+            target_status,
+            both(f::GitStatus::NotModified, f::GitStatus::Modified)
+        );
     }
 
     #[cfg(unix)]
@@ -1432,7 +1495,7 @@ mod tests {
 
         // Untracked broken symlink should be New
         let status = git_status.file_status(&broken_link);
-        assert!(status.unstaged == f::GitStatus::New);
+        assert_eq!(status, unstaged(f::GitStatus::New));
 
         // Commit it
         test_repo.commit_all("add broken symlink");
@@ -1440,7 +1503,7 @@ mod tests {
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
         let status = git_status.file_status(&broken_link);
-        assert!(status.unstaged == f::GitStatus::NotModified);
+        assert_eq!(status, unstaged(f::GitStatus::NotModified));
 
         // Change broken symlink target to another non-existent target
         fs::remove_file(&broken_link).unwrap();
@@ -1449,7 +1512,7 @@ mod tests {
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
         let status = git_status.file_status(&broken_link);
-        assert!(status.unstaged == f::GitStatus::Modified);
+        assert_eq!(status, unstaged(f::GitStatus::Modified));
     }
 
     #[cfg(unix)]
@@ -1468,8 +1531,10 @@ mod tests {
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         let link_status = git_status.file_status(&link);
-        assert!(link_status.staged == f::GitStatus::New);
-        assert!(link_status.unstaged == f::GitStatus::NotModified);
+        assert_eq!(
+            link_status,
+            both(f::GitStatus::New, f::GitStatus::NotModified)
+        );
 
         test_repo.commit_all("commit symlink");
 
@@ -1481,8 +1546,10 @@ mod tests {
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
         let link_status = git_status.file_status(&link);
-        assert!(link_status.staged == f::GitStatus::Modified);
-        assert!(link_status.unstaged == f::GitStatus::NotModified);
+        assert_eq!(
+            link_status,
+            both(f::GitStatus::Modified, f::GitStatus::NotModified)
+        );
 
         test_repo.commit_all("commit modified symlink");
 
@@ -1493,8 +1560,10 @@ mod tests {
         let repo = git2::Repository::open(&test_repo.path).unwrap();
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
         let link_status = git_status.file_status(&link);
-        assert!(link_status.staged == f::GitStatus::Deleted);
-        assert!(link_status.unstaged == f::GitStatus::NotModified);
+        assert_eq!(
+            link_status,
+            both(f::GitStatus::Deleted, f::GitStatus::NotModified)
+        );
     }
 
     #[test]
@@ -1572,21 +1641,24 @@ mod tests {
         let git_status = repo_to_statuses(&repo, &test_repo.path, &roots, true);
 
         // 1. Direct file_status on target directory when queried from root: Ignored
-        assert!(git_status.file_status(&target_path).unstaged == f::GitStatus::Ignored);
+        assert_eq!(
+            git_status.file_status(&target_path),
+            unstaged(f::GitStatus::Ignored)
+        );
 
         // 2. Child status when querying child of target: target/ rule is excluded
         let child_stat = git_status.child_status(&target_path, &target_bin, false);
-        assert!(child_stat.unstaged != f::GitStatus::Ignored);
+        assert_eq!(child_stat, unstaged(f::GitStatus::NotModified));
 
         // 3. Child status when querying nested debug directory: target/ rule is excluded
         let debug_stat = git_status.child_status(&target_path, &target_debug_path, false);
-        assert!(debug_stat.unstaged != f::GitStatus::Ignored);
+        assert_eq!(debug_stat, unstaged(f::GitStatus::NotModified));
 
         // 4. In src directory (which is not ignored), *.log rule ignores src/output.log:
         let src_rs_stat = git_status.child_status(&src_path, &src_rs, false);
-        assert!(src_rs_stat.unstaged != f::GitStatus::Ignored);
+        assert_eq!(src_rs_stat, unstaged(f::GitStatus::NotModified));
         let src_log_stat = git_status.child_status(&src_path, &src_log, false);
-        assert!(src_log_stat.unstaged == f::GitStatus::Ignored);
+        assert_eq!(src_log_stat, unstaged(f::GitStatus::Ignored));
     }
 
     #[test]
@@ -1614,6 +1686,6 @@ mod tests {
 
         // Calling search on poisoned mutex must succeed without panicking
         let status = repo.search(&test_repo.path.join("tracked.txt"), false);
-        assert!(status.staged == f::GitStatus::NotModified);
+        assert_eq!(status, f::Git::default());
     }
 }
