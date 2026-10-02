@@ -66,12 +66,9 @@ fn pipe_target_uses_pipe_colour() {
 
 #[test]
 fn socket_target_uses_socket_colour() {
-    let tmp = TempTestDir::new("target_style_sock");
-    // Socket paths are limited to about a hundred bytes; skip rather than
-    // fail when the temporary directory is nested too deeply to bind one.
-    let Ok(_listener) = std::os::unix::net::UnixListener::bind(tmp.path().join("s.sock")) else {
-        return;
-    };
+    let tmp = TempTestDir::under_tmp();
+    let _listener =
+        std::os::unix::net::UnixListener::bind(tmp.path().join("s.sock")).expect("bind a socket");
     tmp.create_symlink("s.sock", "link");
 
     assert_eq!(

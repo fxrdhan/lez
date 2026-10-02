@@ -1,0 +1,156 @@
+// SPDX-FileCopyrightText: 2026 fxrdhan
+// SPDX-License-Identifier: EUPL-1.2
+
+//! Extended attributes in the long view (`-@`/`--extended`): the `@` after
+//! the permissions, and one row per attribute showing its value as text,
+//! bytes, a length, or a decoded binary plist. Each file carries a single
+//! attribute, because the order `listxattr` returns several in depends on
+//! the filesystem.
+
+#![cfg(any(target_os = "linux", target_os = "macos"))]
+
+use std::path::Path;
+
+use crate::common::{TempTestDir, lez_in, success_stdout};
+
+/// Linux keeps unprivileged attributes in the `user.` namespace; macOS has
+/// no namespaces.
+#[cfg(target_os = "linux")]
+const NAME: &str = "user.field";
+#[cfg(target_os = "macos")]
+const NAME: &str = "com.example.field";
+
+/// Sets `NAME` on `file`. A filesystem without user attributes skips the
+/// test off CI and fails it on CI, whose temp directory supports them.
+fn set_xattr(file: &Path, value: &[u8]) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(file.as_os_str().as_bytes()).expect("no NUL");
+    let name = std::ffi::CString::new(NAME).expect("no NUL");
+    // SAFETY: valid NUL-terminated strings and a buffer of the given length.
+    #[cfg(target_os = "linux")]
+    let result = unsafe {
+        libc::setxattr(
+            path.as_ptr(),
+            name.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+        )
+    };
+    // SAFETY: as above; position 0 and no options.
+    #[cfg(target_os = "macos")]
+    let result = unsafe {
+        libc::setxattr(
+            path.as_ptr(),
+            name.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+            0,
+        )
+    };
+    if result == 0 {
+        return true;
+    }
+    let error = std::io::Error::last_os_error();
+    assert!(
+        std::env::var_os("CI").is_none() && error.raw_os_error() == Some(libc::ENOTSUP),
+        "setxattr failed: {error}"
+    );
+    eprintln!("skipped: the temp directory's filesystem has no user attributes");
+    false
+}
+
+fn attribute_rows(dir: &Path, args: &[&str]) -> String {
+    success_stdout(
+        lez_in(dir)
+            .args(["-l", "--no-filesize", "--no-user", "--no-time"])
+            .args(args),
+    )
+}
+
+#[test]
+fn each_kind_of_value_is_shown_in_its_own_form() {
+    let dir = TempTestDir::new("xattr_values");
+    let plist = {
+        let mut buf = Vec::new();
+        plist::Value::Array(vec![plist::Value::String("Draft".into())])
+            .to_writer_binary(&mut buf)
+            .expect("serialise a binary plist");
+        buf
+    };
+    for (file, value) in [
+        ("text.txt", &b"CustomValue123"[..]),
+        ("bytes.bin", &[0x00, 0x01, 0x02, 0xff][..]),
+        ("long.bin", &[0xff; 20][..]),
+        ("empty.txt", &b""[..]),
+        ("plist.bin", &plist[..]),
+    ] {
+        let path = dir.create_file(file, b"x");
+        if !set_xattr(&path, value) {
+            return;
+        }
+    }
+
+    assert_eq!(
+        attribute_rows(dir.path(), &["-@", "--no-permissions"]),
+        format!(
+            "bytes.bin\n└── {NAME}: [00, 01, 02, ff]\n\
+             empty.txt\n└── {NAME}: <empty>\n\
+             long.bin\n└── {NAME}: <length 20>\n\
+             plist.bin\n└── {NAME}: <<plist version=\"1.0\"><array><string>Draft</string></array></plist>>\n\
+             text.txt\n└── {NAME}: \"CustomValue123\"\n"
+        )
+    );
+}
+
+/// The `@` marks a file with attributes in any long listing; `-@`, or its
+/// long form `--extended`, adds a row per attribute.
+#[test]
+fn the_at_sign_marks_files_with_attributes() {
+    let dir = TempTestDir::new("xattr_mark");
+    for file in ["plain.txt", "tagged.txt"] {
+        let path = dir.create_file(file, b"x");
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o644))
+            .expect("chmod");
+    }
+    if !set_xattr(&dir.path().join("tagged.txt"), b"value") {
+        return;
+    }
+
+    let expected = format!(
+        ".rw-r--r--  plain.txt\n.rw-r--r--@ tagged.txt\n            └── {NAME}: \"value\"\n"
+    );
+    assert_eq!(attribute_rows(dir.path(), &["-@"]), expected);
+    assert_eq!(attribute_rows(dir.path(), &["--extended"]), expected);
+    assert_eq!(
+        attribute_rows(dir.path(), &[]),
+        ".rw-r--r--  plain.txt\n.rw-r--r--@ tagged.txt\n"
+    );
+}
+
+/// A classic resource fork is summarised by its resource types and counts.
+#[test]
+#[cfg(target_os = "macos")]
+fn a_resource_fork_is_summarised_by_type() {
+    use lez::fs::feature::xattr::Attribute;
+
+    let mut data = vec![0u8; 64];
+    data[0..4].copy_from_slice(&256u32.to_be_bytes()); // data offset
+    data[4..8].copy_from_slice(&16u32.to_be_bytes()); // map offset
+    data[8..12].copy_from_slice(&0u32.to_be_bytes()); // data length
+    data[12..16].copy_from_slice(&48u32.to_be_bytes()); // map length
+    // The type list offset sits 24 bytes into the map.
+    data[40..42].copy_from_slice(&28u16.to_be_bytes());
+    // One type (stored minus one), `icns`, with one resource (minus one).
+    data[44..46].copy_from_slice(&0u16.to_be_bytes());
+    data[46..50].copy_from_slice(b"icns");
+    data[50..52].copy_from_slice(&0u16.to_be_bytes());
+    data[52..54].copy_from_slice(&0u16.to_be_bytes());
+
+    let attr = Attribute {
+        name: "com.apple.ResourceFork".to_string(),
+        value: Some(data),
+    };
+    assert_eq!(format!("{attr}"), "com.apple.ResourceFork: <[icns: 1]>");
+}

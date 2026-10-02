@@ -171,6 +171,22 @@ impl TempTestDir {
         }
     }
 
+    /// A directory directly under `/tmp` with a short name, for fixtures
+    /// that bind a Unix socket: a socket path may be at most 104 bytes on
+    /// macOS, and its per-user temp directory alone takes about 50.
+    #[cfg(unix)]
+    pub fn under_tmp() -> Self {
+        let temp_dir = tempfile::Builder::new()
+            .prefix("lez")
+            .tempdir_in("/tmp")
+            .expect("failed to create temp dir under /tmp");
+        let path = temp_dir.path().to_path_buf();
+        Self {
+            _temp_dir: temp_dir,
+            path,
+        }
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
