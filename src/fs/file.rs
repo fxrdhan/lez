@@ -1903,7 +1903,11 @@ mod broken_symlink_test {
     /// A symlink with an empty target should be treated as broken, not as
     /// pointing to a directory. Regression test for
     /// https://github.com/eza-community/eza/issues/1715
+    ///
+    /// Linux refuses to create such a link (`ENOENT`), so the case only
+    /// exists, and is only tested, on macOS.
     #[test]
+    #[cfg(target_os = "macos")]
     fn empty_target_symlink_is_not_directory() {
         let temp_dir = tempfile::Builder::new()
             .prefix("lez_test_empty_symlink_")
@@ -1911,11 +1915,7 @@ mod broken_symlink_test {
             .unwrap();
 
         let link_path = temp_dir.path().join("empty-link");
-        // Some environments (e.g. Nix sandbox) don't allow creating
-        // symlinks with empty targets, so skip if that's the case.
-        if unix_fs::symlink("", &link_path).is_err() {
-            return;
-        }
+        unix_fs::symlink("", &link_path).expect("macOS allows a symlink with an empty target");
 
         let file = make_file(link_path);
 

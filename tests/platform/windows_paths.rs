@@ -140,22 +140,32 @@ fn listing_from_inside_a_directory_symlink_shows_its_contents() {
     fs::create_dir_all(dir.path.join("target")).unwrap();
     fs::write(dir.path.join("target").join("inside.txt"), b"x").unwrap();
 
-    if symlink_dir(dir.path.join("target"), dir.path.join("link")).is_err() {
-        eprintln!("skipped: this account cannot create directory symlinks");
+    if !can_link(symlink_dir(dir.path.join("target"), dir.path.join("link"))) {
         return;
     }
 
     let link = dir.path.join("link");
     let (code, stdout, stderr) = run_in(&link, &[]);
     assert_eq!(code, 0, "stderr was: {stderr}");
-    assert!(
-        stdout.contains("inside.txt"),
-        "the link's contents should be listed, got: {stdout}"
-    );
-    assert!(
-        !stdout.contains("->"),
-        "the directory we are in is not a link row: {stdout}"
-    );
+    // The contents, not a single `. -> target` row.
+    assert_eq!(stdout, "inside.txt\n");
+}
+
+/// Directory symlinks need an elevated process or Developer Mode. A
+/// developer without either skips; CI runners are elevated, so there it is
+/// a failure.
+fn can_link(result: std::io::Result<()>) -> bool {
+    match result {
+        Ok(()) => true,
+        Err(error) => {
+            assert!(
+                std::env::var_os("CI").is_none(),
+                "CI runners can create directory symlinks: {error}"
+            );
+            eprintln!("skipped: this account cannot create directory symlinks");
+            false
+        }
+    }
 }
 
 /// The same directory reached by `..` from within itself, which is the shape
@@ -166,23 +176,33 @@ fn a_relative_symlink_pointing_up_and_back_down_still_lists() {
     fs::create_dir_all(dir.path.join("real")).unwrap();
     fs::write(dir.path.join("real").join("inside.txt"), b"x").unwrap();
 
-    if symlink_dir(
+    if !can_link(symlink_dir(
         Path::new("..").join("real"),
         dir.path.join("real").join("self"),
-    )
-    .is_err()
-    {
-        eprintln!("skipped: this account cannot create directory symlinks");
+    )) {
         return;
     }
 
     let link = dir.path.join("real").join("self");
-    let (code, stdout, stderr) = run_in(&link, &["-la"]);
+    let (code, stdout, stderr) = run_in(&link, &["-1", "-a"]);
     assert_eq!(code, 0, "stderr was: {stderr}");
-    assert!(
-        stdout.contains("inside.txt"),
-        "the link's contents should be listed, got: {stdout}"
+    assert_eq!(stdout, "inside.txt\nself\n");
+
+    let (code, stdout, stderr) = run_in(
+        &link,
+        &[
+            "-la",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "--no-time",
+        ],
     );
+    assert_eq!(code, 0, "stderr was: {stderr}");
+    let rows: Vec<&str> = stdout.lines().collect();
+    assert_eq!(rows.len(), 2, "{stdout}");
+    assert_eq!(rows[0], "inside.txt");
+    assert!(rows[1].starts_with("self -> "), "{stdout}");
 }
 
 #[test]
@@ -205,37 +225,60 @@ fn windows_hidden_file_attribute_is_hidden_by_default_and_shown_with_all() {
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
 
+    // SAFETY: a NUL-terminated wide path.
     unsafe {
         let attrs = GetFileAttributesW(wide.as_ptr());
-        if attrs != u32::MAX {
-            SetFileAttributesW(wide.as_ptr(), attrs | FILE_ATTRIBUTE_HIDDEN);
-        }
+        assert_ne!(attrs, u32::MAX, "GetFileAttributesW failed");
+        assert_ne!(
+            SetFileAttributesW(wide.as_ptr(), attrs | FILE_ATTRIBUTE_HIDDEN),
+            0,
+            "SetFileAttributesW failed"
+        );
     }
 
-    // 1. Default: hidden_attr.txt and .dotfile are hidden
-    let (code, stdout, _) = run_in(&dir.path, &[]);
-    assert_eq!(code, 0);
-    assert!(stdout.contains("visible.txt"));
-    assert!(!stdout.contains("hidden_attr.txt"));
-    assert!(!stdout.contains(".dotfile"));
+    let listing = |args: &[&str]| {
+        let (code, stdout, stderr) = run_in(&dir.path, args);
+        assert_eq!(code, 0, "{args:?}: {stderr}");
+        stdout
+    };
+    // The attribute hides a file like a leading dot; `--show-dotfiles`
+    // undoes only the dot, `-a` both.
+    assert_eq!(listing(&["-1"]), "visible.txt\n");
+    assert_eq!(
+        listing(&["-1", "--show-dotfiles"]),
+        ".dotfile\nvisible.txt\n"
+    );
+    assert_eq!(
+        listing(&["-1", "-a"]),
+        ".dotfile\nhidden_attr.txt\nvisible.txt\n"
+    );
 
-    // 2. -a: all files shown
-    let (code_a, stdout_a, _) = run_in(&dir.path, &["-a"]);
-    assert_eq!(code_a, 0);
-    assert!(stdout_a.contains("visible.txt"));
-    assert!(stdout_a.contains("hidden_attr.txt"));
-    assert!(stdout_a.contains(".dotfile"));
-
-    // 3. --show-dotfiles: only .dotfile shown, hidden_attr.txt remains hidden
-    let (code_sd, stdout_sd, _) = run_in(&dir.path, &["--show-dotfiles"]);
-    assert_eq!(code_sd, 0);
-    assert!(stdout_sd.contains("visible.txt"));
-    assert!(stdout_sd.contains(".dotfile"));
-    assert!(!stdout_sd.contains("hidden_attr.txt"));
-
-    // 4. -l --flags: displays 'H' attribute flag
-    let (code_fl, stdout_fl, _) = run_in(&dir.path, &["-la", "--flags"]);
-    assert_eq!(code_fl, 0);
-    assert!(stdout_fl.contains("hidden_attr.txt"));
-    assert!(stdout_fl.contains('H') || stdout_fl.contains("hidden_attr"));
+    // `--flags` shows the attribute as `H` in the short format, on that
+    // file only. (`A`, archive, is set on any newly written file.)
+    let output = crate::common::lez_cmd()
+        .env("LEZ_FLAGS_FORMAT", "short")
+        .args([
+            "-la",
+            "--flags",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "--no-time",
+        ])
+        .current_dir(&dir.path)
+        .output()
+        .expect("lez should run");
+    assert_eq!(output.status.code(), Some(0));
+    let flags = String::from_utf8(output.stdout).expect("UTF-8 output");
+    let flags_of = |name: &str| -> String {
+        flags
+            .lines()
+            .find_map(|line| line.strip_suffix(name))
+            .unwrap_or_else(|| panic!("no row for {name}:\n{flags}"))
+            .trim_end()
+            .to_owned()
+    };
+    assert!(flags_of("hidden_attr.txt").contains('H'), "{flags}");
+    assert!(!flags_of("visible.txt").contains('H'), "{flags}");
+    assert!(!flags_of(".dotfile").contains('H'), "{flags}");
 }

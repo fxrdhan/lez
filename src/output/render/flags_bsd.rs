@@ -80,29 +80,22 @@ mod test {
         assert_eq!(*cell.width, 1);
     }
 
+    /// `fflagstostr` names each flag the way `chflags(1)` spells it, and
+    /// the format setting does not apply on the BSDs.
     #[test]
     fn test_bsd_flags_render_and_json() {
-        #[cfg(any(
-            target_os = "macos",
-            target_os = "freebsd",
-            target_os = "dragonfly",
-            target_os = "openbsd",
-            target_os = "netbsd"
-        ))]
-        {
-            let nodump = f::Flags(libc::UF_NODUMP);
-            let s = nodump.render_json(FlagsFormat::Short).unwrap();
-            assert!(s.contains("nodump"), "Expected nodump in string, got: {s}");
-
-            let uchg = f::Flags(libc::UF_IMMUTABLE);
-            let s_uchg = uchg.render_json(FlagsFormat::Short).unwrap();
-            assert!(
-                s_uchg.contains("uchg") || s_uchg.contains("uappnd"),
-                "Expected uchg in string, got: {s_uchg}"
-            );
-
-            let cell = nodump.render(Style::default(), FlagsFormat::Short);
-            assert_eq!(*cell.width, s.len());
+        let nodump = f::Flags(libc::UF_NODUMP);
+        let uchg = f::Flags(libc::UF_IMMUTABLE);
+        for format in [FlagsFormat::Short, FlagsFormat::Long] {
+            assert_eq!(nodump.render_json(format), Some("nodump".to_string()));
+            assert_eq!(uchg.render_json(format), Some("uchg".to_string()));
         }
+        assert_eq!(
+            f::Flags(libc::UF_NODUMP | libc::UF_IMMUTABLE).render_json(FlagsFormat::Short),
+            Some("uchg,nodump".to_string())
+        );
+
+        let cell = nodump.render(Style::default(), FlagsFormat::Short);
+        assert_eq!(*cell.width, "nodump".len());
     }
 }
