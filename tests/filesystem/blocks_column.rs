@@ -85,6 +85,8 @@ fn allocated_blocks(path: &Path) -> u64 {
     }
 }
 
+/// Three files of different sizes, and a directory, a symlink and a FIFO,
+/// none of which has an allocation of its own to show.
 #[cfg(unix)]
 fn fixture() -> TempTestDir {
     let dir = TempTestDir::new("blocks");
@@ -93,21 +95,38 @@ fn fixture() -> TempTestDir {
     dir.create_file("quarter_mib.bin", &incompressible(256 * 1024));
     dir.create_dir("sub");
     dir.create_symlink("one_byte.txt", "link");
+    let fifo = std::ffi::CString::new(dir.path().join("pipe").to_str().expect("UTF-8 path"))
+        .expect("no NUL in path");
+    // SAFETY: a valid NUL-terminated path.
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o644) }, 0, "mkfifo");
     dir
+}
+
+/// The fixture's rows, in name order, with `value` giving each regular
+/// file's column.
+#[cfg(unix)]
+fn fixture_rows(value: impl Fn(&str) -> String) -> Vec<(String, String)> {
+    [
+        ("link -> one_byte.txt", None),
+        ("one_byte.txt", Some("one_byte.txt")),
+        ("pipe", None),
+        ("quarter_mib.bin", Some("quarter_mib.bin")),
+        ("sub", None),
+        ("ten_k.bin", Some("ten_k.bin")),
+    ]
+    .into_iter()
+    .map(|(name, file)| (file.map_or_else(|| "-".to_owned(), &value), name.to_owned()))
+    .collect()
 }
 
 #[test]
 #[cfg(unix)]
 fn blocks_counts_the_allocation_in_filesystem_blocks() {
     let dir = fixture();
-    let rows = allocation_rows(dir.path(), &["--blocks"]);
-    for name in ["one_byte.txt", "ten_k.bin", "quarter_mib.bin"] {
-        let expected = grouped(allocated_blocks(&dir.path().join(name)));
-        assert!(
-            rows.contains(&(expected.clone(), name.to_owned())),
-            "{name} should show {expected} blocks: {rows:?}"
-        );
-    }
+    assert_eq!(
+        allocation_rows(dir.path(), &["--blocks"]),
+        fixture_rows(|file| grouped(allocated_blocks(&dir.path().join(file))))
+    );
 }
 
 #[test]
@@ -119,33 +138,15 @@ fn blocksize_in_bytes_is_the_allocation_not_the_length() {
         .and_then(|f| f.set_len(10 * 1024 * 1024))
         .expect("create sparse file");
 
-    let rows = allocation_rows(dir.path(), &["--blocksize", "-B"]);
-    for name in ["one_byte.txt", "ten_k.bin", "quarter_mib.bin", "sparse.img"] {
-        let expected = grouped(allocated_bytes(&dir.path().join(name)));
-        assert!(
-            rows.contains(&(expected.clone(), name.to_owned())),
-            "{name} should show {expected} allocated bytes: {rows:?}"
-        );
-    }
-}
-
-#[test]
-#[cfg(unix)]
-fn directories_symlinks_and_pipes_have_no_allocation_column() {
-    let dir = fixture();
-    let fifo = std::ffi::CString::new(dir.path().join("pipe").to_str().expect("UTF-8 path"))
-        .expect("no NUL in path");
-    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o644) }, 0, "mkfifo");
-
-    for flag in ["--blocks", "--blocksize"] {
-        let rows = allocation_rows(dir.path(), &[flag]);
-        for name in ["sub", "link -> one_byte.txt", "pipe"] {
-            assert!(
-                rows.contains(&("-".to_owned(), name.to_owned())),
-                "{flag}: {name} {rows:?}"
-            );
-        }
-    }
+    let mut expected = fixture_rows(|file| grouped(allocated_bytes(&dir.path().join(file))));
+    expected.insert(
+        4,
+        (grouped(allocated_bytes(&sparse)), "sparse.img".to_owned()),
+    );
+    assert_eq!(
+        allocation_rows(dir.path(), &["--blocksize", "-B"]),
+        expected
+    );
 }
 
 /// With `-X` a symlink stands for its target, allocation included.
@@ -154,19 +155,20 @@ fn directories_symlinks_and_pipes_have_no_allocation_column() {
 fn a_dereferenced_link_shows_its_targets_allocation() {
     let dir = fixture();
     dir.create_symlink("ten_k.bin", "big_link");
-    let expected = grouped(allocated_bytes(&dir.path().join("ten_k.bin")));
 
-    let rows = allocation_rows(dir.path(), &["--blocksize", "-B", "-X"]);
-    assert!(
-        rows.contains(&(expected.clone(), "big_link".to_owned())),
-        "{rows:?}"
-    );
-    assert!(
-        rows.contains(&(
-            grouped(allocated_bytes(&dir.path().join("one_byte.txt"))),
-            "link".to_owned()
-        )),
-        "{rows:?}"
+    let alloc = |file: &str| grouped(allocated_bytes(&dir.path().join(file)));
+    assert_eq!(
+        allocation_rows(dir.path(), &["--blocksize", "-B", "-X"]),
+        [
+            (alloc("ten_k.bin"), "big_link"),
+            (alloc("one_byte.txt"), "link"),
+            (alloc("one_byte.txt"), "one_byte.txt"),
+            ("-".to_owned(), "pipe"),
+            (alloc("quarter_mib.bin"), "quarter_mib.bin"),
+            ("-".to_owned(), "sub"),
+            (alloc("ten_k.bin"), "ten_k.bin"),
+        ]
+        .map(|(value, name)| (value, name.to_owned()))
     );
 }
 
@@ -252,25 +254,27 @@ fn json_carries_the_selected_allocation_column() {
     let dir = TempTestDir::new("blocks_json");
     let path = dir.create_file("ten_k.bin", &incompressible(10_000));
 
-    let blocks: serde_json::Value =
-        serde_json::from_str(&stdout(&run(dir.path(), &["--json", "-l", "--blocks"])))
-            .expect("valid JSON");
-    assert_eq!(
-        blocks["ten_k.bin"]["Blocks"],
-        grouped(allocated_blocks(&path))
-    );
-    assert!(blocks["ten_k.bin"].get("Blocksize").is_none());
+    let json = |flags: &[&str]| -> serde_json::Value {
+        let mut args = vec![
+            "--json",
+            "-l",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "--no-time",
+        ];
+        args.extend_from_slice(flags);
+        serde_json::from_str(&stdout(&run(dir.path(), &args))).expect("valid JSON")
+    };
 
-    let bytes: serde_json::Value = serde_json::from_str(&stdout(&run(
-        dir.path(),
-        &["--json", "-l", "--blocksize", "-B"],
-    )))
-    .expect("valid JSON");
     assert_eq!(
-        bytes["ten_k.bin"]["Blocksize"],
-        grouped(allocated_bytes(&path))
+        json(&["--blocks"]),
+        serde_json::json!({"ten_k.bin": {"Blocks": grouped(allocated_blocks(&path))}})
     );
-    assert!(bytes["ten_k.bin"].get("Blocks").is_none());
+    assert_eq!(
+        json(&["--blocksize", "-B"]),
+        serde_json::json!({"ten_k.bin": {"Blocksize": grouped(allocated_bytes(&path))}})
+    );
 }
 
 #[test]

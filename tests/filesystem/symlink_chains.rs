@@ -58,10 +58,9 @@ fn ln_target_resolves_chains_from_the_links_directory() {
     tmp.create_symlink("../doc.pdf", "sub/first");
     tmp.create_symlink("first", "sub/second");
 
-    let stdout = coloured(tmp.path(), &["-1", "sub/second"], "ln=target:*.pdf=35");
-    assert!(
-        stdout.ends_with("\x1b[35msecond\x1b[0m\n"),
-        "got {stdout:?}"
+    assert_eq!(
+        coloured(tmp.path(), &["-1", "sub/second"], "ln=target:*.pdf=35"),
+        "\x1b[36msub/\x1b[35msecond\x1b[0m\n"
     );
 }
 
@@ -131,8 +130,7 @@ fn dereference_describes_the_end_of_a_chain_in_a_subdirectory() {
         "sub/first",
     ]));
     assert_eq!(code, Some(0));
-    assert!(stdout.starts_with(".rw-r-----"), "got {stdout:?}");
-    assert!(stdout.ends_with(" sub/first\n"), "got {stdout:?}");
+    assert_eq!(stdout, ".rw-r----- sub/first\n");
 }
 
 #[test]
@@ -150,7 +148,13 @@ fn dereferencing_a_loop_falls_back_to_the_link() {
         "loop_a",
     ]));
     assert_eq!(code, Some(0));
-    assert!(stdout.starts_with('l'), "got {stdout:?}");
+    assert_eq!(
+        stdout,
+        format!(
+            "{} loop_a\n",
+            crate::common::symlink_permissions(&tmp.path().join("loop_a"))
+        )
+    );
 }
 
 #[test]

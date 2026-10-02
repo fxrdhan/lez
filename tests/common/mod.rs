@@ -152,6 +152,26 @@ pub fn native(path: &str) -> String {
     path.replace('/', std::path::MAIN_SEPARATOR_STR)
 }
 
+/// The permissions column lez prints for the symlink at `path` itself,
+/// such as `lrwxrwxrwx`: Linux gives every symlink mode 0777, while macOS
+/// takes it from the umask.
+#[cfg(unix)]
+pub fn symlink_permissions(path: &Path) -> String {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = fs::symlink_metadata(path)
+        .expect("lstat the link")
+        .permissions()
+        .mode();
+    let bits = (0..9).map(|i| {
+        if mode & (0o400 >> i) == 0 {
+            '-'
+        } else {
+            ['r', 'w', 'x'][i % 3]
+        }
+    });
+    std::iter::once('l').chain(bits).collect()
+}
+
 /// A managed temporary directory that automatically cleans up on `Drop`.
 pub struct TempTestDir {
     _temp_dir: tempfile::TempDir,
