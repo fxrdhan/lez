@@ -433,7 +433,7 @@ impl<'a> Render<'a> {
 
             // With --only-files, directories still get recursed into but are
             // not listed themselves; skipping before add_widths keeps the
-            // table columns and tree edges aligned.
+            // table columns aligned.
             if !(egg.file.is_directory() && self.filter.flags.contains(&OnlyFiles)) {
                 if let Some(s) = summary {
                     s.record_file(egg.file);
@@ -458,6 +458,7 @@ impl<'a> Render<'a> {
                     tree: tree_params,
                     cells: egg.table_row,
                     name: file_name,
+                    hidden: false,
                 };
 
                 rows.push(row);
@@ -484,6 +485,16 @@ impl<'a> Render<'a> {
                         }
                     }
                 }
+            } else {
+                // The hidden directory still takes its place in the tree, so
+                // what is listed under and after it gets the same edges as
+                // without `--only-files`.
+                rows.push(Row {
+                    tree: tree_params,
+                    cells: None,
+                    name: TextCell::default(),
+                    hidden: true,
+                });
             }
 
             if let Some(ref dir) = egg.dir {
@@ -563,6 +574,7 @@ impl<'a> Render<'a> {
             tree: TreeParams::new(TreeDepth::root(), false),
             cells: Some(header),
             name: TextCell::paint_str(self.theme.ui.header.unwrap_or_default(), "Name"),
+            hidden: false,
         }
     }
 
@@ -582,6 +594,7 @@ impl<'a> Render<'a> {
             cells: None,
             name,
             tree,
+            hidden: false,
         }
     }
 
@@ -627,6 +640,7 @@ impl<'a> Render<'a> {
             cells: None,
             name,
             tree,
+            hidden: false,
         }
     }
 
@@ -639,6 +653,7 @@ impl<'a> Render<'a> {
             cells: None,
             name,
             tree,
+            hidden: false,
         }
     }
 
@@ -678,6 +693,11 @@ pub struct Row {
 
     /// Information used to determine which symbols to display in a tree.
     pub tree: TreeParams,
+
+    /// A directory hidden by `--only-files`. It moves the tree along like
+    /// any other row, so the rows under and after it get the edges they have
+    /// without the flag, but nothing is printed for it.
+    pub hidden: bool,
 }
 
 #[rustfmt::skip]
@@ -694,22 +714,28 @@ impl Iterator for TableIter<'_> {
     type Item = TextCell;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|row| {
-            let mut cell = if let Some(cells) = row.cells {
-                self.table.render(cells)
-            } else {
-                let mut cell = TextCell::default();
-                cell.add_spaces(self.total_width);
-                cell
-            };
-
-            for tree_part in self.tree_trunk.new_row(row.tree) {
-                cell.push(self.tree_style.paint(tree_part.ascii_art()), 4);
+        let row = loop {
+            let row = self.inner.next()?;
+            if !row.hidden {
+                break row;
             }
+            self.tree_trunk.new_row(row.tree);
+        };
 
-            cell.append(row.name);
+        let mut cell = if let Some(cells) = row.cells {
+            self.table.render(cells)
+        } else {
+            let mut cell = TextCell::default();
+            cell.add_spaces(self.total_width);
             cell
-        })
+        };
+
+        for tree_part in self.tree_trunk.new_row(row.tree) {
+            cell.push(self.tree_style.paint(tree_part.ascii_art()), 4);
+        }
+
+        cell.append(row.name);
+        Some(cell)
     }
 }
 
@@ -723,16 +749,22 @@ impl Iterator for Iter {
     type Item = TextCell;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|row| {
-            let mut cell = TextCell::default();
-
-            for tree_part in self.tree_trunk.new_row(row.tree) {
-                cell.push(self.tree_style.paint(tree_part.ascii_art()), 4);
+        let row = loop {
+            let row = self.inner.next()?;
+            if !row.hidden {
+                break row;
             }
+            self.tree_trunk.new_row(row.tree);
+        };
 
-            cell.append(row.name);
-            cell
-        })
+        let mut cell = TextCell::default();
+
+        for tree_part in self.tree_trunk.new_row(row.tree) {
+            cell.push(self.tree_style.paint(tree_part.ascii_art()), 4);
+        }
+
+        cell.append(row.name);
+        Some(cell)
     }
 }
 
