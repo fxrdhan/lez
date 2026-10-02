@@ -1,228 +1,106 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::common::TempTestDir;
-use std::path::MAIN_SEPARATOR;
-use std::process::Command;
+//! Quoting names that hold spaces. A path given on the command line is
+//! quoted as one token, its directories included; `--quotes` decides when
+//! (`auto` by default, `--no-quotes` meaning `never`); a link and its target
+//! are quoted each on its own; and `qu` in `LEZ_COLORS` colours the quotes.
 
-#[test]
-fn test_full_path_with_spaces_quoted_as_single_token() {
-    let temp = TempTestDir::new("full_path_quoting");
-    temp.create_dir("parent with space");
-    temp.create_file("parent with space/child with space.txt", b"content");
+use crate::common::{NAME_COLUMN_ONLY, TempTestDir, lez_in, native, success_stdout};
 
-    let rel_path = format!("parent with space{MAIN_SEPARATOR}child with space.txt");
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .arg("-1")
-        .arg("--color=never")
-        .arg(&rel_path)
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert_eq!(
-        stdout.trim(),
-        format!("'parent with space{MAIN_SEPARATOR}child with space.txt'"),
-        "Full path should be quoted as a single cohesive token"
-    );
+fn fixture(prefix: &str) -> TempTestDir {
+    let dir = TempTestDir::new(prefix);
+    for path in [
+        "dir a/file b.txt",
+        "plain/x.txt",
+        "space parent/child.txt",
+        "parent/child space.txt",
+    ] {
+        dir.create_file(path, b"content");
+    }
+    dir
 }
 
 #[test]
-fn test_path_without_spaces_not_quoted() {
-    let temp = TempTestDir::new("path_without_spaces");
-    temp.create_dir("parent_dir");
-    temp.create_file("parent_dir/child_file.txt", b"content");
-
-    let rel_path = format!("parent_dir{MAIN_SEPARATOR}child_file.txt");
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .arg("-1")
-        .arg("--color=never")
-        .arg(&rel_path)
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert_eq!(
-        stdout.trim(),
-        format!("parent_dir{MAIN_SEPARATOR}child_file.txt"),
-        "Path without spaces should not have quotes"
-    );
+fn a_path_with_a_space_anywhere_is_one_quoted_token() {
+    let dir = fixture("paths");
+    for path in [
+        "dir a/file b.txt",
+        "plain/x.txt",
+        "space parent/child.txt",
+        "parent/child space.txt",
+    ] {
+        let path = native(path);
+        let quoted = format!("'{path}'\n");
+        let bare = format!("{path}\n");
+        let auto = if path.contains(' ') { &quoted } else { &bare };
+        for (flags, expected) in [
+            (&[][..], auto),
+            (&["--quotes=auto"], auto),
+            (&["--quotes=always"], &quoted),
+            (&["--quotes=never"], &bare),
+            (&["--no-quotes"], &bare),
+        ] {
+            assert_eq!(
+                success_stdout(lez_in(dir.path()).arg("-1").args(flags).arg(&path)),
+                *expected,
+                "{path} {flags:?}"
+            );
+        }
+    }
 }
 
+/// The quotes take the punctuation colour unless `qu` gives them one.
 #[test]
-fn test_path_with_space_in_parent_only_quoted() {
-    let temp = TempTestDir::new("parent_space_only");
-    temp.create_dir("parent space");
-    temp.create_file("parent space/child.txt", b"content");
-
-    let rel_path = format!("parent space{MAIN_SEPARATOR}child.txt");
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .arg("-1")
-        .arg("--color=never")
-        .arg(&rel_path)
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert_eq!(
-        stdout.trim(),
-        format!("'parent space{MAIN_SEPARATOR}child.txt'"),
-        "Path with space in parent component should be quoted as single token"
-    );
+fn qu_colours_the_quotes() {
+    let dir = fixture("colour");
+    let path = native("dir a/file b.txt");
+    let (parent, name) = path.split_at(path.len() - "file b.txt".len());
+    let painted = |quote: &str| {
+        format!("\x1b[{quote}m'\x1b[0m\x1b[36m{parent}\x1b[32m{name}\x1b[{quote}m'\x1b[0m\n")
+    };
+    let run = |colours: &[(&str, &str)]| {
+        let mut cmd = lez_in(dir.path());
+        for (key, value) in colours {
+            cmd.env(key, value);
+        }
+        success_stdout(cmd.args(["-1", "--color=always"]).arg(&path))
+    };
+    assert_eq!(run(&[]), painted("1;90"));
+    assert_eq!(run(&[("LEZ_COLORS", "qu=35;1")]), painted("1;35"));
 }
 
-#[test]
-fn test_path_with_space_in_child_only_quoted() {
-    let temp = TempTestDir::new("child_space_only");
-    temp.create_dir("parent");
-    temp.create_file("parent/child space.txt", b"content");
-
-    let rel_path = format!("parent{MAIN_SEPARATOR}child space.txt");
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .arg("-1")
-        .arg("--color=never")
-        .arg(&rel_path)
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert_eq!(
-        stdout.trim(),
-        format!("'parent{MAIN_SEPARATOR}child space.txt'"),
-        "Path with space in child component should be quoted as single token"
-    );
-}
-
-#[test]
-fn test_quote_style_override_qu() {
-    let temp = TempTestDir::new("quote_style_override");
-    temp.create_dir("dir a");
-    temp.create_file("dir a/file b.txt", b"content");
-
-    let rel_path = format!("dir a{MAIN_SEPARATOR}file b.txt");
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .env("LEZ_COLORS", "qu=35;1")
-        .arg("-1")
-        .arg("--color=always")
-        .arg(&rel_path)
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Opening quote with bold magenta (1;35m)
-    assert!(
-        stdout.contains("\x1b[1;35m'\x1b[0m") || stdout.contains("\x1b[1;35m'"),
-        "Quote should be styled with qu custom color code: {stdout}"
-    );
-}
-
-#[test]
-fn test_no_quotes_flag_suppresses_quotes_on_paths() {
-    let temp = TempTestDir::new("no_quotes_suppress");
-    temp.create_dir("parent with space");
-    temp.create_file("parent with space/child with space.txt", b"content");
-
-    let rel_path = format!("parent with space{MAIN_SEPARATOR}child with space.txt");
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .arg("-1")
-        .arg("--color=never")
-        .arg("--no-quotes")
-        .arg(&rel_path)
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert_eq!(
-        stdout.trim(),
-        format!("parent with space{MAIN_SEPARATOR}child with space.txt"),
-        "--no-quotes should suppress quotes even on paths with spaces"
-    );
-}
-
-#[test]
-fn test_quotes_always_quotes_paths_even_without_spaces() {
-    let temp = TempTestDir::new("quotes_always");
-    temp.create_dir("parent");
-    temp.create_file("parent/child.txt", b"content");
-
-    let rel_path = format!("parent{MAIN_SEPARATOR}child.txt");
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .arg("-1")
-        .arg("--color=never")
-        .arg("--quotes=always")
-        .arg(&rel_path)
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert_eq!(
-        stdout.trim(),
-        format!("'parent{MAIN_SEPARATOR}child.txt'"),
-        "--quotes=always should quote path even without spaces"
-    );
-}
-
+/// A link and its target are each quoted by the same rule.
 #[cfg(unix)]
 #[test]
-fn test_symlink_target_quotes_always_quotes_target() {
-    use std::os::unix::fs::symlink;
-    let temp = TempTestDir::new("symlink_quotes_always");
-    temp.create_file("target.txt", b"hello");
-    symlink("target.txt", temp.path().join("link")).unwrap();
-
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .args(["-l", "--color=never", "--quotes=always", "link"])
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("'link' -> 'target.txt'"),
-        "Expected link and target both quoted under --quotes=always, got: {stdout}"
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn test_symlink_target_quotes_never_suppresses_quotes_on_target_with_space() {
-    use std::os::unix::fs::symlink;
-    let temp = TempTestDir::new("symlink_quotes_never");
-    temp.create_file("target file.txt", b"hello");
-    symlink("target file.txt", temp.path().join("link file")).unwrap();
-
-    let output = crate::common::lez_cmd()
-        .current_dir(temp.path())
-        .args(["-l", "--color=never", "--quotes=never", "link file"])
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("link file -> target file.txt"),
-        "Expected link and target unquoted under --quotes=never, got: {stdout}"
-    );
+fn a_link_and_its_target_are_quoted_each_on_its_own() {
+    let dir = TempTestDir::new("link_quotes");
+    dir.create_file("target.txt", b"");
+    dir.create_file("target file.txt", b"");
+    dir.create_symlink("target.txt", "link");
+    dir.create_symlink("target file.txt", "link file");
+    for (flag, expected) in [
+        (
+            "--quotes=auto",
+            "link -> target.txt\n'link file' -> 'target file.txt'\n",
+        ),
+        (
+            "--quotes=always",
+            "'link' -> 'target.txt'\n'link file' -> 'target file.txt'\n",
+        ),
+        (
+            "--quotes=never",
+            "link -> target.txt\nlink file -> target file.txt\n",
+        ),
+    ] {
+        assert_eq!(
+            success_stdout(lez_in(dir.path()).args(NAME_COLUMN_ONLY).args([
+                flag,
+                "link",
+                "link file"
+            ])),
+            expected,
+            "{flag}"
+        );
+    }
 }
