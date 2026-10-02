@@ -146,9 +146,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 `automatic` or `auto` will display icons only when the standard output is connected to a real terminal. If `lez` is run while in a `tty`, or the output of `lez` is either redirected to a file or piped into another program, icons will not be used. Setting this option to ‘`always`’ causes `lez` to always display icons, while ‘`never`’ disables the use of icons.
 
 `--quotes=WHEN`
-: When to quote file names. The default, `auto`, quotes names that contain spaces or quotes; `always` quotes every name; `never` quotes nothing (like `ls -N`).
+: When to quote file names. The default, `auto`, quotes names holding anything a shell gives a meaning to, the same characters `ls` quotes for: a space, `` ! " $ & ' ( ) * ; < = > ? [ \ ^ ` | ``, or a leading `#` or `~` (on Windows, where `\` separates paths, `\` and `[` are left bare, as are `?` and `*`, which a name there cannot hold and which appear only in a `\\?\` path prefix); `always` quotes every name; `never` quotes nothing (like `ls -N`).
 
-A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe, and for a name holding both kinds the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`.
+A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe and nothing double quotes would still expand (`` " $ ` \ ! ``), and otherwise the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`.
 
 `--spacing=SPACES`
 : Number of spaces to print between columns in the grid views. Accepts `0` to `255`; the default is `2`.
