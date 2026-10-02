@@ -1363,6 +1363,17 @@ pub fn icon_for_file(file: &File<'_>, empty_dir_icon: bool) -> char {
     }
 }
 
+/// Whether the built-in tables give `file` an icon of its own, rather than
+/// one of the generic file and folder glyphs. Only those are what a theme's
+/// `.default_file`, `.default_file_unknown`, `.default_directory` and
+/// `.default_directory_empty` entries replace.
+pub fn has_specific_icon(file: &File<'_>) -> bool {
+    !matches!(
+        icon_for_file(file, false),
+        Icons::FILE | Icons::FILE_UNKNOW | Icons::FOLDER | Icons::FOLDER_OPEN
+    )
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
