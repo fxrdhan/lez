@@ -20,7 +20,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn run_with_colors(colors: &str, root: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lez"))
+    crate::common::lez_cmd()
         .env("LEZ_COLORS", colors)
         .args(["-l", "-S", "--no-permissions", "--no-user", "--no-time"])
         .arg("--color=always")
@@ -71,7 +71,7 @@ fn different_bl_entries_render_differently() {
 fn the_bl_entry_leaves_the_file_size_column_alone() {
     let root = fixture("scoped");
 
-    let with_bl = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let with_bl = crate::common::lez_cmd()
         .env("LEZ_COLORS", "bl=31")
         .args(["-l", "--no-permissions", "--no-user", "--no-time"])
         .arg("--color=always")
@@ -79,7 +79,7 @@ fn the_bl_entry_leaves_the_file_size_column_alone() {
         .output()
         .expect("failed to execute lez");
 
-    let without_bl = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let without_bl = crate::common::lez_cmd()
         .env("LEZ_COLORS", "")
         .args(["-l", "--no-permissions", "--no-user", "--no-time"])
         .arg("--color=always")

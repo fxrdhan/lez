@@ -52,16 +52,12 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_smart_group_basic() {
     let temp = TempTestDir::new("smart_basic");
     temp.create_file("test1.txt", b"hello world");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--smart-group")
         .arg(&temp.path)
@@ -79,7 +75,7 @@ fn test_smart_group_vs_plain_long() {
     temp.create_file("file.txt", b"data");
 
     // Run with plain -l
-    let out_plain = Command::new(bin_path())
+    let out_plain = crate::common::lez_cmd()
         .arg("-l")
         .arg(&temp.path)
         .output()
@@ -87,7 +83,7 @@ fn test_smart_group_vs_plain_long() {
     assert!(out_plain.status.success());
 
     // Run with -l --smart-group
-    let out_smart = Command::new(bin_path())
+    let out_smart = crate::common::lez_cmd()
         .arg("-l")
         .arg("--smart-group")
         .arg(&temp.path)
@@ -104,7 +100,7 @@ fn test_smart_group_with_group_flag() {
     let temp = TempTestDir::new("smart_with_g");
     temp.create_file("sample.rs", b"fn main() {}");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-g")
         .arg("--smart-group")
@@ -122,7 +118,7 @@ fn test_smart_group_json_mode() {
     let temp = TempTestDir::new("smart_json");
     temp.create_file("doc.md", b"# Markdown");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--long")
         .arg("--smart-group")
         .arg("--json")
@@ -162,7 +158,7 @@ fn test_plain_long_json_mode_has_no_group() {
     let temp = TempTestDir::new("plain_json");
     temp.create_file("doc.md", b"# Markdown");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--long")
         .arg("--json")
         .arg(&temp.path)
@@ -192,7 +188,7 @@ fn test_smart_group_with_multiple_files_and_dirs() {
     temp.create_dir("subdir");
     temp.create_file("subdir/nested.txt", b"nested");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--smart-group")
         .arg("--tree")
@@ -213,7 +209,7 @@ fn test_smart_group_with_other_long_flags() {
     let temp = TempTestDir::new("combo_long");
     temp.create_file("combo.dat", b"12345");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--smart-group")
         .arg("--numeric")

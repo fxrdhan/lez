@@ -62,10 +62,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 // ---------------------------------------------------------------------------
 // 1. EMPTY DIRECTORY SUMMARY
 // ---------------------------------------------------------------------------
@@ -74,7 +70,7 @@ fn bin_path() -> &'static str {
 fn test_summary_empty_directory() {
     let temp = TempTestDir::new("empty_dir");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--summary")
         .arg("--color=never")
         .arg(&temp.path)
@@ -105,7 +101,7 @@ fn test_summary_mixed_plural() {
     temp.create_symlink("file1.txt", "link1");
     temp.create_symlink("file2.txt", "link2");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--summary")
         .arg("--color=never")
         .arg(&temp.path)
@@ -129,7 +125,7 @@ fn test_summary_singular() {
     temp.create_file("single_file.txt", b"hello");
     temp.create_symlink("single_file.txt", "single_link");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--summary")
         .arg("--color=never")
         .arg(&temp.path)
@@ -157,7 +153,7 @@ fn test_summary_oneline_mode() {
     temp.create_file("a.txt", b"a");
     temp.create_symlink("a.txt", "link_a");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg("--summary")
         .arg("--color=never")
@@ -183,7 +179,7 @@ fn test_summary_long_details_mode() {
     temp.create_file("readme.md", b"hello");
     temp.create_symlink("docs", "docs_link");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--summary")
         .arg("--color=never")
@@ -208,7 +204,7 @@ fn test_summary_grid_details_mode() {
     temp.create_dir("src");
     temp.create_file("main.rs", b"fn main() {}");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-G")
         .arg("--summary")
@@ -241,7 +237,7 @@ fn test_summary_tree_mode_nested() {
     temp.create_symlink("parent_dir/root_file.txt", "parent_dir/link_to_root");
 
     // Tree without long details (-T --summary)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-T")
         .arg("--summary")
         .arg("--color=never")
@@ -263,7 +259,7 @@ fn test_summary_tree_mode_nested() {
     );
 
     // Tree with long details (-l -T --summary)
-    let output_long = Command::new(bin_path())
+    let output_long = crate::common::lez_cmd()
         .arg("-l")
         .arg("-T")
         .arg("--summary")
@@ -294,7 +290,7 @@ fn test_summary_with_only_dirs() {
     temp.create_file("fileA.txt", b"a");
     temp.create_symlink("fileA.txt", "linkA");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-D")
         .arg("--summary")
         .arg("--color=never")
@@ -320,7 +316,7 @@ fn test_summary_with_only_files() {
     temp.create_file("fileB.txt", b"b");
     temp.create_symlink("fileA.txt", "linkA");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-f")
         .arg("--summary")
         .arg("--color=never")
@@ -345,7 +341,7 @@ fn test_summary_with_no_symlinks() {
     temp.create_file("file1.txt", b"a");
     temp.create_symlink("file1.txt", "link1");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--no-symlinks")
         .arg("--summary")
         .arg("--color=never")
@@ -370,7 +366,7 @@ fn test_summary_with_ignore_glob() {
     temp.create_file("file1.txt", b"a");
     temp.create_file("skip.log", b"log");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-I")
         .arg("*.log")
         .arg("--summary")
@@ -400,7 +396,7 @@ fn test_summary_with_icons_always() {
     temp.create_file("my_file.txt", b"content");
     temp.create_symlink("my_file.txt", "my_link");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--summary")
         .arg("--icons=always")
         .arg("--color=never")
@@ -451,7 +447,7 @@ fn test_summary_with_icons_never() {
     temp.create_file("my_file.txt", b"content");
     temp.create_symlink("my_file.txt", "my_link");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--summary")
         .arg("--icons=never")
         .arg("--color=never")
@@ -497,7 +493,7 @@ fn test_summary_multi_directory_arguments() {
     temp2.create_file("file2b.txt", b"2b");
     temp2.create_symlink("file2a.txt", "link2");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--summary")
         .arg("--color=never")
         .arg(&temp1.path)
@@ -530,7 +526,7 @@ fn test_summary_tree_mode_with_only_files() {
     temp.create_symlink("parent_dir/root_file.txt", "parent_dir/link_to_root");
 
     // -T -f --summary: container directories must not be in summary
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -550,7 +546,7 @@ fn test_summary_tree_mode_with_only_files() {
     );
 
     // -T -f --print-total: total must reflect only displayed entries (3)
-    let output_total = Command::new(bin_path())
+    let output_total = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -567,7 +563,7 @@ fn test_summary_tree_mode_with_only_files() {
     assert_eq!(total_line.trim(), "total: 3");
 
     // Long tree: -l -T -f --summary
-    let output_long = Command::new(bin_path())
+    let output_long = crate::common::lez_cmd()
         .args([
             "-l",
             "-T",
@@ -588,7 +584,7 @@ fn test_summary_tree_mode_with_only_files() {
     );
 
     // Long tree: -l -T -f --print-total
-    let output_long_total = Command::new(bin_path())
+    let output_long_total = crate::common::lez_cmd()
         .args([
             "-l",
             "-T",
@@ -617,7 +613,7 @@ fn test_summary_tree_mode_with_only_files_empty_and_dirs_only() {
     temp.create_dir("d1/d2/d3");
 
     // Directory with only subdirectories
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -635,7 +631,7 @@ fn test_summary_tree_mode_with_only_files_empty_and_dirs_only() {
         "0 directories, 0 files, 0 symlinks (0 total)"
     );
 
-    let output_total = Command::new(bin_path())
+    let output_total = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -652,7 +648,7 @@ fn test_summary_tree_mode_with_only_files_empty_and_dirs_only() {
 
     // Empty directory
     let temp_empty = TempTestDir::new("tree_empty");
-    let output_empty = Command::new(bin_path())
+    let output_empty = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -670,7 +666,7 @@ fn test_summary_tree_mode_with_only_files_empty_and_dirs_only() {
         "0 directories, 0 files, 0 symlinks (0 total)"
     );
 
-    let output_empty_total = Command::new(bin_path())
+    let output_empty_total = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -701,7 +697,7 @@ fn test_summary_tree_mode_with_level_and_multi_dirs() {
     std::fs::write(dir2.join("f4.txt"), b"4").unwrap();
 
     // -T -f -L 2 --summary dir1: stops at depth 2, f3.txt is excluded
-    let output_l2 = Command::new(bin_path())
+    let output_l2 = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -722,7 +718,7 @@ fn test_summary_tree_mode_with_level_and_multi_dirs() {
     );
 
     // -T -f -L 2 --print-total dir1
-    let output_l2_tot = Command::new(bin_path())
+    let output_l2_tot = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -740,7 +736,7 @@ fn test_summary_tree_mode_with_level_and_multi_dirs() {
     assert_eq!(total_l2.trim(), "total: 3");
 
     // -T -f -L 1 --summary dir1: only depth 1 items
-    let output_l1 = Command::new(bin_path())
+    let output_l1 = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -761,7 +757,7 @@ fn test_summary_tree_mode_with_level_and_multi_dirs() {
     );
 
     // -T -f --summary dir1 dir2: multi-directory accumulation
-    let output_multi = Command::new(bin_path())
+    let output_multi = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -781,7 +777,7 @@ fn test_summary_tree_mode_with_level_and_multi_dirs() {
     );
 
     // -T -f --print-total dir1 dir2
-    let output_multi_tot = Command::new(bin_path())
+    let output_multi_tot = crate::common::lez_cmd()
         .args([
             "-T",
             "-f",
@@ -809,7 +805,7 @@ fn test_summary_dereference_symlinks() {
     temp.create_symlink("nonexistent", "broken_link");
 
     // Without -X: 1 directory, 1 file, 3 symlinks (5 total)
-    let output_no_deref = Command::new(bin_path())
+    let output_no_deref = crate::common::lez_cmd()
         .args([
             "-l",
             "--summary",
@@ -828,7 +824,7 @@ fn test_summary_dereference_symlinks() {
     // file_link -> file (so 2 files)
     // broken_link -> symlink (1 symlink)
     // Total: 2 directories, 2 files, 1 symlink (5 total)
-    let output_deref = Command::new(bin_path())
+    let output_deref = crate::common::lez_cmd()
         .args([
             "-l",
             "-X",

@@ -63,16 +63,6 @@ impl Drop for TempEnv {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("failed to get current_exe");
-    path.pop(); // Remove test binary name
-    if path.ends_with("deps") {
-        path.pop(); // Remove deps
-    }
-    path.push("lez");
-    path
-}
-
 // ---------------------------------------------------------------------------
 // 1. CLI ARGUMENT INTERACTIONS & CONFLICTS
 // ---------------------------------------------------------------------------
@@ -85,7 +75,7 @@ fn test_cli_repeated_flags() {
     temp.create_file("external/target_secret.txt", b"hello");
     temp.create_symlink("../external/target_secret.txt", "sub/link.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--no-symlink-targets")
@@ -105,7 +95,7 @@ fn test_cli_repeated_flags() {
 #[cfg(unix)]
 fn test_cli_invalid_value_passed_to_flag() {
     // Flag is a boolean switch, passing a value should fail parsing
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--no-symlink-targets=invalid")
         .output()
         .expect("lez command failed");
@@ -127,7 +117,7 @@ fn test_cli_interaction_with_dereference() {
     temp.create_symlink("target.txt", "link.txt");
 
     // With --dereference (-X), symlinks are followed and shown as regular files
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-X") // --dereference
         .arg("--no-symlink-targets")
@@ -154,7 +144,7 @@ fn test_cli_interaction_with_no_symlinks_and_no_symlink_targets() {
     temp.create_file("regular.txt", b"regular");
     temp.create_symlink("regular.txt", "sym.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlinks")
         .arg("--no-symlink-targets")
@@ -178,7 +168,7 @@ fn test_cli_interaction_with_hyperlinks() {
     temp.create_file("external/secret_target.txt", b"abc");
     temp.create_symlink("../external/secret_target.txt", "sub/link.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--hyperlink=always")
         .arg("--no-symlink-targets")
@@ -202,7 +192,7 @@ fn test_cli_interaction_with_icons() {
     temp.create_file("external/secret_rust.rs", b"fn main() {}");
     temp.create_symlink("../external/secret_rust.rs", "sub/rust_link.rs");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--icons=always")
         .arg("--no-symlink-targets")
@@ -225,7 +215,7 @@ fn test_cli_interaction_with_octal_and_time_style() {
     temp.create_file("external/time_target.txt", b"time");
     temp.create_symlink("../external/time_target.txt", "sub/time_link.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--octal-permissions")
         .arg("--time-style=iso")
@@ -268,7 +258,7 @@ fn test_view_mode_grid() {
     temp.create_file("target.txt", b"grid");
     temp.create_symlink("target.txt", "link.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--grid")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -291,7 +281,7 @@ fn test_view_mode_lines() {
     temp.create_symlink("target.txt", "link.txt");
 
     // Standard oneline: shows clean "link.txt" without target
-    let out_default = Command::new(bin_path())
+    let out_default = crate::common::lez_cmd()
         .arg("-1")
         .arg("--color=never")
         .arg(temp.path())
@@ -303,7 +293,7 @@ fn test_view_mode_lines() {
     assert!(!stdout_def.contains("->"));
 
     // Suppressed oneline: shows only "link.txt"
-    let out_suppressed = Command::new(bin_path())
+    let out_suppressed = crate::common::lez_cmd()
         .arg("-1")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -325,7 +315,7 @@ fn test_view_mode_grid_details() {
         temp.create_symlink(&format!("file_{i}.txt"), &format!("link_{i}.txt"));
     }
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--grid")
         .arg("--no-symlink-targets")
@@ -348,7 +338,7 @@ fn test_view_mode_tree_details() {
     temp.create_file("nested/sub/deep.txt", b"deep");
     temp.create_symlink("deep.txt", "nested/sub/link_to_deep");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-T")
         .arg("--no-symlink-targets")
@@ -374,7 +364,7 @@ fn test_circular_symlink() {
     let temp = TempEnv::new("circular");
     temp.create_symlink("self_loop", "self_loop");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -395,7 +385,7 @@ fn test_mutual_circular_symlinks() {
     temp.create_symlink("link_b", "link_a");
     temp.create_symlink("link_a", "link_b");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -421,7 +411,7 @@ fn test_deep_symlink_chain() {
     temp.create_symlink("hop_2", "sub/hop_3");
     temp.create_symlink("hop_3", "sub/hop_4");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -445,7 +435,7 @@ fn test_extremely_long_symlink_target_path() {
     let long_target = format!("/tmp/nonexistent_path_{}", "a".repeat(800));
     temp.create_symlink(&long_target, "link_with_long_target");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -468,7 +458,7 @@ fn test_symlink_as_direct_cli_positional_arg() {
     temp.create_file("external/actual_secret.txt", b"data");
     let link_path = temp.create_symlink("../external/actual_secret.txt", "sub/link.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -491,7 +481,7 @@ fn test_symlink_via_stdin() {
     temp.create_file("external/f1_secret.txt", b"f1");
     temp.create_symlink("../external/f1_secret.txt", "sub/l1.txt");
 
-    let mut child = Command::new(bin_path())
+    let mut child = crate::common::lez_cmd()
         .arg("-l")
         .arg("--stdin")
         .arg("--no-symlink-targets")
@@ -529,7 +519,7 @@ fn test_unicode_and_spaces_in_symlinks() {
     temp.create_file("external/secret_🦀_rust_🚀.dat", b"unicode");
     temp.create_symlink("../external/secret_🦀_rust_🚀.dat", "sub/🔗_link_⭐.dat");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")
@@ -564,7 +554,7 @@ fn test_stress_large_batch_symlinks() {
 
     // Measure runtime with --no-symlink-targets
     let start = Instant::now();
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--no-symlink-targets")
         .arg("--color=never")

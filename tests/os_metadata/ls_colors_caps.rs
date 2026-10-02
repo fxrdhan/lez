@@ -38,7 +38,7 @@ impl Fixture {
     }
 
     fn lez(&self, ls_colors: &str, args: &[&str]) -> String {
-        let output = Command::new(env!("CARGO_BIN_EXE_lez"))
+        let output = crate::common::lez_cmd()
             .args(["--color=always"])
             .args(args)
             .current_dir(&self.path)

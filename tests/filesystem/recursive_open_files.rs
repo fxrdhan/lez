@@ -49,7 +49,7 @@ fn test_recursive_many_subdirectories_no_fd_exhaustion() {
         fs::write(sub.join("file.txt"), b"hello").expect("failed to write file");
     }
 
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-R")
         .arg(&temp.path)

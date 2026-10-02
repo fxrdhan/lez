@@ -46,15 +46,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_long_grid_across_sorting_and_rendering() {
     let temp = TempTestDir::new("across");
@@ -63,7 +54,7 @@ fn test_long_grid_across_sorting_and_rendering() {
     temp.create_file("3.txt", b"3");
     temp.create_file("4.txt", b"4");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--long")
         .arg("--grid")
         .arg("--across")
@@ -89,7 +80,7 @@ fn test_long_grid_without_across() {
     temp.create_file("c.txt", b"c");
     temp.create_file("d.txt", b"d");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-G")
         .arg("--color=never")

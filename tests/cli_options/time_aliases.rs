@@ -7,15 +7,6 @@ use std::fs::{self, File as StdFile};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_time_field_aliases_modified_cli() {
     let temp_dir = std::env::temp_dir().join("lez_test_time_aliases");
@@ -36,7 +27,7 @@ fn test_time_field_aliases_modified_cli() {
         "-tm",
         "--time=modified",
     ] {
-        let output = Command::new(bin_path())
+        let output = crate::common::lez_cmd()
             .arg("-l")
             .arg(arg)
             .arg(&test_file)
@@ -52,7 +43,7 @@ fn test_time_field_aliases_modified_cli() {
 
     // Test separate space-separated arguments: -t modified, -t accessed, etc.
     for time_arg in ["modified", "accessed", "changed", "created"] {
-        let output = Command::new(bin_path())
+        let output = crate::common::lez_cmd()
             .arg("-l")
             .arg("-t")
             .arg(time_arg)
@@ -68,7 +59,7 @@ fn test_time_field_aliases_modified_cli() {
     }
 
     // Test clustered short flags: -ltr
-    let output_ltr = Command::new(bin_path())
+    let output_ltr = crate::common::lez_cmd()
         .arg("-ltr")
         .arg(&temp_dir)
         .output()
@@ -93,7 +84,7 @@ fn test_target_files_named_like_time_values_not_swallowed() {
     fs::write(temp_dir.join("modified"), b"modified content").unwrap();
     fs::write(temp_dir.join("other_file.txt"), b"other content").unwrap();
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .current_dir(&temp_dir)
         .args(["-1", "-t", "mod"])
         .output()
@@ -108,7 +99,7 @@ fn test_target_files_named_like_time_values_not_swallowed() {
         "Expected only 'mod' to be listed, got: {stdout}"
     );
 
-    let output_mod = Command::new(bin_path())
+    let output_mod = crate::common::lez_cmd()
         .current_dir(&temp_dir)
         .args(["-1", "-t", "modified"])
         .output()
@@ -123,7 +114,7 @@ fn test_target_files_named_like_time_values_not_swallowed() {
         "Expected only 'modified' to be listed, got: {stdout_mod}"
     );
 
-    let output_bare_t = Command::new(bin_path())
+    let output_bare_t = crate::common::lez_cmd()
         .current_dir(&temp_dir)
         .args(["-t", "mod"])
         .output()
@@ -139,7 +130,7 @@ fn test_target_files_named_like_time_values_not_swallowed() {
 
     // When 'modified' file exists on disk, 'lez -l -t modified other_file.txt' must
     // still treat 'modified' as the --time argument, listing ONLY other_file.txt
-    let output_l_t = Command::new(bin_path())
+    let output_l_t = crate::common::lez_cmd()
         .current_dir(&temp_dir)
         .args(["-l", "-t", "modified", "other_file.txt"])
         .output()
@@ -157,7 +148,7 @@ fn test_target_files_named_like_time_values_not_swallowed() {
     );
 
     // Non-existent target file named like a time value must error out, NOT swallow and list '.'
-    let output_missing = Command::new(bin_path())
+    let output_missing = crate::common::lez_cmd()
         .current_dir(&temp_dir)
         .args(["-1", "-t", "does_not_exist_mod"])
         .output()
@@ -190,7 +181,7 @@ fn test_t_flag_sorts_by_time_in_grid_and_tree() {
     f.set_times(times).unwrap();
 
     // In default grid view (no -l, no -1), -t should sort newest first (z_newer before a_older)
-    let output_grid = Command::new(bin_path())
+    let output_grid = crate::common::lez_cmd()
         .current_dir(&temp_dir)
         .args(["-t"])
         .output()
@@ -206,7 +197,7 @@ fn test_t_flag_sorts_by_time_in_grid_and_tree() {
     );
 
     // With -t -r, older file should come first
-    let output_rev = Command::new(bin_path())
+    let output_rev = crate::common::lez_cmd()
         .current_dir(&temp_dir)
         .args(["-t", "-r"])
         .output()
@@ -222,7 +213,7 @@ fn test_t_flag_sorts_by_time_in_grid_and_tree() {
     );
 
     // In tree view (-T -t), newest first
-    let output_tree = Command::new(bin_path())
+    let output_tree = crate::common::lez_cmd()
         .current_dir(&temp_dir)
         .args(["-T", "-t"])
         .output()

@@ -49,7 +49,7 @@ fn numbered_dir() -> TempTestDir {
 }
 
 fn run(args: &[&str]) -> String {
-    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let out = crate::common::lez_cmd()
         .args(args)
         .output()
         .expect("failed to run lez");
@@ -88,7 +88,7 @@ fn dash_v_lists_files_rather_than_printing_a_version() {
 
 #[test]
 fn long_version_flag_still_prints_the_version() {
-    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let out = crate::common::lez_cmd()
         .arg("--version")
         .output()
         .expect("failed to run lez");

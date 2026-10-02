@@ -7,15 +7,6 @@ use std::fs::{self, File as StdFile};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 use std::time::{SystemTime, UNIX_EPOCH};
 
 struct TempSpecialDir {
@@ -59,7 +50,7 @@ fn test_special_dirs_icons_cli() {
     if let Some(doc_dir) = dirs::document_dir()
         && doc_dir.exists()
     {
-        let output = Command::new(bin_path())
+        let output = crate::common::lez_cmd()
             .arg("-d")
             .arg("--icons=always")
             .arg(&doc_dir)
@@ -78,7 +69,7 @@ fn test_special_dirs_icons_cli() {
     if let Some(dl_dir) = dirs::download_dir()
         && dl_dir.exists()
     {
-        let output = Command::new(bin_path())
+        let output = crate::common::lez_cmd()
             .arg("-d")
             .arg("--icons=always")
             .arg(&dl_dir)
@@ -101,7 +92,7 @@ fn test_special_dirs_icons_cli() {
     let music = temp.create_dir("Music");
     let pics = temp.create_dir("Pictures");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=always")
         .arg(&temp.path)
         .env("HOME", &temp.path)

@@ -32,15 +32,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_cli_order_precedence_between_almost_all_and_double_all() {
     let temp = TempTestDir::new("all_almost_all_order");
@@ -50,7 +41,7 @@ fn test_cli_order_precedence_between_almost_all_and_double_all() {
     StdFile::create(&hidden).expect("create hidden");
 
     // 1. -a -a without -A shows "." and ".."
-    let out_double_all = Command::new(bin_path())
+    let out_double_all = crate::common::lez_cmd()
         .arg("-a")
         .arg("-a")
         .arg(&temp.path)
@@ -69,7 +60,7 @@ fn test_cli_order_precedence_between_almost_all_and_double_all() {
     );
 
     // 2. -A alone hides "." and ".."
-    let out_almost_all = Command::new(bin_path())
+    let out_almost_all = crate::common::lez_cmd()
         .arg("-A")
         .arg(&temp.path)
         .output()
@@ -91,7 +82,7 @@ fn test_cli_order_precedence_between_almost_all_and_double_all() {
     );
 
     // 3. -A followed by -a -a: -a -a is later on command line, so -a -a wins and "." / ".." are shown
-    let out_almost_then_double = Command::new(bin_path())
+    let out_almost_then_double = crate::common::lez_cmd()
         .arg("-A")
         .arg("-a")
         .arg("-a")
@@ -111,7 +102,7 @@ fn test_cli_order_precedence_between_almost_all_and_double_all() {
     );
 
     // 4. -a -a followed by -A: -A is later on command line, so -A wins and "." / ".." are suppressed
-    let out_double_then_almost = Command::new(bin_path())
+    let out_double_then_almost = crate::common::lez_cmd()
         .arg("-a")
         .arg("-a")
         .arg("-A")
@@ -142,7 +133,7 @@ fn test_strict_mode_rejects_modern_long_flags_without_long() {
         "--color-scale-mode=gradient",
         "--no-symlink-targets",
     ] {
-        let out = Command::new(bin_path())
+        let out = crate::common::lez_cmd()
             .env("LEZ_STRICT", "1")
             .env_remove("EZA_STRICT")
             .arg(flag_arg)
@@ -168,7 +159,7 @@ fn test_strict_mode_rejects_modern_long_flags_without_long() {
         "--color-scale-mode=gradient",
         "--no-symlink-targets",
     ] {
-        let out = Command::new(bin_path())
+        let out = crate::common::lez_cmd()
             .env("LEZ_STRICT", "1")
             .env_remove("EZA_STRICT")
             .arg("-l")
@@ -191,7 +182,7 @@ fn test_strict_mode_rejects_follow_symlinks_without_recurse_or_tree() {
     StdFile::create(&sample).expect("create file");
 
     // Without -R or -T, --follow-symlinks in strict mode must return exit code 3
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .env("LEZ_STRICT", "1")
         .env_remove("EZA_STRICT")
         .arg("--follow-symlinks")
@@ -211,7 +202,7 @@ fn test_strict_mode_rejects_follow_symlinks_without_recurse_or_tree() {
     );
 
     // With -R (recurse), --follow-symlinks in strict mode must succeed
-    let out_recurse = Command::new(bin_path())
+    let out_recurse = crate::common::lez_cmd()
         .env("LEZ_STRICT", "1")
         .env_remove("EZA_STRICT")
         .arg("-R")
@@ -226,7 +217,7 @@ fn test_strict_mode_rejects_follow_symlinks_without_recurse_or_tree() {
     );
 
     // With -T (tree), --follow-symlinks in strict mode must succeed
-    let out_tree = Command::new(bin_path())
+    let out_tree = crate::common::lez_cmd()
         .env("LEZ_STRICT", "1")
         .env_remove("EZA_STRICT")
         .arg("-T")

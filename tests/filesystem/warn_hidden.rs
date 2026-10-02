@@ -37,7 +37,7 @@ impl TempTestDir {
 }
 
 fn run_lez(args: &[&str]) -> (String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let output = crate::common::lez_cmd()
         .args(args)
         .output()
         .expect("Failed to execute lez binary");

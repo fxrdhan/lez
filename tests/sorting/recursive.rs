@@ -48,10 +48,6 @@ impl Drop for TempEnv {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn recursive_lines_maintains_correct_sort_order() {
     let temp = TempEnv::new("lines_sort");
@@ -61,7 +57,7 @@ fn recursive_lines_maintains_correct_sort_order() {
     temp.create_file("dir_a/sub/file_b.txt");
     temp.create_file("dir_a/sub/file_a.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-R")
         .arg("-1")
         .arg("--color=never")
@@ -89,7 +85,7 @@ fn recursive_grid_maintains_correct_sort_order() {
     temp.create_file("sub/file_a.txt");
     temp.create_file("sub/file_b.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-R")
         .arg("--color=never")
         .arg(temp.path())
@@ -110,7 +106,7 @@ fn recursive_reverse_sort_order() {
     temp.create_file("sub/file_2.txt");
     temp.create_file("sub/file_3.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-R")
         .arg("-1")
         .arg("-r")

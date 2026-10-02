@@ -52,13 +52,12 @@ impl Drop for TempTestDir {
 
 #[test]
 fn test_json_cli_short_single_directory() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_short");
     temp.create_file("alpha.txt", b"a");
     temp.create_file("beta.rs", b"b");
     temp.create_dir("gamma_dir");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -75,10 +74,9 @@ fn test_json_cli_short_single_directory() {
 
 #[test]
 fn test_json_cli_short_empty_directory() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_empty");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -94,11 +92,10 @@ fn test_json_cli_short_empty_directory() {
 
 #[test]
 fn test_json_cli_short_single_file() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_file");
     let file_path = temp.create_file("solo.txt", b"solo");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", file_path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -115,14 +112,13 @@ fn test_json_cli_short_single_file() {
 
 #[test]
 fn test_json_cli_short_multi_directories() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_multidir");
     let dir_a = temp.create_dir("dirA");
     let dir_b = temp.create_dir("dirB");
     temp.create_file("dirA/file_a.txt", b"a");
     temp.create_file("dirB/file_b.txt", b"b");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", dir_a.to_str().unwrap(), dir_b.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -146,13 +142,12 @@ fn test_json_cli_short_multi_directories() {
 
 #[test]
 fn test_json_cli_short_mixed_files_and_directories() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_mixed");
     let f1 = temp.create_file("top.txt", b"top");
     let dir1 = temp.create_dir("subfolder");
     temp.create_file("subfolder/inner.txt", b"inner");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", f1.to_str().unwrap(), dir1.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -169,7 +164,6 @@ fn test_json_cli_short_mixed_files_and_directories() {
 
 #[test]
 fn test_json_cli_long_metadata_schema() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long");
     let _file = temp.create_file("test.txt", b"content of test file");
     #[cfg(unix)]
@@ -180,7 +174,7 @@ fn test_json_cli_long_metadata_schema() {
         fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
     }
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args([
             "-l",
             "--octal-permissions",
@@ -211,10 +205,9 @@ fn test_json_cli_long_metadata_schema() {
 
 #[test]
 fn test_json_cli_long_empty_directory() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long_empty");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-l", "--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -229,12 +222,11 @@ fn test_json_cli_long_empty_directory() {
 
 #[test]
 fn test_json_cli_all_hidden_files() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_hidden");
     temp.create_file(".secret.txt", b"secret");
     temp.create_file("visible.txt", b"visible");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-a", "--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -251,13 +243,12 @@ fn test_json_cli_all_hidden_files() {
 
 #[test]
 fn test_json_cli_bytes_and_binary_units() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_units");
     temp.create_file("large.bin", &vec![0u8; 1024 * 1024]);
 
     // --bytes mode
     // Under the C locale there is no digit grouping to vary by machine.
-    let out_bytes = Command::new(bin_path)
+    let out_bytes = crate::common::lez_cmd()
         .args(["-l", "--bytes", "--json", temp.path.to_str().unwrap()])
         .env("LC_ALL", "C")
         .output()
@@ -275,7 +266,7 @@ fn test_json_cli_bytes_and_binary_units() {
     assert_eq!(size_bytes, crate::common::grouped(1_048_576));
 
     // --binary mode
-    let out_binary = Command::new(bin_path)
+    let out_binary = crate::common::lez_cmd()
         .args(["-l", "--binary", "--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -294,7 +285,6 @@ fn test_json_cli_bytes_and_binary_units() {
 
 #[test]
 fn test_json_cli_time_styles() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_time");
     let stamp = temp.create_file("stamp.txt", b"timestamp test");
     // 2023-11-14 22:13:20 UTC: old enough for the full-date form of `iso`.
@@ -304,7 +294,7 @@ fn test_json_cli_time_styles() {
         .and_then(|f| f.set_modified(UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000)))
         .unwrap();
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args([
             "-l",
             "--time-style=iso",
@@ -330,12 +320,11 @@ fn test_json_cli_time_styles() {
 
 #[test]
 fn test_json_cli_recursive_tree() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_tree");
     temp.create_file("root_file.txt", b"root");
     temp.create_file("sub/nested_file.txt", b"nested");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-R", "--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -354,12 +343,11 @@ fn test_json_cli_recursive_tree() {
 
 #[test]
 fn test_json_cli_recursive_long_tree() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_long_tree");
     temp.create_file("root_file.txt", b"root");
     temp.create_file("sub/nested_file.txt", b"nested");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-l", "-R", "--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -383,7 +371,6 @@ fn test_json_cli_recursive_long_tree() {
 
 #[test]
 fn test_json_cli_special_characters_escaping() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_escaping");
     temp.create_file("file with spaces.txt", b"1");
     #[cfg(unix)]
@@ -391,7 +378,7 @@ fn test_json_cli_special_characters_escaping() {
     temp.create_file("emoji_🚀_tag.txt", b"3");
     temp.create_file("unicode_日本語_test.txt", b"4");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -412,11 +399,10 @@ fn test_json_cli_special_characters_escaping() {
 
 #[test]
 fn test_json_cli_no_ansi_escapes() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_no_ansi");
     temp.create_file("plain.txt", b"plain");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args([
             "-l",
             "--color=always",
@@ -438,13 +424,12 @@ fn test_json_cli_no_ansi_escapes() {
 #[test]
 #[cfg(unix)]
 fn test_json_cli_symlinks() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_symlink");
     let target = temp.create_file("target.txt", b"target");
     let link_path = temp.path.join("link.txt");
     std::os::unix::fs::symlink(&target, &link_path).unwrap();
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-l", "--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -463,7 +448,6 @@ fn test_json_cli_symlinks() {
 #[test]
 #[cfg(feature = "git")]
 fn test_json_cli_git_status() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_git");
     let repo = git2::Repository::init(&temp.path).expect("Failed to init git repo");
 
@@ -476,7 +460,7 @@ fn test_json_cli_git_status() {
     let mut f = StdFile::create(&file_path).unwrap();
     f.write_all(b"modified").unwrap();
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-l", "--git", "--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -497,12 +481,11 @@ fn test_json_cli_git_status() {
 
 #[test]
 fn test_json_long_duplicate_filenames_across_paths() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_collisions");
     let f1 = temp.create_file("sub1/target.txt", b"content1");
     let f2 = temp.create_file("sub2/target.txt", b"content2");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", "-l", f1.to_str().unwrap(), f2.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -521,12 +504,11 @@ fn test_json_long_duplicate_filenames_across_paths() {
 #[test]
 #[cfg(unix)]
 fn test_json_smart_group_emits_actual_group_never_colon() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_sg_never_colon");
     temp.create_file("file1.txt", b"hello");
     temp.create_file("file2.txt", b"world");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-l", "--smart-group", "--json", temp.path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -556,11 +538,10 @@ fn test_json_smart_group_emits_actual_group_never_colon() {
 #[test]
 #[cfg(unix)]
 fn test_json_smart_group_with_numeric_emits_gid() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_sg_numeric");
     temp.create_file("alpha.txt", b"alpha");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args([
             "-l",
             "--smart-group",
@@ -602,12 +583,11 @@ fn test_json_smart_group_with_numeric_emits_gid() {
 #[test]
 #[cfg(unix)]
 fn test_json_smart_group_matches_the_plain_group_column() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_sg_matches_group");
     temp.create_file("owned.txt", b"mine");
 
     let group_of = |flags: &[&str]| -> String {
-        let output = Command::new(bin_path)
+        let output = crate::common::lez_cmd()
             .args(["-l", "--json"])
             .args(flags)
             .arg(temp.path.to_str().unwrap())
@@ -633,14 +613,13 @@ fn test_json_smart_group_matches_the_plain_group_column() {
 #[test]
 #[cfg(unix)]
 fn test_json_symlink_cycle_does_not_hang() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_symlink_cycle");
     let sub = temp.create_dir("sub");
     temp.create_file("sub/hello.txt", b"hello");
     let loop_link = sub.join("loop");
     std::os::unix::fs::symlink(&sub, &loop_link).unwrap();
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-R", "--json", sub.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -659,7 +638,6 @@ fn test_json_permission_denied_exit_code_and_json() {
         return;
     }
     use std::os::unix::fs::PermissionsExt;
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_perm_denied");
     let restricted = temp.create_dir("restricted");
     temp.create_file("restricted/secret.txt", b"secret");
@@ -669,7 +647,7 @@ fn test_json_permission_denied_exit_code_and_json() {
     no_perms.set_mode(0o000);
     fs::set_permissions(&restricted, no_perms).unwrap();
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", restricted.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -694,14 +672,13 @@ fn test_json_permission_denied_exit_code_and_json() {
 
 #[test]
 fn test_json_multi_dir_same_basename() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_same_basename");
     let p1 = temp.create_dir("parent1/common");
     let p2 = temp.create_dir("parent2/common");
     temp.create_file("parent1/common/a.txt", b"a");
     temp.create_file("parent2/common/b.txt", b"b");
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--json", p1.to_str().unwrap(), p2.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");
@@ -721,13 +698,12 @@ fn test_json_multi_dir_same_basename() {
 #[test]
 #[cfg(unix)]
 fn test_json_symlink_target_field() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("json_symlink_target");
     let target = temp.create_file("target.txt", b"target");
     let link_path = temp.path.join("link.txt");
     std::os::unix::fs::symlink(&target, &link_path).unwrap();
 
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-l", "--json", link_path.to_str().unwrap()])
         .output()
         .expect("Failed to run lez");

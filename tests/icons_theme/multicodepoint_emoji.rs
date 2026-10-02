@@ -52,15 +52,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_theme_with_multicodepoint_emojis() {
     let temp = TempTestDir::new("emoji_theme");
@@ -110,7 +101,7 @@ extensions:
     temp.create_dir("Docs");
     temp.create_file("main.rs", b"fn main() {}");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--color=always")
         .arg("--icons=always")
         .arg(&temp.path)
@@ -147,7 +138,7 @@ filenames:
 
     temp.create_file("family", b"members");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--color=always")
         .arg("--icons=always")
         .arg(&temp.path)

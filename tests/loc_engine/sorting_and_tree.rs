@@ -3,7 +3,7 @@
 
 use std::process::Command;
 
-use crate::common::{TempTestDir, bin_path};
+use crate::common::TempTestDir;
 
 #[test]
 fn test_code_sorting_default_descending() {
@@ -16,7 +16,7 @@ fn test_code_sorting_default_descending() {
     // Shell: 1 line
     tmp.create_file("run.sh", b"echo 'run'\n");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .arg(tmp.path())
         .output()
@@ -40,7 +40,7 @@ fn test_code_sorting_reverse_ascending() {
     tmp.create_file("script.py", b"print('hello')\nprint('world')\n");
     tmp.create_file("run.sh", b"echo 'run'\n");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .arg("-r")
         .arg(tmp.path())
@@ -66,7 +66,7 @@ fn test_code_sorting_by_name() {
     tmp.create_file("run.sh", b"echo 'run'\n");
 
     // -s name: Alphabetical A-Z (Python -> Rust -> Shell)
-    let out_az = Command::new(bin_path())
+    let out_az = crate::common::lez_cmd()
         .arg("--code")
         .arg("-s")
         .arg("name")
@@ -84,7 +84,7 @@ fn test_code_sorting_by_name() {
     assert!(rust_pos < shell_pos);
 
     // -s name -r: Alphabetical Z-A (Shell -> Rust -> Python)
-    let out_za = Command::new(bin_path())
+    let out_za = crate::common::lez_cmd()
         .arg("--code")
         .arg("-s")
         .arg("name")
@@ -112,7 +112,7 @@ fn test_code_sorting_percent_aliases() {
 
     for sort_alias in &["percent", "percentage", "loc", "code", "size"] {
         // Ascending with -r
-        let out = Command::new(bin_path())
+        let out = crate::common::lez_cmd()
             .arg("--code")
             .arg("-s")
             .arg(sort_alias)
@@ -139,7 +139,7 @@ fn test_code_sub_language_tree_indentation() {
         b"# Title\n\n```rust\nfn main() {}\n```\n\n```python\nprint('hi')\n```\n";
     tmp.create_file("README.md", markdown_content);
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .arg(tmp.path())
         .output()
@@ -159,7 +159,7 @@ fn test_code_ignore_glob() {
     tmp.create_file("script.py", b"print('hello')\n");
 
     // Filter out Python with -I
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .arg("-I")
         .arg("*.py")
@@ -172,7 +172,7 @@ fn test_code_ignore_glob() {
     assert!(!stdout.contains("Python"));
 
     // Filter out both
-    let out_none = Command::new(bin_path())
+    let out_none = crate::common::lez_cmd()
         .arg("--code")
         .arg("-I")
         .arg("*.py")
@@ -192,7 +192,7 @@ fn test_code_only_files() {
     let file_root = tmp.create_file("root.rs", b"fn main() {}\n");
     tmp.create_file("nested/child.py", b"print('child')\n");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .arg("-f")
         .arg(&file_root)
@@ -215,7 +215,7 @@ fn test_code_no_git() {
     tmp.create_file("ignored.py", b"print('ignored')\n");
 
     // Normal --code honours .gitignore
-    let out_git = Command::new(bin_path())
+    let out_git = crate::common::lez_cmd()
         .arg("--code")
         .arg(tmp.path())
         .output()
@@ -226,7 +226,7 @@ fn test_code_no_git() {
     assert!(!stdout_git.contains("Python"));
 
     // --no-git suppresses git checks and counts ignored.py
-    let out_no_git = Command::new(bin_path())
+    let out_no_git = crate::common::lez_cmd()
         .arg("--code")
         .arg("--no-git")
         .arg(tmp.path())
@@ -250,7 +250,7 @@ fn test_code_since_filter() {
     let times = std::fs::FileTimes::new().set_modified(two_days_ago);
     old_f.set_times(times).unwrap();
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .arg("--since")
         .arg("1h")
@@ -268,7 +268,7 @@ fn test_code_only_dirs() {
     let tmp = TempTestDir::new("code_only_dirs");
     tmp.create_file("root.rs", b"fn main() {}\n");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .arg("-D")
         .arg(tmp.path())
@@ -284,7 +284,7 @@ fn test_code_single_file_root_ignored() {
     let tmp = TempTestDir::new("code_single_file_root_ignored");
     let file = tmp.create_file("ignored.rs", b"fn main() {}\n");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .arg("-I")
         .arg("*.rs")
@@ -304,7 +304,7 @@ fn test_code_summary_unicode_width_formatting() {
         b"fn main() {\n    println!(\"CJK filename\");\n}\n",
     );
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .args(["--code", "--color=never"])
         .arg(tmp.path())
         .output()

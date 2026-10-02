@@ -48,7 +48,7 @@ impl Drop for TempTestDir {
 }
 
 fn run_lez(args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_lez"))
+    crate::common::lez_cmd()
         .args(args)
         .output()
         .expect("Failed to execute lez binary")
@@ -152,7 +152,7 @@ fn a_spaced_value_is_listed_as_a_path() {
     // value of --color and the whole directory was listed instead.
     fixture.create_file("bystander.txt");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let output = crate::common::lez_cmd()
         .current_dir(&fixture.path)
         .args(["--color", "always"])
         .output()

@@ -14,15 +14,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 struct XattrTestDir {
     path: PathBuf,
 }
@@ -192,7 +183,7 @@ fn test_real_macos_extended_attributes_roundtrip() {
     }
 
     // 1. lez -l -@
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-@")
         .arg("--color=never")
@@ -206,7 +197,7 @@ fn test_real_macos_extended_attributes_roundtrip() {
     assert!(stdout.contains("com.apple.metadata:kCustomField"));
 
     // 2. lez -l --extended
-    let output_ext = Command::new(bin_path())
+    let output_ext = crate::common::lez_cmd()
         .arg("-l")
         .arg("--extended")
         .arg("--color=never")

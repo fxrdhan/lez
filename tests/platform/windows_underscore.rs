@@ -43,10 +43,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_underscore_prefixed_files_visible_by_default() {
     let temp = TempTestDir::new("python_files");
@@ -56,7 +52,7 @@ fn test_underscore_prefixed_files_visible_by_default() {
     temp.create_file("regular_file.txt");
     temp.create_file(".real_hidden_dotfile");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--color=never")
         .arg(&temp.path)
         .output()

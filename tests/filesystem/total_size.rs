@@ -48,16 +48,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("failed to get current_exe");
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.push("lez");
-    path
-}
-
 /// The size column of a long-view row: `permissions size user date… name`.
 ///
 /// Tests here have to look at that column specifically. Substring-matching the
@@ -81,7 +71,7 @@ fn test_total_size_aal_parent_exclusion() {
     // Small file in child
     parent.create_file("child/child_small.bin", &vec![0u8; 1024]);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-aal")
         .arg("--total-size")
         .arg(&child_dir)
@@ -137,7 +127,7 @@ fn test_total_size_dotfile_filter_parity() {
     temp.create_file("target/.hidden_dir/nested.bin", &vec![0u8; 16384]);
 
     // 1. Without -a (dotfiles hidden): total size should not include .hidden.bin or .hidden_dir
-    let out_no_a = Command::new(bin_path())
+    let out_no_a = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&target_dir)
@@ -163,7 +153,7 @@ fn test_total_size_dotfile_filter_parity() {
     );
 
     // 2. With -a (dotfiles shown): total size should include hidden files (4096 + 8192 + 16384 = 28672)
-    let out_with_a = Command::new(bin_path())
+    let out_with_a = crate::common::lez_cmd()
         .arg("-lad")
         .arg("--total-size")
         .arg(&target_dir)
@@ -201,7 +191,7 @@ fn test_total_size_hardlink_deduplication() {
 
     // Total unique file bytes in tree: 10000 + 5000 = 15000 (15KB).
     // If hardlinks were double/triple counted, it would be 10000*3 + 5000 = 35000 (35KB).
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&target_dir)

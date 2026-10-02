@@ -46,15 +46,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[cfg(target_os = "macos")]
 fn set_macos_tags(file_path: &Path, tags: &[&str]) {
     let plist_arr: Vec<plist::Value> = tags
@@ -90,7 +81,7 @@ fn test_tags_cli_flag() {
     #[cfg(target_os = "macos")]
     set_macos_tags(&_file, &["Work\n6", "Review\n1"]);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--tags")
         .arg(&temp.path)
@@ -122,7 +113,7 @@ fn test_macos_finder_tags_display() {
 
     set_macos_tags(&file, &["Important\n6"]);
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("-e")
         .arg(&file)

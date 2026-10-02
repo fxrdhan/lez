@@ -415,12 +415,11 @@ fn test_strict_mode_conflicting_options() {
 
 #[test]
 fn test_strict_mode_cli_process_exit_codes() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("exit_codes");
     let temp_str = temp.path.to_str().unwrap();
 
     // Success case in strict mode
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-l", temp_str])
         .env("EZA_STRICT", "1")
         .output()
@@ -428,7 +427,7 @@ fn test_strict_mode_cli_process_exit_codes() {
     assert_eq!(output.status.code(), Some(0));
 
     // Error case in strict mode: --binary without -l -> Exit 3 (OPTIONS_ERROR)
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--binary", temp_str])
         .env("EZA_STRICT", "1")
         .output()
@@ -436,7 +435,7 @@ fn test_strict_mode_cli_process_exit_codes() {
     assert_eq!(output.status.code(), Some(3));
 
     // Same case without strict mode -> Exit 0
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--binary", temp_str])
         .env_remove("EZA_STRICT")
         .env_remove("EXA_STRICT")
@@ -445,7 +444,7 @@ fn test_strict_mode_cli_process_exit_codes() {
     assert_eq!(output.status.code(), Some(0));
 
     // EXA_STRICT fallback in strict mode -> Exit 3
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["--binary", temp_str])
         .env_remove("EZA_STRICT")
         .env("EXA_STRICT", "1")
@@ -454,7 +453,7 @@ fn test_strict_mode_cli_process_exit_codes() {
     assert_eq!(output.status.code(), Some(3));
 
     // Conflicting args in strict mode -> Exit 3
-    let output = Command::new(bin_path)
+    let output = crate::common::lez_cmd()
         .args(["-l", "-x", temp_str])
         .env("EZA_STRICT", "1")
         .output()

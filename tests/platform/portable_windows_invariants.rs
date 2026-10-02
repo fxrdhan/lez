@@ -21,15 +21,6 @@ use lez::options::Options;
 use lez::options::parser::get_command;
 use lez::options::vars::Vars;
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 struct WindowsTestDir {
     path: PathBuf,
 }
@@ -277,7 +268,7 @@ fn test_windows_cli_unc_and_drive_syntax_error_isolation() {
         r"\\?\C:\non_existent_folder_67890",
         r"\\.\PhysicalDrive0",
     ] {
-        let output = Command::new(bin_path())
+        let output = crate::common::lez_cmd()
             .arg(candidate)
             .output()
             .expect("lez binary should execute without panic");
@@ -308,7 +299,7 @@ fn test_case_insensitive_glob_filtering_on_real_filesystem() {
     dir.create_file("IMAGE.jpg", b"jpg");
 
     // 1. Filter out *.pdf and *.png case-insensitively
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--ignore-glob-ci=*.pdf|*.png")
         .arg(&dir.path)
         .output()
@@ -342,7 +333,7 @@ fn test_case_insensitive_glob_filtering_on_real_filesystem() {
     );
 
     // 2. Filter out document.* case-insensitively
-    let output_doc = Command::new(bin_path())
+    let output_doc = crate::common::lez_cmd()
         .arg("--ignore-glob-ci=document.*")
         .arg(&dir.path)
         .output()
@@ -361,7 +352,7 @@ fn test_case_insensitive_glob_filtering_on_real_filesystem() {
 #[test]
 fn test_ntfs_ads_argument_cli_safe_handling() {
     for ads_path in ["file.txt:Zone.Identifier", "archive.zip:summary:$DATA"] {
-        let output = Command::new(bin_path())
+        let output = crate::common::lez_cmd()
             .arg(ads_path)
             .output()
             .expect("lez binary should execute without panic");

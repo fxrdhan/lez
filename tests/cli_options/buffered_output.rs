@@ -29,7 +29,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn run_lez(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lez"))
+    crate::common::lez_cmd()
         .arg("--color=never")
         .args(args)
         .output()
@@ -102,7 +102,7 @@ fn a_failing_write_is_reported_rather_than_swallowed() {
         .open("/dev/full")
         .expect("/dev/full should be openable on Linux");
 
-    let status = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let status = crate::common::lez_cmd()
         .arg("--color=never")
         .arg("-1")
         .arg(root.to_str().unwrap())

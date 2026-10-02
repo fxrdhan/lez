@@ -24,7 +24,7 @@ const NAMES: [&str; 9] = [
 ];
 
 fn listing(dir: &Path, width: &str) -> Vec<String> {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let output = crate::common::lez_cmd()
         .args(["--color=never", "-w", width])
         .arg(dir)
         .output()

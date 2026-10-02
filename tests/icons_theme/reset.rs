@@ -7,15 +7,6 @@ use std::fs::{self, File as StdFile};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_theme_reset_lez_colors_plain() {
     let temp_dir = std::env::temp_dir().join("lez_test_theme_reset_plain");
@@ -26,7 +17,7 @@ fn test_theme_reset_lez_colors_plain() {
     StdFile::create(&test_file).unwrap();
 
     // With LEZ_COLORS="reset", no ANSI escapes should color the metadata or filename
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg(&test_file)
@@ -64,7 +55,7 @@ fn test_theme_reset_eza_colors_plain() {
     let test_file = temp_dir.join("sample.txt");
     StdFile::create(&test_file).unwrap();
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg(&test_file)
@@ -96,7 +87,7 @@ fn test_theme_reset_with_override_date() {
     StdFile::create(&test_file).unwrap();
 
     // With LEZ_COLORS="reset:da=32", date should be green (\x1b[32m), but permissions should be plain
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg(&test_file)
@@ -129,7 +120,7 @@ fn test_theme_reset_with_ls_colors() {
     StdFile::create(&test_file).unwrap();
 
     // With LS_COLORS="fi=31" (red regular file) and LEZ_COLORS="reset"
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg(&test_file)
@@ -163,7 +154,7 @@ fn test_theme_reset_lez_colors_precedence_over_eza_colors() {
     StdFile::create(&test_file).unwrap();
 
     // LEZ_COLORS sets date green (32), EZA_COLORS sets date red (31)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=always")
         .arg(&test_file)

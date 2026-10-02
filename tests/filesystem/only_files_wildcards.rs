@@ -51,10 +51,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_only_files_with_mixed_positional_files_and_dirs() {
     let temp = TempTestDir::new("mixed_wildcard");
@@ -66,7 +62,7 @@ fn test_only_files_with_mixed_positional_files_and_dirs() {
     let _inner2 = temp.create_file("folder2/inner2.txt");
 
     // Simulating shell wildcard: lez -f alpha.txt beta.txt folder1 folder2
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-f")
         .arg("--color=never")
         .arg(&file1)
@@ -117,7 +113,7 @@ fn test_only_files_with_explicit_single_directory_argument() {
     temp.create_dir("sub/nested_dir");
 
     // Explicit directory argument: lez -f sub
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-f")
         .arg("--color=never")
         .arg(&dir)
@@ -148,7 +144,7 @@ fn test_only_files_with_treat_dirs_as_files_flag() {
     let dir = temp.create_dir("somedir");
 
     // Simulating: lez -d -f regular.txt somedir
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-d")
         .arg("-f")
         .arg("--color=never")
@@ -177,7 +173,7 @@ fn test_only_files_json_mode_with_mixed_positional() {
     let dir = temp.create_dir("items_dir");
     temp.create_file("items_dir/hidden_item.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-f")
         .arg("--json")
         .arg(&file)
@@ -209,7 +205,7 @@ fn test_only_files_with_nonexistent_file_and_directory() {
     temp.create_file("valid_dir/content.txt");
     let nonexistent = temp.path.join("does_not_exist.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-f")
         .arg("--color=never")
         .arg(&nonexistent)
@@ -240,7 +236,7 @@ fn test_only_files_with_multiple_explicit_directory_arguments() {
     temp.create_file("dir1/file1.txt");
     temp.create_file("dir2/file2.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-f")
         .arg("--color=never")
         .arg(&dir1)
@@ -270,7 +266,7 @@ fn test_only_files_with_ignore_glob_on_mixed_positional() {
     temp.create_file("subdir/nested.txt");
 
     // Simulating wildcard: lez -f -I "*.tmp" keep.txt skip.tmp subdir
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-f")
         .arg("-I")
         .arg("*.tmp")
@@ -314,7 +310,7 @@ fn test_composed_only_files_and_no_symlinks_child_files() {
         let _ = symlink("regular.txt", temp.path.join("file_link"));
     }
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--only-files")
         .arg("--no-symlinks")
         .arg("--color=never")
@@ -359,7 +355,7 @@ fn test_composed_only_files_and_no_symlinks_with_d_flag_positional() {
         p
     };
 
-    let mut cmd = Command::new(bin_path());
+    let mut cmd = crate::common::lez_cmd();
     cmd.arg("-d")
         .arg("--only-files")
         .arg("--no-symlinks")
@@ -402,7 +398,7 @@ fn test_composed_only_dirs_and_no_symlinks() {
         let _ = symlink("target_subdir", temp.path.join("link_to_subdir"));
     }
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--only-dirs")
         .arg("--no-symlinks")
         .arg("--color=never")
@@ -437,7 +433,7 @@ fn test_only_dirs_and_only_files_reciprocal_override() {
     temp.create_dir("subdir");
 
     // 1. -D followed by -f: -f wins (only files listed)
-    let output_files_win = Command::new(bin_path())
+    let output_files_win = crate::common::lez_cmd()
         .args(["-D", "-f", "--color=never"])
         .arg(&temp.path)
         .output()
@@ -454,7 +450,7 @@ fn test_only_dirs_and_only_files_reciprocal_override() {
     );
 
     // 2. -f followed by -D: -D wins (only dirs listed)
-    let output_dirs_win = Command::new(bin_path())
+    let output_dirs_win = crate::common::lez_cmd()
         .args(["-f", "-D", "--color=never"])
         .arg(&temp.path)
         .output()

@@ -28,7 +28,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn run(env: Option<&str>, root: &Path) -> Output {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_lez"));
+    let mut cmd = crate::common::lez_cmd();
     if let Some(value) = env {
         cmd.env("LEZ_NO_EMPTY_DIR_ICON", value);
     }
@@ -110,7 +110,7 @@ fn the_variable_stops_the_filesystem_being_asked() {
     let root = fixture("syscalls");
 
     let count = |value: Option<&str>| {
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_lez"));
+        let mut cmd = crate::common::lez_cmd();
         cmd.env("LEZ_DEBUG", "trace");
         if let Some(v) = value {
             cmd.env("LEZ_NO_EMPTY_DIR_ICON", v);

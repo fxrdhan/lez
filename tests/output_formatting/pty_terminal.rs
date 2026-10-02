@@ -85,7 +85,7 @@ impl PtySession {
         let slave_out = unsafe { Stdio::from_raw_fd(slave_fd) };
         let slave_err = unsafe { Stdio::from_raw_fd(libc::dup(slave_fd)) };
 
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_lez"));
+        let mut cmd = crate::common::lez_cmd();
         cmd.args(args)
             .stdout(slave_out)
             .stderr(slave_err)

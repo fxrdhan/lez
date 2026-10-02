@@ -3,7 +3,7 @@
 
 use std::process::Command;
 
-use crate::common::{TempTestDir, bin_path};
+use crate::common::TempTestDir;
 
 #[test]
 fn test_code_percent_digits_cli_flag() {
@@ -12,7 +12,7 @@ fn test_code_percent_digits_cli_flag() {
     tmp.create_file("script.py", b"print('test')\n");
 
     // Default (1 decimal place)
-    let out_default = Command::new(bin_path())
+    let out_default = crate::common::lez_cmd()
         .arg("--code")
         .arg(tmp.path())
         .output()
@@ -24,7 +24,7 @@ fn test_code_percent_digits_cli_flag() {
     assert!(stdout_default.contains("100.0%"));
 
     // 0 decimal places (integer percent)
-    let out_zero = Command::new(bin_path())
+    let out_zero = crate::common::lez_cmd()
         .arg("--code")
         .arg("--percent-digits=0")
         .arg(tmp.path())
@@ -37,7 +37,7 @@ fn test_code_percent_digits_cli_flag() {
     assert!(stdout_zero.contains("100%"));
 
     // 3 decimal places
-    let out_three = Command::new(bin_path())
+    let out_three = crate::common::lez_cmd()
         .arg("--code")
         .arg("--percent-digits=3")
         .arg(tmp.path())
@@ -50,7 +50,7 @@ fn test_code_percent_digits_cli_flag() {
     assert!(stdout_three.contains("100.000%"));
 
     // Alias --precision-percent=2
-    let out_alias = Command::new(bin_path())
+    let out_alias = crate::common::lez_cmd()
         .arg("--code")
         .arg("--precision-percent=2")
         .arg(tmp.path())
@@ -68,7 +68,7 @@ fn test_code_percent_digits_env_var() {
     let tmp = TempTestDir::new("pct_digits_env");
     tmp.create_file("main.rs", b"fn main() {\n    println!(\"hello\");\n}\n");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .env("LEZ_PERCENT_DIGITS", "2")
         .arg("--code")
         .arg(tmp.path())
@@ -85,7 +85,7 @@ fn test_code_percent_digits_config_file() {
     tmp.create_file("main.rs", b"fn main() {\n    println!(\"hello\");\n}\n");
     tmp.create_file(".lez.toml", b"[loc]\npercent_digits = 3\n");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--code")
         .current_dir(tmp.path())
         .output()
@@ -100,7 +100,7 @@ fn test_loc_column_percent_digits_in_long_view() {
     let tmp = TempTestDir::new("pct_digits_long");
     tmp.create_file("main.rs", b"fn main() {\n    println!(\"hello\");\n}\n");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("-l")
         .arg("--loc=percent")
         .arg("--percent-digits=2")

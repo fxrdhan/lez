@@ -236,10 +236,8 @@ fn test_valid_time_styles_pass() {
 
 #[test]
 fn test_time_style_cli_process_exit_code() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-
     // Invalid format string -> Clap error with exit code 3 (OPTIONS_ERROR)
-    let output_invalid = Command::new(bin_path)
+    let output_invalid = crate::common::lez_cmd()
         .args(["--time-style", "bogus_time_style"])
         .output()
         .expect("Failed to execute lez binary");

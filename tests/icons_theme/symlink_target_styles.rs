@@ -5,7 +5,7 @@ use std::fs::{self, File as StdFile};
 use std::io::Write;
 use std::process::Command;
 
-use crate::common::{TempTestDir, bin_path};
+use crate::common::TempTestDir;
 
 #[test]
 #[cfg(unix)]
@@ -25,7 +25,7 @@ fn test_theme_symlink_foreground_target_with_italic() {
     let link_path = work_dir.path().join("link_to_dir");
     std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", config_dir.path())
         .env_remove("EZA_CONFIG_DIR")
         .env_remove("XDG_CONFIG_HOME")
@@ -65,7 +65,7 @@ fn test_theme_symlink_attributes_combined_with_lez_colors_ln_target() {
     let link_path = work_dir.path().join("link_to_dir");
     std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", config_dir.path())
         .env_remove("EZA_CONFIG_DIR")
         .env_remove("XDG_CONFIG_HOME")
@@ -95,7 +95,7 @@ fn test_lez_colors_ln_target_with_italic_code() {
     let link_path = work_dir.path().join("link_to_dir");
     std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--no-config")
         .env_remove("LS_COLORS")
         .env("LEZ_COLORS", "di=34:ln=target;3")
@@ -123,7 +123,7 @@ fn test_lez_colors_ln_target_with_bold_underline_codes() {
     let link_path = work_dir.path().join("link_to_dir");
     std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--no-config")
         .env_remove("LS_COLORS")
         .env("LEZ_COLORS", "di=34:ln=target;1;4")
@@ -161,7 +161,7 @@ fn test_broken_symlink_keeps_or_color_unaffected() {
         .expect("create broken symlink");
 
     // Test with explicit or=31 (Red) in LEZ_COLORS
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", config_dir.path())
         .env_remove("EZA_CONFIG_DIR")
         .env_remove("XDG_CONFIG_HOME")
@@ -205,7 +205,7 @@ fn test_theme_symlink_bare_target_string() {
     let link_path = work_dir.path().join("link_to_dir");
     std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", config_dir.path())
         .env_remove("EZA_CONFIG_DIR")
         .env_remove("XDG_CONFIG_HOME")
@@ -244,7 +244,7 @@ fn test_theme_symlink_target_with_ansi_string() {
     let link_path = work_dir.path().join("link_to_dir");
     std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .env("LEZ_CONFIG_DIR", config_dir.path())
         .env_remove("EZA_CONFIG_DIR")
         .env_remove("XDG_CONFIG_HOME")
@@ -274,7 +274,7 @@ fn test_symlink_to_file_inherits_extension_color_and_applies_style() {
     let link_path = work_dir.path().join("link_to_rs");
     std::os::unix::fs::symlink(&target_file, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--no-config")
         .env_remove("LS_COLORS")
         .env("LEZ_COLORS", "*.rs=35:ln=target;3")
@@ -304,7 +304,7 @@ fn test_symlink_to_executable_inherits_exec_color_and_applies_style() {
     let link_path = work_dir.path().join("link_to_exec");
     std::os::unix::fs::symlink(&target_file, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--no-config")
         .env_remove("LS_COLORS")
         .env("LEZ_COLORS", "ex=32:ln=target;4")
@@ -334,7 +334,7 @@ fn test_multihop_symlink_inherits_target_color_and_applies_style() {
     let link_a = work_dir.path().join("link_a");
     std::os::unix::fs::symlink(&link_b, &link_a).expect("create link_a");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--no-config")
         .env_remove("LS_COLORS")
         .env("LEZ_COLORS", "di=34:ln=target;3")
@@ -362,7 +362,7 @@ fn test_long_details_renders_styled_type_indicator_and_link() {
     let link_path = work_dir.path().join("link_to_doc");
     std::os::unix::fs::symlink(&target_file, &link_path).expect("create symlink");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--no-config")
         .env_remove("LS_COLORS")
         .env("LEZ_COLORS", "fi=33:ln=target;3")
@@ -401,7 +401,7 @@ fn test_symlink_loop_cycle_falls_back_to_broken_symlink_color() {
     std::os::unix::fs::symlink(&link_2, &link_1).expect("create link_1");
     std::os::unix::fs::symlink(&link_1, &link_2).expect("create link_2");
 
-    let out = Command::new(bin_path())
+    let out = crate::common::lez_cmd()
         .arg("--no-config")
         .env_remove("LS_COLORS")
         .env("LEZ_COLORS", "or=31:ln=target;3")

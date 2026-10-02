@@ -52,15 +52,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_tree_mode_with_all_flag_does_not_infinite_recurse() {
     let temp = TempTestDir::new("tree_all");
@@ -69,7 +60,7 @@ fn test_tree_mode_with_all_flag_does_not_infinite_recurse() {
     temp.create_file(".hidden", b"secret");
 
     // Test -Ta (tree + all)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-Ta")
         .arg(&temp.path)
         .output()
@@ -89,7 +80,7 @@ fn test_long_tree_mode_with_double_all_flag() {
     temp.create_file("nested/item.txt", b"data");
 
     // Test -laT (long + all + tree)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-laT")
         .arg(&temp.path)
         .output()

@@ -58,7 +58,7 @@ impl Drop for TempDir {
 }
 
 fn listing(dir: &PathBuf, args: &[&str]) -> Vec<String> {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let output = crate::common::lez_cmd()
         .current_dir(dir)
         .args(args)
         .output()

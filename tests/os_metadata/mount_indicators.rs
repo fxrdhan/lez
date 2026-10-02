@@ -9,15 +9,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 struct TempTestDir {
     path: PathBuf,
 }
@@ -64,7 +55,7 @@ impl Drop for TempTestDir {
 #[test]
 #[cfg(unix)]
 fn test_root_mount_point_permissions_indicator_d_capital() {
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--color=never")
         .arg("/")
@@ -90,7 +81,7 @@ fn test_regular_directory_permissions_indicator_d_lowercase() {
     let temp = TempTestDir::new("reg_dir");
     let subdir = temp.create_dir("normal_folder");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--color=never")
         .arg(&subdir)
@@ -120,7 +111,7 @@ fn test_regular_file_permissions_indicator_not_directory() {
     let temp = TempTestDir::new("reg_file");
     let file_path = temp.create_file("example.txt", b"hello mount test");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--color=never")
         .arg(&file_path)
@@ -143,7 +134,7 @@ fn test_regular_file_permissions_indicator_not_directory() {
 #[test]
 #[cfg(unix)]
 fn test_mount_indicator_json_compatibility() {
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--json")
         .arg("/")
@@ -171,7 +162,7 @@ fn test_mount_indicator_json_compatibility() {
     // Check permissions field in JSON representation for non-mount directory
     let temp = TempTestDir::new("json_reg_dir");
     let subdir = temp.create_dir("normal_folder");
-    let output_sub = Command::new(bin_path())
+    let output_sub = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--json")
         .arg(&subdir)
@@ -208,7 +199,7 @@ fn test_mount_indicator_json_compatibility() {
 #[test]
 #[cfg(unix)]
 fn test_mount_indicator_with_octal_permissions() {
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--octal-permissions")
         .arg("--color=never")
@@ -232,7 +223,7 @@ fn test_mount_indicator_with_octal_permissions() {
 #[test]
 #[cfg(unix)]
 fn test_mount_indicator_with_header() {
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--header")
         .arg("--color=never")
@@ -259,7 +250,7 @@ fn test_nested_subdirectories_in_temp_dir() {
     let _sub2 = temp.create_dir("level1/level2");
     let _f = temp.create_file("level1/level2/deep.txt", b"deep");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l")
         .arg("--recurse")
         .arg("--color=never")

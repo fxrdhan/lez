@@ -41,17 +41,13 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_xattr_extended_view_does_not_hang() {
     let temp = TempTestDir::new("hang_resilience");
     temp.create_file("test1.txt");
     temp.create_file("test2.txt");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-l@")
         .arg("--color=never")
         .arg(&temp.path)

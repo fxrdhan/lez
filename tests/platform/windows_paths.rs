@@ -51,7 +51,7 @@ impl Drop for Fixture {
 
 /// Run lez from inside `dir`, returning its exit code, stdout and stderr.
 fn run_in(dir: &Path, args: &[&str]) -> (i32, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let output = crate::common::lez_cmd()
         .arg("--color=never")
         .args(args)
         .current_dir(dir)

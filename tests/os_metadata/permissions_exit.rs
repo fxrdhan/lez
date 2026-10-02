@@ -12,10 +12,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 /// A directory that chmods its unreadable children back before removal, so a
 /// failing assertion can’t leave an undeletable tree behind.
 struct LockedTree {
@@ -57,7 +53,7 @@ impl Drop for LockedTree {
 }
 
 fn run(args: &[&Path]) -> (i32, String) {
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .args(args)
         .output()
         .expect("lez should be runnable");

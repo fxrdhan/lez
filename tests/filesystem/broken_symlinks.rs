@@ -66,8 +66,7 @@ impl Drop for TempTestDir {
 }
 
 fn run_lez(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    Command::new(bin_path)
+    crate::common::lez_cmd()
         .args(args)
         .output()
         .expect("Failed to execute lez binary")

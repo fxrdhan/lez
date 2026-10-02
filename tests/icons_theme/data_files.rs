@@ -7,15 +7,6 @@ use std::fs::{self, File as StdFile};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_data_files_colored_with_dt_code() {
     let temp_dir = std::env::temp_dir().join("lez_test_data_files_dt");
@@ -35,7 +26,7 @@ fn test_data_files_colored_with_dt_code() {
     }
 
     // Set dt=35;1 (bold magenta)
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg("--color=always")
         .arg(&temp_dir)
@@ -72,7 +63,7 @@ fn test_data_files_icons_present() {
     StdFile::create(temp_dir.join("data.npy")).unwrap();
     StdFile::create(temp_dir.join("db.sqlite3")).unwrap();
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg("--icons=always")
         .arg(&temp_dir)

@@ -46,10 +46,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
 #[test]
 fn test_builtin_indicators_in_ls_colors_not_applied_to_filenames() {
     let temp = TempTestDir::new("indicators_ls_colors");
@@ -76,7 +72,7 @@ fn test_builtin_indicators_in_ls_colors_not_applied_to_filenames() {
     // st: 37;44 (white on blue bg)
     let ls_colors = "su=37;41:ca=30;41:do=01;35:tw=30;42:ow=34;43:st=37;44:mi=05;37;41:rs=0:no=0:mh=00:sg=30;43:*.txt=31:*.rs=32";
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg("--color=always")
         .arg(&temp.path)
@@ -139,7 +135,7 @@ fn test_extension_globs_work_properly_alongside_ls_colors_indicators() {
 
     let ls_colors = "di=34:su=37;41:ca=30;41:*.txt=31:*.py=32:*.zip=33";
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg("--color=always")
         .arg(&temp.path)
@@ -188,7 +184,7 @@ fn test_non_builtin_keys_in_ls_colors_still_treated_as_globs() {
     // sf and uu are not among the 23 standard GNU dircolors keys
     let ls_colors = "sf=38;5;121:uu=38;5;117";
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-1")
         .arg("--color=always")
         .arg(&temp.path)

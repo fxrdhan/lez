@@ -52,15 +52,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_dev_eclass_astro_icons_rendering() {
     let temp = TempTestDir::new("dev_eclass_astro");
@@ -68,7 +59,7 @@ fn test_dev_eclass_astro_icons_rendering() {
     temp.create_file("App.astro", b"---\nconst title = 'Astro';\n---");
     temp.create_file("autotools.eclass", b"# Gentoo eclass");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--icons=always")
         .arg(&temp.path)
         .output()
@@ -110,7 +101,7 @@ fn test_dev_case_sensitivity_and_contrast() {
     let lower_dir = temp_lower.create_dir("dev");
 
     // Dev directory output
-    let output_dev = Command::new(bin_path())
+    let output_dev = crate::common::lez_cmd()
         .arg("-d")
         .arg("--icons=always")
         .arg(&dev_dir)
@@ -124,7 +115,7 @@ fn test_dev_case_sensitivity_and_contrast() {
     );
 
     // lowercase dev directory output
-    let output_lower = Command::new(bin_path())
+    let output_lower = crate::common::lez_cmd()
         .arg("-d")
         .arg("--icons=always")
         .arg(&lower_dir)
@@ -147,7 +138,7 @@ fn test_dev_eclass_astro_tree_and_long_view() {
     temp.create_file("gentoo/cmake.eclass", b"# cmake eclass");
 
     // Test tree mode
-    let output_tree = Command::new(bin_path())
+    let output_tree = crate::common::lez_cmd()
         .arg("--tree")
         .arg("--icons=always")
         .arg(&temp.path)
@@ -160,7 +151,7 @@ fn test_dev_eclass_astro_tree_and_long_view() {
     assert!(stdout_tree.contains('\u{f30d}')); // cmake.eclass
 
     // Test long details mode
-    let output_long = Command::new(bin_path())
+    let output_long = crate::common::lez_cmd()
         .arg("-l")
         .arg("--icons=always")
         .arg(&temp.path)

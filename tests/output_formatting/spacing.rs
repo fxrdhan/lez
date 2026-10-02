@@ -46,29 +46,20 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
 #[test]
 fn test_long_view_with_custom_spacing() {
     let temp = TempTestDir::new("spacing_long");
     temp.create_file("alpha.txt", b"alpha content");
     temp.create_file("beta.txt", b"beta content");
 
-    let output_spacing_1 = Command::new(bin_path())
+    let output_spacing_1 = crate::common::lez_cmd()
         .arg("-l")
         .arg("--spacing=1")
         .arg(&temp.path)
         .output()
         .expect("Failed to execute lez -l --spacing=1");
 
-    let output_spacing_6 = Command::new(bin_path())
+    let output_spacing_6 = crate::common::lez_cmd()
         .arg("-l")
         .arg("--spacing=6")
         .arg(&temp.path)
@@ -93,7 +84,7 @@ fn test_grid_view_with_zero_spacing() {
     temp.create_file("a.txt", b"a");
     temp.create_file("b.txt", b"b");
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("--grid")
         .arg("--spacing=0")
         .arg(&temp.path)

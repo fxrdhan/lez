@@ -79,16 +79,6 @@ impl Drop for TempTestDir {
     }
 }
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("failed to get current_exe");
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.push("lez");
-    path
-}
-
 // =========================================================================
 // Parent directory `..` exclusion under all CLI flag permutations
 // =========================================================================
@@ -158,7 +148,7 @@ fn test_parent_dir_exclusion_under_flag_permutations() {
     ];
 
     for flags in flag_combinations {
-        let output = Command::new(bin_path())
+        let output = crate::common::lez_cmd()
             .args(&flags)
             .arg(&child)
             .output()
@@ -348,7 +338,7 @@ fn test_hardlink_mesh_across_nested_subdirectories() {
     );
 
     // CLI execution check
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&root.path)
@@ -431,7 +421,7 @@ fn test_hardlink_partition_hidden_vs_visible() {
     );
 
     // CLI checks
-    let out_no_a = Command::new(bin_path())
+    let out_no_a = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&root.path)
@@ -444,7 +434,7 @@ fn test_hardlink_partition_hidden_vs_visible() {
         "CLI without -a must show 70K: {stdout_no_a}"
     );
 
-    let out_with_a = Command::new(bin_path())
+    let out_with_a = crate::common::lez_cmd()
         .arg("-lad")
         .arg("--total-size")
         .arg(&root.path)
@@ -480,7 +470,7 @@ fn test_multi_directory_arguments_shared_hardlinks() {
     // dir1 size should be 64K + 16K = 80,000 bytes
     // dir2 size should be 64K + 32K = 96,000 bytes
     // When passed together as `lez -ld --total-size dir1 dir2`, both should compute their independent sizes properly!
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&dir1)
@@ -827,7 +817,7 @@ fn test_empty_directory_sizes() {
     );
 
     // 2. CLI subprocess verification
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&empty_single)
@@ -987,7 +977,7 @@ fn test_symlink_directory_cycles_not_followed() {
     );
 
     // Subprocess execution check
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&container)
@@ -1059,7 +1049,7 @@ fn test_symlinks_to_hardlinks_deduplication() {
         "Total length should be ~30,000 bytes with deduplicated hardlinks and symlinks, got {len}"
     );
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&tree)
@@ -1342,7 +1332,7 @@ fn test_broken_symlinks_in_directory_tree() {
         "Broken symlinks must not cause error or crash, got {len}"
     );
 
-    let output = Command::new(bin_path())
+    let output = crate::common::lez_cmd()
         .arg("-ld")
         .arg("--total-size")
         .arg(&container)
