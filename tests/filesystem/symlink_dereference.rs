@@ -10,7 +10,7 @@ use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
 
-use crate::common::{TempTestDir, exit_and_stdout, lez_in};
+use crate::common::{TempTestDir, exit_and_stdout, lez_in, symlink_permissions};
 
 /// The permissions column of `-ldX` for `link`, without any trailing
 /// extended-attribute marker.
@@ -68,9 +68,10 @@ fn broken_link_keeps_its_own_permissions() {
     let tmp = TempTestDir::new("deref_broken");
     tmp.create_symlink("missing", "link");
 
-    let permissions = dereferenced_permissions(tmp.path(), "link");
-    assert!(permissions.starts_with('l'), "got {permissions:?}");
-    assert!(permissions[1..].contains('r'), "got {permissions:?}");
+    assert_eq!(
+        dereferenced_permissions(tmp.path(), "link"),
+        symlink_permissions(&tmp.path().join("link"))
+    );
 }
 
 #[test]

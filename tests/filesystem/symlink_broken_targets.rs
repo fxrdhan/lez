@@ -64,9 +64,9 @@ fn mi_is_read_from_ls_colors_too() {
             .env("LS_COLORS", "mi=35"),
     );
     assert_eq!(code, Some(0));
-    assert!(
-        stdout.ends_with("\x1b[4;35mmissing\x1b[0m\n"),
-        "got {stdout:?}"
+    assert_eq!(
+        stdout,
+        "\x1b[36mlink\x1b[0m \x1b[31m->\x1b[0m \x1b[4;35mmissing\x1b[0m\n"
     );
 }
 
@@ -104,9 +104,12 @@ fn broken_link_in_working_directory_gets_a_hyperlink() {
     let (code, stdout) =
         exit_and_stdout(lez_in(tmp.path()).args(["-1", "--hyperlink=always", "link"]));
     assert_eq!(code, Some(0));
-    assert!(
-        stdout.contains(&format!("file://{}", expected.display())),
-        "got {stdout:?}"
+    assert_eq!(
+        stdout,
+        format!(
+            "\x1b]8;;file://{}\x1b\\link\x1b]8;;\x1b\\\n",
+            expected.display()
+        )
     );
 }
 

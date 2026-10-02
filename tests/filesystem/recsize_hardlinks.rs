@@ -202,6 +202,23 @@ fn hard_links_across_hidden_and_visible_directories() {
         cli_totals(root.path(), &["-a"], &["."]),
         format!("{} .\n", grouped(100_000))
     );
+    // Without `-B` the same totals go through the human-readable formatter.
+    let human = |extra: &[&str]| {
+        success_stdout(
+            lez_in(root.path())
+                .args([
+                    "-ld",
+                    "--total-size",
+                    "--no-permissions",
+                    "--no-user",
+                    "--no-time",
+                ])
+                .args(extra)
+                .arg("."),
+        )
+    };
+    assert_eq!(human(&[]), "70k .\n");
+    assert_eq!(human(&["-a"]), "100k .\n");
 }
 
 /// Directories named together are sized independently: a file linked from

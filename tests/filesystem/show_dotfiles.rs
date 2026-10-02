@@ -1,115 +1,58 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+//! `--show-dotfiles` shows dot-prefixed entries, files and directories,
+//! without `-a`'s other effects: it never adds `.` and `..`, and on Windows
+//! it leaves files with the hidden attribute hidden (see
+//! `platform/windows_paths.rs`). With `-a` or `-aa` it changes nothing.
 
-struct TempTestDir {
-    path: PathBuf,
+use crate::common::{TempTestDir, lez_in, success_stdout};
+
+fn fixture(label: &str) -> TempTestDir {
+    let dir = TempTestDir::new(label);
+    dir.create_file(".dotfile", b"dot");
+    dir.create_file(".dotdir/inner", b"inner");
+    dir.create_file("regular.txt", b"regular");
+    dir
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_show_dotfiles_test_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-
-    fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut file = std::fs::File::create(&file_path).unwrap();
-        file.write_all(content).unwrap();
-        file_path
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn run_lez(args: &[&str]) -> Output {
-    crate::common::lez_cmd()
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
-fn listed_names(args: &[&str]) -> Vec<String> {
-    let output = run_lez(args);
-    assert!(output.status.success());
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::to_string)
-        .collect()
+fn lez(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(dir.path()).args(args))
 }
 
 #[test]
-fn test_show_dotfiles_lists_dot_prefixed_entries_by_default_hidden() {
-    let temp = TempTestDir::new("basic");
-    temp.create_file(".dotfile", b"dot");
-    temp.create_file("regular.txt", b"regular");
-
-    let dir_arg = temp.path.to_str().unwrap();
-
-    // Default: dot-prefixed entries are hidden.
-    let names = listed_names(&["-1", "--color=never", dir_arg]);
-    assert_eq!(names, vec!["regular.txt".to_string()]);
-
-    // --show-dotfiles reveals them without needing --all.
-    let names = listed_names(&["-1", "--color=never", "--show-dotfiles", dir_arg]);
+fn dotfiles_are_hidden_until_asked_for() {
+    let dir = fixture("show");
+    assert_eq!(lez(&dir, &["-1"]), "regular.txt\n");
     assert_eq!(
-        names,
-        vec![".dotfile".to_string(), "regular.txt".to_string()]
+        lez(&dir, &["-1", "--show-dotfiles"]),
+        ".dotdir\n.dotfile\nregular.txt\n"
+    );
+    assert_eq!(
+        lez(&dir, &["-T", "--show-dotfiles"]),
+        ".\n├── .dotdir\n│   └── inner\n├── .dotfile\n└── regular.txt\n"
     );
 }
 
 #[test]
-fn test_show_dotfiles_does_not_reveal_dot_directories() {
-    let temp = TempTestDir::new("no_dots");
-    temp.create_file(".dotfile", b"dot");
-    temp.create_file("regular.txt", b"regular");
-
-    let dir_arg = temp.path.to_str().unwrap();
-
-    // Unlike a double --all, --show-dotfiles never lists '.' and '..'.
-    let names = listed_names(&["-1", "--color=never", "--show-dotfiles", dir_arg]);
-    assert!(!names.iter().any(|n| n == "." || n == ".."));
-
-    // A double --all still shows them.
-    let names = listed_names(&["-1", "--color=never", "-aa", dir_arg]);
-    assert!(names.iter().any(|n| n == "."));
-    assert!(names.iter().any(|n| n == ".."));
+fn it_never_adds_the_dot_entries() {
+    let dir = fixture("dots");
+    assert_eq!(
+        lez(&dir, &["-1", "-aa"]),
+        ".\n..\n.dotdir\n.dotfile\nregular.txt\n"
+    );
+    assert_eq!(
+        lez(&dir, &["-1", "--show-dotfiles", "-aa"]),
+        lez(&dir, &["-1", "-aa"])
+    );
 }
 
+/// Given with `-A`, in either order, the result is `-A` alone.
 #[test]
-fn test_almost_all_takes_precedence_over_show_dotfiles() {
-    let temp = TempTestDir::new("precedence");
-    temp.create_file(".dotfile", b"dot");
-    temp.create_file("regular.txt", b"regular");
-
-    let dir_arg = temp.path.to_str().unwrap();
-
-    // --almost-all binds stronger: dotfiles shown, '.'/'..' still hidden,
-    // identical to plain --almost-all output.
-    let combined = listed_names(&["-1", "--color=never", "--show-dotfiles", "-A", dir_arg]);
-    let almost_all = listed_names(&["-1", "--color=never", "-A", dir_arg]);
-    assert_eq!(combined, almost_all);
-    assert!(combined.contains(&".dotfile".to_string()));
+fn almost_all_takes_precedence() {
+    let dir = fixture("precedence");
+    let almost_all = lez(&dir, &["-1", "-A"]);
+    assert_eq!(almost_all, ".dotdir\n.dotfile\nregular.txt\n");
+    assert_eq!(lez(&dir, &["-1", "--show-dotfiles", "-A"]), almost_all);
+    assert_eq!(lez(&dir, &["-1", "-A", "--show-dotfiles"]), almost_all);
 }

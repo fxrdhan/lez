@@ -119,9 +119,9 @@ fn target_follows_theme_filename_override() {
             .env("LEZ_CONFIG_DIR", &config),
     );
     assert_eq!(code, Some(0));
-    assert!(
-        stdout.ends_with("->\x1b[0m \x1b[31mspecial.txt\x1b[0m\n"),
-        "got {stdout:?}"
+    assert_eq!(
+        stdout,
+        "\x1b[36mlink\x1b[0m \x1b[1;90m->\x1b[0m \x1b[31mspecial.txt\x1b[0m\n"
     );
 }
 
