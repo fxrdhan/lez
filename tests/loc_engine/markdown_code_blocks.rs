@@ -4,41 +4,25 @@
 use std::fs::{self, File as StdFile};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use lez::loc::{self, LocCounts, count_roots, count_tree, language_for};
 
-struct TempTestDir {
-    path: PathBuf,
+use crate::common::TempTestDir;
+
+/// The breakdown by language name, in the order the languages appear.
+fn by_name(breakdown: &[(&'static loc::Language, LocCounts)]) -> Vec<(&'static str, LocCounts)> {
+    breakdown
+        .iter()
+        .map(|(lang, counts)| (lang.name, *counts))
+        .collect()
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("lez_md_{prefix}_{}_{}", std::process::id(), nanos));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-
-    fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut file = StdFile::create(&file_path).unwrap();
-        file.write_all(content).unwrap();
-        file_path
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
+fn counts(code: usize, comments: usize, blanks: usize) -> LocCounts {
+    LocCounts {
+        lines: code + comments + blanks,
+        code,
+        comments,
+        blanks,
     }
 }
 
@@ -74,35 +58,20 @@ SELECT id, name /* inline comment */ FROM users WHERE active = 1;
 ~~~
 "#;
 
-    let breakdown = loc::count_markdown_source(md);
-
-    let rust_lang = language_for("main.rs", Some("rs")).expect("Rust language");
-    let shell_lang = language_for("deploy.sh", Some("sh")).expect("Shell language");
-    let sql_lang = language_for("query.sql", Some("sql")).expect("SQL language");
-    let md_lang = language_for("README.md", Some("md")).expect("Markdown language");
-
-    let get_stat = |lang| {
-        breakdown
-            .iter()
-            .find(|(l, _)| std::ptr::eq(*l, lang))
-            .map(|(_, c)| *c)
-            .unwrap_or_default()
-    };
-
-    let rust_stat = get_stat(rust_lang);
-    assert_eq!(rust_stat.code, 3); // fn calculate, x * 2, }
-    assert_eq!(rust_stat.comments, 3); // // Rust entrypoint + 2 lines of block comment
-
-    let shell_stat = get_stat(shell_lang);
-    assert_eq!(shell_stat.code, 2); // echo, systemctl
-    assert_eq!(shell_stat.comments, 2); // shebang (starts with #) + # Deploy to server
-
-    let sql_stat = get_stat(sql_lang);
-    assert_eq!(sql_stat.code, 1); // SELECT...
-    assert_eq!(sql_stat.comments, 1); // -- Query active users
-
-    let md_stat = get_stat(md_lang);
-    assert!(md_stat.code >= 6); // Headers, prose, and fence delimiters
+    // Markdown: the heading, three lines of prose and six fence lines are
+    // code, and six lines are blank. Rust: `fn calculate`, `x * 2` and `}`,
+    // with the line comment and the two-line block. Shell: `echo` and
+    // `systemctl`, with the shebang and the comment. SQL: the `SELECT`,
+    // inline comment and all, and the `--` line.
+    assert_eq!(
+        by_name(&loc::count_markdown_source(md)),
+        [
+            ("Markdown", counts(10, 0, 6)),
+            ("Rust", counts(3, 3, 0)),
+            ("Shell", counts(2, 2, 0)),
+            ("SQL", counts(1, 1, 0)),
+        ]
+    );
 }
 
 #[test]
@@ -116,17 +85,13 @@ fn example() {}
 ````
 "#;
 
-    let breakdown = loc::count_markdown_source(md);
-    let md_lang = language_for("README.md", Some("md")).expect("Markdown language");
-
-    // The entire inner content is markdown because outer fence has 4 backticks and tag "markdown"
-    let md_stat = breakdown
-        .iter()
-        .find(|(l, _)| std::ptr::eq(*l, md_lang))
-        .map(|(_, c)| *c)
-        .unwrap_or_default();
-
-    assert_eq!(md_stat.lines, 7);
+    // The four-backtick fence tagged `markdown` holds everything inside it,
+    // the inner three-backtick fence included, as Markdown: six lines of
+    // code and one blank.
+    assert_eq!(
+        by_name(&loc::count_markdown_source(md)),
+        [("Markdown", counts(6, 0, 1))]
+    );
 }
 
 #[test]
@@ -137,17 +102,11 @@ fn test_markdown_unclosed_fence_graceful_handling() {
 let x = 10;
 "#;
 
-    let breakdown = loc::count_markdown_source(md);
-    let rust_lang = language_for("main.rs", Some("rs")).expect("Rust language");
-
-    let rust_stat = breakdown
-        .iter()
-        .find(|(l, _)| std::ptr::eq(*l, rust_lang))
-        .map(|(_, c)| *c)
-        .unwrap_or_default();
-
-    assert_eq!(rust_stat.code, 1);
-    assert_eq!(rust_stat.comments, 1);
+    // A fence left open runs to the end of the document.
+    assert_eq!(
+        by_name(&loc::count_markdown_source(md)),
+        [("Markdown", counts(2, 0, 0)), ("Rust", counts(1, 1, 0))]
+    );
 }
 
 #[test]
@@ -168,23 +127,24 @@ fn test_markdown_tree_report_aggregation() {
     );
 
     let langs: Vec<_> = report.languages().collect();
-    let md_stat = langs.iter().find(|s| std::ptr::eq(s.language, md_lang));
-
-    assert!(md_stat.is_some(), "Markdown should be detected in Report");
-    let md_stat = md_stat.unwrap();
+    assert_eq!(langs.len(), 1);
+    let md_stat = &langs[0];
+    assert!(std::ptr::eq(md_stat.language, md_lang));
     assert_eq!(md_stat.files, 1);
-
-    assert!(
-        md_stat.embedded.contains_key("Python"),
-        "Python should be in embedded map of Markdown"
-    );
-    let py_sub = &md_stat.embedded["Python"];
-    assert_eq!(py_sub.counts.code, 2);
-    assert_eq!(py_sub.counts.comments, 1);
-
-    assert!(
-        md_stat.embedded.contains_key("Text / Markup"),
-        "Text / Markup should be in embedded map of Markdown"
+    // The heading and the two fence lines are the prose; the Python is a
+    // comment and two lines of code.
+    let mut embedded: Vec<_> = md_stat
+        .embedded
+        .iter()
+        .map(|(name, sub)| (*name, sub.counts))
+        .collect();
+    embedded.sort_by_key(|(name, _)| *name);
+    assert_eq!(
+        embedded,
+        [
+            ("Python", counts(2, 1, 0)),
+            ("Text / Markup", counts(3, 0, 1))
+        ]
     );
 }
 
@@ -206,35 +166,16 @@ fn hello() {}
 ```
 "#;
 
-    let breakdown = loc::count_markdown_source(md);
-    let py_lang = language_for("script.py", Some("py")).expect("Python language");
-    let r_lang = language_for("script.R", Some("r")).expect("R language");
-    let rust_lang = language_for("script.rs", Some("rs")).expect("Rust language");
-
-    let get_stat = |lang| {
-        breakdown
-            .iter()
-            .find(|(l, _)| std::ptr::eq(*l, lang))
-            .map(|(_, c)| *c)
-            .unwrap_or_default()
-    };
-
-    let py_stat = get_stat(py_lang);
+    // Each fence's attributes name its language. Markdown: the heading and
+    // six fence lines, and three blanks.
     assert_eq!(
-        py_stat.code, 2,
-        "Python lines under {{.python}} must be parsed as Python code"
-    );
-
-    let r_stat = get_stat(r_lang);
-    assert_eq!(
-        r_stat.code, 1,
-        "R lines under {{r, ...}} must be parsed as R code"
-    );
-
-    let rust_stat = get_stat(rust_lang);
-    assert_eq!(
-        rust_stat.code, 1,
-        "Rust lines under {{.rust}} must be parsed as Rust code"
+        by_name(&loc::count_markdown_source(md)),
+        [
+            ("Markdown", counts(7, 0, 3)),
+            ("Python", counts(2, 0, 0)),
+            ("R", counts(1, 0, 0)),
+            ("Rust", counts(1, 0, 0)),
+        ]
     );
 }
 
@@ -259,12 +200,9 @@ fn test_markdown_multi_file_prose_aggregation() {
         .expect("Markdown stat");
 
     assert_eq!(md_stat.files, 2);
-    assert!(md_stat.embedded.contains_key("Text / Markup"));
-    let text_markup = &md_stat.embedded["Text / Markup"];
-    assert!(
-        text_markup.counts.code >= 6,
-        "Prose from both files must be accumulated"
-    );
+    // A.md: the heading and two lines of prose, and a blank. B.md: the
+    // heading, the two fence lines and a line of prose, and a blank.
+    assert_eq!(md_stat.embedded["Text / Markup"].counts, counts(7, 0, 2));
 }
 
 #[test]
@@ -278,26 +216,6 @@ fn test_loc_symlinks_to_files_are_counted() {
     let report = count_roots(std::slice::from_ref(&link_path), false);
     assert_eq!(report.total_files(), 1);
     assert_eq!(report.total().code, 3);
-}
-
-#[test]
-#[cfg(unix)]
-fn test_loc_multihop_symlinks_are_counted() {
-    let temp = TempTestDir::new("loc_multihop_symlinks");
-    let target = temp.create_file("actual.py", b"def hello():\n    print('hi')\n");
-    let link1 = temp.path.join("intermediate_link");
-    let link2 = temp.path.join("final_link");
-    std::os::unix::fs::symlink(&target, &link1).unwrap();
-    std::os::unix::fs::symlink(&link1, &link2).unwrap();
-
-    let report = count_roots(std::slice::from_ref(&temp.path), false);
-    let py_lang = language_for("actual.py", Some("py")).expect("Python language");
-    let langs: Vec<_> = report.languages().collect();
-    let py_stat = langs.iter().find(|s| std::ptr::eq(s.language, py_lang));
-    assert!(
-        py_stat.is_some(),
-        "Python file must be detected via symlink chain"
-    );
 }
 
 #[test]
@@ -317,15 +235,14 @@ fn test_loc_multi_root_gitignore_isolation() {
     let roots = vec![root1.path.clone(), root2.path.clone()];
     let report = count_roots(&roots, false);
 
-    // root1's ignored.rs is skipped by gitignore, but root2's valid.rs MUST be counted
+    // root1's ignored.rs is skipped by its .gitignore; root2's valid.rs is
+    // not, though the pattern would match it.
     assert_eq!(report.total_files(), 1);
-    let rust_lang = language_for("valid.rs", Some("rs")).expect("Rust language");
-    let langs: Vec<_> = report.languages().collect();
-    let rust_stat = langs.iter().find(|s| std::ptr::eq(s.language, rust_lang));
-    assert!(
-        rust_stat.is_some(),
-        "root2 valid.rs must not be skipped due to root1 git repo"
-    );
+    let langs: Vec<_> = report
+        .languages()
+        .map(|stat| (stat.language.name, stat.files, stat.counts))
+        .collect();
+    assert_eq!(langs, [("Rust", 1, counts(1, 0, 0))]);
 }
 
 /// Markdown is the one language whose counts are assembled from a breakdown

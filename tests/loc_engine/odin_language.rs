@@ -6,30 +6,8 @@
 use lez::loc::{LocCounts, count_roots, language_for};
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-// Helper to create a temporary test folder
-struct TempTestDir {
-    path: PathBuf,
-}
-
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("lez_test_odin_{prefix}_{nanos}"));
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
+use crate::common::TempTestDir;
 
 // =========================================================================
 // ODIN LOC PARSER TESTS
@@ -124,16 +102,25 @@ fn test_odin_in_multi_language_tree_count_roots() {
     fs::write(&py_file, "# Python comment\nprint('hi')\n").unwrap();
 
     let report = count_roots(std::slice::from_ref(&root.to_path_buf()), false);
-    let odin_stat = report.languages().find(|s| s.language.name == "Odin");
-    assert!(
-        odin_stat.is_some(),
-        "Odin must be present in LOC report languages"
+    let mut langs: Vec<_> = report
+        .languages()
+        .map(|stat| (stat.language.name, stat.files, stat.counts))
+        .collect();
+    langs.sort_by_key(|(name, ..)| *name);
+    let counts = |code, comments| LocCounts {
+        lines: code + comments,
+        code,
+        comments,
+        blanks: 0,
+    };
+    assert_eq!(
+        langs,
+        [
+            ("Odin", 1, counts(2, 1)),
+            ("Python", 1, counts(1, 1)),
+            ("Rust", 1, counts(2, 1)),
+        ]
     );
-    let stat = odin_stat.unwrap();
-    assert_eq!(stat.files, 1);
-    assert_eq!(stat.counts.lines, 3);
-    assert_eq!(stat.counts.code, 2);
-    assert_eq!(stat.counts.comments, 1);
 }
 
 #[test]
