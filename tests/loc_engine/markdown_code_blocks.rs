@@ -383,3 +383,39 @@ fn markdown_breakdown_accounts_for_every_line_exactly_once() {
         );
     }
 }
+
+/// A Markdown file's fenced languages are listed under its row as a tree.
+/// The branches are dimmed when colours are on, and plain text when they
+/// are off; they used to be dimmed even into a pipe.
+#[test]
+fn the_sub_language_tree_is_plain_without_colours() {
+    let dir = crate::common::TempTestDir::new("markdown_tree");
+    dir.create_file(
+        "README.md",
+        b"# Title\n\n```rust\nfn main() {}\n```\n\n```python\nprint('hi')\n```\n",
+    );
+    let code =
+        |args: &[&str]| crate::common::success_stdout(crate::common::lez_in(dir.path()).args(args));
+    let rule = "─".repeat(56);
+    let plain = format!(
+        " Language           Files  Lines  Code  Comments  Blanks\n \
+         Markdown               1      9     7         0       2\n \
+         ├── Text / Markup      *      7     5         0       2\n \
+         ├── Python             *      1     1         0       0\n \
+         └── Rust               *      1     1         0       0\n\
+         {rule}\n \
+         Total                  1      9     7         0       2\n"
+    );
+    assert_eq!(code(&["--code=lines"]), plain);
+    assert_eq!(code(&["--code=lines", "--color=never"]), plain);
+
+    let painted = code(&["--code=lines", "--color=always"]);
+    assert_eq!(
+        painted
+            .lines()
+            .nth(2)
+            .map(|row| row.starts_with(" \x1b[2m├── \x1b[0m")),
+        Some(true),
+        "{painted:?}"
+    );
+}
