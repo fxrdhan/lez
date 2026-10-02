@@ -21,6 +21,9 @@ naersk'.buildPackage rec {
     installShellFiles
     pandoc
   ];
+  # The tests build repository fixtures with git, and fail rather than
+  # skip without it.
+  nativeCheckInputs = [ pkgs.git ];
 
   buildNoDefaultFeatures = true;
   buildFeatures = "git,inspect-archives";

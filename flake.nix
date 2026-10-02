@@ -108,6 +108,9 @@
             inherit buildInputs;
             src = ./.;
             mode = "test";
+            # The tests build repository fixtures with git, and fail rather
+            # than skip without it.
+            nativeBuildInputs = [ pkgs.git ];
           };
 
           clippy = naersk'.buildPackage {
