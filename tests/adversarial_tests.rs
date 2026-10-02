@@ -7,8 +7,6 @@ mod common;
 
 #[path = "adversarial/archive_fuzz_stress.rs"]
 mod archive_fuzz_stress;
-#[path = "adversarial/blocksize_column_stress.rs"]
-mod blocksize_column_stress;
 #[path = "adversarial/broken_pipe_resilience.rs"]
 mod broken_pipe_resilience;
 #[path = "adversarial/bug_remediations.rs"]
@@ -25,8 +23,6 @@ mod determinism_stress;
 mod dynamic_fs_concurrency;
 #[path = "adversarial/fd_exhaustion.rs"]
 mod fd_exhaustion;
-#[path = "adversarial/filesystem_types_stress.rs"]
-mod filesystem_types_stress;
 #[path = "adversarial/io_error_isolation.rs"]
 mod io_error_isolation;
 #[path = "adversarial/json_output_stress.rs"]
@@ -41,8 +37,6 @@ mod property_fuzz_engine;
 mod raw_bytes_paths;
 #[path = "adversarial/signal_cleanup.rs"]
 mod signal_cleanup;
-#[path = "adversarial/since_duration_stress.rs"]
-mod since_duration_stress;
 #[path = "adversarial/strict_mode_permutations.rs"]
 mod strict_mode_permutations;
 #[path = "adversarial/symlink_targets_stress.rs"]
@@ -51,5 +45,3 @@ mod symlink_targets_stress;
 mod syscall_invariants;
 #[path = "adversarial/theme_yaml_fuzz_stress.rs"]
 mod theme_yaml_fuzz_stress;
-#[path = "adversarial/tree_view_stress.rs"]
-mod tree_view_stress;

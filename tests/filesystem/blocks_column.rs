@@ -1,358 +1,433 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! `-S`/`--blocksize` and `--blocks`: the allocated-size columns, the sort
+//! field built on them, and how strict mode treats them outside the long view.
+//!
+//! Expected values come from the file's own metadata rather than from a
+//! hardcoded number, because allocation differs between filesystems (block
+//! size, sparse support, compression) while the relation to `st_blocks` and
+//! `st_blksize` does not.
 
-//! Integration and unit tests for Requirement R2: Filesystem Block Size Column Flag `-S` / `--blocks` / `--blocksize`.
+use std::fs;
+use std::path::Path;
+use std::process::Output;
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::{TempTestDir, grouped, lez_in};
 
-struct TempTestDir {
-    path: PathBuf,
+/// Writes `len` bytes that no filesystem can compress away, so the allocation
+/// tracks the length.
+fn incompressible(len: usize) -> Vec<u8> {
+    let mut state: u32 = 0x9E37_79B9;
+    (0..len)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            state as u8
+        })
+        .collect()
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_blocks_test_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
+fn run(dir: &Path, args: &[&str]) -> Output {
+    lez_in(dir).args(args).output().expect("failed to run lez")
+}
 
-    fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
+fn stdout(output: &Output) -> String {
+    assert!(
+        output.status.success(),
+        "lez failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout.clone()).expect("stdout is UTF-8")
+}
+
+/// Rows of a long view reduced to the allocation column and the name, with
+/// runs of whitespace in the name (tree indentation included) collapsed.
+fn allocation_rows(dir: &Path, flags: &[&str]) -> Vec<(String, String)> {
+    let mut args = vec![
+        "-l",
+        "--no-filesize",
+        "--no-permissions",
+        "--no-user",
+        "--no-time",
+        "--color=never",
+    ];
+    args.extend_from_slice(flags);
+    stdout(&run(dir, &args))
+        .lines()
+        .map(|line| {
+            let mut fields = line.split_whitespace();
+            let value = fields.next().expect("row has an allocation column");
+            let name = fields.collect::<Vec<_>>().join(" ");
+            (value.to_owned(), name)
+        })
+        .collect()
+}
+
+#[cfg(unix)]
+fn allocated_bytes(path: &Path) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    fs::metadata(path).expect("stat fixture").blocks() * 512
+}
+
+/// The number of `st_blksize` blocks the allocation spans, which is what
+/// `--blocks` documents as "the allocated size of each file, in blocks".
+#[cfg(unix)]
+fn allocated_blocks(path: &Path) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    let md = fs::metadata(path).expect("stat fixture");
+    let block_size = md.blksize();
+    if block_size > 0 && block_size != 512 {
+        (md.blocks() * 512).div_ceil(block_size)
+    } else {
+        md.blocks()
+    }
+}
+
+#[cfg(unix)]
+fn fixture() -> TempTestDir {
+    let dir = TempTestDir::new("blocks");
+    dir.create_file("one_byte.txt", b"a");
+    dir.create_file("ten_k.bin", &incompressible(10_000));
+    dir.create_file("quarter_mib.bin", &incompressible(256 * 1024));
+    dir.create_dir("sub");
+    dir.create_symlink("one_byte.txt", "link");
+    dir
+}
+
+#[test]
+#[cfg(unix)]
+fn blocks_counts_the_allocation_in_filesystem_blocks() {
+    let dir = fixture();
+    let rows = allocation_rows(dir.path(), &["--blocks"]);
+    for name in ["one_byte.txt", "ten_k.bin", "quarter_mib.bin"] {
+        let expected = grouped(allocated_blocks(&dir.path().join(name)));
+        assert!(
+            rows.contains(&(expected.clone(), name.to_owned())),
+            "{name} should show {expected} blocks: {rows:?}"
+        );
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn blocksize_in_bytes_is_the_allocation_not_the_length() {
+    let dir = fixture();
+    let sparse = dir.path().join("sparse.img");
+    fs::File::create(&sparse)
+        .and_then(|f| f.set_len(10 * 1024 * 1024))
+        .expect("create sparse file");
+
+    let rows = allocation_rows(dir.path(), &["--blocksize", "-B"]);
+    for name in ["one_byte.txt", "ten_k.bin", "quarter_mib.bin", "sparse.img"] {
+        let expected = grouped(allocated_bytes(&dir.path().join(name)));
+        assert!(
+            rows.contains(&(expected.clone(), name.to_owned())),
+            "{name} should show {expected} allocated bytes: {rows:?}"
+        );
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn directories_symlinks_and_pipes_have_no_allocation_column() {
+    let dir = fixture();
+    let fifo = std::ffi::CString::new(dir.path().join("pipe").to_str().expect("UTF-8 path"))
+        .expect("no NUL in path");
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o644) }, 0, "mkfifo");
+
+    for flag in ["--blocks", "--blocksize"] {
+        let rows = allocation_rows(dir.path(), &[flag]);
+        for name in ["sub", "link -> one_byte.txt", "pipe"] {
+            assert!(
+                rows.contains(&("-".to_owned(), name.to_owned())),
+                "{flag}: {name} {rows:?}"
+            );
         }
-        let mut file = StdFile::create(&file_path).unwrap();
-        file.write_all(content).unwrap();
-        file_path
     }
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("failed to get current_exe");
-    path.pop(); // Remove test binary name
-    if path.ends_with("deps") {
-        path.pop(); // Remove deps
-    }
-    path.push("lez");
-    path
-}
-
-fn run_lez(args: &[&str]) -> Output {
-    Command::new(bin_path())
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
-fn run_lez_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
-    let mut cmd = Command::new(bin_path());
-    cmd.args(args);
-    for (k, v) in envs {
-        cmd.env(k, v);
-    }
-    cmd.output().expect("Failed to execute lez binary with env")
-}
-
-fn run_lez_non_strict(args: &[&str]) -> Output {
-    Command::new(bin_path())
-        .args(args)
-        .env_remove("EZA_STRICT")
-        .env_remove("EXA_STRICT")
-        .output()
-        .expect("Failed to execute lez binary non-strict")
-}
-
-// ---------------------------------------------------------------------------
-// 1. Long View with -S / --blocks / --blocksize
-// ---------------------------------------------------------------------------
-
+/// With `-X` a symlink stands for its target, allocation included.
 #[test]
 #[cfg(unix)]
-fn test_long_view_with_short_s_flag_renders_blocks_column() {
-    let temp = TempTestDir::new("short_s");
-    temp.create_file("test_file.txt", b"Hello, block test!");
+fn a_dereferenced_link_shows_its_targets_allocation() {
+    let dir = fixture();
+    dir.create_symlink("ten_k.bin", "big_link");
+    let expected = grouped(allocated_bytes(&dir.path().join("ten_k.bin")));
 
-    let output = run_lez(&[
-        "-l",
-        "-S",
-        "-h",
-        "--color=never",
-        temp.path.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let rows = allocation_rows(dir.path(), &["--blocksize", "-B", "-X"]);
     assert!(
-        stdout.contains("Blocksize"),
-        "Expected header 'Blocksize' in output with -l -S -h, got:\n{stdout}"
+        rows.contains(&(expected.clone(), "big_link".to_owned())),
+        "{rows:?}"
     );
-    assert!(stdout.contains("test_file.txt"));
-}
-
-#[test]
-#[cfg(unix)]
-fn test_long_view_with_blocks_flag_renders_blocks_column() {
-    let temp = TempTestDir::new("blocks_long");
-    temp.create_file("sample.dat", b"Testing --blocks flag");
-
-    let output = run_lez(&[
-        "-l",
-        "--blocks",
-        "-h",
-        "--color=never",
-        temp.path.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Blocks"),
-        "Expected header 'Blocks' in output with -l --blocks -h, got:\n{stdout}"
+        rows.contains(&(
+            grouped(allocated_bytes(&dir.path().join("one_byte.txt"))),
+            "link".to_owned()
+        )),
+        "{rows:?}"
     );
-    assert!(stdout.contains("sample.dat"));
 }
 
+/// With `--total-size` a directory reports what the files under it
+/// allocate, at every depth, in the tree view too.
 #[test]
 #[cfg(unix)]
-fn test_long_view_with_blocksize_flag_renders_blocks_column() {
-    let temp = TempTestDir::new("blocksize_long");
-    temp.create_file("data.bin", b"Testing --blocksize flag");
-
-    let output = run_lez(&[
-        "-l",
-        "--blocksize",
-        "-h",
-        "--color=never",
-        temp.path.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Blocksize"),
-        "Expected header 'Blocksize' in output with -l --blocksize -h, got:\n{stdout}"
-    );
-    assert!(stdout.contains("data.bin"));
-}
-
-#[test]
-#[cfg(unix)]
-fn test_output_equivalence_between_s_and_blocksize() {
-    let temp = TempTestDir::new("equiv");
-    temp.create_file("file1.txt", b"First content");
-    temp.create_file("file2.txt", b"Second content longer payload");
-
-    let out_s = run_lez(&[
-        "-l",
-        "-S",
-        "--color=never",
-        "--time-style=iso",
-        temp.path.to_str().unwrap(),
-    ]);
-    let out_blocksize = run_lez(&[
-        "-l",
-        "--blocksize",
-        "--color=never",
-        "--time-style=iso",
-        temp.path.to_str().unwrap(),
-    ]);
-
-    assert!(out_s.status.success());
-    assert!(out_blocksize.status.success());
-
-    let str_s = String::from_utf8_lossy(&out_s.stdout);
-    let str_blocksize = String::from_utf8_lossy(&out_blocksize.stdout);
+fn with_total_size_a_directory_shows_what_its_contents_allocate() {
+    let dir = TempTestDir::new("blocks_total");
+    let top = dir.create_file("outer/top.bin", &incompressible(10_000));
+    let deep = dir.create_file("outer/inner/deep.bin", &incompressible(5_000));
+    let deep_bytes = allocated_bytes(&deep);
+    let outer_bytes = allocated_bytes(&top) + deep_bytes;
 
     assert_eq!(
-        str_s, str_blocksize,
-        "-S and --blocksize output should be completely identical"
+        allocation_rows(dir.path(), &["--blocksize", "-B", "--total-size"]),
+        [(grouped(outer_bytes), "outer".to_owned())]
+    );
+    assert_eq!(
+        allocation_rows(
+            dir.path(),
+            &["--blocksize", "-B", "--total-size", "-T", "outer"]
+        ),
+        [
+            (grouped(outer_bytes), "outer".to_owned()),
+            (grouped(deep_bytes), "├── inner".to_owned()),
+            (grouped(deep_bytes), "│ └── deep.bin".to_owned()),
+            (grouped(allocated_bytes(&top)), "└── top.bin".to_owned()),
+        ]
     );
 }
 
 #[test]
 #[cfg(unix)]
-fn test_blocks_and_blocksize_override_behavior() {
-    let temp = TempTestDir::new("override");
-    temp.create_file("file1.txt", b"Content for testing override");
+fn blocksize_honours_the_size_unit_flags() {
+    let dir = TempTestDir::new("blocks_units");
+    let path = dir.create_file("ten_k.bin", &incompressible(10_000));
+    let bytes = allocated_bytes(&path);
+    assert_eq!(
+        bytes % 1024,
+        0,
+        "the fixture should occupy whole KiB for the unit checks to be exact"
+    );
+    let kib = bytes / 1024;
 
-    // --blocksize followed by --blocks => blocks wins
-    let out_blocks_wins = run_lez(&[
-        "-l",
-        "-h",
-        "--blocksize",
-        "--blocks",
-        "--color=never",
-        temp.path.to_str().unwrap(),
-    ]);
-    assert!(out_blocks_wins.status.success());
-    let str_blocks_wins = String::from_utf8_lossy(&out_blocks_wins.stdout);
-    assert!(str_blocks_wins.contains("Blocks"));
-    assert!(!str_blocks_wins.contains("Blocksize"));
+    let binary = allocation_rows(dir.path(), &["--blocksize", "-b"]);
+    let raw = allocation_rows(dir.path(), &["--blocksize", "-B"]);
+    assert_eq!(binary, [(format!("{kib}Ki"), "ten_k.bin".to_owned())]);
+    assert_eq!(raw, [(grouped(bytes), "ten_k.bin".to_owned())]);
 
-    // --blocks followed by --blocksize => blocksize wins
-    let out_blocksize_wins = run_lez(&[
-        "-l",
-        "-h",
-        "--blocks",
-        "--blocksize",
-        "--color=never",
-        temp.path.to_str().unwrap(),
-    ]);
-    assert!(out_blocksize_wins.status.success());
-    let str_blocksize_wins = String::from_utf8_lossy(&out_blocksize_wins.stdout);
-    assert!(str_blocksize_wins.contains("Blocksize"));
+    // The decimal rounding rules are unit tested with the renderer; here it is
+    // enough that the default goes through the same formatter as the size
+    // column, so a file whose length equals the allocation must read the same.
+    dir.create_file(
+        "twin.bin",
+        &incompressible(usize::try_from(bytes).expect("fits")),
+    );
+    let out = stdout(&run(
+        dir.path(),
+        &[
+            "-l",
+            "--blocksize",
+            "--no-permissions",
+            "--no-user",
+            "--no-time",
+        ],
+    ));
+    let column = |name: &str, index: usize| -> String {
+        out.lines()
+            .find(|line| line.ends_with(name))
+            .and_then(|line| line.split_whitespace().nth(index))
+            .unwrap_or_else(|| panic!("no row for {name}:\n{out}"))
+            .to_owned()
+    };
+    let decimal = column("ten_k.bin", 1);
+    assert!(decimal.ends_with('k'), "decimal prefix expected: {decimal}");
+    assert_eq!(decimal, column("twin.bin", 0));
 }
 
-// ---------------------------------------------------------------------------
-// 2. Strict Mode Behavior
-// ---------------------------------------------------------------------------
+#[test]
+#[cfg(unix)]
+fn json_carries_the_selected_allocation_column() {
+    let dir = TempTestDir::new("blocks_json");
+    let path = dir.create_file("ten_k.bin", &incompressible(10_000));
+
+    let blocks: serde_json::Value =
+        serde_json::from_str(&stdout(&run(dir.path(), &["--json", "-l", "--blocks"])))
+            .expect("valid JSON");
+    assert_eq!(
+        blocks["ten_k.bin"]["Blocks"],
+        grouped(allocated_blocks(&path))
+    );
+    assert!(blocks["ten_k.bin"].get("Blocksize").is_none());
+
+    let bytes: serde_json::Value = serde_json::from_str(&stdout(&run(
+        dir.path(),
+        &["--json", "-l", "--blocksize", "-B"],
+    )))
+    .expect("valid JSON");
+    assert_eq!(
+        bytes["ten_k.bin"]["Blocksize"],
+        grouped(allocated_bytes(&path))
+    );
+    assert!(bytes["ten_k.bin"].get("Blocks").is_none());
+}
 
 #[test]
-fn test_strict_mode_blocks_without_long_fails() {
-    let temp = TempTestDir::new("strict_blocks");
-    temp.create_file("test.txt", b"data");
+#[cfg(unix)]
+fn short_s_is_the_same_flag_as_blocksize() {
+    let dir = fixture();
+    for extra in [&[][..], &["-T"][..]] {
+        let mut short = vec!["-l", "-S", "--time-style=iso"];
+        let mut long = vec!["-l", "--blocksize", "--time-style=iso"];
+        short.extend_from_slice(extra);
+        long.extend_from_slice(extra);
+        assert_eq!(
+            stdout(&run(dir.path(), &short)),
+            stdout(&run(dir.path(), &long)),
+            "with {extra:?}"
+        );
+    }
+}
 
-    for (flag, expected_arg) in &[
+#[test]
+#[cfg(unix)]
+fn the_header_names_the_selected_column_and_the_last_flag_wins() {
+    let dir = TempTestDir::new("blocks_header");
+    dir.create_file("file.txt", b"x");
+
+    let header = |flags: &[&str]| -> Vec<String> {
+        let mut args = vec![
+            "-lh",
+            "--no-filesize",
+            "--no-permissions",
+            "--no-user",
+            "--no-time",
+        ];
+        args.extend_from_slice(flags);
+        let out = stdout(&run(dir.path(), &args));
+        out.lines()
+            .next()
+            .expect("header row")
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect()
+    };
+
+    assert_eq!(header(&["--blocks"]), ["Blocks", "Name"]);
+    assert_eq!(header(&["--blocksize"]), ["Blocksize", "Name"]);
+    assert_eq!(header(&["--blocksize", "--blocks"]), ["Blocks", "Name"]);
+    assert_eq!(header(&["--blocks", "--blocksize"]), ["Blocksize", "Name"]);
+    assert_eq!(header(&["--blocks", "-S"]), ["Blocksize", "Name"]);
+}
+
+#[test]
+#[cfg(unix)]
+fn sorting_by_blocks_uses_the_allocation_not_the_length() {
+    let dir = TempTestDir::new("blocks_sort");
+    dir.create_file("small_dense.bin", &incompressible(64 * 1024));
+    dir.create_file("medium_dense.bin", &incompressible(256 * 1024));
+    let sparse = dir.path().join("huge_sparse.img");
+    fs::File::create(&sparse)
+        .and_then(|f| f.set_len(64 * 1024 * 1024))
+        .expect("create sparse file");
+    assert!(
+        allocated_bytes(&sparse) < allocated_bytes(&dir.path().join("small_dense.bin")),
+        "the temporary filesystem should store the sparse file sparsely"
+    );
+
+    let names = |args: &[&str]| -> Vec<String> {
+        stdout(&run(dir.path(), args))
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    };
+
+    assert_eq!(
+        names(&["-1", "--sort=size"]),
+        ["small_dense.bin", "medium_dense.bin", "huge_sparse.img"]
+    );
+    for field in ["block", "blocks", "blocksize"] {
+        let sort = format!("--sort={field}");
+        assert_eq!(
+            names(&["-1", &sort]),
+            ["huge_sparse.img", "small_dense.bin", "medium_dense.bin"],
+            "{sort}"
+        );
+        assert_eq!(
+            names(&["-1", &sort, "-r"]),
+            ["medium_dense.bin", "small_dense.bin", "huge_sparse.img"],
+            "{sort} -r"
+        );
+    }
+}
+
+#[test]
+fn strict_mode_rejects_block_columns_outside_the_long_view() {
+    let dir = TempTestDir::new("blocks_strict");
+    dir.create_file("file.txt", b"data");
+
+    for (flag, option) in [
         ("-S", "blocksize"),
         ("--blocksize", "blocksize"),
         ("--blocks", "blocks"),
     ] {
-        let output = run_lez_with_env(&[flag, temp.path.to_str().unwrap()], &[("EZA_STRICT", "1")]);
-
-        assert!(
-            !output.status.success(),
-            "Expected flag {flag} without --long to fail in strict mode"
-        );
-        assert_eq!(
-            output.status.code(),
-            Some(3),
-            "Expected exit code 3 (OPTIONS_ERROR) for {flag} in strict mode"
-        );
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            stderr.contains("useless without option long") && stderr.contains(expected_arg),
-            "Expected stderr to indicate argument cannot be used without '--long', got:\n{stderr}"
-        );
+        for view in [&[][..], &["-1"][..], &["-G"][..], &["-T"][..]] {
+            let mut args = view.to_vec();
+            args.push(flag);
+            let output = lez_in(dir.path())
+                .env("LEZ_STRICT", "1")
+                .args(&args)
+                .output()
+                .expect("failed to run lez");
+            assert_eq!(output.status.code(), Some(3), "{args:?}");
+            assert_eq!(
+                String::from_utf8_lossy(&output.stderr),
+                format!("lez: Option {option} is useless without option long\n"),
+                "{args:?}"
+            );
+            assert!(output.stdout.is_empty(), "{args:?}");
+        }
     }
 }
 
 #[test]
-fn test_strict_mode_blocks_with_long_succeeds() {
-    let temp = TempTestDir::new("strict_blocks_long");
-    temp.create_file("test.txt", b"data");
+fn strict_mode_accepts_block_columns_in_the_long_view() {
+    let dir = TempTestDir::new("blocks_strict_long");
+    dir.create_file("file.txt", b"data");
 
-    for flag in &["-S", "--blocks", "--blocksize"] {
-        let output = run_lez_with_env(
-            &["-l", flag, temp.path.to_str().unwrap()],
-            &[("EZA_STRICT", "1")],
-        );
-
-        assert!(
-            output.status.success(),
-            "Expected -l with {flag} to succeed in strict mode, stderr:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+    for flag in ["-S", "--blocksize", "--blocks"] {
+        for long in ["-l", "-lT"] {
+            let output = lez_in(dir.path())
+                .env("LEZ_STRICT", "1")
+                .args([long, flag])
+                .output()
+                .expect("failed to run lez");
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{long} {flag}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(output.stderr.is_empty(), "{long} {flag}");
+        }
     }
 }
 
-// ---------------------------------------------------------------------------
-// 3. Non-Strict Mode Behavior (Flag Ignored without -l)
-// ---------------------------------------------------------------------------
-
 #[test]
-fn test_non_strict_mode_blocks_without_long_succeeds() {
-    let temp = TempTestDir::new("non_strict_blocks");
-    temp.create_file("test.txt", b"data");
+fn outside_strict_mode_block_flags_without_long_change_nothing() {
+    let dir = TempTestDir::new("blocks_lenient");
+    dir.create_file("file.txt", b"data");
+    dir.create_dir("folder");
 
-    for flag in &["-S", "--blocks", "--blocksize"] {
-        let output = run_lez_non_strict(&[flag, temp.path.to_str().unwrap()]);
-
-        assert!(
-            output.status.success(),
-            "Expected flag {flag} without --long to be ignored in non-strict mode, stderr:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("test.txt"));
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 4. Binary and Bytes Formatting with Blocks
-// ---------------------------------------------------------------------------
-
-#[test]
-#[cfg(unix)]
-fn test_blocks_column_with_binary_and_bytes_prefixes() {
-    let temp = TempTestDir::new("blocks_format");
-    temp.create_file("file.bin", &vec![0u8; 10000]);
-
-    // Binary prefixes
-    let output_bin = run_lez(&[
-        "-l",
-        "-S",
-        "-b",
-        "--color=never",
-        temp.path.to_str().unwrap(),
-    ]);
-    assert!(output_bin.status.success());
-
-    // Bytes without prefix
-    let output_bytes = run_lez(&[
-        "-l",
-        "--blocks",
-        "-B",
-        "--color=never",
-        temp.path.to_str().unwrap(),
-    ]);
-    assert!(output_bytes.status.success());
-}
-
-// ---------------------------------------------------------------------------
-// 5. Sort by Blocks
-// ---------------------------------------------------------------------------
-
-#[test]
-#[cfg(unix)]
-fn test_sort_by_blocks_options() {
-    let temp = TempTestDir::new("sort_blocks");
-    temp.create_file("small.txt", b"a");
-    temp.create_file("large.txt", &vec![0u8; 50000]);
-
-    for sort_field in &["blocks", "block", "blocksize"] {
-        let arg = format!("--sort={sort_field}");
-        let output = run_lez(&[
-            "-l",
-            "-S",
-            &arg,
-            "--color=never",
-            temp.path.to_str().unwrap(),
-        ]);
-        assert!(
-            output.status.success(),
-            "Failed sorting by {sort_field}: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+    for view in [&["-1"][..], &["-G"][..], &["-T"][..]] {
+        let baseline = stdout(&run(dir.path(), view));
+        for flag in ["-S", "--blocksize", "--blocks"] {
+            let mut args = view.to_vec();
+            args.push(flag);
+            let output = run(dir.path(), &args);
+            assert!(output.stderr.is_empty(), "{args:?}");
+            assert_eq!(stdout(&output), baseline, "{args:?}");
+        }
     }
 }

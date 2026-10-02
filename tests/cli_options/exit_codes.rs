@@ -154,3 +154,34 @@ fn test_exit_code_on_code_mode_missing_input_path() {
         "Expected exit code 2 (MISSING_INPUT_PATH) on missing path in --code mode"
     );
 }
+
+/// After `--` everything is a path, so a file whose name starts with a dash
+/// can be listed; without it the name is read as bundled short flags, and
+/// `-dash.txt` ends in `-s h.txt`, an unknown sort field.
+#[test]
+fn a_double_dash_ends_option_parsing() {
+    let dir = crate::common::TempTestDir::new("double_dash");
+    dir.create_file("-dash.txt", b"x");
+
+    assert_eq!(
+        crate::common::success_stdout(crate::common::lez_in(dir.path()).args([
+            "-1",
+            "--",
+            "-dash.txt"
+        ])),
+        "-dash.txt\n"
+    );
+
+    let output = crate::common::lez_in(dir.path())
+        .args(["-1", "-dash.txt"])
+        .output()
+        .expect("run lez");
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .starts_with("error: invalid value 'h.txt' for '--sort <FIELD>'\n"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
