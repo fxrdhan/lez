@@ -98,3 +98,26 @@ fn a_tree_lists_every_entry_under_a_tight_descriptor_limit() {
     // directory plus one leaf per level.
     assert_eq!(stdout.lines().count(), 1 + WIDTH * (2 + 2 * DEPTH));
 }
+
+#[test]
+fn total_size_sums_every_branch_under_a_tight_descriptor_limit() {
+    let dir = wide_tree();
+    let stdout = run_with_fd_limit(
+        &dir,
+        &[
+            "-l",
+            "--total-size",
+            "--bytes",
+            "--no-permissions",
+            "--no-user",
+            "--no-time",
+        ],
+        16,
+    );
+    // Each branch holds "top\n" once and "deep\n" once per level.
+    let branch_bytes = 4 + 5 * DEPTH;
+    let expected: String = (0..WIDTH)
+        .map(|w| format!("{branch_bytes} dir_{w:03}\n"))
+        .collect();
+    assert_eq!(stdout, expected);
+}
