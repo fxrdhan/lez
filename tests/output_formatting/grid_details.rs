@@ -112,3 +112,30 @@ fn the_long_view_when_there_is_no_width_or_too_few_rows() {
     assert_eq!(grid("2", "--width=30"), two_rows);
     assert_eq!(grid("3", "--width=30"), long);
 }
+
+/// `--header` puts one header over each column the grid draws, lined up
+/// with its cells, and nothing after the last. At 30 columns the grid
+/// settles on a layout of three columns with the last one empty, which
+/// used to get a header too, running the line past the width; and every
+/// header line ended in spaces.
+#[test]
+fn a_header_tops_each_column_drawn() {
+    let dir = fixture("header");
+    for (width, expected) in [
+        (
+            "--width=200",
+            "Size Name     Size Name     Size Name     Size Name\n\
+             \x20  1 1.txt       2 2.txt       3 3.txt       4 4.txt\n",
+        ),
+        (
+            "--width=30",
+            "Size Name     Size Name\n   1 1.txt       3 3.txt\n   2 2.txt       4 4.txt\n",
+        ),
+        (
+            "--width=15",
+            "Size Name\n   1 1.txt\n   2 2.txt\n   3 3.txt\n   4 4.txt\n",
+        ),
+    ] {
+        assert_eq!(run(&dir, &["-lG", "--header", width]), expected, "{width}");
+    }
+}
