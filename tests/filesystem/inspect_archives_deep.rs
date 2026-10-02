@@ -139,8 +139,20 @@ fn test_inspect_archives_json_serialization() {
     ]);
 
     assert!(ok, "lez --json --inspect-archives failed: {stderr}");
-    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
-    assert!(parsed.is_ok(), "Output must be valid JSON: {stdout}");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).unwrap_or_else(|e| panic!("invalid JSON ({e}): {stdout}"));
+    // Archive inspection is documented for the long view only: JSON keeps the
+    // archive as an ordinary file and invents no keys for its entries.
+    let keys: Vec<&String> = parsed
+        .as_object()
+        .unwrap_or_else(|| panic!("expected an object: {stdout}"))
+        .keys()
+        .collect();
+    assert_eq!(keys, ["archive.tar"], "{stdout}");
+    assert!(
+        parsed["archive.tar"].get("Size").is_some(),
+        "the archive keeps its own columns: {stdout}"
+    );
 }
 
 #[test]
