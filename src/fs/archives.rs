@@ -68,10 +68,11 @@ pub fn read_entries(path: &Path) -> io::Result<Vec<ArchiveEntry>> {
             truncated = true;
             break;
         }
-        let size = match entry.header().size() {
-            Ok(size) => size,
-            Err(_) => continue,
-        };
+        // Not `entry.header().size()`: that reads only the header field,
+        // which writers leave at zero once a size passes the 8 GiB it can
+        // hold and put the real one in a PAX `size` record. `Entry::size`
+        // honours that record, and is a GNU sparse file's real length.
+        let size = entry.size();
         let path_bytes = entry.path_bytes();
         #[cfg(unix)]
         let name = {
