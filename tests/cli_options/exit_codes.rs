@@ -185,3 +185,45 @@ fn a_double_dash_ends_option_parsing() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+/// A numeric variable that does not parse is an option error naming the
+/// variable it was read from. An empty `EZA_*` or `EXA_*` value used to be
+/// blamed on the `LEZ_*` one, which was not even set.
+#[test]
+fn an_unparseable_variable_is_named_in_the_error() {
+    let dir = crate::common::TempTestDir::new("bad_variable");
+    dir.create_file("file.rs", b"fn main() {}\n");
+
+    for (prefixes, family, view) in [
+        (["LEZ", "EZA", "EXA"], "GRID_ROWS", &["-lG"][..]),
+        (
+            ["LEZ", "EZA", "EXA"],
+            "ICON_SPACING",
+            &["--icons=always"][..],
+        ),
+        (["LEZ", "EZA", "EXA"], "SIZE_DIGITS", &["-l"][..]),
+        (["LEZ", "EZA", "EXA"], "PERCENT_DIGITS", &["--code"][..]),
+    ] {
+        for prefix in prefixes {
+            let name = format!("{prefix}_{family}");
+            for (value, reason) in [
+                ("", "cannot parse integer from empty string"),
+                ("x", "invalid digit found in string"),
+            ] {
+                let output = crate::common::lez_in(dir.path())
+                    .env(&name, value)
+                    .args(view)
+                    .output()
+                    .expect("run lez");
+                assert_eq!(output.status.code(), Some(3), "{name}={value:?}");
+                assert!(output.stdout.is_empty(), "{name}={value:?}");
+                assert_eq!(
+                    String::from_utf8_lossy(&output.stderr),
+                    format!(
+                        "lez: Value {value:?} not valid for environment variable {name}: {reason}\n"
+                    ),
+                );
+            }
+        }
+    }
+}

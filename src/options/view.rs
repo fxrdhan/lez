@@ -418,23 +418,21 @@ impl TerminalWidth {
 
 impl RowThreshold {
     fn deduce<V: Vars>(vars: &V) -> Result<Self, OptionsError> {
-        if let Some(columns) = vars
-            .get(vars::LEZ_GRID_ROWS)
-            .or_else(|| vars.get(vars::EZA_GRID_ROWS))
-            .or_else(|| vars.get(vars::EXA_GRID_ROWS))
-            .and_then(|s| s.into_string().ok())
+        if let Some((name, columns)) = vars
+            .first_set(&[
+                vars::LEZ_GRID_ROWS,
+                vars::EZA_GRID_ROWS,
+                vars::EXA_GRID_ROWS,
+            ])
+            .and_then(|(name, value)| Some((name, value.into_string().ok()?)))
         {
             match columns.parse() {
                 Ok(rows) => Ok(Self::MinimumRows(rows)),
-                Err(e) => {
-                    let source = NumberSource::Env(if vars.get(vars::LEZ_GRID_ROWS).is_some() {
-                        vars::LEZ_GRID_ROWS
-                    } else {
-                        vars.source(vars::EZA_GRID_ROWS, vars::EXA_GRID_ROWS)
-                            .unwrap_or(vars::LEZ_GRID_ROWS)
-                    });
-                    Err(OptionsError::FailedParse(columns, source, e))
-                }
+                Err(e) => Err(OptionsError::FailedParse(
+                    columns,
+                    NumberSource::Env(name),
+                    e,
+                )),
             }
         } else {
             Ok(Self::AlwaysGrid)
@@ -501,21 +499,16 @@ impl SizeDigits {
             return Ok(*digits);
         }
 
-        if let Some(val) = vars
-            .get(vars::LEZ_SIZE_DIGITS)
-            .or_else(|| vars.get(vars::EZA_SIZE_DIGITS))
-            .or_else(|| vars.get(vars::EXA_SIZE_DIGITS))
-            .map(|s| s.to_string_lossy().to_string())
-        {
+        if let Some((name, value)) = vars.first_set(&[
+            vars::LEZ_SIZE_DIGITS,
+            vars::EZA_SIZE_DIGITS,
+            vars::EXA_SIZE_DIGITS,
+        ]) {
+            let val = value.to_string_lossy().to_string();
             match val.parse::<u8>() {
                 Ok(digits) if (1..=8).contains(&digits) => Ok(digits),
                 Ok(_) | Err(_) => {
-                    let source = NumberSource::Env(if vars.get(vars::LEZ_SIZE_DIGITS).is_some() {
-                        vars::LEZ_SIZE_DIGITS
-                    } else {
-                        vars.source(vars::EZA_SIZE_DIGITS, vars::EXA_SIZE_DIGITS)
-                            .unwrap_or(vars::LEZ_SIZE_DIGITS)
-                    });
+                    let source = NumberSource::Env(name);
                     let err = match val.parse::<u8>() {
                         Err(e) => e,
                         Ok(_) => "invalid digit range".parse::<u8>().unwrap_err(),
@@ -543,22 +536,16 @@ impl PercentDigits {
             return Ok(*digits);
         }
 
-        if let Some(val) = vars
-            .get(vars::LEZ_PERCENT_DIGITS)
-            .or_else(|| vars.get(vars::EZA_PERCENT_DIGITS))
-            .or_else(|| vars.get(vars::EXA_PERCENT_DIGITS))
-            .map(|s| s.to_string_lossy().to_string())
-        {
+        if let Some((name, value)) = vars.first_set(&[
+            vars::LEZ_PERCENT_DIGITS,
+            vars::EZA_PERCENT_DIGITS,
+            vars::EXA_PERCENT_DIGITS,
+        ]) {
+            let val = value.to_string_lossy().to_string();
             match val.parse::<u8>() {
                 Ok(digits) if digits <= 8 => Ok(digits),
                 Ok(_) | Err(_) => {
-                    let source =
-                        NumberSource::Env(if vars.get(vars::LEZ_PERCENT_DIGITS).is_some() {
-                            vars::LEZ_PERCENT_DIGITS
-                        } else {
-                            vars.source(vars::EZA_PERCENT_DIGITS, vars::EXA_PERCENT_DIGITS)
-                                .unwrap_or(vars::LEZ_PERCENT_DIGITS)
-                        });
+                    let source = NumberSource::Env(name);
                     let err = match val.parse::<u8>() {
                         Err(e) => e,
                         Ok(_) => "invalid digit range".parse::<u8>().unwrap_err(),
