@@ -1222,6 +1222,27 @@ pub fn icon_for_name_ext(name: &str, ext: Option<&str>) -> char {
 
 static SPECIAL_DIRS: LazyLock<HashMap<PathBuf, char>> = LazyLock::new(load_special_dirs);
 
+/// The working directory, which a relative path is joined to for a lookup
+/// in [`SPECIAL_DIRS`]. lez never changes it, so it is asked for once.
+static WORKING_DIR: LazyLock<Option<PathBuf>> = LazyLock::new(|| std::env::current_dir().ok());
+
+/// The icon of one of the user's own folders. [`SPECIAL_DIRS`] holds
+/// absolute paths, while a listing of the working directory, or of a path
+/// given relative to it, holds relative ones; those are made absolute, but
+/// only for a directory named like one of the folders, so other names cost
+/// nothing.
+fn special_dir_icon(file: &File<'_>) -> Option<char> {
+    if file.path.is_absolute() {
+        return SPECIAL_DIRS.get(&file.path).copied();
+    }
+    let name = std::ffi::OsStr::new(&file.name);
+    if !SPECIAL_DIRS.keys().any(|dir| dir.file_name() == Some(name)) {
+        return None;
+    }
+    let absolute = path_clean::clean(WORKING_DIR.as_ref()?.join(&file.path));
+    SPECIAL_DIRS.get(&absolute).copied()
+}
+
 /// Builds up the cache of special directories, mapping the directories it finds to the associated
 /// icons.
 fn load_special_dirs() -> HashMap<PathBuf, char> {
@@ -1321,8 +1342,8 @@ const MIME_WILDCARD_ICONS: Map<&'static str, char> = phf_map! {
 /// directory, or by the lowercase file extension.
 pub fn icon_for_file(file: &File<'_>, empty_dir_icon: bool) -> char {
     if file.points_to_directory() {
-        if let Some(icon) = SPECIAL_DIRS.get(&file.path) {
-            *icon
+        if let Some(icon) = special_dir_icon(file) {
+            icon
         } else {
             *DIRECTORY_ICONS.get(file.name.as_str()).unwrap_or_else(|| {
                 // `is_empty_dir` is the expensive part of drawing a listing
