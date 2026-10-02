@@ -44,8 +44,9 @@
 # Calculate and show recursive directory total size (can be slow on large trees)
 # total_size = false
 
-# Number of decimal/fraction digits for file size (e.g. 0 to 4)
-# size_digits = 1
+# Characters in a file size's number, the decimal point included, from 1 to 8
+# (default 3, as in `2.3M`; 4 gives `2.35M`)
+# size_digits = 3
 
 # Timestamp style: "default", "iso", "long-iso", "full-iso", "relative", "relative-recent", or custom strftime "+%Y-%m-%d %H:%M"
 # time_style = "default"

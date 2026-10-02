@@ -267,7 +267,7 @@ These options are available when running with `--long` (`-l`):
 
 - **-b**, **--binary**: list file sizes with binary prefixes (overrides `--bytes` if passed after)
 - **-B**, **--bytes**: list file sizes in bytes, without any prefixes (overrides `--binary` if passed after)
-- **--size-digits=(NUM)**, **--digits=(NUM)**: number of digits to display for file sizes (1..=8, default: 3; also configurable via `LEZ_SIZE_DIGITS`)
+- **--size-digits=(NUM)**, **--digits=(NUM)**: number of digits to display for file sizes, the decimal point counting as one (1..=8, default: 3, as in `2.3M`; also configurable via `LEZ_SIZE_DIGITS`)
 - **-g**, **--group**: list each file’s group
 - **--smart-group**: only show group if it has a different name from owner (automatically enables group column)
 - **-n**, **--numeric**: show user and group as their numeric IDs
@@ -385,7 +385,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 | `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
 | `LEZ_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |
 | `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin`; ignored by `--stdin0` (default: newline `\n`). Supports escape sequences (e.g. `\0`, `\n`, `\t`, `\x00`) and `null`/`nul`. |
-| `LEZ_SIZE_DIGITS` / `EZA_SIZE_DIGITS` | Default number of digits (1..=8) to display for formatted file sizes (default: `3`). |
+| `LEZ_SIZE_DIGITS` / `EZA_SIZE_DIGITS` | Default number of digits (1..=8) to display for formatted file sizes, the decimal point counting as one (default: `3`). |
 | `LEZ_OVERRIDE_AUTO_COLOR` | Force automatic color detection behavior. |
 | `TIME_STYLE` | Default timestamp format style (`default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or `+<FORMAT>`). |
 | `NO_COLOR` / `CLICOLOR` / `CLICOLOR_FORCE` | Standard terminal color control flags. |

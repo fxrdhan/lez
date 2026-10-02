@@ -292,7 +292,7 @@ These options are available when running with `--long` (`-l`):
 : List file sizes in bytes, without any prefixes. Overrides preceding `-b`/`--binary` flags.
 
 `--size-digits=(NUM)`, `--digits=(NUM)`
-: Number of digits to display for file sizes (1..=8, default: 3). Can also be set via the `LEZ_SIZE_DIGITS` environment variable.
+: Number of digits to display for file sizes, the decimal point counting as one (1..=8, default: 3, as in `2.3M`). Can also be set via the `LEZ_SIZE_DIGITS` environment variable.
 
 `--percent-digits=(NUM)`, `--precision-percent=(NUM)`
 : Number of decimal digits to display for percentages (0..=8, default: 1). Can also be set via the `LEZ_PERCENT_DIGITS` environment variable or `[loc] percent_digits` in configuration.
@@ -473,7 +473,7 @@ Telling the two apart means asking the filesystem about each directory listed: i
 
 ## `LEZ_SIZE_DIGITS`, `EZA_SIZE_DIGITS`
 
-Specifies the default number of digits (from 1 to 8) to display for formatted file sizes (default: `3`).
+Specifies the default number of digits (from 1 to 8) to display for formatted file sizes, the decimal point counting as one (default: `3`).
 
 For example, setting `LEZ_SIZE_DIGITS=4` causes sizes like `2.3Gi` to be formatted with higher precision as `2.34Gi`.
 
