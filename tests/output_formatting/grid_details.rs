@@ -1,96 +1,114 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! `--long --grid`: the rows of the long view, laid out as a grid when there
+//! is a width to fit them to. Each cell is exactly the long view's row, so
+//! the long view itself is the oracle for what goes in a cell.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
-struct TempTestDir {
-    path: PathBuf,
+/// `1.txt` to `4.txt`, of 1 to 4 bytes, so the size column tells them apart.
+fn fixture(prefix: &str) -> TempTestDir {
+    let dir = TempTestDir::new(prefix);
+    for n in 1..=4 {
+        dir.create_file(&format!("{n}.txt"), &vec![b'x'; n]);
+    }
+    dir
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_grid_across_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
+const SIZE_ONLY: [&str; 3] = ["--no-permissions", "--no-user", "--no-time"];
 
-    fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut file = StdFile::create(&file_path).unwrap();
-        file.write_all(content).unwrap();
-        file_path
-    }
+fn run(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(dir.path()).args(SIZE_ONLY).args(args))
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
+/// The long view's rows, in order.
+fn long_rows(dir: &TempTestDir, extra: &[&str]) -> Vec<String> {
+    run(dir, &[&["-l"][..], extra].concat())
+        .lines()
+        .map(str::to_owned)
+        .collect()
 }
 
+/// With room for every cell on one row, the grid is the long view's rows
+/// four spaces apart: the same spacing between the columns and the name,
+/// whatever `--spacing` says, and no column left over when every column
+/// is turned off.
 #[test]
-fn test_long_grid_across_sorting_and_rendering() {
-    let temp = TempTestDir::new("across");
-    temp.create_file("1.txt", b"1");
-    temp.create_file("2.txt", b"2");
-    temp.create_file("3.txt", b"3");
-    temp.create_file("4.txt", b"4");
-
-    let output = crate::common::lez_cmd()
-        .arg("--long")
-        .arg("--grid")
-        .arg("--across")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .env("COLUMNS", "160")
-        .output()
-        .expect("Failed to execute lez --long --grid --across");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("1.txt"));
-    assert!(stdout.contains("2.txt"));
-    assert!(stdout.contains("3.txt"));
-    assert!(stdout.contains("4.txt"));
+fn each_cell_is_the_long_views_row() {
+    let dir = fixture("cells");
+    for extra in [
+        &[][..],
+        &["--spacing=3"],
+        &["--spacing=0"],
+        &["--no-filesize"],
+    ] {
+        assert_eq!(
+            run(&dir, &[&["-lG", "--width=200"][..], extra].concat()),
+            format!("{}\n", long_rows(&dir, extra).join("    ")),
+            "{extra:?}"
+        );
+    }
+    assert_eq!(
+        run(&dir, &["-lG", "--width=200"]),
+        "1 1.txt    2 2.txt    3 3.txt    4 4.txt\n"
+    );
+    assert_eq!(
+        run(&dir, &["-lG", "--width=200", "--no-filesize"]),
+        "1.txt    2.txt    3.txt    4.txt\n"
+    );
 }
 
+/// Cells go down the columns, or across the rows with `--across`, as many
+/// to a row as the width holds.
 #[test]
-fn test_long_grid_without_across() {
-    let temp = TempTestDir::new("down");
-    temp.create_file("a.txt", b"a");
-    temp.create_file("b.txt", b"b");
-    temp.create_file("c.txt", b"c");
-    temp.create_file("d.txt", b"d");
+fn cells_go_down_or_across_as_the_width_allows() {
+    let dir = fixture("layout");
+    for (args, expected) in [
+        (
+            &["-lG", "--width=30"][..],
+            "1 1.txt    3 3.txt\n2 2.txt    4 4.txt\n",
+        ),
+        (
+            &["-lG", "--across", "--width=30"],
+            "1 1.txt    2 2.txt    3 3.txt\n4 4.txt\n",
+        ),
+        (
+            &["-lG", "--width=40"],
+            "1 1.txt    2 2.txt    3 3.txt    4 4.txt\n",
+        ),
+        // Narrower than one cell: one cell to a row.
+        (
+            &["-lG", "--width=5"],
+            "1 1.txt\n2 2.txt\n3 3.txt\n4 4.txt\n",
+        ),
+    ] {
+        assert_eq!(run(&dir, args), expected, "{args:?}");
+    }
+}
 
-    let output = crate::common::lez_cmd()
-        .arg("-l")
-        .arg("-G")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .env("COLUMNS", "160")
-        .output()
-        .expect("Failed to execute lez -l -G");
+/// With no width to fit, nor a terminal to take one from, the long grid is
+/// the long view; and `LEZ_GRID_ROWS` asks for the long view whenever the
+/// grid would have fewer rows than it says.
+#[test]
+fn the_long_view_when_there_is_no_width_or_too_few_rows() {
+    let dir = fixture("fallback");
+    let long = run(&dir, &["-l"]);
+    assert_eq!(long, "1 1.txt\n2 2.txt\n3 3.txt\n4 4.txt\n");
+    assert_eq!(run(&dir, &["-lG"]), long);
 
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("a.txt"));
-    assert!(stdout.contains("b.txt"));
+    let grid = |rows: &str, width: &str| {
+        success_stdout(
+            lez_in(dir.path())
+                .env("LEZ_GRID_ROWS", rows)
+                .args(SIZE_ONLY)
+                .args(["-lG", width]),
+        )
+    };
+    let one_row = "1 1.txt    2 2.txt    3 3.txt    4 4.txt\n";
+    let two_rows = "1 1.txt    3 3.txt\n2 2.txt    4 4.txt\n";
+    assert_eq!(grid("1", "--width=200"), one_row);
+    assert_eq!(grid("2", "--width=200"), long);
+    assert_eq!(grid("2", "--width=30"), two_rows);
+    assert_eq!(grid("3", "--width=30"), long);
 }

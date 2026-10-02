@@ -158,7 +158,8 @@ impl<'a> Render<'a> {
                     0
                 });
 
-                format!("{details} {filename}{padding}")
+                // The table already ends with the column spacing.
+                format!("{details}{filename}{padding}")
             })
             .collect();
 
@@ -220,7 +221,7 @@ impl<'a> Render<'a> {
                 .strings()
                 .to_string();
             let s = table.render(row).strings().to_string();
-            let combined_header = format!("{s} {name}");
+            let combined_header = format!("{s}{name}");
             let header_width = ansi_width::ansi_width(&combined_header);
             for column_width in grid.column_widths() {
                 let padding = " ".repeat((column_width + 4).saturating_sub(header_width));
