@@ -29,20 +29,23 @@ impl Options {
         let quote_style = QuoteStyle::deduce(matches, vars, config);
         let embed_hyperlinks = EmbedHyperlinks::deduce(matches, config);
 
-        let absolute = matches
-            .get_one("absolute")
-            .copied()
-            .or_else(|| {
-                config.display.absolute.as_deref().and_then(|s| {
-                    match s.to_ascii_lowercase().as_str() {
-                        "on" | "always" | "true" | "yes" => Some(Absolute::On),
-                        "off" | "never" | "false" | "no" => Some(Absolute::Off),
-                        "follow" => Some(Absolute::Follow),
-                        _ => None,
-                    }
+        // `--absolute` has a default, so only a value from the command
+        // line may stand in front of the config file's.
+        let absolute =
+            (matches.value_source("absolute") == Some(clap::parser::ValueSource::CommandLine))
+                .then(|| matches.get_one("absolute").copied())
+                .flatten()
+                .or_else(|| {
+                    config.display.absolute.as_deref().and_then(|s| {
+                        match s.to_ascii_lowercase().as_str() {
+                            "on" | "always" | "true" | "yes" => Some(Absolute::On),
+                            "off" | "never" | "false" | "no" => Some(Absolute::Off),
+                            "follow" => Some(Absolute::Follow),
+                            _ => None,
+                        }
+                    })
                 })
-            })
-            .unwrap_or(Absolute::Off);
+                .unwrap_or(Absolute::Off);
         let short_nix = matches.get_flag("short-nix");
         let show_symlink_targets = ShowSymlinkTargets::deduce(matches);
 

@@ -496,3 +496,52 @@ pub fn success_stdout(cmd: &mut Command) -> String {
     assert!(stderr.is_empty(), "{cmd:?} wrote to stderr: {stderr}");
     String::from_utf8(output.stdout).expect("lez printed non-UTF-8 output")
 }
+
+/// Linux keeps unprivileged attributes in the `user.` namespace; macOS has
+/// no namespaces.
+#[cfg(target_os = "linux")]
+pub const XATTR_NAME: &str = "user.field";
+#[cfg(target_os = "macos")]
+pub const XATTR_NAME: &str = "com.example.field";
+
+/// Sets `XATTR_NAME` on `file`. A filesystem without user attributes skips the
+/// test off CI and fails it on CI, whose temp directory supports them.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn set_xattr(file: &Path, value: &[u8]) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(file.as_os_str().as_bytes()).expect("no NUL");
+    let name = std::ffi::CString::new(XATTR_NAME).expect("no NUL");
+    // SAFETY: valid NUL-terminated strings and a buffer of the given length.
+    #[cfg(target_os = "linux")]
+    let result = unsafe {
+        libc::setxattr(
+            path.as_ptr(),
+            name.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+        )
+    };
+    // SAFETY: as above; position 0 and no options.
+    #[cfg(target_os = "macos")]
+    let result = unsafe {
+        libc::setxattr(
+            path.as_ptr(),
+            name.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+            0,
+        )
+    };
+    if result == 0 {
+        return true;
+    }
+    let error = std::io::Error::last_os_error();
+    assert!(
+        std::env::var_os("CI").is_none() && error.raw_os_error() == Some(libc::ENOTSUP),
+        "setxattr failed: {error}"
+    );
+    eprintln!("skipped: the temp directory's filesystem has no user attributes");
+    false
+}
