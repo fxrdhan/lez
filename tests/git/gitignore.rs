@@ -1,440 +1,167 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! `--git-ignore`: what `.gitignore` hides, what it never hides (paths named
+//! on the command line, tracked files), and what turns it off (`--no-git`,
+//! `*_OVERRIDE_GIT`). Every case compares the whole listing.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::{GIT_COLUMN_ONLY, TempGitRepo, lez_in, success_stdout};
 
-struct TempGitRepo {
-    path: PathBuf,
-}
-
-impl TempGitRepo {
-    fn new(prefix: &str) -> Option<Self> {
-        if !git_available() {
-            return None;
-        }
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_gitignore_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp repo root");
-
-        let repo = Self { path };
-        if !repo.git(&["init", "-q"]) {
-            return None;
-        }
-        repo.git(&["config", "user.name", "Test User"]);
-        repo.git(&["config", "user.email", "test@example.com"]);
-        Some(repo)
+fn repo_with(tag: &str, gitignore: &str, files: &[&str]) -> TempGitRepo {
+    let repo = TempGitRepo::new(tag);
+    repo.create_file(".gitignore", gitignore.as_bytes());
+    for file in files {
+        repo.create_file(file, b"x\n");
     }
+    repo
+}
 
-    fn write_file(&self, rel: &str, content: &[u8]) -> PathBuf {
-        let p = self.path.join(rel);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut f = StdFile::create(&p).unwrap();
-        f.write_all(content).unwrap();
-        p
+fn lez(repo: &TempGitRepo, args: &[&str]) -> String {
+    success_stdout(lez_in(repo.path()).args(args))
+}
+
+/// `.git` itself is hidden too, even with `-a`.
+#[test]
+fn ignored_files_and_directories_are_hidden() {
+    let repo = repo_with(
+        "hidden",
+        "target/\n*.tmp\n",
+        &["src/main.rs", "target/build.bin", "scratch.tmp"],
+    );
+
+    assert_eq!(lez(&repo, &["-1", "--git-ignore"]), "src\n");
+    assert_eq!(
+        lez(&repo, &["-1", "-a", "--git-ignore"]),
+        ".gitignore\nsrc\n"
+    );
+    assert_eq!(
+        lez(&repo, &["-1", "-a"]),
+        ".git\n.gitignore\nscratch.tmp\nsrc\ntarget\n"
+    );
+}
+
+#[test]
+fn ignored_files_inside_a_named_directory_are_hidden() {
+    let repo = repo_with(
+        "nested",
+        "*.log\n",
+        &["subdir/build.bin", "subdir/debug.log"],
+    );
+    assert_eq!(lez(&repo, &["-1", "--git-ignore", "subdir"]), "build.bin\n");
+}
+
+/// A path named on the command line is shown even when it is ignored,
+/// and so is everything under a named directory, in a tree too.
+#[test]
+fn ignored_paths_named_on_the_command_line_are_listed() {
+    let repo = repo_with(
+        "named",
+        "target/\nconfig.local.json\nbuild/\n",
+        &[
+            "target/app.bin",
+            "target/stats.json",
+            "config.local.json",
+            "build/out/release/app",
+        ],
+    );
+
+    assert_eq!(
+        lez(&repo, &["-1", "--git-ignore", "target"]),
+        "app.bin\nstats.json\n"
+    );
+    assert_eq!(
+        lez(&repo, &["-1", "--git-ignore", "config.local.json"]),
+        "config.local.json\n"
+    );
+    assert_eq!(
+        lez(&repo, &["-T", "--git-ignore", "build"]),
+        "build\n└── out\n    └── release\n        └── app\n"
+    );
+}
+
+/// `--no-git` and `--git-ignore` override each other; the last one wins.
+#[test]
+fn the_last_of_no_git_and_git_ignore_wins() {
+    let repo = repo_with(
+        "no_git",
+        "ignored_dir/\nignored_file.txt\n",
+        &["ignored_dir/data.txt", "ignored_file.txt", "public.txt"],
+    );
+
+    assert_eq!(
+        lez(&repo, &["-1", "--git-ignore", "--no-git"]),
+        "ignored_dir\nignored_file.txt\npublic.txt\n"
+    );
+    assert_eq!(
+        lez(&repo, &["-1", "--no-git", "--git-ignore"]),
+        "public.txt\n"
+    );
+}
+
+/// Any of the three override variables switches Git off: nothing is hidden
+/// and the Git column goes away.
+#[test]
+fn an_override_variable_switches_git_off() {
+    let repo = repo_with("override", "secret.txt\n", &["secret.txt", "public.txt"]);
+    assert_eq!(lez(&repo, &["-1", "--git-ignore"]), "public.txt\n");
+    assert_eq!(
+        lez(&repo, &GIT_COLUMN_ONLY),
+        "-N public.txt\n-I secret.txt\n"
+    );
+
+    for variable in ["LEZ_OVERRIDE_GIT", "EZA_OVERRIDE_GIT", "EXA_OVERRIDE_GIT"] {
+        let run = |args: &[&str]| success_stdout(lez_in(repo.path()).env(variable, "1").args(args));
+        assert_eq!(
+            run(&["-1", "--git-ignore"]),
+            "public.txt\nsecret.txt\n",
+            "{variable}"
+        );
+        assert_eq!(
+            run(&GIT_COLUMN_ONLY),
+            "public.txt\nsecret.txt\n",
+            "{variable}"
+        );
     }
-
-    fn git(&self, args: &[&str]) -> bool {
-        let output = Command::new("git")
-            .args(
-                [
-                    "-c",
-                    "user.name=Test User",
-                    "-c",
-                    "user.email=test@example.com",
-                ]
-                .iter()
-                .chain(args.iter()),
-            )
-            .current_dir(&self.path)
-            .env("GIT_CONFIG_GLOBAL", "/dev/null")
-            .env("GIT_CONFIG_SYSTEM", "/dev/null")
-            .output()
-            .expect("Failed to spawn git");
-        output.status.success()
-    }
 }
-
-impl Drop for TempGitRepo {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn git_available() -> bool {
-    Command::new("git")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success())
-}
-
-fn run_lez(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    Command::new(bin_path)
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
-// ----------------------------------------------------------------------------
-// GitIgnore Scoping & --no-git Override Tests
-// ----------------------------------------------------------------------------
-
-#[test]
-fn test_gitignore_filters_unlisted_target() {
-    let Some(repo) = TempGitRepo::new("root_ignore") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"target/\n*.tmp\n");
-    repo.write_file("src/main.rs", b"fn main() {}\n");
-    repo.write_file("target/build.bin", b"binary\n");
-    repo.write_file("scratch.tmp", b"scratch\n");
-
-    let output = run_lez(&[
-        "-1",
-        "--git-ignore",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("src"), "src should be visible");
-    assert!(
-        !stdout.contains("target"),
-        "target/ should be hidden by --git-ignore"
-    );
-    assert!(
-        !stdout.contains("scratch.tmp"),
-        "scratch.tmp should be hidden"
-    );
-}
-
-#[test]
-fn test_explicit_positional_dir_displayed_despite_gitignore() {
-    let Some(repo) = TempGitRepo::new("explicit_dir") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"target/\n");
-    repo.write_file("target/app_output.bin", b"output binary\n");
-    repo.write_file("target/stats.json", b"{}\n");
-
-    let target_dir = repo.path.join("target");
-
-    // Explicitly listing target/ with --git-ignore must display contents of target/
-    let output = run_lez(&[
-        "-1",
-        "--git-ignore",
-        "--color=never",
-        target_dir.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("app_output.bin"),
-        "Explicit target directory contents must be displayed: {stdout}"
-    );
-    assert!(
-        stdout.contains("stats.json"),
-        "Explicit target directory contents must be displayed: {stdout}"
-    );
-}
-
-#[test]
-fn test_no_git_overrides_git_ignore() {
-    let Some(repo) = TempGitRepo::new("no_git_override") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"ignored_dir/\nignored_file.txt\n");
-    repo.write_file("ignored_dir/data.txt", b"data\n");
-    repo.write_file("ignored_file.txt", b"secret\n");
-    repo.write_file("public.txt", b"public\n");
-
-    // --no-git with --git-ignore disables gitignore filtering
-    let output = run_lez(&[
-        "-1",
-        "--git-ignore",
-        "--no-git",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("ignored_dir"),
-        "--no-git overrides --git-ignore, so ignored_dir should be visible: {stdout}"
-    );
-    assert!(
-        stdout.contains("ignored_file.txt"),
-        "--no-git overrides --git-ignore, so ignored_file.txt should be visible: {stdout}"
-    );
-    assert!(stdout.contains("public.txt"));
-}
-
-#[test]
-fn test_git_ignore_after_no_git_reciprocal_override() {
-    let Some(repo) = TempGitRepo::new("git_ignore_after_no_git") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"ignored.txt\n");
-    repo.write_file("ignored.txt", b"ignored\n");
-
-    let output = run_lez(&[
-        "-1",
-        "--no-git",
-        "--git-ignore",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        !stdout.contains("ignored.txt"),
-        "--git-ignore after --no-git must reciprocally override --no-git and enable gitignore filtering: {stdout}"
-    );
-}
-
-#[test]
-fn test_explicit_positional_file_displayed_despite_gitignore() {
-    let Some(repo) = TempGitRepo::new("explicit_file") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"config.local.json\n");
-    let file_path = repo.write_file("config.local.json", b"{\"key\": \"val\"}\n");
-
-    let output = run_lez(&[
-        "-1",
-        "--git-ignore",
-        "--color=never",
-        file_path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("config.local.json"),
-        "Explicitly requested gitignored file must be displayed: {stdout}"
-    );
-}
-
-#[test]
-fn test_positional_dir_filters_nested_ignored_files() {
-    let Some(repo) = TempGitRepo::new("nested_ignore") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"*.log\n");
-    repo.write_file("subdir/build.bin", b"binary\n");
-    repo.write_file("subdir/debug.log", b"log\n");
-
-    let subdir = repo.path.join("subdir");
-
-    let output = run_lez(&[
-        "-1",
-        "--git-ignore",
-        "--color=never",
-        subdir.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("build.bin"),
-        "Non-ignored file inside explicit directory should be visible: {stdout}"
-    );
-    assert!(
-        !stdout.contains("debug.log"),
-        "Nested ignored file (*.log) inside explicit directory should be filtered: {stdout}"
-    );
-}
-
-#[test]
-fn test_positional_dir_in_tree_mode() {
-    let Some(repo) = TempGitRepo::new("tree_ignore") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"build/\n");
-    repo.write_file("build/out/release/app", b"binary\n");
-
-    let build_dir = repo.path.join("build");
-
-    let output = run_lez(&[
-        "-T",
-        "--git-ignore",
-        "--color=never",
-        build_dir.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("out"),
-        "Subdirectory in tree mode of explicit directory should be visible: {stdout}"
-    );
-    assert!(
-        stdout.contains("release"),
-        "Nested directory in tree mode of explicit directory should be visible: {stdout}"
-    );
-    assert!(
-        stdout.contains("app"),
-        "Nested file in tree mode of explicit directory should be visible: {stdout}"
-    );
-}
-
-#[test]
-fn test_env_var_override_git_ignore() {
-    let Some(repo) = TempGitRepo::new("env_override") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"secret.txt\n");
-    repo.write_file("secret.txt", b"secret\n");
-
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(bin_path)
-        .args([
-            "-1",
-            "--git-ignore",
-            "--color=never",
-            repo.path.to_str().unwrap(),
-        ])
-        .env("LEZ_OVERRIDE_GIT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("secret.txt"),
-        "LEZ_OVERRIDE_GIT=1 should override --git-ignore: {stdout}"
-    );
-}
-
-// ----------------------------------------------------------------------------
-// A lone `*` in .gitignore (upstream eza#521, libgit2#6890)
-// ----------------------------------------------------------------------------
 
 /// libgit2 drops an ignored file from the status walk entirely when the
-/// directory holding it is ignored too, which a lone `*` always causes. The
-/// file then slipped past `--git-ignore` even though `git check-ignore` names
-/// it, while the ignored directory beside it was hidden correctly.
+/// directory holding it is ignored too, which a lone `*` always causes
+/// (upstream eza#521, libgit2#6890). The file then slipped past
+/// `--git-ignore` and lost its `I`, although `git check-ignore` names it.
 #[test]
-fn test_lone_star_gitignore_hides_top_level_files() {
-    let Some(repo) = TempGitRepo::new("lone_star") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"*\n!.gitignore\n!kept.txt\n");
-    repo.write_file("kept.txt", b"kept\n");
-    repo.write_file("dropped.log", b"dropped\n");
-    repo.write_file("sub/nested.log", b"nested\n");
-
-    let output = run_lez(&[
-        "-1",
-        "-a",
-        "--git-ignore",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("kept.txt"),
-        "a negated file stays visible, got:\n{stdout}"
+fn a_lone_star_ignores_files_as_well_as_directories() {
+    let repo = repo_with(
+        "lone_star",
+        "*\n!.gitignore\n!kept.txt\n",
+        &["kept.txt", "dropped.log", "sub/nested.log"],
     );
-    assert!(
-        stdout.contains(".gitignore"),
-        ".gitignore itself is negated and stays visible, got:\n{stdout}"
-    );
-    assert!(
-        !stdout.contains("dropped.log"),
-        "a file ignored by the lone `*` should be hidden, got:\n{stdout}"
-    );
-    assert!(
-        !stdout.contains("sub"),
-        "the ignored directory should stay hidden too, got:\n{stdout}"
-    );
-}
 
-/// The same file has to carry `I` in the Git column of the long view.
-#[test]
-fn test_lone_star_gitignore_marks_files_in_the_git_column() {
-    let Some(repo) = TempGitRepo::new("lone_star_column") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"*\n!.gitignore\n!kept.txt\n");
-    repo.write_file("kept.txt", b"kept\n");
-    repo.write_file("dropped.log", b"dropped\n");
-
-    let output = run_lez(&["-la", "--git", "--color=never", repo.path.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let row = |name: &str| {
-        stdout
-            .lines()
-            .find(|line| line.trim_end().ends_with(name))
-            .unwrap_or_else(|| panic!("no row for {name} in:\n{stdout}"))
-    };
-
-    assert!(
-        row("dropped.log").contains("-I"),
-        "an ignored file is marked I, got: {}",
-        row("dropped.log")
+    assert_eq!(
+        lez(&repo, &["-1", "-a", "--git-ignore"]),
+        ".gitignore\nkept.txt\n"
     );
-    assert!(
-        !row("kept.txt").contains("-I"),
-        "a negated file is not marked I, got: {}",
-        row("kept.txt")
+    let mut columns = GIT_COLUMN_ONLY.to_vec();
+    columns.push("-a");
+    assert_eq!(
+        lez(&repo, &columns),
+        "-I .git\n-N .gitignore\n-I dropped.log\n-N kept.txt\n-I sub\n"
     );
 }
 
 /// Git never ignores a file that is in the index, however well it matches a
-/// pattern, so a force-added file must not pick up the `I`.
+/// pattern, so a force-added file stays visible.
 #[test]
-fn test_lone_star_gitignore_leaves_tracked_files_alone() {
-    let Some(repo) = TempGitRepo::new("lone_star_tracked") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"*\n!.gitignore\n");
-    repo.write_file("tracked.log", b"tracked\n");
-    repo.write_file("ignored.log", b"untracked\n");
+fn a_tracked_file_is_never_ignored() {
+    let repo = repo_with(
+        "tracked",
+        "*\n!.gitignore\n",
+        &["tracked.log", "ignored.log"],
+    );
     repo.git(&["add", "-f", ".gitignore", "tracked.log"]);
     repo.git(&["commit", "-qm", "force-add an ignored file"]);
 
-    let output = run_lez(&[
-        "-1",
-        "-a",
-        "--git-ignore",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("tracked.log"),
-        "a tracked file is never ignored, got:\n{stdout}"
-    );
-    assert!(
-        !stdout.contains("ignored.log"),
-        "its untracked neighbour is still hidden, got:\n{stdout}"
+    assert_eq!(
+        lez(&repo, &["-1", "-a", "--git-ignore"]),
+        ".gitignore\ntracked.log\n"
     );
 }
