@@ -455,6 +455,9 @@ fn test_mixed_positional_files_and_directories() {
     );
 }
 
+/// Compared as printed: parsed, the object would come back with its keys
+/// sorted whatever order lez wrote them in, since `serde_json` keeps no
+/// insertion order here.
 #[test]
 fn test_json_output_mode_positional_dirs_sorting() {
     let temp = TempTestDir::new("pos_json_dirs");
@@ -463,22 +466,18 @@ fn test_json_output_mode_positional_dirs_sorting() {
     temp.create_file("dir_b/b.txt", b"b");
 
     // Pass directories in reverse order: dir_c, dir_b, dir_a
-    let output = run_lez_in(&temp.path, &["--json", "dir_c", "dir_b", "dir_a"]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Parse JSON
-    let parsed: serde_json::Value =
-        serde_json::from_str(&stdout).expect("Valid JSON expected from --json mode");
-
-    // In multi-directory JSON mode, output is an object with directory keys
-    // The keys in JSON object serialization order: dir_a, dir_b, dir_c
-    if let serde_json::Value::Object(map) = parsed {
-        let keys: Vec<&String> = map.keys().collect();
-        assert_eq!(keys, vec!["dir_a", "dir_b", "dir_c"]);
-    } else {
-        panic!("Expected JSON object from multi-directory --json output");
-    }
+    assert_eq!(
+        crate::common::success_stdout(
+            crate::common::lez_in(&temp.path).args(["--json", "dir_c", "dir_b", "dir_a"])
+        ),
+        "{\"dir_a\":[\"a.txt\"],\"dir_b\":[\"b.txt\"],\"dir_c\":[\"c.txt\"]}\n"
+    );
+    assert_eq!(
+        crate::common::success_stdout(
+            crate::common::lez_in(&temp.path).args(["--json", "-r", "dir_a", "dir_b", "dir_c"])
+        ),
+        "{\"dir_c\":[\"c.txt\"],\"dir_b\":[\"b.txt\"],\"dir_a\":[\"a.txt\"]}\n"
+    );
 }
 
 #[test]
@@ -488,20 +487,10 @@ fn test_json_output_mode_single_directory_children_sorting() {
     temp.create_file("mydir/a.txt", b"a");
     temp.create_file("mydir/m.txt", b"m");
 
-    let output = run_lez_in(&temp.path, &["--json", "mydir"]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let parsed: serde_json::Value =
-        serde_json::from_str(&stdout).expect("Valid JSON expected from --json mode");
-
-    // Single directory without -l outputs an array of filenames: ["a.txt", "m.txt", "z.txt"]
-    if let serde_json::Value::Array(arr) = parsed {
-        let names: Vec<&str> = arr.iter().map(|v| v.as_str().unwrap()).collect();
-        assert_eq!(names, vec!["a.txt", "m.txt", "z.txt"]);
-    } else {
-        panic!("Expected JSON array for single directory listing without -l");
-    }
+    assert_eq!(
+        crate::common::success_stdout(crate::common::lez_in(&temp.path).args(["--json", "mydir"])),
+        "[\"a.txt\",\"m.txt\",\"z.txt\"]\n"
+    );
 }
 
 #[test]
