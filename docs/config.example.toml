@@ -38,8 +38,11 @@
 # Show mount points / filesystem info in long mode
 # mounts = false
 
-# Show allocated filesystem blocks
+# Show the size of the allocated filesystem blocks, in bytes (`-S`)
 # blocksize = false
+
+# Show the number of allocated filesystem blocks (`--blocks`)
+# blocks = false
 
 # Calculate and show recursive directory total size (can be slow on large trees)
 # total_size = false
