@@ -1,634 +1,289 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+//! The shapes `--json` writes: an array of names for one directory, an
+//! object keyed by path for several arguments, an object of columns per
+//! file in the long view, and `files`/`directories` nesting under
+//! recursion. Each case compares the document as printed: parsed, an
+//! object would come back with its keys sorted whatever order lez wrote
+//! them in.
 
-struct TempTestDir {
-    path: PathBuf,
+use std::fs;
+use std::time::{Duration, UNIX_EPOCH};
+
+use crate::common::{TempTestDir, grouped, lez_in, success_stdout};
+
+fn json(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(dir.path()).env("TZ", "UTC").arg("--json").args(args))
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_json_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp dir");
-        Self { path }
-    }
-
-    fn create_file(&self, name: &str, content: &[u8]) -> PathBuf {
-        let p = self.path.join(name);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut f = StdFile::create(&p).unwrap();
-        f.write_all(content).unwrap();
-        p
-    }
-
-    fn create_dir(&self, name: &str) -> PathBuf {
-        let p = self.path.join(name);
-        fs::create_dir_all(&p).unwrap();
-        p
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
+/// Long-view columns pinned down to the ones a test asks for.
+const BARE: [&str; 5] = [
+    "-l",
+    "--no-permissions",
+    "--no-filesize",
+    "--no-user",
+    "--no-time",
+];
 
 #[test]
-fn test_json_cli_short_single_directory() {
-    let temp = TempTestDir::new("json_short");
-    temp.create_file("alpha.txt", b"a");
-    temp.create_file("beta.rs", b"b");
-    temp.create_dir("gamma_dir");
+fn one_directory_is_an_array_of_names() {
+    let dir = TempTestDir::new("json_names");
+    dir.create_file("full/alpha.txt", b"a");
+    dir.create_file("full/beta.rs", b"b");
+    dir.create_file("full/.secret", b"s");
+    dir.create_dir("full/gamma_dir");
+    dir.create_dir("empty");
+    dir.create_file("solo.txt", b"solo");
 
-    let output = crate::common::lez_cmd()
-        .args(["--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-
-    let arr = val.as_array().expect("Expected JSON array");
-    let items: Vec<&str> = arr.iter().map(|v| v.as_str().unwrap()).collect();
-    assert_eq!(items, ["alpha.txt", "beta.rs", "gamma_dir"]);
-}
-
-#[test]
-fn test_json_cli_short_empty_directory() {
-    let temp = TempTestDir::new("json_empty");
-
-    let output = crate::common::lez_cmd()
-        .args(["--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-
-    let arr = val.as_array().expect("Expected JSON array");
-    assert!(arr.is_empty());
-}
-
-#[test]
-fn test_json_cli_short_single_file() {
-    let temp = TempTestDir::new("json_file");
-    let file_path = temp.create_file("solo.txt", b"solo");
-
-    let output = crate::common::lez_cmd()
-        .args(["--json", file_path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-
-    let arr = val.as_array().expect("Expected JSON array");
-    assert_eq!(arr.len(), 1);
-    assert_eq!(arr[0].as_str().unwrap(), "solo.txt");
-}
-
-#[test]
-fn test_json_cli_short_multi_directories() {
-    let temp = TempTestDir::new("json_multidir");
-    let dir_a = temp.create_dir("dirA");
-    let dir_b = temp.create_dir("dirB");
-    temp.create_file("dirA/file_a.txt", b"a");
-    temp.create_file("dirB/file_b.txt", b"b");
-
-    let output = crate::common::lez_cmd()
-        .args(["--json", dir_a.to_str().unwrap(), dir_b.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-
-    let obj = val.as_object().expect("Expected JSON map for multi dirs");
-    assert!(obj.contains_key(dir_a.to_str().unwrap()));
-    assert!(obj.contains_key(dir_b.to_str().unwrap()));
-
-    let arr_a = obj
-        .get(dir_a.to_str().unwrap())
-        .unwrap()
-        .as_array()
-        .expect("dirA must be array");
-    assert_eq!(arr_a[0].as_str().unwrap(), "file_a.txt");
-}
-
-#[test]
-fn test_json_cli_short_mixed_files_and_directories() {
-    let temp = TempTestDir::new("json_mixed");
-    let f1 = temp.create_file("top.txt", b"top");
-    let dir1 = temp.create_dir("subfolder");
-    temp.create_file("subfolder/inner.txt", b"inner");
-
-    let output = crate::common::lez_cmd()
-        .args(["--json", f1.to_str().unwrap(), dir1.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-
-    let obj = val.as_object().expect("Expected JSON object for mixed");
-    assert!(obj.contains_key("files"));
-    assert!(obj.contains_key("directories"));
-}
-
-#[test]
-fn test_json_cli_long_metadata_schema() {
-    let temp = TempTestDir::new("json_long");
-    let _file = temp.create_file("test.txt", b"content of test file");
-    #[cfg(unix)]
-    {
-        let file = _file;
-        // Pin the mode rather than inherit it from the process umask.
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
-    }
-
-    let output = crate::common::lez_cmd()
-        .args([
-            "-l",
-            "--octal-permissions",
-            "--json",
-            temp.path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-    let obj = val.as_object().expect("Expected JSON map");
-
-    let file_meta = obj.get("test.txt").expect("test.txt must exist in map");
-    let meta_obj = file_meta.as_object().expect("Metadata must be an object");
-
-    #[cfg(unix)]
-    assert!(meta_obj.contains_key("Permissions"));
-    assert!(meta_obj.contains_key("Size"));
-    #[cfg(unix)]
-    {
-        assert!(meta_obj.contains_key("Octal"));
-        assert_eq!(meta_obj.get("Octal").unwrap().as_str().unwrap(), "0644");
-    }
-}
-
-#[test]
-fn test_json_cli_long_empty_directory() {
-    let temp = TempTestDir::new("json_long_empty");
-
-    let output = crate::common::lez_cmd()
-        .args(["-l", "--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-    let obj = val.as_object().expect("Expected JSON map");
-    assert!(obj.is_empty());
-}
-
-#[test]
-fn test_json_cli_all_hidden_files() {
-    let temp = TempTestDir::new("json_hidden");
-    temp.create_file(".secret.txt", b"secret");
-    temp.create_file("visible.txt", b"visible");
-
-    let output = crate::common::lez_cmd()
-        .args(["-a", "--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-    let arr = val.as_array().unwrap();
-    let items: Vec<&str> = arr.iter().map(|v| v.as_str().unwrap()).collect();
-    assert!(items.contains(&".secret.txt"));
-    assert!(items.contains(&"visible.txt"));
-}
-
-#[test]
-fn test_json_cli_bytes_and_binary_units() {
-    let temp = TempTestDir::new("json_units");
-    temp.create_file("large.bin", &vec![0u8; 1024 * 1024]);
-
-    // --bytes mode
-    // Under the C locale there is no digit grouping to vary by machine.
-    let out_bytes = crate::common::lez_cmd()
-        .args(["-l", "--bytes", "--json", temp.path.to_str().unwrap()])
-        .env("LC_ALL", "C")
-        .output()
-        .expect("Failed to run lez");
-    assert!(out_bytes.status.success());
-    let val_bytes: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&out_bytes.stdout)).unwrap();
-    let size_bytes = val_bytes
-        .get("large.bin")
-        .unwrap()
-        .get("Size")
-        .unwrap()
-        .as_str()
-        .unwrap();
-    assert_eq!(size_bytes, crate::common::grouped(1_048_576));
-
-    // --binary mode
-    let out_binary = crate::common::lez_cmd()
-        .args(["-l", "--binary", "--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-    assert!(out_binary.status.success());
-    let val_binary: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&out_binary.stdout)).unwrap();
-    let size_binary = val_binary
-        .get("large.bin")
-        .unwrap()
-        .get("Size")
-        .unwrap()
-        .as_str()
-        .unwrap();
-    assert_eq!(size_binary, "1.0Mi");
-}
-
-#[test]
-fn test_json_cli_time_styles() {
-    let temp = TempTestDir::new("json_time");
-    let stamp = temp.create_file("stamp.txt", b"timestamp test");
-    // 2023-11-14 22:13:20 UTC: old enough for the full-date form of `iso`.
-    StdFile::options()
-        .write(true)
-        .open(&stamp)
-        .and_then(|f| f.set_modified(UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000)))
-        .unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args([
-            "-l",
-            "--time-style=iso",
-            "--json",
-            temp.path.to_str().unwrap(),
-        ])
-        .env("TZ", "UTC")
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    let mod_time = val
-        .get("stamp.txt")
-        .unwrap()
-        .get("Date Modified")
-        .unwrap()
-        .as_str()
-        .unwrap();
-    assert_eq!(mod_time, "2023-11-14");
-}
-
-#[test]
-fn test_json_cli_recursive_tree() {
-    let temp = TempTestDir::new("json_tree");
-    temp.create_file("root_file.txt", b"root");
-    temp.create_file("sub/nested_file.txt", b"nested");
-
-    let output = crate::common::lez_cmd()
-        .args(["-R", "--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-
-    assert!(val.is_object());
-    let top_dir = temp.path.file_name().unwrap().to_str().unwrap();
-    let top_obj = val.get(top_dir).expect("Must contain top directory");
-    assert!(top_obj.get("files").is_some());
-    assert!(top_obj.get("directories").is_some());
-}
-
-#[test]
-fn test_json_cli_recursive_long_tree() {
-    let temp = TempTestDir::new("json_long_tree");
-    temp.create_file("root_file.txt", b"root");
-    temp.create_file("sub/nested_file.txt", b"nested");
-
-    let output = crate::common::lez_cmd()
-        .args(["-l", "-R", "--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-
-    assert!(val.is_object());
-    let top_dir = temp.path.file_name().unwrap().to_str().unwrap();
-    let top_obj = val.get(top_dir).expect("Must contain top directory");
-    let files_obj = top_obj
-        .get("files")
-        .expect("Must contain files object")
-        .as_object()
-        .unwrap();
-    assert!(files_obj.contains_key("root_file.txt"));
-    assert!(files_obj.get("root_file.txt").unwrap().is_object());
-}
-
-#[test]
-fn test_json_cli_special_characters_escaping() {
-    let temp = TempTestDir::new("json_escaping");
-    temp.create_file("file with spaces.txt", b"1");
-    #[cfg(unix)]
-    temp.create_file("file\"with\"quotes.txt", b"2");
-    temp.create_file("emoji_🚀_tag.txt", b"3");
-    temp.create_file("unicode_日本語_test.txt", b"4");
-
-    let output = crate::common::lez_cmd()
-        .args(["--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("JSON parse failed for escaped chars: {e}\nOutput:\n{stdout}"));
-
-    let arr = val.as_array().unwrap();
-    let items: Vec<&str> = arr.iter().map(|v| v.as_str().unwrap()).collect();
-    assert!(items.contains(&"file with spaces.txt"));
-    #[cfg(unix)]
-    assert!(items.contains(&"file\"with\"quotes.txt"));
-    assert!(items.contains(&"emoji_🚀_tag.txt"));
-    assert!(items.contains(&"unicode_日本語_test.txt"));
-}
-
-#[test]
-fn test_json_cli_no_ansi_escapes() {
-    let temp = TempTestDir::new("json_no_ansi");
-    temp.create_file("plain.txt", b"plain");
-
-    let output = crate::common::lez_cmd()
-        .args([
-            "-l",
-            "--color=always",
-            "--json",
-            temp.path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        !stdout.contains("\x1B["),
-        "JSON output must never contain ANSI escape codes"
+    assert_eq!(
+        json(&dir, &["full"]),
+        "[\"alpha.txt\",\"beta.rs\",\"gamma_dir\"]\n"
     );
-    let _: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(
+        json(&dir, &["-a", "full"]),
+        "[\".secret\",\"alpha.txt\",\"beta.rs\",\"gamma_dir\"]\n"
+    );
+    assert_eq!(
+        json(&dir, &["-aa", "full"]),
+        "[\".\",\"..\",\".secret\",\"alpha.txt\",\"beta.rs\",\"gamma_dir\"]\n"
+    );
+    assert_eq!(json(&dir, &["empty"]), "[]\n");
+    assert_eq!(json(&dir, &["solo.txt"]), "[\"solo.txt\"]\n");
 }
 
+/// Several arguments are keyed by the path given, so two directories that
+/// share a name stay apart; files and directories together are split. Files
+/// in the long view are keyed by name, unless two share one: then every
+/// file is keyed by its path.
+#[test]
+fn several_arguments_are_keyed_by_path() {
+    let dir = TempTestDir::new("json_arguments");
+    dir.create_file("parent1/common/a.txt", b"a");
+    dir.create_file("parent2/common/b.txt", b"b");
+    dir.create_file("top.txt", b"top");
+    dir.create_file("x/same.txt", b"");
+    dir.create_file("x/other.txt", b"");
+    dir.create_file("y/same.txt", b"");
+
+    assert_eq!(
+        json(&dir, &["parent1/common", "parent2/common"]),
+        "{\"parent1/common\":[\"a.txt\"],\"parent2/common\":[\"b.txt\"]}\n"
+    );
+    assert_eq!(
+        json(&dir, &["top.txt", "parent1/common"]),
+        "{\"files\":[\"top.txt\"], \"directories\":{\"parent1/common\":[\"a.txt\"]}}\n"
+    );
+    assert_eq!(
+        json(&dir, &[&BARE[..], &["x/other.txt", "y/same.txt"]].concat()),
+        "{\"other.txt\":{},\"same.txt\":{}}\n"
+    );
+    assert_eq!(
+        json(
+            &dir,
+            &[&BARE[..], &["x/same.txt", "y/same.txt", "x/other.txt"]].concat()
+        ),
+        "{\"x/other.txt\":{},\"x/same.txt\":{},\"y/same.txt\":{}}\n"
+    );
+    assert_eq!(
+        json(&dir, &["x/same.txt", "y/same.txt"]),
+        "[\"same.txt\",\"same.txt\"]\n"
+    );
+}
+
+/// The long view gives each file an object of its columns, under the
+/// table's headings; colours never reach it.
+#[test]
+fn the_long_view_is_an_object_of_columns() {
+    let dir = TempTestDir::new("json_long");
+    let file = dir.create_file("test.txt", b"content of test file");
+    #[cfg(unix)]
+    fs::set_permissions(&file, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("chmod");
+    // 2023-11-14 22:13:20 UTC: old enough for the full-date form of `iso`.
+    fs::File::options()
+        .write(true)
+        .open(&file)
+        .and_then(|f| f.set_modified(UNIX_EPOCH + Duration::from_secs(1_700_000_000)))
+        .expect("set the modified time");
+    dir.create_file("large.bin", &vec![0; 1024 * 1024]);
+    dir.create_dir("empty");
+
+    #[cfg(unix)]
+    for colour in ["never", "always"] {
+        assert_eq!(
+            json(
+                &dir,
+                &[
+                    "-l",
+                    "--no-user",
+                    "--no-time",
+                    "-o",
+                    &format!("--color={colour}"),
+                    "test.txt"
+                ]
+            ),
+            "{\"test.txt\":{\"Octal\": \"0644\",\"Permissions\": \".rw-r--r--\",\"Size\": \"20\"}}\n"
+        );
+    }
+    let size = |flag: &str| {
+        json(
+            &dir,
+            &[
+                "-l",
+                "--no-permissions",
+                "--no-user",
+                "--no-time",
+                flag,
+                "large.bin",
+            ],
+        )
+    };
+    assert_eq!(
+        size("--bytes"),
+        format!(
+            "{{\"large.bin\":{{\"Size\": \"{}\"}}}}\n",
+            grouped(1_048_576)
+        )
+    );
+    assert_eq!(size("--binary"), "{\"large.bin\":{\"Size\": \"1.0Mi\"}}\n");
+    assert_eq!(
+        json(
+            &dir,
+            &[
+                "-l",
+                "--no-permissions",
+                "--no-filesize",
+                "--no-user",
+                "--time-style=iso",
+                "test.txt"
+            ]
+        ),
+        "{\"test.txt\":{\"Date Modified\": \"2023-11-14\"}}\n"
+    );
+    assert_eq!(json(&dir, &["-l", "empty"]), "{}\n");
+}
+
+/// A link's target is given as the link holds it, relative or absolute.
 #[test]
 #[cfg(unix)]
-fn test_json_cli_symlinks() {
-    let temp = TempTestDir::new("json_symlink");
-    let target = temp.create_file("target.txt", b"target");
-    let link_path = temp.path.join("link.txt");
-    std::os::unix::fs::symlink(&target, &link_path).unwrap();
+fn a_link_carries_its_target() {
+    let dir = TempTestDir::new("json_links");
+    let target = dir.create_file("target.txt", b"target");
+    dir.create_symlink("target.txt", "relative.txt");
+    std::os::unix::fs::symlink(&target, dir.path().join("absolute.txt")).expect("symlink");
 
-    let output = crate::common::lez_cmd()
-        .args(["-l", "--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    let link_meta = val.get("link.txt").unwrap().as_object().unwrap();
-    let perms = link_meta.get("Permissions").unwrap().as_str().unwrap();
-    assert!(
-        perms.starts_with('l'),
-        "Symlink permission string must start with 'l', got {perms}"
+    assert_eq!(
+        json(
+            &dir,
+            &[
+                "-l",
+                "--no-user",
+                "--no-time",
+                "relative.txt",
+                "absolute.txt"
+            ]
+        ),
+        format!(
+            "{{\"absolute.txt\":{{\"Permissions\": \"lrwxrwxrwx\",\"Target\": \"{}\"}},\
+             \"relative.txt\":{{\"Permissions\": \"lrwxrwxrwx\",\"Target\": \"target.txt\"}}}}\n",
+            target.display()
+        )
     );
+}
+
+/// Recursion nests each directory's `files` and `directories`, keyed by
+/// name; a link back up the tree is a file and is not followed.
+#[test]
+fn recursion_nests_files_and_directories() {
+    let dir = TempTestDir::new("json_recursion");
+    dir.create_file("top/root_file.txt", b"");
+    dir.create_file("top/sub/nested_file.txt", b"");
+
+    let tree = "{\"top\":{\"files\":[\"root_file.txt\"], \"directories\":\
+                {\"sub\":{\"files\":[\"nested_file.txt\"], \"directories\":{}}}}}\n";
+    assert_eq!(json(&dir, &["-R", "top"]), tree);
+    assert_eq!(
+        json(
+            &dir,
+            &["-R", dir.path().join("top").to_str().expect("UTF-8")]
+        ),
+        tree
+    );
+    assert_eq!(
+        json(
+            &dir,
+            &[
+                "-R",
+                "-l",
+                "--no-permissions",
+                "--no-user",
+                "--no-time",
+                "top"
+            ]
+        ),
+        "{\"top\":{\"files\":{\"root_file.txt\":{\"Size\": \"0\"}}, \"directories\":\
+         {\"sub\":{\"files\":{\"nested_file.txt\":{\"Size\": \"0\"}}, \"directories\":{}}}}}\n"
+    );
+
+    #[cfg(unix)]
+    {
+        let cycle = dir.create_dir("cycle");
+        dir.create_file("cycle/hello.txt", b"");
+        std::os::unix::fs::symlink(&cycle, cycle.join("loop")).expect("symlink");
+        assert_eq!(
+            json(&dir, &["-R", "cycle"]),
+            "{\"cycle\":{\"files\":[\"hello.txt\",\"loop\"], \"directories\":{}}}\n"
+        );
+    }
+}
+
+/// Names are JSON strings, escaped as JSON escapes them.
+#[test]
+fn names_are_escaped_as_json_strings() {
+    let dir = TempTestDir::new("json_escaping");
+    // Characters Windows does not allow in a name.
+    let unix_only: &[&str] = if cfg!(unix) {
+        &[
+            "back\\slash",
+            "ctl\u{1}x",
+            "file\"with\"quotes.txt",
+            "tab\tname",
+        ]
+    } else {
+        &[]
+    };
+    let names = [
+        "emoji_🚀_tag.txt",
+        "file with spaces.txt",
+        "unicode_日本語_test.txt",
+    ];
+    for &name in names.iter().chain(unix_only) {
+        dir.create_file(name, b"");
+        assert_eq!(
+            json(&dir, &[name]),
+            format!(
+                "[{}]\n",
+                serde_json::to_string(name).expect("a JSON string")
+            ),
+            "{name:?}"
+        );
+    }
 }
 
 #[test]
 #[cfg(feature = "git")]
-fn test_json_cli_git_status() {
-    let temp = TempTestDir::new("json_git");
-    let repo = git2::Repository::init(&temp.path).expect("Failed to init git repo");
+fn git_status_is_a_column_like_any_other() {
+    crate::common::require_git();
+    let repo = crate::common::TempGitRepo::new("json_git");
+    repo.create_file("tracked.txt", b"initial");
+    repo.create_file("untracked/inner.txt", b"");
+    repo.git(&["add", "tracked.txt"]);
+    repo.create_file("tracked.txt", b"modified");
 
-    let file_path = temp.create_file("tracked.txt", b"initial");
-    let mut index = repo.index().unwrap();
-    index.add_path(std::path::Path::new("tracked.txt")).unwrap();
-    index.write().unwrap();
-
-    // Now modify the file
-    let mut f = StdFile::create(&file_path).unwrap();
-    f.write_all(b"modified").unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args(["-l", "--git", "--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    let git_status = val
-        .get("tracked.txt")
-        .unwrap()
-        .get("Git")
-        .unwrap()
-        .as_str()
-        .unwrap();
-    // Staged as new, then modified in the work tree.
-    assert_eq!(git_status, "NM");
-}
-
-#[test]
-fn test_json_long_duplicate_filenames_across_paths() {
-    let temp = TempTestDir::new("json_collisions");
-    let f1 = temp.create_file("sub1/target.txt", b"content1");
-    let f2 = temp.create_file("sub2/target.txt", b"content2");
-
-    let output = crate::common::lez_cmd()
-        .args(["--json", "-l", f1.to_str().unwrap(), f2.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let v: serde_json::Value = serde_json::from_str(&stdout).expect("Valid JSON");
-    let obj = v.as_object().expect("Top-level JSON object");
     assert_eq!(
-        obj.len(),
-        2,
-        "Both files must have distinct keys in JSON map: {stdout}"
+        success_stdout(lez_in(repo.path()).args(BARE).args(["--git", "--json"])),
+        "{\"tracked.txt\":{\"Git\": \"NM\"},\"untracked\":{\"Git\": \"-N\"}}\n"
     );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_json_smart_group_emits_actual_group_never_colon() {
-    let temp = TempTestDir::new("json_sg_never_colon");
-    temp.create_file("file1.txt", b"hello");
-    temp.create_file("file2.txt", b"world");
-
-    let output = crate::common::lez_cmd()
-        .args(["-l", "--smart-group", "--json", temp.path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-    let obj = val.as_object().expect("Expected JSON map");
-
-    for (filename, file_meta) in obj {
-        let meta = file_meta.as_object().expect("Metadata object");
-        let group = meta
-            .get("Group")
-            .unwrap_or_else(|| panic!("File {filename} missing Group field"))
-            .as_str()
-            .expect("Group field must be a string");
-
-        assert_ne!(
-            group, ":",
-            "JSON group field must be the real group name or GID, never a colon ':'"
-        );
-        assert!(!group.is_empty(), "JSON group field must not be empty");
-    }
-}
-
-#[test]
-#[cfg(unix)]
-fn test_json_smart_group_with_numeric_emits_gid() {
-    let temp = TempTestDir::new("json_sg_numeric");
-    temp.create_file("alpha.txt", b"alpha");
-
-    let output = crate::common::lez_cmd()
-        .args([
-            "-l",
-            "--smart-group",
-            "--numeric",
-            "--json",
-            temp.path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-    let obj = val.as_object().expect("Expected JSON map");
-
-    for (filename, file_meta) in obj {
-        let meta = file_meta.as_object().expect("Metadata object");
-        let group = meta
-            .get("Group")
-            .unwrap_or_else(|| panic!("File {filename} missing Group field"))
-            .as_str()
-            .expect("Group field must be a string");
-
-        assert_ne!(
-            group, ":",
-            "JSON numeric group field must not be a colon ':'"
-        );
-        assert!(
-            group.chars().all(|c| c.is_ascii_digit()),
-            "Numeric JSON group must consist of ASCII digits, got: {group}"
-        );
-    }
-}
-
-/// `--smart-group` only shortens the table column; JSON carries the same
-/// group as `--group` would. (`render_json` never sees the smart-group
-/// setting, which `render::groups::test::smart_json` pins with mock users.)
-#[test]
-#[cfg(unix)]
-fn test_json_smart_group_matches_the_plain_group_column() {
-    let temp = TempTestDir::new("json_sg_matches_group");
-    temp.create_file("owned.txt", b"mine");
-
-    let group_of = |flags: &[&str]| -> String {
-        let output = crate::common::lez_cmd()
-            .args(["-l", "--json"])
-            .args(flags)
-            .arg(temp.path.to_str().unwrap())
-            .output()
-            .expect("Failed to run lez");
-        assert!(output.status.success());
-        let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
-        json["owned.txt"]["Group"]
-            .as_str()
-            .expect("Group field")
-            .to_owned()
-    };
-
-    let plain = group_of(&["--group"]);
-    assert_ne!(plain, ":");
-    assert_eq!(group_of(&["--smart-group"]), plain);
-    assert_eq!(
-        group_of(&["--smart-group", "--numeric"]),
-        group_of(&["--group", "--numeric"])
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_json_symlink_cycle_does_not_hang() {
-    let temp = TempTestDir::new("json_symlink_cycle");
-    let sub = temp.create_dir("sub");
-    temp.create_file("sub/hello.txt", b"hello");
-    let loop_link = sub.join("loop");
-    std::os::unix::fs::symlink(&sub, &loop_link).unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args(["-R", "--json", sub.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-    assert!(val.is_object());
 }
 
 #[test]
@@ -641,21 +296,15 @@ fn test_json_permission_denied_exit_code_and_json() {
     let temp = TempTestDir::new("json_perm_denied");
     let restricted = temp.create_dir("restricted");
     temp.create_file("restricted/secret.txt", b"secret");
+    fs::set_permissions(&restricted, fs::Permissions::from_mode(0o000)).expect("lock");
 
-    let orig_perms = fs::metadata(&restricted).unwrap().permissions();
-    let mut no_perms = orig_perms.clone();
-    no_perms.set_mode(0o000);
-    fs::set_permissions(&restricted, no_perms).unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args(["--json", restricted.to_str().unwrap()])
+    let output = lez_in(temp.path())
+        .args(["--json", "restricted"])
         .output()
         .expect("Failed to run lez");
 
     // Restore permissions so drop cleanup succeeds
-    let mut restore_perms = orig_perms;
-    restore_perms.set_mode(0o755);
-    let _ = fs::set_permissions(&restricted, restore_perms);
+    let _ = fs::set_permissions(&restricted, fs::Permissions::from_mode(0o755));
 
     assert_eq!(
         output.status.code(),
@@ -666,64 +315,6 @@ fn test_json_permission_denied_exit_code_and_json() {
     assert_eq!(String::from_utf8_lossy(&output.stdout), "[]\n");
     assert_eq!(
         String::from_utf8_lossy(&output.stderr),
-        format!("Permission denied: {} - code: 13\n", restricted.display())
-    );
-}
-
-#[test]
-fn test_json_multi_dir_same_basename() {
-    let temp = TempTestDir::new("json_same_basename");
-    let p1 = temp.create_dir("parent1/common");
-    let p2 = temp.create_dir("parent2/common");
-    temp.create_file("parent1/common/a.txt", b"a");
-    temp.create_file("parent2/common/b.txt", b"b");
-
-    let output = crate::common::lez_cmd()
-        .args(["--json", p1.to_str().unwrap(), p2.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-    let obj = val.as_object().expect("Expected JSON map");
-    assert_eq!(
-        obj.len(),
-        2,
-        "Both directories must be represented in JSON map: {stdout}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_json_symlink_target_field() {
-    let temp = TempTestDir::new("json_symlink_target");
-    let target = temp.create_file("target.txt", b"target");
-    let link_path = temp.path.join("link.txt");
-    std::os::unix::fs::symlink(&target, &link_path).unwrap();
-
-    let output = crate::common::lez_cmd()
-        .args(["-l", "--json", link_path.to_str().unwrap()])
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let val: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("Invalid JSON: {e}, stdout: {stdout}"));
-    let obj = val.as_object().expect("JSON object");
-    let link_meta = obj
-        .get("link.txt")
-        .expect("link.txt entry")
-        .as_object()
-        .expect("meta object");
-    assert!(
-        link_meta.contains_key("Target"),
-        "JSON metadata for symlink must contain 'Target' field: {stdout}"
-    );
-    assert_eq!(
-        link_meta.get("Target").unwrap().as_str().unwrap(),
-        target.to_str().unwrap()
+        "Permission denied: restricted - code: 13\n"
     );
 }
