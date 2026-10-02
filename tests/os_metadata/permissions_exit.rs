@@ -1,171 +1,90 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! `lez` documents exit code 13 for directories it was not allowed to read.
-//! These tests pin that the code is actually returned rather than only being
-//! printed inside the stderr message.
+//! Exit code 13 for a path lez was not allowed to read, and how it ranks
+//! against a missing path. What a listing around an unreadable directory
+//! prints, with its exit code, is pinned in `adversarial/io_error_isolation.rs`.
 
 #![cfg(unix)]
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::Output;
 
-/// A directory that chmods its unreadable children back before removal, so a
-/// failing assertion can’t leave an undeletable tree behind.
-struct LockedTree {
-    root: PathBuf,
-    locked: Vec<PathBuf>,
-}
+use crate::common::{TempTestDir, lez_in, permission_checks_apply};
 
-impl LockedTree {
-    fn new(label: &str) -> Self {
-        let root = std::env::temp_dir().join(format!("lez_perm_{label}_{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("temp root should be creatable");
-        Self {
-            root,
-            locked: Vec::new(),
-        }
-    }
+/// Locks `path` for the lifetime of the guard, so a failing assertion cannot
+/// leave a tree the temporary directory cannot delete.
+struct Locked(PathBuf);
 
-    fn dir(&self, rel: &str) -> PathBuf {
-        let path = self.root.join(rel);
-        fs::create_dir_all(&path).expect("directory should be creatable");
-        path
-    }
-
-    fn lock(&mut self, path: &Path) {
-        fs::set_permissions(path, fs::Permissions::from_mode(0o000))
-            .expect("permissions should be settable");
-        self.locked.push(path.to_path_buf());
+impl Locked {
+    fn new(path: &Path) -> Self {
+        fs::set_permissions(path, fs::Permissions::from_mode(0o000)).expect("lock entry");
+        Self(path.to_path_buf())
     }
 }
 
-impl Drop for LockedTree {
+impl Drop for Locked {
     fn drop(&mut self) {
-        for path in &self.locked {
-            let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o755));
-        }
-        let _ = fs::remove_dir_all(&self.root);
+        let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
     }
 }
 
-fn run(args: &[&Path]) -> (i32, String) {
-    let output = crate::common::lez_cmd()
-        .args(args)
-        .output()
-        .expect("lez should be runnable");
-    (
-        output.status.code().expect("lez should exit normally"),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
-    )
+fn run(dir: &TempTestDir, args: &[&str]) -> Output {
+    lez_in(dir.path()).args(args).output().expect("run lez")
 }
 
+fn text(bytes: &[u8]) -> &str {
+    std::str::from_utf8(bytes).expect("UTF-8 output")
+}
+
+/// A file inside a directory lez may not search cannot even be `stat`ed.
+/// That is a denial, not a missing path, in every view.
 #[test]
-fn unreadable_directory_exits_with_permission_denied() {
-    if !crate::common::permission_checks_apply() {
+fn a_file_behind_an_unsearchable_directory_is_denied_not_missing() {
+    if !permission_checks_apply() {
         return;
     }
-    let mut tree = LockedTree::new("direct");
-    let locked = tree.dir("locked");
-    tree.lock(&locked);
+    let dir = TempTestDir::new("perm_stat");
+    let locked = dir.create_dir("locked");
+    dir.create_file("locked/file.txt", b"hello");
+    let _lock = Locked::new(&locked);
+    let denied = fs::metadata(locked.join("file.txt")).expect_err("stat is denied");
 
-    let (code, stderr) = run(&[&locked]);
+    for view in [&[][..], &["-l"], &["-T"]] {
+        let output = run(&dir, &[view, &["locked/file.txt"]].concat());
+        assert_eq!(output.status.code(), Some(13), "{view:?}");
+        assert_eq!(text(&output.stdout), "", "{view:?}");
+        assert_eq!(
+            text(&output.stderr),
+            format!("\"locked/file.txt\": {denied}\n"),
+            "{view:?}"
+        );
+    }
+}
 
-    assert_eq!(code, 13, "stderr was: {stderr}");
-    let shown = locked.display();
+/// Both are reported, and the exit code is the missing path's: it is the
+/// more specific complaint.
+#[test]
+fn a_missing_path_outranks_a_denied_one() {
+    if !permission_checks_apply() {
+        return;
+    }
+    let dir = TempTestDir::new("perm_precedence");
+    let locked = dir.create_dir("locked");
+    let _lock = Locked::new(&locked);
+    let missing = fs::metadata(dir.path().join("missing")).expect_err("no such path");
+
+    let output = run(&dir, &["locked", "missing"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(text(&output.stdout), "");
     assert_eq!(
-        stderr,
+        text(&output.stderr),
         format!(
-            "Permission denied: {shown} - code: 13\n\n\
-             Skipped 1 directories due to permission denied: \n  {shown}\n"
+            "\"missing\": {missing}\n\
+             Permission denied: locked - code: 13\n\n\
+             Skipped 1 directories due to permission denied: \n  locked\n"
         )
-    );
-}
-
-#[test]
-fn unreadable_directory_found_while_recursing_exits_with_permission_denied() {
-    if !crate::common::permission_checks_apply() {
-        return;
-    }
-    let mut tree = LockedTree::new("recurse");
-    let outer = tree.dir("outer");
-    let inner = tree.dir("outer/inner");
-    tree.lock(&inner);
-
-    let (code, stderr) = run(&[Path::new("--recurse"), &outer]);
-
-    assert_eq!(
-        code, 13,
-        "a denial below the listed directory must still surface; stderr was: {stderr}"
-    );
-}
-
-#[test]
-fn readable_directory_still_exits_successfully() {
-    let tree = LockedTree::new("readable");
-    let plain = tree.dir("plain");
-
-    let (code, stderr) = run(&[&plain]);
-
-    assert_eq!(code, 0, "stderr was: {stderr}");
-}
-
-#[test]
-fn missing_path_keeps_precedence_over_permission_denied() {
-    if !crate::common::permission_checks_apply() {
-        return;
-    }
-    let mut tree = LockedTree::new("precedence");
-    let locked = tree.dir("locked");
-    tree.lock(&locked);
-    let missing = tree.root.join("definitely-not-here");
-
-    let (code, stderr) = run(&[&locked, &missing]);
-
-    assert_eq!(
-        code, 2,
-        "a nonexistent input path is the more specific complaint; stderr was: {stderr}"
-    );
-}
-
-#[test]
-fn tree_mode_unreadable_directory_exits_with_permission_denied() {
-    if !crate::common::permission_checks_apply() {
-        return;
-    }
-    let mut tree = LockedTree::new("tree_perm");
-    let outer = tree.dir("outer");
-    let inner = tree.dir("outer/inner");
-    fs::write(inner.join("secret.txt"), b"secret").unwrap();
-    tree.lock(&inner);
-
-    let (code, stderr) = run(&[Path::new("-T"), &outer]);
-
-    assert_eq!(
-        code, 13,
-        "tree mode (-T) must exit with code 13 (PERMISSION_DENIED) when an unreadable directory is encountered; stderr was: {stderr}"
-    );
-}
-
-#[test]
-fn unreadable_intermediate_directory_stat_exits_with_permission_denied() {
-    if !crate::common::permission_checks_apply() {
-        return;
-    }
-    let mut tree = LockedTree::new("stat_eacces");
-    let locked = tree.dir("locked");
-    let target = locked.join("file.txt");
-    fs::write(&target, b"hello").unwrap();
-
-    tree.lock(&locked);
-
-    let (code, stderr) = run(&[&target]);
-
-    assert_eq!(
-        code, 13,
-        "Access denied during metadata query must exit with 13 (PERMISSION_DENIED), not 2 (MISSING_INPUT_PATH); stderr was: {stderr}"
     );
 }

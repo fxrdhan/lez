@@ -551,3 +551,27 @@ pub fn set_xattr_named(file: &Path, name: &str, value: &[u8]) -> bool {
     eprintln!("skipped: the temp directory's filesystem has no user attributes");
     false
 }
+
+/// Grants `caps` to `file` with `setcap`, directly as root or through a
+/// password-free `sudo` as on CI. Off CI, an account that can do neither
+/// skips the test, saying so; on CI it is a failure.
+#[cfg(target_os = "linux")]
+pub fn grant_capabilities(file: &Path, caps: &str) -> bool {
+    let direct = Command::new("setcap").arg(caps).arg(file).output();
+    if direct.is_ok_and(|output| output.status.success()) {
+        return true;
+    }
+    let sudo = Command::new("sudo")
+        .args(["-n", "setcap", caps])
+        .arg(file)
+        .output();
+    if sudo.is_ok_and(|output| output.status.success()) {
+        return true;
+    }
+    assert!(
+        std::env::var_os("CI").is_none(),
+        "setcap should be available on CI; without it this test proves nothing"
+    );
+    eprintln!("skipped: setcap is not available to this account");
+    false
+}

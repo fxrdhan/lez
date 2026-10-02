@@ -132,7 +132,7 @@ fn a_mount_point_is_marked_d_in_every_format() {
     }
 }
 
-/// `-M` names what is mounted: its source, where (except for `/`), and the
+/// `-M`, or `--mounts`, names what is mounted: its source, where (except for `/`), and the
 /// filesystem type. Other directories get nothing.
 #[test]
 fn mounts_describes_what_is_mounted() {
@@ -149,10 +149,12 @@ fn mounts_describes_what_is_mounted() {
             };
             format!(" [{}{on} ({})]", mount.source, mount.fstype)
         });
-        assert_eq!(
-            long(&path, &["-M", "--no-permissions"]),
-            format!("{}{details}\n", path.display()),
-            "{path:?}"
-        );
+        for flag in ["-M", "--mounts"] {
+            assert_eq!(
+                long(&path, &[flag, "--no-permissions"]),
+                format!("{}{details}\n", path.display()),
+                "{flag} {path:?}"
+            );
+        }
     }
 }
