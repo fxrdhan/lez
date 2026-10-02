@@ -505,16 +505,13 @@ impl SizeDigits {
             vars::EXA_SIZE_DIGITS,
         ]) {
             let val = value.to_string_lossy().to_string();
-            match val.parse::<u8>() {
-                Ok(digits) if (1..=8).contains(&digits) => Ok(digits),
-                Ok(_) | Err(_) => {
-                    let source = NumberSource::Env(name);
-                    let err = match val.parse::<u8>() {
-                        Err(e) => e,
-                        Ok(_) => "invalid digit range".parse::<u8>().unwrap_err(),
-                    };
-                    Err(OptionsError::FailedParse(val, source, err))
-                }
+            let source = NumberSource::Env(name);
+            // Any whole number outside the range is out of range, as clap
+            // says of the flag, even one too large or too small for a `u8`.
+            match val.parse::<i64>().map(u8::try_from) {
+                Ok(Ok(digits)) if (1..=8).contains(&digits) => Ok(digits),
+                Ok(_) => Err(OptionsError::OutOfRange(val, source, 1..=8)),
+                Err(e) => Err(OptionsError::FailedParse(val, source, e)),
             }
         } else if let Some(digits) = config.display.size_digits {
             Ok(digits.clamp(1, 8))
@@ -542,16 +539,13 @@ impl PercentDigits {
             vars::EXA_PERCENT_DIGITS,
         ]) {
             let val = value.to_string_lossy().to_string();
-            match val.parse::<u8>() {
-                Ok(digits) if digits <= 8 => Ok(digits),
-                Ok(_) | Err(_) => {
-                    let source = NumberSource::Env(name);
-                    let err = match val.parse::<u8>() {
-                        Err(e) => e,
-                        Ok(_) => "invalid digit range".parse::<u8>().unwrap_err(),
-                    };
-                    Err(OptionsError::FailedParse(val, source, err))
-                }
+            let source = NumberSource::Env(name);
+            // Any whole number outside the range is out of range, as clap
+            // says of the flag, even one too large or too small for a `u8`.
+            match val.parse::<i64>().map(u8::try_from) {
+                Ok(Ok(digits)) if (0..=8).contains(&digits) => Ok(digits),
+                Ok(_) => Err(OptionsError::OutOfRange(val, source, 0..=8)),
+                Err(e) => Err(OptionsError::FailedParse(val, source, e)),
             }
         } else if let Some(digits) = config.loc.percent_digits {
             Ok(digits.min(8))

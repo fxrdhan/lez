@@ -182,6 +182,67 @@ fn a_double_dash_ends_option_parsing() {
     );
 }
 
+/// A whole number a digit count does not accept is out of range, in the
+/// words clap uses for the flag; it used to be blamed on an invalid digit.
+/// The ends of each range are accepted.
+#[test]
+fn a_variable_out_of_range_says_so() {
+    let dir = crate::common::TempTestDir::new("range_variable");
+    dir.create_file("file.rs", b"fn main() {}\n");
+    let run = |name: &str, value: &str, view: &[&str]| {
+        crate::common::lez_in(dir.path())
+            .env(name, value)
+            .args(view)
+            .output()
+            .expect("run lez")
+    };
+
+    for (names, view, range, values) in [
+        (
+            ["LEZ_SIZE_DIGITS", "EZA_SIZE_DIGITS", "EXA_SIZE_DIGITS"],
+            &["-l"][..],
+            "1..=8",
+            &["0", "9", "300", "-1"][..],
+        ),
+        (
+            [
+                "LEZ_PERCENT_DIGITS",
+                "EZA_PERCENT_DIGITS",
+                "EXA_PERCENT_DIGITS",
+            ],
+            &["--code"],
+            "0..=8",
+            &["9", "300", "-1"],
+        ),
+    ] {
+        for name in names {
+            for value in values {
+                let output = run(name, value, view);
+                assert_eq!(output.status.code(), Some(3), "{name}={value}");
+                assert!(output.stdout.is_empty(), "{name}={value}");
+                assert_eq!(
+                    String::from_utf8_lossy(&output.stderr),
+                    format!(
+                        "lez: Value {value:?} not valid for environment variable {name}: \
+                         {value} is not in {range}\n"
+                    ),
+                );
+            }
+        }
+    }
+
+    for (name, view, value) in [
+        ("LEZ_SIZE_DIGITS", &["-l"][..], "1"),
+        ("LEZ_SIZE_DIGITS", &["-l"], "8"),
+        ("LEZ_PERCENT_DIGITS", &["--code"], "0"),
+        ("LEZ_PERCENT_DIGITS", &["--code"], "8"),
+    ] {
+        let output = run(name, value, view);
+        assert_eq!(output.status.code(), Some(0), "{name}={value}");
+        assert!(output.stderr.is_empty(), "{name}={value}");
+    }
+}
+
 /// A numeric variable that does not parse is an option error naming the
 /// variable it was read from. An empty `EZA_*` or `EXA_*` value used to be
 /// blamed on the `LEZ_*` one, which was not even set.

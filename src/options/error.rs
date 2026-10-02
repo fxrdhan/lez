@@ -7,6 +7,7 @@
 use std::ffi::OsString;
 use std::fmt;
 use std::num::ParseIntError;
+use std::ops::RangeInclusive;
 
 /// Something wrong with the combination of options the user has picked.
 #[derive(PartialEq, Eq, Debug)]
@@ -36,6 +37,9 @@ pub enum OptionsError {
 
     /// A numeric option was given that failed to be parsed as a number.
     FailedParse(String, NumberSource, ParseIntError),
+
+    /// A numeric option was given a number outside the range it accepts.
+    OutOfRange(String, NumberSource, RangeInclusive<u8>),
 
     /// A glob ignore was given that failed to be parsed as a pattern.
     FailedGlobPattern(String),
@@ -80,6 +84,7 @@ impl fmt::Display for OptionsError {
             Self::Useless2(a, b1, b2)        => write!(f, "Option {a} is useless without options {b1} or {b2}"),
             Self::TreeAllAll                 => write!(f, "Option --tree is useless given --all --all"),
             Self::FailedParse(s, n, e)       => write!(f, "Value {s:?} not valid for {n}: {e}"),
+            Self::OutOfRange(s, n, r)        => write!(f, "Value {s:?} not valid for {n}: {s} is not in {}..={}", r.start(), r.end()),
             Self::FailedGlobPattern(e)       => write!(f, "Failed to parse glob pattern: {e}"),
         };
     }
