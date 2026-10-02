@@ -361,20 +361,24 @@ impl<C: Colours> FileName<'_, '_, C> {
             _ => false,
         };
 
+        // A theme's colour for the name is the icon's too, unless the theme
+        // gives the icon one of its own.
+        let file_style = filename_style_override.unwrap_or_else(|| self.style());
+
         if let Some(spaces_count) = spaces_count_opt {
             let (style, icon) = match icon_override {
                 Some(icon_override) => (
                     if let Some(style_override) = icon_override.style {
                         style_override
                     } else {
-                        iconify_style(self.style())
+                        iconify_style(file_style)
                     },
                     icon_override.glyph.unwrap_or_else(|| {
                         icon_for_file(self.file, self.options.empty_dir_icon).to_string()
                     }),
                 ),
                 None => (
-                    iconify_style(self.style()),
+                    iconify_style(file_style),
                     icon_for_file(self.file, self.options.empty_dir_icon).to_string(),
                 ),
             };
@@ -405,7 +409,6 @@ impl<C: Colours> FileName<'_, '_, C> {
         };
 
         let display_name = self.display_name();
-        let file_style = filename_style_override.unwrap_or_else(|| self.style());
 
         self.append_path_and_name_bits(
             &mut bits,
