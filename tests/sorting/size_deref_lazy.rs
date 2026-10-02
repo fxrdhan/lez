@@ -66,10 +66,10 @@ fn run_lez(args: &[&str], dir: &Path) -> Vec<String> {
         "lez failed with stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(output.stderr.is_empty());
     String::from_utf8_lossy(&output.stdout)
         .lines()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
         .collect()
 }
 
@@ -103,11 +103,16 @@ fn test_sort_size_dereference_symlinks() {
         vec!["tiny_file.txt", "link_to_huge.bin", "huge_target.bin"]
     );
 
-    // With dereference, link_to_huge evaluates to 50000 bytes, sorted alongside huge_target
-    let lines_deref = run_lez(&["-1", "-s", "size", "--dereference"], &temp.path);
-    assert_eq!(lines_deref[0], "tiny_file.txt");
-    assert!(lines_deref[1..].contains(&"link_to_huge.bin".to_string()));
-    assert!(lines_deref[1..].contains(&"huge_target.bin".to_string()));
+    // With dereference the link weighs its target's 50000 bytes; the tie
+    // goes to the name.
+    assert_eq!(
+        run_lez(&["-1", "-s", "size", "--dereference"], &temp.path),
+        vec!["tiny_file.txt", "huge_target.bin", "link_to_huge.bin"]
+    );
+    assert_eq!(
+        run_lez(&["-1", "-s", "size", "--dereference", "-r"], &temp.path),
+        vec!["link_to_huge.bin", "huge_target.bin", "tiny_file.txt"]
+    );
 }
 
 #[test]
@@ -118,9 +123,9 @@ fn test_sort_size_broken_symlink_with_dereference() {
     temp.create_symlink("nonexistent_file", "broken_link");
 
     // Should not panic or error out
-    let lines = run_lez(&["-1", "-s", "size", "--dereference"], &temp.path);
-    assert_eq!(lines.len(), 2);
-    // Broken link resolves to 0 bytes, so it comes first in ascending order
-    assert_eq!(lines[0], "broken_link");
-    assert_eq!(lines[1], "regular.txt");
+    // A broken link has nothing to weigh, so it counts as 0 bytes.
+    assert_eq!(
+        run_lez(&["-1", "-s", "size", "--dereference"], &temp.path),
+        vec!["broken_link", "regular.txt"]
+    );
 }

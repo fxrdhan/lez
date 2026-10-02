@@ -522,8 +522,11 @@ fn test_positional_files_with_non_existent_entry_and_sorting() {
     );
     // Exit status should be 2 for missing file
     assert_eq!(output.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("does_not_exist.txt"));
+    let missing = std::fs::metadata(temp.path.join("does_not_exist.txt")).expect_err("missing");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        format!("\"does_not_exist.txt\": {missing}\n")
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
