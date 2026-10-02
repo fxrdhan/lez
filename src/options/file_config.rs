@@ -192,31 +192,49 @@ impl FileConfig {
 
     fn parse_explicit_file(path: &Path) -> Option<Self> {
         match fs::read_to_string(path) {
-            Ok(content) => {
-                let toml_err = match toml::from_str::<Self>(&content) {
-                    Ok(cfg) => return Some(cfg),
-                    Err(e) => e,
-                };
-                let yaml_err = match serde_norway::from_str::<Self>(&content) {
-                    Ok(cfg) => return Some(cfg),
-                    Err(e) => e,
-                };
-                let is_yaml = path.extension().is_some_and(|ext| {
-                    ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml")
-                });
-                let err_msg = if is_yaml {
-                    yaml_err.to_string()
-                } else {
-                    toml_err.to_string()
-                };
-                eprintln!("lez: Failed to parse config file {:?}: {err_msg}", path);
-                None
-            }
+            Ok(content) => Self::parse_reporting(path, &content),
             Err(e) => {
                 eprintln!("lez: Failed to read config file {:?}: {e}", path);
                 None
             }
         }
+    }
+
+    /// Reads a config file lez looked for on its own. `None` when there is
+    /// no file at `path`, so the next candidate is tried; otherwise the
+    /// file's settings, or none after reporting why it could not be read or
+    /// parsed, as for a file given with `--config`.
+    fn discover(path: &Path) -> Option<Option<Self>> {
+        match fs::read_to_string(path) {
+            Ok(content) => Some(Self::parse_reporting(path, &content)),
+            // Asked only on failure: a directory of that name is no file.
+            Err(_) if !path.is_file() => None,
+            Err(e) => {
+                eprintln!("lez: Failed to read config file {:?}: {e}", path);
+                Some(None)
+            }
+        }
+    }
+
+    fn parse_reporting(path: &Path, content: &str) -> Option<Self> {
+        let toml_err = match toml::from_str::<Self>(content) {
+            Ok(cfg) => return Some(cfg),
+            Err(e) => e,
+        };
+        let yaml_err = match serde_norway::from_str::<Self>(content) {
+            Ok(cfg) => return Some(cfg),
+            Err(e) => e,
+        };
+        let is_yaml = path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"));
+        let err_msg = if is_yaml {
+            yaml_err.to_string()
+        } else {
+            toml_err.to_string()
+        };
+        eprintln!("lez: Failed to parse config file {:?}: {err_msg}", path);
+        None
     }
 
     /// Load global and local configuration with precedence:
@@ -256,11 +274,10 @@ impl FileConfig {
                 config_dir.join("config.yaml"),
                 config_dir.join("config.yml"),
             ];
-            for candidate in &candidates {
-                if let Some(global_cfg) = Self::from_file(candidate) {
-                    config.merge_with(global_cfg);
-                    break;
-                }
+            // The first file there is the one used; one that does not parse
+            // is reported rather than passed over for the next.
+            if let Some(global_cfg) = candidates.iter().find_map(|path| Self::discover(path)) {
+                config.merge_with(global_cfg.unwrap_or_default());
             }
         }
 
@@ -274,11 +291,11 @@ impl FileConfig {
             cwd_path.join(".eza.yaml"),
         ];
 
-        for candidate in &local_candidates {
-            if let Some(local_cfg) = Self::from_file(candidate) {
-                config.merge_with(local_cfg);
-                break;
-            }
+        if let Some(local_cfg) = local_candidates
+            .iter()
+            .find_map(|path| Self::discover(path))
+        {
+            config.merge_with(local_cfg.unwrap_or_default());
         }
 
         config

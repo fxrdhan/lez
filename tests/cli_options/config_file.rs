@@ -401,3 +401,71 @@ color = "always"
         "--color=auto on non-TTY should not emit ANSI colors, even if config has color='always': {stdout:?}"
     );
 }
+
+/// A config file lez finds on its own, in the config directory or the
+/// current one, is reported when it does not parse, in the words used for
+/// the same file given with `--config`, and the listing goes on without it.
+/// Both used to be dropped without a word, the valid setting beside the bad
+/// one with them. A directory with a config file's name is passed over.
+#[test]
+fn a_discovered_config_that_does_not_parse_is_reported() {
+    let dir = crate::common::TempTestDir::new("broken_discovered");
+    let broken = b"[display]\nheader = true\nsize_digits = 300\n";
+    dir.create_file("global/config.toml", broken);
+    // Joined a part at a time, as lez joins it, so the separators match on
+    // Windows.
+    let global = dir.path().join("global").join("config.toml");
+    dir.create_file("work/.lez.toml", broken);
+    dir.create_file("work/file.txt", b"x");
+    dir.create_dir("other/.lez.toml");
+    dir.create_file("other/file.txt", b"x");
+    let local = std::path::Path::new(".").join(".lez.toml");
+
+    let run = |cwd: &str, config_dir: &std::path::Path, explicit: Option<&std::path::Path>| {
+        let mut cmd = crate::common::lez_in(&dir.path().join(cwd));
+        cmd.env("LEZ_CONFIG_DIR", config_dir);
+        if let Some(path) = explicit {
+            cmd.arg("--config").arg(path);
+        }
+        let output = cmd
+            .args([
+                "-l",
+                "--no-permissions",
+                "--no-user",
+                "--no-time",
+                "file.txt",
+            ])
+            .output()
+            .expect("run lez");
+        assert_eq!(output.status.code(), Some(0), "{cwd}");
+        (
+            String::from_utf8(output.stdout).expect("UTF-8 stdout"),
+            String::from_utf8(output.stderr).expect("UTF-8 stderr"),
+        )
+    };
+    let nowhere = dir.path().join("nowhere");
+
+    for (cwd, config_dir, path) in [
+        ("other", dir.path().join("global"), global.as_path()),
+        ("work", nowhere.clone(), local.as_path()),
+    ] {
+        let (stdout, stderr) = run(cwd, &config_dir, None);
+        assert_eq!(
+            (stdout.clone(), stderr.clone()),
+            run(cwd, &nowhere, Some(path)),
+            "{cwd}"
+        );
+        assert_eq!(stdout, "1 file.txt\n", "{cwd}");
+        assert!(
+            stderr.starts_with(&format!(
+                "lez: Failed to parse config file {path:?}: TOML parse error at line 3"
+            )),
+            "{stderr}"
+        );
+    }
+
+    assert_eq!(
+        run("other", &nowhere, None),
+        ("1 file.txt\n".to_owned(), String::new())
+    );
+}
