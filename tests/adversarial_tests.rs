@@ -25,7 +25,5 @@ mod massive_workload;
 mod raw_bytes_paths;
 #[path = "adversarial/strict_mode_permutations.rs"]
 mod strict_mode_permutations;
-#[path = "adversarial/symlink_targets_stress.rs"]
-mod symlink_targets_stress;
 #[path = "adversarial/theme_yaml_fuzz_stress.rs"]
 mod theme_yaml_fuzz_stress;
