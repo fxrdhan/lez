@@ -248,6 +248,9 @@ nix run github:fxrdhan/lez
 - **-f**, **--only-files**: list only files
 - **--no-symlinks**: don't show symbolic links
 - **--show-symlinks**: explicitly show links (with `--only-dirs` and `--only-files`)
+- **--no-system**: don't show system files (Windows only)
+- **--no-hidden-attrib**: don't show entries with the hidden attribute (Windows only)
+- **--no-hidden-links**: don't show hidden profile links and junctions (Windows only)
 - **--git-ignore**: ignore files mentioned in `.gitignore`
 - **-W**, **--warn-hidden**: print a tally of hidden and gitignored entries; give twice to always print it
 - **--cachedir-ignore**: ignore directories containing a `CACHEDIR.TAG` file
@@ -268,6 +271,7 @@ These options are available when running with `--long` (`-l`):
 - **-b**, **--binary**: list file sizes with binary prefixes (overrides `--bytes` if passed after)
 - **-B**, **--bytes**: list file sizes in bytes, without any prefixes (overrides `--binary` if passed after)
 - **--size-digits=(NUM)**, **--digits=(NUM)**: number of digits to display for file sizes, the decimal point counting as one (1..=8, default: 3, as in `2.3M`; also configurable via `LEZ_SIZE_DIGITS`)
+- **--percent-digits=(NUM)**, **--precision-percent=(NUM)**: number of decimal digits for code shares in `--code` and `--loc` (0..=8, default: 1; also configurable via `LEZ_PERCENT_DIGITS`)
 - **-g**, **--group**: list each file’s group
 - **--smart-group**: only show group if it has a different name from owner (automatically enables group column)
 - **-n**, **--numeric**: show user and group as their numeric IDs
