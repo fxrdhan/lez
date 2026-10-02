@@ -100,9 +100,9 @@ impl LocCounts {
         }
 
         let mut counts = Self::default();
-        // The block-comment terminator we’re currently hunting for, if any.
-        // This is threaded across lines so multi-line block comments work.
-        let mut block: Option<&'static str> = None;
+        // The block comment a line ends inside, threaded across lines so
+        // multi-line block comments work.
+        let mut block = BlockComment::default();
         let mut quote: Option<char> = None;
 
         for line in source.lines() {
@@ -131,6 +131,28 @@ impl LocCounts {
     }
 }
 
+/// The block comment a line ended inside, if any, carried to the next.
+#[derive(Debug, Default, Clone, Copy)]
+struct BlockComment {
+    /// The opening and closing delimiters, while inside a comment.
+    delimiters: Option<(&'static str, &'static str)>,
+
+    /// How many comments opened inside this one are still open, in a
+    /// language whose block comments nest.
+    depth: usize,
+}
+
+/// Languages whose block comments nest, so that `/* a /* b */ c */` is one
+/// comment. In the others the first closing delimiter ends it.
+fn block_comments_nest(lang: &Language) -> bool {
+    [
+        &RUST, &SWIFT, &KOTLIN, &SCALA, &DART, &ODIN, &HASKELL, &ELM, &OCAML, &FSHARP, &JULIA,
+        &LISP, &SCHEME,
+    ]
+    .iter()
+    .any(|nesting| std::ptr::eq(*nesting, lang))
+}
+
 #[inline(always)]
 fn is_candidate_comment_or_quote(b: u8) -> bool {
     matches!(
@@ -145,7 +167,7 @@ fn is_candidate_comment_or_quote(b: u8) -> bool {
 fn classify_line(
     line: &str,
     lang: &Language,
-    block: &mut Option<&'static str>,
+    block: &mut BlockComment,
     quote: &mut Option<char>,
 ) -> (bool, bool) {
     let mut has_code = false;
@@ -155,15 +177,33 @@ fn classify_line(
     'scan: loop {
         // Inside a block comment: everything up to the closing delimiter is
         // comment. If it never closes on this line, the block continues.
-        if let Some(close) = *block {
+        // Where comments nest, an opening delimiter on the way needs a
+        // closing one of its own first.
+        if let Some((open, close)) = block.delimiters {
             has_comment = true;
-            match rest.find(close) {
-                Some(pos) => {
-                    rest = &rest[pos + close.len()..];
-                    *block = None;
+            let next_close = rest.find(close);
+            let next_open = if block_comments_nest(lang) {
+                rest.find(open)
+                    .filter(|&pos| next_close.is_none_or(|end| pos < end))
+            } else {
+                None
+            };
+            match (next_open, next_close) {
+                (Some(pos), _) => {
+                    block.depth += 1;
+                    rest = &rest[pos + open.len()..];
                     continue;
                 }
-                None => break,
+                (None, Some(pos)) => {
+                    rest = &rest[pos + close.len()..];
+                    if block.depth == 0 {
+                        block.delimiters = None;
+                    } else {
+                        block.depth -= 1;
+                    }
+                    continue;
+                }
+                (None, None) => break,
             }
         }
 
@@ -210,13 +250,16 @@ fn classify_line(
         // A block comment opener starts a (possibly multi-line) comment.
         // Evaluated before line comments so longer openers that share a prefix
         // with line comments (e.g. Lua `--[[` vs `--`) match correctly.
-        if let Some((open, close)) = lang
+        if let Some(&(open, close)) = lang
             .block_comments
             .iter()
             .find(|(open, _)| rest.starts_with(open))
         {
             has_comment = true;
-            *block = Some(close);
+            *block = BlockComment {
+                delimiters: Some((open, close)),
+                depth: 0,
+            };
             rest = &rest[open.len()..];
             continue 'scan;
         }
@@ -1069,7 +1112,7 @@ struct CodeFenceState {
     fence_char: u8,
     fence_len: usize,
     lang: &'static Language,
-    block_comment: Option<&'static str>,
+    block_comment: BlockComment,
     quote: Option<char>,
 }
 
@@ -1080,7 +1123,7 @@ pub fn count_markdown_source(source: &str) -> Vec<(&'static Language, LocCounts)
     let mut counts_by_lang: Vec<(&'static Language, LocCounts)> = Vec::with_capacity(4);
 
     let mut active_fence: Option<CodeFenceState> = None;
-    let mut md_html_block: Option<&'static str> = None;
+    let mut md_html_block = BlockComment::default();
 
     let add_line = |counts: &mut Vec<(&'static Language, LocCounts)>,
                     lang: &'static Language,
@@ -1156,7 +1199,7 @@ pub fn count_markdown_source(source: &str) -> Vec<(&'static Language, LocCounts)
                     fence_char,
                     fence_len,
                     lang,
-                    block_comment: None,
+                    block_comment: BlockComment::default(),
                     quote: None,
                 });
             } else if line.trim().is_empty() {
@@ -1229,6 +1272,61 @@ mod test {
                 blanks: 0,
             }
         );
+    }
+
+    /// Where block comments nest, a comment opened inside one needs its
+    /// own close before the outer one can end; the line after the inner
+    /// close is still comment.
+    #[test]
+    fn nested_block_comments_stay_comments_where_they_nest() {
+        let lines = |code, comments| LocCounts {
+            lines: code + comments,
+            code,
+            comments,
+            blanks: 0,
+        };
+        for (lang, source, expected) in [
+            (&RUST, "/* a\n/* b */\nc */\nlet x = 1;\n", lines(1, 3)),
+            (&RUST, "/* a /* b */ c */\nlet x = 1;\n", lines(1, 1)),
+            (&RUST, "/* a /* b */ c */ let x = 1;\n", lines(1, 0)),
+            (
+                &RUST,
+                "/* /* /*\n*/ */\nstill */\nlet x = 1;\n",
+                lines(1, 3),
+            ),
+            // Never closed: the rest of the file is comment.
+            (&RUST, "/* a /* b */\nlet x = 1;\n", lines(0, 2)),
+            (&ODIN, "/* a /* b */\nc */\nx := 1\n", lines(1, 2)),
+            (
+                &HASKELL,
+                "{- a {- b -}\nc -}\nmain = pure ()\n",
+                lines(1, 2),
+            ),
+            (&OCAML, "(* a (* b *)\nc *)\nlet x = 1\n", lines(1, 2)),
+            (&JULIA, "#= a #= b =#\nc =#\nx = 1\n", lines(1, 2)),
+            (&SCHEME, "#| a #| b |#\nc |#\n(define x 1)\n", lines(1, 2)),
+        ] {
+            assert_eq!(count(source, lang), expected, "{}: {source:?}", lang.name);
+        }
+    }
+
+    /// In C, and the other languages whose block comments do not nest, the
+    /// first close ends the comment, and what follows it is code.
+    #[test]
+    fn the_first_close_ends_a_block_comment_where_they_do_not_nest() {
+        for lang in [&C, &JAVA, &JAVASCRIPT, &GO, &CSS] {
+            assert_eq!(
+                count("/* a\n/* b */\nc */\n", lang),
+                LocCounts {
+                    lines: 3,
+                    code: 1,
+                    comments: 2,
+                    blanks: 0,
+                },
+                "{}",
+                lang.name
+            );
+        }
     }
 
     #[test]
