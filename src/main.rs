@@ -220,6 +220,22 @@ impl Vars for LiveVars {
     fn get(&self, name: &'static str) -> Option<OsString> {
         env::var_os(name)
     }
+
+    fn get_locale(&self) -> Option<String> {
+        sys_locale::get_locale()
+    }
+
+    fn stdout_is_terminal(&self) -> bool {
+        io::stdout().is_terminal()
+    }
+
+    fn platform_config_dir(&self) -> Option<PathBuf> {
+        dirs::config_dir()
+    }
+
+    fn platform_home_dir(&self) -> Option<PathBuf> {
+        dirs::home_dir()
+    }
 }
 
 /// Create a Git cache populated with the arguments that are going to be

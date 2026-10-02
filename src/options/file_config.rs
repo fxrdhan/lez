@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::options::config::config_dir_from_env;
+use crate::options::config::config_dir;
 use crate::options::vars::{self, Vars};
 
 /// Top-level configuration file schema (supports both TOML and YAML).
@@ -248,14 +248,7 @@ impl FileConfig {
         let mut config = Self::default();
 
         // 2. Discover and load Global config
-        let custom_dir = vars
-            .get(vars::LEZ_CONFIG_DIR)
-            .or_else(|| vars.get(vars::EZA_CONFIG_DIR))
-            .map(PathBuf::from);
-        let xdg_dir = vars.get(vars::XDG_CONFIG_HOME).map(PathBuf::from);
-        let home_dir = vars.get(vars::HOME).map(PathBuf::from);
-
-        let config_dir = config_dir_from_env(custom_dir, xdg_dir, home_dir);
+        let config_dir = config_dir(vars);
         if !config_dir.as_os_str().is_empty() {
             let candidates = [
                 config_dir.join("config.toml"),
