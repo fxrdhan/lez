@@ -11,28 +11,22 @@ mod color_scale;
 mod colourless;
 #[path = "output_formatting/grid_details.rs"]
 mod grid_details;
-#[path = "output_formatting/grid_packing.rs"]
-mod grid_packing;
+#[path = "output_formatting/grid_layout.rs"]
+mod grid_layout;
 #[path = "output_formatting/grid_width.rs"]
 mod grid_width;
+#[path = "output_formatting/hyperlinks.rs"]
+mod hyperlinks;
 #[path = "output_formatting/palette.rs"]
 mod palette;
 #[path = "output_formatting/path_quoting.rs"]
 mod path_quoting;
-#[path = "output_formatting/print_total.rs"]
-mod print_total;
 #[cfg(unix)]
 #[path = "output_formatting/pty_terminal.rs"]
 mod pty_terminal;
 #[path = "output_formatting/size_digits.rs"]
 mod size_digits;
-#[path = "output_formatting/smart_group_basics.rs"]
-mod smart_group_basics;
-#[path = "output_formatting/smart_group_stress.rs"]
-mod smart_group_stress;
-#[path = "output_formatting/spacing.rs"]
-mod spacing;
-#[path = "output_formatting/summary_stats.rs"]
-mod summary_stats;
-#[path = "output_formatting/truecolor_ansi_render.rs"]
-mod truecolor_ansi_render;
+#[path = "output_formatting/smart_group.rs"]
+mod smart_group;
+#[path = "output_formatting/summary_and_total.rs"]
+mod summary_and_total;
