@@ -950,8 +950,10 @@ impl ThemeConfig {
         &self.location
     }
 
+    /// The styles of the theme file laid over `base`, which is what a key
+    /// the file leaves out keeps; `None` when the file cannot be read.
     #[must_use]
-    pub fn to_theme(&self) -> Option<UiStyles> {
+    pub fn to_theme(&self, base: UiStyles) -> Option<UiStyles> {
         let file = match std::fs::File::open(&self.location) {
             Ok(f) => f,
             Err(e) => {
@@ -966,7 +968,7 @@ impl ThemeConfig {
                 return None;
             }
         };
-        Some(FromOverride::from(ui_styles_override, UiStyles::default()))
+        Some(FromOverride::from(ui_styles_override, base))
     }
 }
 
@@ -1445,7 +1447,7 @@ git:
         std::fs::write(&file_path, b"[[[ invalid: yaml : {").unwrap();
 
         let cfg = ThemeConfig::from_path(file_path);
-        assert!(cfg.to_theme().is_none());
+        assert!(cfg.to_theme(UiStyles::default()).is_none());
 
         let _ = std::fs::remove_dir_all(&temp);
     }
@@ -1470,7 +1472,7 @@ git:
     fn test_theme_config_to_theme_nonexistent_returns_none() {
         let p = PathBuf::from("/nonexistent/theme.yml");
         let cfg = ThemeConfig::from_path(p);
-        assert!(cfg.to_theme().is_none());
+        assert!(cfg.to_theme(UiStyles::default()).is_none());
     }
 
     #[test]
