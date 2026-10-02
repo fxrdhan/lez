@@ -171,6 +171,11 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest@0.9.128
+      # The zsh completion files are parsed by zsh itself, which a Linux
+      # runner is not guaranteed to have.
+      - name: Install zsh
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q zsh
       - name: Run all tests
         run: cargo nextest run --profile ci --all-targets --features git,inspect-archives
       # nextest does not run doc tests; this covers them.
@@ -196,6 +201,8 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov,cargo-nextest@0.9.128
+      - name: Install zsh
+        run: sudo apt-get update -q && sudo apt-get install -y -q zsh
       - name: Generate Code Coverage Report & Summary
         run: |
           cargo llvm-cov nextest --features git,inspect-archives --workspace --lcov --output-path lcov.info
