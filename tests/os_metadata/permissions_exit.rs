@@ -69,6 +69,9 @@ fn run(args: &[&Path]) -> (i32, String) {
 
 #[test]
 fn unreadable_directory_exits_with_permission_denied() {
+    if !crate::common::permission_checks_apply() {
+        return;
+    }
     let mut tree = LockedTree::new("direct");
     let locked = tree.dir("locked");
     tree.lock(&locked);
@@ -76,11 +79,21 @@ fn unreadable_directory_exits_with_permission_denied() {
     let (code, stderr) = run(&[&locked]);
 
     assert_eq!(code, 13, "stderr was: {stderr}");
-    assert!(stderr.contains("Permission denied"), "stderr was: {stderr}");
+    let shown = locked.display();
+    assert_eq!(
+        stderr,
+        format!(
+            "Permission denied: {shown} - code: 13\n\n\
+             Skipped 1 directories due to permission denied: \n  {shown}\n"
+        )
+    );
 }
 
 #[test]
 fn unreadable_directory_found_while_recursing_exits_with_permission_denied() {
+    if !crate::common::permission_checks_apply() {
+        return;
+    }
     let mut tree = LockedTree::new("recurse");
     let outer = tree.dir("outer");
     let inner = tree.dir("outer/inner");
@@ -106,6 +119,9 @@ fn readable_directory_still_exits_successfully() {
 
 #[test]
 fn missing_path_keeps_precedence_over_permission_denied() {
+    if !crate::common::permission_checks_apply() {
+        return;
+    }
     let mut tree = LockedTree::new("precedence");
     let locked = tree.dir("locked");
     tree.lock(&locked);
@@ -121,7 +137,7 @@ fn missing_path_keeps_precedence_over_permission_denied() {
 
 #[test]
 fn tree_mode_unreadable_directory_exits_with_permission_denied() {
-    if unsafe { libc::geteuid() } == 0 {
+    if !crate::common::permission_checks_apply() {
         return;
     }
     let mut tree = LockedTree::new("tree_perm");
@@ -140,7 +156,7 @@ fn tree_mode_unreadable_directory_exits_with_permission_denied() {
 
 #[test]
 fn unreadable_intermediate_directory_stat_exits_with_permission_denied() {
-    if unsafe { libc::geteuid() } == 0 {
+    if !crate::common::permission_checks_apply() {
         return;
     }
     let mut tree = LockedTree::new("stat_eacces");
