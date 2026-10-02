@@ -1,66 +1,80 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
+//! The setuid, setgid and sticky bits take the place of an execute letter,
+//! in lower case over an execute bit and in upper case without one, as in
+//! `ls -l`; the octal column carries them as its leading digit.
+
 #![cfg(unix)]
 
-use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::process::Command;
-use tempfile::TempDir;
+use std::path::Path;
+
+use crate::common::{TempTestDir, lez_in, success_stdout};
+
+/// The octal and permissions columns and the name, nothing else.
+const MODE_COLUMNS: [&str; 5] = ["-l", "-o", "--no-filesize", "--no-user", "--no-time"];
+
+/// Sets `mode` on `path`, failing the test if the filesystem keeps anything
+/// else.
+fn chmod(path: &Path, mode: u32) -> std::io::Result<()> {
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))?;
+    let kept = std::fs::metadata(path).expect("stat").permissions().mode() & 0o7777;
+    assert_eq!(
+        kept,
+        mode,
+        "{}: the filesystem dropped a special bit",
+        path.display()
+    );
+    Ok(())
+}
 
 #[test]
-fn test_live_filesystem_special_permission_bits_formatting() {
-    let temp = TempDir::new().expect("create temp dir");
-    let suid_file = temp.path().join("suid_exec");
-    let sgid_file = temp.path().join("sgid_exec");
-    let sticky_dir = temp.path().join("sticky_dir");
-
-    fs::write(&suid_file, b"#!/bin/sh\n").unwrap();
-    fs::write(&sgid_file, b"#!/bin/sh\n").unwrap();
-    fs::create_dir_all(&sticky_dir).unwrap();
-
-    // Set special bits: SUID (4755), SGID (2755), Sticky (1777)
-    let _ = fs::set_permissions(&suid_file, fs::Permissions::from_mode(0o4755));
-    let _ = fs::set_permissions(&sgid_file, fs::Permissions::from_mode(0o2755));
-    let _ = fs::set_permissions(&sticky_dir, fs::Permissions::from_mode(0o1777));
-
-    // Verify whether filesystem actually preserved the special bits (some sandboxes/mounts strip SUID)
-    let suid_supported = fs::metadata(&suid_file)
-        .map(|m| (m.permissions().mode() & 0o4000) != 0)
-        .unwrap_or(false);
-    let sgid_supported = fs::metadata(&sgid_file)
-        .map(|m| (m.permissions().mode() & 0o2000) != 0)
-        .unwrap_or(false);
-    let sticky_supported = fs::metadata(&sticky_dir)
-        .map(|m| (m.permissions().mode() & 0o1000) != 0)
-        .unwrap_or(false);
-
-    let output = crate::common::lez_cmd()
-        .env_clear()
-        .env("PATH", std::env::var("PATH").unwrap_or_default())
-        .args(["-l", "-o", "--color=never", temp.path().to_str().unwrap()])
-        .output()
-        .expect("execute lez -l -o");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    if suid_supported {
-        assert!(
-            stdout.contains("4755") || stdout.contains("rws"),
-            "Must render SUID bit in octal or symbolic format: {stdout}"
-        );
+fn the_sticky_bit_takes_the_place_of_the_last_execute_letter() {
+    let dir = TempTestDir::new("sticky_bit");
+    for (name, mode) in [("sticky", 0o1777), ("sticky_noexec", 0o1776)] {
+        chmod(&dir.create_dir(name), mode).expect("chmod");
     }
-    if sgid_supported {
-        assert!(
-            stdout.contains("2755") || stdout.contains("rws"),
-            "Must render SGID bit in octal or symbolic format: {stdout}"
-        );
+
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(MODE_COLUMNS)),
+        "1777 drwxrwxrwt sticky\n\
+         1776 drwxrwxrwT sticky_noexec\n"
+    );
+}
+
+#[test]
+fn setuid_and_setgid_take_the_place_of_an_execute_letter() {
+    let dir = TempTestDir::new("setid_bits");
+    for (name, mode) in [
+        ("sgid", 0o2755),
+        ("sgid_noexec", 0o2644),
+        ("suid", 0o4755),
+        ("suid_noexec", 0o4644),
+    ] {
+        let path = dir.create_file(name, b"");
+        match chmod(&path, mode) {
+            Ok(()) => {}
+            // The owner of a file may always change its mode, so a refusal
+            // comes from a syscall filter: Nix's build sandbox refuses
+            // setuid and setgid bits this way. CI's test jobs do not.
+            Err(error) if error.raw_os_error() == Some(libc::EPERM) => {
+                assert!(
+                    std::env::var_os("CI").is_none(),
+                    "CI refused a setuid or setgid bit, so this test proves nothing: {error}"
+                );
+                eprintln!("skipped: this sandbox refuses setuid and setgid bits");
+                return;
+            }
+            Err(error) => panic!("chmod {name}: {error}"),
+        }
     }
-    if sticky_supported {
-        assert!(
-            stdout.contains("1777") || stdout.contains("rwt"),
-            "Must render Sticky bit in octal or symbolic format: {stdout}"
-        );
-    }
+
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(MODE_COLUMNS)),
+        "2755 .rwxr-sr-x sgid\n\
+         2644 .rw-r-Sr-- sgid_noexec\n\
+         4755 .rwsr-xr-x suid\n\
+         4644 .rwSr--r-- suid_noexec\n"
+    );
 }

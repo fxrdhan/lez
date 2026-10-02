@@ -75,6 +75,11 @@ fn the_at_sign_marks_files_with_attributes() {
     );
     assert_eq!(attribute_rows(dir.path(), &["-@"]), expected);
     assert_eq!(attribute_rows(dir.path(), &["--extended"]), expected);
+    // A file named on the command line gets its rows too.
+    assert_eq!(
+        attribute_rows(dir.path(), &["-@", "tagged.txt"]),
+        format!(".rw-r--r--@ tagged.txt\n            └── {NAME}: \"value\"\n")
+    );
     assert_eq!(
         attribute_rows(dir.path(), &[]),
         ".rw-r--r--  plain.txt\n.rw-r--r--@ tagged.txt\n"
