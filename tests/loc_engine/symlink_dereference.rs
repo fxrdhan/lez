@@ -1,508 +1,53 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! Lines of code for symlinks. Without `-X` a link is not counted; with it,
+//! a link to a file is counted as that file, in the language of the file it
+//! leads to, its own name serving only when the target's says nothing. The
+//! `Code %` column is a share of the code under the listed directory, each
+//! file counted once and links followed only with `--follow-symlinks`, so
+//! JSON, the long view and `--code` must agree on it.
 
-use std::process::Command;
+#![cfg(unix)]
 
-use crate::common::TempTestDir;
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
-#[test]
-#[cfg(unix)]
-fn test_loc_dereference_symlinks_with_and_without_extension() {
-    let tmp = TempTestDir::new("loc_deref_ext");
-    tmp.create_file("target.rs", b"fn foo() {}\nfn bar() {}\nfn baz() {}\n");
-
-    // Symlink with extension
-    tmp.create_symlink("target.rs", "link.rs");
-    // Symlink without extension
-    tmp.create_symlink("target.rs", "link_no_ext");
-
-    // 1. Without dereference (-l --loc): symlinks must show '-' for LOC
-    let out_no_deref = crate::common::lez_cmd()
-        .args(["-l", "--loc", "--color=never"])
-        .arg(tmp.path())
-        .output()
-        .unwrap();
-    assert!(out_no_deref.status.success());
-    let s_no_deref = String::from_utf8_lossy(&out_no_deref.stdout);
-    for line in s_no_deref.lines() {
-        if line.contains("link.rs") || line.contains("link_no_ext") {
-            // Must contain placeholder '-' for lines of code
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            // In non-deref long listing, symlink displays '-> target.rs'
-            assert!(
-                line.contains("-> target.rs"),
-                "expected symlink target arrow in line: {line}"
-            );
-            // Verify LOC is '-'
-            assert!(
-                parts.contains(&"-"),
-                "expected placeholder '-' for LOC in line: {line}"
-            );
-        }
-    }
-
-    // 2. With dereference (-l -X --loc): both symlinks must show Rust and 3 lines of code
-    let out_deref = crate::common::lez_cmd()
-        .args(["-l", "-X", "--loc", "--color=never"])
-        .arg(tmp.path())
-        .output()
-        .unwrap();
-    assert!(out_deref.status.success());
-    let s_deref = String::from_utf8_lossy(&out_deref.stdout);
-
-    let mut found_link_rs = false;
-    let mut found_link_no_ext = false;
-    let mut found_target_rs = false;
-
-    for line in s_deref.lines() {
-        if line.contains("link.rs") {
-            found_link_rs = true;
-            assert!(
-                line.contains("Rust"),
-                "link.rs should show Rust language in: {line}"
-            );
-            assert!(
-                line.contains("3"),
-                "link.rs should show 3 lines of code in: {line}"
-            );
-        }
-        if line.contains("link_no_ext") {
-            found_link_no_ext = true;
-            assert!(
-                line.contains("Rust"),
-                "link_no_ext should show Rust language in: {line}"
-            );
-            assert!(
-                line.contains("3"),
-                "link_no_ext should show 3 lines of code in: {line}"
-            );
-        }
-        if line.contains("target.rs") {
-            found_target_rs = true;
-            assert!(
-                line.contains("Rust"),
-                "target.rs should show Rust language in: {line}"
-            );
-            assert!(
-                line.contains("3"),
-                "target.rs should show 3 lines of code in: {line}"
-            );
-        }
-    }
-
-    assert!(found_link_rs, "link.rs was not found in output: {s_deref}");
-    assert!(
-        found_link_no_ext,
-        "link_no_ext was not found in output: {s_deref}"
-    );
-    assert!(
-        found_target_rs,
-        "target.rs was not found in output: {s_deref}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_loc_dereference_broken_symlinks_and_directory_symlinks() {
-    let tmp = TempTestDir::new("loc_deref_broken_dir");
-    tmp.create_dir("actual_dir");
-    tmp.create_file("actual_dir/inner.rs", b"// inside dir\nfn inner() {}\n");
-
-    // Broken symlinks (with and without extension)
-    tmp.create_symlink("nonexistent.rs", "broken.rs");
-    tmp.create_symlink("nonexistent_file", "broken_no_ext");
-
-    // Directory symlink (with and without extension)
-    tmp.create_symlink("actual_dir", "link_dir");
-    tmp.create_symlink("actual_dir", "link_dir_ext.rs");
-
-    // Cyclic symlink loop
-    tmp.create_symlink("loop_b", "loop_a");
-    tmp.create_symlink("loop_a", "loop_b");
-
-    // Run lez -ld -X --loc to list entries as items (not descending into dirs)
-    let out = crate::common::lez_cmd()
-        .args(["-l", "-d", "-X", "--loc", "--color=never"])
-        .arg(tmp.path().join("broken.rs"))
-        .arg(tmp.path().join("broken_no_ext"))
-        .arg(tmp.path().join("link_dir"))
-        .arg(tmp.path().join("link_dir_ext.rs"))
-        .arg(tmp.path().join("loop_a"))
-        .output()
-        .unwrap();
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    for line in stdout.lines() {
-        if line.contains("broken.rs")
-            || line.contains("broken_no_ext")
-            || line.contains("link_dir")
-            || line.contains("link_dir_ext.rs")
-            || line.contains("loop_a")
-        {
-            // For broken symlinks and directory symlinks, neither Language nor LOC should be present.
-            // Specifically, 'Rust' must NOT appear as the language for broken.rs or link_dir_ext.rs.
-            assert!(
-                !line.contains("Rust"),
-                "broken/dir/cyclic symlink must NOT resolve to Rust language in line: {line}"
-            );
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            // In the long format: permissions, size, language, loc...
-            // Both language and loc columns should be "-"
-            let dash_count = parts.iter().filter(|&&p| p == "-").count();
-            assert!(
-                dash_count >= 2,
-                "expected at least '-' for language and LOC in line: {line}"
-            );
-        }
-    }
-}
-
-#[test]
-#[cfg(unix)]
-fn test_loc_dereference_chained_and_relative_symlinks() {
-    let tmp = TempTestDir::new("loc_deref_chained");
-    let sub = tmp.create_dir("sub");
-    tmp.create_file(
+/// - `target.rs`: three lines of Rust; `link.rs` and `link_no_ext` lead to it.
+/// - `root.py`: a comment and two lines of Python; `chain_a -> chain_b.sh ->
+///   root.py`, whose middle hop is named like a shell script, and
+///   `link_as_rust.rs`, named like Rust, lead to it, as do the two links in
+///   `sub/`.
+/// - `noext_script`: the same Python with no extension; `link_with_ext.py`
+///   names its language.
+/// - `actual_dir/inner.rs`: one line, behind `link_dir` and
+///   `link_dir_ext.rs`.
+/// - Two dangling links and a loop, none of which leads to a file.
+fn fixture(prefix: &str) -> TempTestDir {
+    let dir = TempTestDir::new(prefix);
+    dir.create_file("target.rs", b"fn foo() {}\nfn bar() {}\nfn baz() {}\n");
+    dir.create_symlink("target.rs", "link.rs");
+    dir.create_symlink("target.rs", "link_no_ext");
+    dir.create_file(
         "root.py",
         b"# Python script\nprint('hello')\nprint('world')\n",
     );
-    tmp.create_file(
-        "noext_script",
-        b"# Python script\nprint('noext1')\nprint('noext2')\n",
-    );
-
-    // Relative symlinks inside sub pointing up to root.py
-    tmp.create_symlink("../root.py", "sub/link_up.py");
-    tmp.create_symlink("../root.py", "sub/link_up_no_ext");
-
-    // Chained symlink where intermediate hop has a misleading extension (.sh)
-    // chain_a -> chain_b.sh -> root.py
-    tmp.create_symlink("root.py", "chain_b.sh");
-    tmp.create_symlink("chain_b.sh", "chain_a");
-
-    // Symlink with extension pointing to file without extension
-    tmp.create_symlink("noext_script", "link_with_ext.py");
-
-    let out_sub = crate::common::lez_cmd()
-        .args(["-l", "-X", "--loc", "--color=never"])
-        .arg(&sub)
-        .output()
-        .unwrap();
-    assert!(out_sub.status.success());
-    let stdout_sub = String::from_utf8_lossy(&out_sub.stdout);
-    assert!(stdout_sub.contains("link_up.py"));
-    assert!(stdout_sub.contains("link_up_no_ext"));
-    for line in stdout_sub.lines() {
-        if line.contains("link_up.py") || line.contains("link_up_no_ext") {
-            assert!(
-                line.contains("Python"),
-                "expected Python language in: {line}"
-            );
-            assert!(line.contains("2"), "expected 2 lines of code in: {line}");
-        }
-    }
-
-    let out_chain = crate::common::lez_cmd()
-        .args(["-l", "-X", "--loc", "--color=never"])
-        .arg(tmp.path())
-        .output()
-        .unwrap();
-    assert!(out_chain.status.success());
-    let stdout_chain = String::from_utf8_lossy(&out_chain.stdout);
-    for line in stdout_chain.lines() {
-        if line.contains("chain_a") || line.contains("chain_b.sh") {
-            assert!(
-                line.contains("Python"),
-                "expected Python language in chained link: {line}"
-            );
-            assert!(
-                !line.contains("Shell"),
-                "chained link must NOT be resolved as Shell: {line}"
-            );
-            assert!(
-                line.contains("2"),
-                "expected 2 lines of code in chained link: {line}"
-            );
-        }
-        if line.contains("link_with_ext.py") {
-            assert!(
-                line.contains("Python"),
-                "expected Python language for symlink with ext: {line}"
-            );
-            assert!(
-                line.contains("2"),
-                "expected 2 lines of code for symlink with ext: {line}"
-            );
-        }
-    }
+    dir.create_symlink("root.py", "chain_b.sh");
+    dir.create_symlink("chain_b.sh", "chain_a");
+    dir.create_symlink("root.py", "link_as_rust.rs");
+    dir.create_symlink("../root.py", "sub/link_up.py");
+    dir.create_symlink("../root.py", "sub/link_up_no_ext");
+    dir.create_file("noext_script", b"# Python script\nprint('a')\nprint('b')\n");
+    dir.create_symlink("noext_script", "link_with_ext.py");
+    dir.create_file("actual_dir/inner.rs", b"// inside\nfn inner() {}\n");
+    dir.create_symlink("actual_dir", "link_dir");
+    dir.create_symlink("actual_dir", "link_dir_ext.rs");
+    dir.create_symlink("nonexistent.rs", "broken.rs");
+    dir.create_symlink("nonexistent_file", "broken_no_ext");
+    dir.create_symlink("loop_b", "loop_a");
+    dir.create_symlink("loop_a", "loop_b");
+    dir
 }
 
-#[test]
-#[cfg(unix)]
-fn test_loc_dereference_mismatched_extension() {
-    let tmp = TempTestDir::new("loc_deref_mismatched");
-    // Python script with a python comment (# is comment in Python, but code in Rust)
-    tmp.create_file(
-        "real.py",
-        b"# python comment\nprint('code1')\nprint('code2')\n",
-    );
-    // Symlink named with .rs extension pointing to Python script
-    tmp.create_symlink("real.py", "link_as_rust.rs");
-
-    // 1. With -l -X --loc: dereferenced target real.py is Python, so must report Python and 2 LOC
-    let out_deref = crate::common::lez_cmd()
-        .args(["-l", "-X", "--loc", "--color=never"])
-        .arg(tmp.path().join("link_as_rust.rs"))
-        .output()
-        .unwrap();
-    assert!(out_deref.status.success());
-    let stdout_deref = String::from_utf8_lossy(&out_deref.stdout);
-    assert!(
-        stdout_deref.contains("Python"),
-        "dereferenced link must show target language Python: {stdout_deref}"
-    );
-    assert!(
-        stdout_deref.contains("2"),
-        "dereferenced link must count 2 lines of code (Python syntax): {stdout_deref}"
-    );
-    assert!(
-        !stdout_deref.contains("Rust"),
-        "dereferenced link must NOT show Rust language: {stdout_deref}"
-    );
-
-    // 2. Without -X: non-dereferenced symlink shows link's own name extension (Rust) and '-' for LOC
-    let out_no_deref = crate::common::lez_cmd()
-        .args(["-l", "--loc", "--color=never"])
-        .arg(tmp.path().join("link_as_rust.rs"))
-        .output()
-        .unwrap();
-    assert!(out_no_deref.status.success());
-    let stdout_no_deref = String::from_utf8_lossy(&out_no_deref.stdout);
-    assert!(
-        stdout_no_deref.contains("Rust"),
-        "non-dereferenced symlink shows its own filename language: {stdout_no_deref}"
-    );
-    let parts: Vec<&str> = stdout_no_deref.split_whitespace().collect();
-    assert!(
-        parts.contains(&"-"),
-        "non-dereferenced symlink must have '-' for LOC: {stdout_no_deref}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_loc_dereference_json_output() {
-    let tmp = TempTestDir::new("loc_deref_json");
-    tmp.create_file("main.rs", b"fn main() {}\n");
-    tmp.create_file("py_script.py", b"# comment\nprint('hi')\n");
-    tmp.create_symlink("main.rs", "sym_with_ext.rs");
-    tmp.create_symlink("main.rs", "sym_no_ext");
-    tmp.create_symlink("missing.rs", "broken_link.rs");
-    tmp.create_symlink("py_script.py", "mismatched.rs");
-
-    // 1. JSON with -X --loc
-    let out_deref = crate::common::lez_cmd()
-        .args(["--json", "-l", "-X", "--loc"])
-        .arg(tmp.path())
-        .output()
-        .unwrap();
-    assert!(out_deref.status.success());
-    let json_deref: serde_json::Value = serde_json::from_slice(&out_deref.stdout).unwrap();
-    let map_deref = json_deref.as_object().expect("expected json map of files");
-
-    // sym_with_ext.rs must have Language: Rust and Code: 1
-    let sym_ext = map_deref
-        .get("sym_with_ext.rs")
-        .expect("expected sym_with_ext.rs");
-    assert_eq!(
-        sym_ext.get("Language").and_then(|v| v.as_str()),
-        Some("Rust")
-    );
-    assert_eq!(sym_ext.get("Code").and_then(|v| v.as_str()), Some("1"));
-
-    // sym_no_ext must have Language: Rust and Code: 1
-    let sym_noext = map_deref.get("sym_no_ext").expect("expected sym_no_ext");
-    assert_eq!(
-        sym_noext.get("Language").and_then(|v| v.as_str()),
-        Some("Rust")
-    );
-    assert_eq!(sym_noext.get("Code").and_then(|v| v.as_str()), Some("1"));
-
-    // mismatched.rs pointing to py_script.py must have Language: Python and Code: 1
-    let mism = map_deref
-        .get("mismatched.rs")
-        .expect("expected mismatched.rs");
-    assert_eq!(
-        mism.get("Language").and_then(|v| v.as_str()),
-        Some("Python")
-    );
-    assert_eq!(mism.get("Code").and_then(|v| v.as_str()), Some("1"));
-
-    // broken_link.rs must NOT have Code or Language when dereferenced
-    let broken = map_deref
-        .get("broken_link.rs")
-        .expect("expected broken_link.rs");
-    assert!(broken.get("Code").is_none());
-    assert!(broken.get("Language").is_none());
-
-    // 2. JSON without -X: symlinks must NOT have Code
-    let out_no_deref = crate::common::lez_cmd()
-        .args(["--json", "-l", "--loc"])
-        .arg(tmp.path())
-        .output()
-        .unwrap();
-    assert!(out_no_deref.status.success());
-    let json_no_deref: serde_json::Value = serde_json::from_slice(&out_no_deref.stdout).unwrap();
-    let map_no_deref = json_no_deref
-        .as_object()
-        .expect("expected json map of files");
-
-    let no_deref_ext = map_no_deref
-        .get("sym_with_ext.rs")
-        .expect("expected sym_with_ext.rs");
-    assert!(
-        no_deref_ext.get("Code").is_none(),
-        "symlink without -X should not have Code"
-    );
-
-    let no_deref_noext = map_no_deref.get("sym_no_ext").expect("expected sym_no_ext");
-    assert!(
-        no_deref_noext.get("Code").is_none(),
-        "symlink without -X should not have Code"
-    );
-    assert!(
-        no_deref_noext.get("Language").is_none(),
-        "symlink without -X and no ext should not have Language"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_loc_dereference_positional_files() {
-    let tmp = TempTestDir::new("loc_deref_pos");
-    let src = tmp.create_file("code.go", b"package main\n\nfunc main() {}\n");
-    let link_ext = tmp.create_symlink("code.go", "pos_link.go");
-    let link_noext = tmp.create_symlink("code.go", "pos_link_noext");
-
-    let out = crate::common::lez_cmd()
-        .args(["-l", "-X", "--loc", "--color=never"])
-        .arg(&link_ext)
-        .arg(&link_noext)
-        .arg(&src)
-        .output()
-        .unwrap();
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    for line in stdout.lines() {
-        if line.contains("pos_link.go")
-            || line.contains("pos_link_noext")
-            || line.contains("code.go")
-        {
-            assert!(line.contains("Go"), "expected Go language in: {line}");
-            assert!(line.contains("2"), "expected 2 lines of code in: {line}");
-        }
-    }
-}
-
-#[test]
-#[cfg(unix)]
-fn test_code_mode_symlink_dereference_flags() {
-    let tmp = TempTestDir::new("code_deref_flags");
-    tmp.create_file("main.rs", b"fn main() {\n    println!(\"hello\");\n}\n");
-    tmp.create_symlink("main.rs", "symlink.rs");
-
-    // 1. Without -X: symlinks must NOT be dereferenced/counted in --code (Files: 1, not 2)
-    let out_no_deref = crate::common::lez_cmd()
-        .args(["--code", "--color=never"])
-        .arg(tmp.path())
-        .output()
-        .unwrap();
-    assert!(out_no_deref.status.success());
-    let s_no_deref = String::from_utf8_lossy(&out_no_deref.stdout);
-    for line in s_no_deref.lines() {
-        if line.contains("Rust") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            assert_eq!(
-                parts[1], "1",
-                "expected 1 file counted without -X, got: {line}"
-            );
-        }
-    }
-
-    // 2. With -X: symlink IS dereferenced and counted (Files: 2)
-    let out_deref = crate::common::lez_cmd()
-        .args(["--code", "-X", "--color=never"])
-        .arg(tmp.path())
-        .output()
-        .unwrap();
-    assert!(out_deref.status.success());
-    let s_deref = String::from_utf8_lossy(&out_deref.stdout);
-    for line in s_deref.lines() {
-        if line.contains("Rust") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            assert_eq!(
-                parts[1], "2",
-                "expected 2 files counted with -X, got: {line}"
-            );
-        }
-    }
-
-    // 3. With -X --no-symlinks: symlinks ignored even if -X is passed (Files: 1)
-    let out_no_sym = crate::common::lez_cmd()
-        .args(["--code", "-X", "--no-symlinks", "--color=never"])
-        .arg(tmp.path())
-        .output()
-        .unwrap();
-    assert!(out_no_sym.status.success());
-    let s_no_sym = String::from_utf8_lossy(&out_no_sym.stdout);
-    for line in s_no_sym.lines() {
-        if line.contains("Rust") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            assert_eq!(
-                parts[1], "1",
-                "expected 1 file counted with --no-symlinks, got: {line}"
-            );
-        }
-    }
-}
-
-#[test]
-fn test_loc_dereference_deduplication_of_identical_files_and_symlinks() {
-    let tmp = TempTestDir::new("loc_deref_dedup");
-    tmp.create_file("source.rs", b"fn main() {\n    println!(\"hello\");\n}\n");
-    let src_path = tmp.path().join("source.rs");
-
-    // Pass the same file twice (as absolute and dot-prefixed paths) with -X
-    let out = crate::common::lez_cmd()
-        .args(["--code", "-X", "--color=never"])
-        .arg(&src_path)
-        .arg(&src_path)
-        .output()
-        .unwrap();
-    assert!(out.status.success());
-    let s = String::from_utf8_lossy(&out.stdout);
-    for line in s.lines() {
-        if line.contains("Rust") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            assert_eq!(
-                parts[1], "1",
-                "expected deduplicated 1 file counted with -X, got: {line}"
-            );
-            assert_eq!(
-                parts[2], "3",
-                "expected deduplicated 3 lines counted with -X, got: {line}"
-            );
-        }
-    }
-}
-
-use crate::common::{lez_in, success_stdout};
-
-#[cfg(unix)]
 /// The language, code and share columns, and the name.
 fn loc_rows(dir: &TempTestDir, args: &[&str]) -> String {
     success_stdout(
@@ -519,12 +64,80 @@ fn loc_rows(dir: &TempTestDir, args: &[&str]) -> String {
     )
 }
 
+/// Without `-X` a link shows the language its own name suggests and no
+/// count. The share is of `target.rs`, `root.py` and `actual_dir/inner.rs`:
+/// six lines.
+#[test]
+fn without_dereferencing_links_are_not_counted() {
+    let dir = fixture("plain");
+    assert_eq!(
+        loc_rows(&dir, &[]),
+        "-      -     - actual_dir\n\
+         Rust   -     - broken.rs -> nonexistent.rs\n\
+         -      -     - broken_no_ext -> nonexistent_file\n\
+         -      -     - chain_a -> chain_b.sh\n\
+         Shell  -     - chain_b.sh -> root.py\n\
+         Rust   -     - link.rs -> target.rs\n\
+         Rust   -     - link_as_rust.rs -> root.py\n\
+         -      -     - link_dir -> actual_dir\n\
+         Rust   -     - link_dir_ext.rs -> actual_dir\n\
+         -      -     - link_no_ext -> target.rs\n\
+         Python -     - link_with_ext.py -> noext_script\n\
+         -      -     - loop_a -> loop_b\n\
+         -      -     - loop_b -> loop_a\n\
+         -      -     - noext_script\n\
+         Python 2 33.3% root.py\n\
+         -      -     - sub\n\
+         Rust   3 50.0% target.rs\n"
+    );
+}
+
+/// With `-X` each link to a file is counted as that file, through any
+/// number of hops, in the target's language: `link_as_rust.rs` and the
+/// `.sh` hop are Python. `link_with_ext.py` is Python by its own name, as
+/// its target has none. Links to directories, dangling links and loops
+/// count nothing. The share stays of the six lines.
+#[test]
+fn dereferenced_links_are_counted_as_their_targets() {
+    let dir = fixture("deref");
+    assert_eq!(
+        loc_rows(&dir, &["-X"]),
+        "-      -     - actual_dir\n\
+         -      -     - broken.rs\n\
+         -      -     - broken_no_ext\n\
+         Python 2 33.3% chain_a\n\
+         Python 2 33.3% chain_b.sh\n\
+         Rust   3 50.0% link.rs\n\
+         Python 2 33.3% link_as_rust.rs\n\
+         -      -     - link_dir\n\
+         -      -     - link_dir_ext.rs\n\
+         Rust   3 50.0% link_no_ext\n\
+         Python 2 33.3% link_with_ext.py\n\
+         -      -     - loop_a\n\
+         -      -     - loop_b\n\
+         -      -     - noext_script\n\
+         Python 2 33.3% root.py\n\
+         -      -     - sub\n\
+         Rust   3 50.0% target.rs\n"
+    );
+    // Relative links resolve from their own directory. `sub` itself holds
+    // no code, so there is nothing to take a share of.
+    assert_eq!(
+        loc_rows(&dir, &["-X", "sub"]),
+        "Python 2 - link_up.py\nPython 2 - link_up_no_ext\n"
+    );
+    // Named on the command line, files share their own total.
+    assert_eq!(
+        loc_rows(&dir, &["-X", "link.rs", "link_no_ext", "target.rs"]),
+        "Rust 3 100.0% link.rs\nRust 3 100.0% link_no_ext\nRust 3 100.0% target.rs\n"
+    );
+}
+
 /// JSON gives the same counts and the same shares as the long view. It
 /// used to take each entry as a root of its own, following links under
 /// `-X`, so a link's target was counted again and the shares here read
 /// 33.3% without `-X` and 20% with it.
 #[test]
-#[cfg(unix)]
 fn json_shares_match_the_long_view() {
     let dir = TempTestDir::new("json");
     dir.create_file("main.rs", b"fn main() {}\n");
@@ -582,7 +195,6 @@ fn json_shares_match_the_long_view() {
 /// The same holds through `-R`, where each directory is its own listing,
 /// and `-T`, where the whole tree is one.
 #[test]
-#[cfg(unix)]
 fn json_shares_match_the_long_view_when_recursing() {
     let dir = TempTestDir::new("json_recursive");
     dir.create_file("top/a.rs", b"fn a() {}\n");
@@ -618,16 +230,41 @@ fn json_shares_match_the_long_view_when_recursing() {
     assert_eq!(json(&["-T", "top"]), tree("25.0%", "75.0%"));
 }
 
-#[cfg(unix)]
 fn code(dir: &TempTestDir, args: &[&str]) -> String {
     success_stdout(lez_in(dir.path()).arg("--code").args(args))
+}
+
+/// `--code` counts a link only with `-X`, and then as a file of its own,
+/// unless `--no-symlinks` drops it. The same path given twice is one file.
+#[test]
+fn code_mode_counts_links_only_when_dereferencing() {
+    let dir = TempTestDir::new("code_mode");
+    dir.create_file("main.rs", b"fn main() {\n    println!(\"hello\");\n}\n");
+    dir.create_symlink("main.rs", "symlink.rs");
+
+    let table = |files: u32, lines: u32| {
+        format!(
+            " Language  Files  Lines  Code  Comments  Blanks  Code %\n \
+             Rust          {files}      {lines}     {lines}         0       0  100.0%  ████████████████\n\
+             ─────────────────────────────────────────────────────────────────────────\n \
+             Total         {files}      {lines}     {lines}         0       0  100.0%\n"
+        )
+    };
+    assert_eq!(code(&dir, &[]), table(1, 3));
+    assert_eq!(code(&dir, &["-X"]), table(2, 6));
+    assert_eq!(code(&dir, &["-X", "--no-symlinks"]), table(1, 3));
+    let absolute = dir.path().join("main.rs");
+    let absolute = absolute.to_str().expect("UTF-8 path");
+    assert_eq!(
+        code(&dir, &["-X", "main.rs", "./main.rs", absolute]),
+        table(1, 3)
+    );
 }
 
 /// A followed link is in its target's language in `--code` too: this link
 /// named `.rs` holds Python, whose `#` line is a comment. Counted as Rust,
 /// that line was code.
 #[test]
-#[cfg(unix)]
 fn code_mode_names_a_followed_link_by_its_target() {
     let dir = TempTestDir::new("code_language");
     dir.create_file("py_script.py", b"# comment\nprint('hi')\n");
