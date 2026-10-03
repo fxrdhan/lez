@@ -93,14 +93,12 @@ fn a_missing_argument_is_reported_and_the_rest_are_listed() {
         String::from_utf8_lossy(&output.stdout),
         "valid1.txt\nvalid2.txt\n"
     );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    #[cfg(unix)]
+    // The reason is the error the system gives for the same path.
+    let reason = std::fs::metadata(dir.path().join("nonexistent.txt")).expect_err("missing");
     assert_eq!(
-        stderr,
-        "\"nonexistent.txt\": No such file or directory (os error 2)\n"
+        String::from_utf8_lossy(&output.stderr),
+        format!("\"nonexistent.txt\": {reason}\n")
     );
-    #[cfg(not(unix))]
-    assert!(stderr.starts_with("\"nonexistent.txt\": "), "{stderr}");
 }
 
 /// `--sort=path` orders by the whole path, so it differs from `--sort=name`
@@ -528,7 +526,16 @@ fn code_wins_over_json_in_either_order() {
     dir.create_file("main.rs", b"fn main() {}\n");
 
     let code = lez(dir.path(), &["--code"]);
-    assert!(code.starts_with(" Language  Files  Lines"), "{code}");
+    assert_eq!(
+        code,
+        format!(
+            " Language  Files  Lines  Code  Comments  Blanks  Code %\n\
+             \x20Rust          1      1     1         0       0  100.0%  ████████████████\n\
+             {}\n\
+             \x20Total         1      1     1         0       0  100.0%\n",
+            "─".repeat(73)
+        )
+    );
     assert_eq!(lez(dir.path(), &["--json", "--code"]), code);
     assert_eq!(lez(dir.path(), &["--code", "--json"]), code);
 }

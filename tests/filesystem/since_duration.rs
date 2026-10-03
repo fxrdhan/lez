@@ -166,7 +166,9 @@ fn a_duration_that_does_not_parse_is_an_option_error() {
         ),
         (
             "10 lightyears",
-            "error: invalid value '10 lightyears' for '--since <DURATION>': unknown time unit \"lightyears\"",
+            "error: invalid value '10 lightyears' for '--since <DURATION>': unknown time unit \
+             \"lightyears\", supported units: ns, us/µs, ms, sec, min, hours, days, weeks, months, \
+             years (and few variations)",
         ),
         (
             "1h and 5m",
@@ -185,8 +187,11 @@ fn a_duration_that_does_not_parse_is_an_option_error() {
         let output = run(&dir, &["--since", arg]);
         assert_eq!(output.status.code(), Some(3), "{arg:?}");
         assert!(output.stdout.is_empty(), "{arg:?}");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.starts_with(message), "{arg:?}: {stderr}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stderr),
+            format!("{message}\n\nFor more information, try '--help'.\n"),
+            "{arg:?}"
+        );
     }
 }
 

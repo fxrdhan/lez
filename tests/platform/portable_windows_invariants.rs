@@ -103,16 +103,11 @@ fn windows_paths_that_lead_nowhere_are_reported_missing() {
             .expect("run lez");
         assert_eq!(output.status.code(), Some(2), "{path}");
         assert!(output.stdout.is_empty(), "{path}");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.starts_with(&format!("{path:?}: ")), "{stderr}");
-        assert_eq!(stderr.lines().count(), 1, "{stderr}");
-        #[cfg(unix)]
+        // The reason is the error the system gives for the same path.
+        let reason = std::fs::symlink_metadata(dir.path.join(path)).expect_err(path);
         assert_eq!(
-            stderr,
-            format!(
-                "{path:?}: {}\n",
-                std::io::Error::from_raw_os_error(libc::ENOENT)
-            )
+            String::from_utf8_lossy(&output.stderr),
+            format!("{path:?}: {reason}\n")
         );
     }
 }

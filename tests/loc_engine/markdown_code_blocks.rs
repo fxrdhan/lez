@@ -326,13 +326,28 @@ fn the_sub_language_tree_is_plain_without_colours() {
     assert_eq!(code(&["--code=lines"]), plain);
     assert_eq!(code(&["--code=lines", "--color=never"]), plain);
 
-    let painted = code(&["--code=lines", "--color=always"]);
+    // Headers underlined, languages blue, files, lines and code green (a
+    // sub-language's `*` grey), comments and blanks grey, the branches dim
+    // and the total bold.
     assert_eq!(
-        painted
-            .lines()
-            .nth(2)
-            .map(|row| row.starts_with(" \x1b[2m├── \x1b[0m")),
-        Some(true),
-        "{painted:?}"
+        code(&["--code=lines", "--color=always"]),
+        format!(
+            " \x1b[4mLanguage\x1b[0m           \x1b[4mFiles\x1b[0m  \x1b[4mLines\x1b[0m  \
+             \x1b[4mCode\x1b[0m  \x1b[4mComments\x1b[0m  \x1b[4mBlanks\x1b[0m\n \
+             \x1b[34mMarkdown\x1b[0m               \x1b[32m1\x1b[0m      \x1b[32m9\x1b[0m     \
+             \x1b[32m7\x1b[0m         \x1b[1;90m0\x1b[0m       \x1b[1;90m2\x1b[0m\n \
+             \x1b[2m├── \x1b[0m\x1b[34mText / Markup\x1b[0m      \x1b[1;90m*\x1b[0m      \
+             \x1b[32m7\x1b[0m     \x1b[32m5\x1b[0m         \x1b[1;90m0\x1b[0m       \
+             \x1b[1;90m2\x1b[0m\n \
+             \x1b[2m├── \x1b[0m\x1b[34mPython\x1b[0m             \x1b[1;90m*\x1b[0m      \
+             \x1b[32m1\x1b[0m     \x1b[32m1\x1b[0m         \x1b[1;90m0\x1b[0m       \
+             \x1b[1;90m0\x1b[0m\n \
+             \x1b[2m└── \x1b[0m\x1b[34mRust\x1b[0m               \x1b[1;90m*\x1b[0m      \
+             \x1b[32m1\x1b[0m     \x1b[32m1\x1b[0m         \x1b[1;90m0\x1b[0m       \
+             \x1b[1;90m0\x1b[0m\n\
+             \x1b[1;90m{rule}\x1b[0m\n \
+             \x1b[1mTotal\x1b[0m                  \x1b[1m1\x1b[0m      \x1b[1m9\x1b[0m     \
+             \x1b[1m7\x1b[0m         \x1b[1m0\x1b[0m       \x1b[1m2\x1b[0m\n"
+        )
     );
 }
