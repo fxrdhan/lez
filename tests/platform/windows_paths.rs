@@ -270,10 +270,56 @@ fn windows_hidden_file_attribute_is_hidden_by_default_and_shown_with_all() {
             .lines()
             .find_map(|line| line.strip_suffix(name))
             .unwrap_or_else(|| panic!("no row for {name}:\n{flags}"))
-            .trim_end()
+            .trim()
             .to_owned()
     };
-    assert!(flags_of("hidden_attr.txt").contains('H'), "{flags}");
-    assert!(!flags_of("visible.txt").contains('H'), "{flags}");
-    assert!(!flags_of(".dotfile").contains('H'), "{flags}");
+    // The short form is the letter of each attribute Windows reports for the
+    // file, in this order, or `-` for none.
+    let short = |name: &str| -> String {
+        const LETTERS: [(u32, char); 13] = [
+            (0x0000_0001, 'R'),
+            (0x0000_0002, 'H'),
+            (0x0000_0004, 'S'),
+            (0x0000_0020, 'A'),
+            (0x0000_0100, 'T'),
+            (0x0000_0800, 'C'),
+            (0x0000_1000, 'O'),
+            (0x0000_2000, 'I'),
+            (0x0000_4000, 'E'),
+            (0x0002_0000, 'X'),
+            (0x0010_0000, 'U'),
+            (0x0008_0000, 'P'),
+            (0x0040_0000, 'M'),
+        ];
+        let wide = dir
+            .path
+            .join(name)
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        // SAFETY: a NUL-terminated wide path.
+        let attrs = unsafe { GetFileAttributesW(wide.as_ptr()) };
+        assert_ne!(attrs, u32::MAX, "GetFileAttributesW failed for {name}");
+        if name == "hidden_attr.txt" {
+            assert_ne!(
+                attrs & FILE_ATTRIBUTE_HIDDEN,
+                0,
+                "the fixture is not hidden"
+            );
+        }
+        let letters: String = LETTERS
+            .iter()
+            .filter(|(bit, _)| attrs & bit != 0)
+            .map(|(_, letter)| *letter)
+            .collect();
+        if letters.is_empty() {
+            "-".to_owned()
+        } else {
+            letters
+        }
+    };
+    for name in [".dotfile", "hidden_attr.txt", "visible.txt"] {
+        assert_eq!(flags_of(name), short(name), "{name}:\n{flags}");
+    }
 }
