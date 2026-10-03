@@ -180,3 +180,52 @@ fn a_tree_is_scaled_over_all_of_it_whatever_its_root_is_called() {
     assert_eq!(run(&root, &["."]), tree("."));
     assert_eq!(run(&root.join("sub"), &[".."]), tree(".."));
 }
+
+/// On an age scale each time column is shaded over the span of its own
+/// times. Listing `a`'s access times, set an age apart from its modification
+/// times, must shade them as listing `b`, whose modification times are those
+/// access times, shades its own.
+#[cfg(unix)]
+#[test]
+fn each_time_column_is_scaled_over_its_own_times() {
+    use std::fs::{File, FileTimes};
+    use std::time::{Duration, UNIX_EPOCH};
+
+    let at = |secs: u64| UNIX_EPOCH + Duration::from_secs(secs);
+    let dir = TempTestDir::new("age_columns");
+    for (name, modified, accessed) in [
+        ("a/old", 1_000_000_000, 1_200_000_000),
+        ("a/new", 1_100_000_000, 1_300_000_000),
+        ("b/old", 1_200_000_000, 1_200_000_000),
+        ("b/new", 1_300_000_000, 1_300_000_000),
+    ] {
+        let path = dir.create_file(name, b"x");
+        File::options()
+            .write(true)
+            .open(&path)
+            .and_then(|f| {
+                f.set_times(
+                    FileTimes::new()
+                        .set_modified(at(modified))
+                        .set_accessed(at(accessed)),
+                )
+            })
+            .expect("set the times");
+    }
+    let shaded = |time: &str, listed: &str| {
+        success_stdout(lez_in(dir.path()).args([
+            "-l",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "--color=always",
+            "--color-scale=age",
+            "--color-scale-mode=gradient",
+            "--time-style=+%s",
+            time,
+            listed,
+        ]))
+    };
+
+    assert_eq!(shaded("--accessed", "a"), shaded("--modified", "b"));
+}
