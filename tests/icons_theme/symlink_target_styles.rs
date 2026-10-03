@@ -150,30 +150,34 @@ fn a_chain_takes_the_colour_of_its_end() {
     );
 }
 
-/// In the long view the `l` takes the plain-file colour with the link's
-/// attributes; the target after the arrow is painted as itself, without
-/// them.
+/// In the long view the `l` has no target to borrow a colour from, so it
+/// keeps only the link's attributes, whatever the link leads to; it used to
+/// take the plain-file colour, and read as a file's `.`. The target after
+/// the arrow is painted as itself, without them.
 #[test]
 fn the_long_view_styles_the_type_character_and_the_target() {
     let dir = fixture("long");
     let permissions = "\x1b[1;33mr\x1b[31mw\x1b[32mx\x1b[0m\
                        \x1b[33mr\x1b[31mw\x1b[32mx\
                        \x1b[33mr\x1b[31mw\x1b[32mx\x1b[0m";
-    assert_eq!(
+    let long = |link: &str| {
         styled(
             &dir,
-            "fi=33:ln=target;3",
+            "fi=33:di=34:ln=target;3",
             None,
-            &[
-                "-l",
-                "--no-filesize",
-                "--no-user",
-                "--no-time",
-                "link_to_doc"
-            ]
-        ),
+            &["-ld", "--no-filesize", "--no-user", "--no-time", link],
+        )
+    };
+    assert_eq!(
+        long("link_to_doc"),
         format!(
-            "\x1b[3;33ml\x1b[0m{permissions} \x1b[3;33mlink_to_doc\x1b[0m \x1b[1;90m->\x1b[0m \x1b[33mdoc_data\x1b[0m\n"
+            "\x1b[3ml\x1b[0m{permissions} \x1b[3;33mlink_to_doc\x1b[0m \x1b[1;90m->\x1b[0m \x1b[33mdoc_data\x1b[0m\n"
+        )
+    );
+    assert_eq!(
+        long("link_to_dir"),
+        format!(
+            "\x1b[3ml\x1b[0m{permissions} \x1b[3;34mlink_to_dir\x1b[0m \x1b[1;90m->\x1b[0m \x1b[34mmy_target_dir\x1b[0m\n"
         )
     );
 }

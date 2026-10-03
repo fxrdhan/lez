@@ -18,23 +18,11 @@ impl f::Type {
             Self::Pipe         => colours.pipe().paint("|"),
             Self::Link         => match colours.symlink() {
                 LinkStyle::AnsiStyle(style) => style.paint("l"),
-                // With ln=target the indicator has no colour of its own; it
-                // borrows nothing here since the type char is shared, but honors
-                // explicit style attributes if configured.
-                LinkStyle::Target(style) => {
-                    let mut base = colours.normal();
-                    if style.is_bold { base.is_bold = true; }
-                    if style.is_dimmed { base.is_dimmed = true; }
-                    if style.is_italic { base.is_italic = true; }
-                    if style.is_underline { base.is_underline = true; }
-                    if style.is_blink { base.is_blink = true; }
-                    if style.is_reverse { base.is_reverse = true; }
-                    if style.is_hidden { base.is_hidden = true; }
-                    if style.is_strikethrough { base.is_strikethrough = true; }
-                    if style.prefix_with_reset { base.prefix_with_reset = true; }
-                    if let Some(bg) = style.background { base.background = Some(bg); }
-                    base.paint("l")
-                }
+                // With ln=target the indicator has no colour of its own and,
+                // like the summary line, no target to borrow one from, so it
+                // keeps only the link's own attributes. Taking the plain-file
+                // colour made it read as a file's `.` beside any target.
+                LinkStyle::Target(style) => style.paint("l"),
             },
             Self::BlockDevice  => colours.block_device().paint("b"),
             Self::CharDevice   => colours.char_device().paint("c"),
