@@ -108,6 +108,12 @@
             inherit buildInputs;
             src = ./.;
             mode = "test";
+            # Tools the tests run, which fail rather than skip without them:
+            # git builds repository fixtures, chattr sets Linux file flags.
+            nativeBuildInputs = [
+              pkgs.git
+            ]
+            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.e2fsprogs ];
           };
 
           clippy = naersk'.buildPackage {

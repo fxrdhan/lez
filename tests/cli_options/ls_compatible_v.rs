@@ -7,36 +7,8 @@
 //! listing at all -- a silent wrong answer rather than an error.
 
 use std::fs;
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-struct TempTestDir {
-    path: PathBuf,
-}
-
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_v_flag_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("failed to create temp test directory");
-        Self { path }
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
+use crate::common::TempTestDir;
 
 /// Names whose numbers only sort correctly when compared by value: byte order
 /// puts `file10` second, numeric order puts it fourth.
@@ -49,25 +21,11 @@ fn numbered_dir() -> TempTestDir {
 }
 
 fn run(args: &[&str]) -> String {
-    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
-        .args(args)
-        .output()
-        .expect("failed to run lez");
-    assert!(
-        out.status.success(),
-        "lez {args:?} exited with {:?}: {}",
-        out.status.code(),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    String::from_utf8_lossy(&out.stdout).into_owned()
+    crate::common::success_stdout(crate::common::lez_cmd().args(args))
 }
 
 fn lines(output: &str) -> Vec<&str> {
-    output
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .collect()
+    output.lines().collect()
 }
 
 #[test]
@@ -88,17 +46,26 @@ fn dash_v_lists_files_rather_than_printing_a_version() {
 
 #[test]
 fn long_version_flag_still_prints_the_version() {
-    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let out = crate::common::lez_cmd()
         .arg("--version")
         .output()
         .expect("failed to run lez");
     let text = String::from_utf8_lossy(&out.stdout);
 
-    assert!(out.status.success());
-    assert!(
-        text.contains("A modern, fast"),
-        "--version did not print the version banner:\n{text}"
+    assert_eq!(out.status.code(), Some(0));
+    assert!(out.stderr.is_empty());
+    // The rest of the second line says how this binary was built.
+    let banner: Vec<&str> = text.lines().collect();
+    assert_eq!(banner.len(), 4, "{text}");
+    assert_eq!(
+        banner[0],
+        "lez A modern, fast, and feature-rich replacement for ls written in Rust"
     );
+    assert!(
+        banner[1].starts_with(&format!("v{} ", env!("CARGO_PKG_VERSION"))),
+        "{text}"
+    );
+    assert_eq!(banner[2..], ["https://github.com/fxrdhan/lez", ""]);
 }
 
 #[test]

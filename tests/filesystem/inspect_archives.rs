@@ -5,222 +5,185 @@
 //! themselves in the long view; corrupt archives fail silently and are
 //! listed like regular files.
 
-use std::fs::{self, File};
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::fs::File;
+use std::path::Path;
 
-struct TempTestDir {
-    path: PathBuf,
+use crate::common::{NAME_COLUMN_ONLY, TempTestDir, grouped, lez_in, success_stdout};
+
+/// Writes a tar archive of regular files, in the order given.
+fn write_tar(path: &Path, entries: &[(&str, &[u8])]) {
+    let mut builder = tar::Builder::new(File::create(path).expect("create the archive"));
+    for (rel, content) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, rel, *content)
+            .expect("append an entry");
+    }
+    builder.into_inner().expect("finish the archive");
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_inspect_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-
-    fn make_tar(&self, name: &str) {
-        let tar_path = self.path.join(name);
-        let file = File::create(&tar_path).unwrap();
-        let mut builder = tar::Builder::new(file);
-
-        fn add(builder: &mut tar::Builder<File>, rel: &str, content: &[u8]) {
-            let mut header = tar::Header::new_gnu();
-            header.set_size(content.len() as u64);
-            header.set_mode(0o644);
-            header.set_cksum();
-            builder.append_data(&mut header, rel, content).unwrap();
-        }
-        add(&mut builder, "inner.txt", b"hello");
-        add(&mut builder, "nested/deep.bin", b"data");
-        // A name the default theme has a rule for, so the colouring of the
-        // leaf can be told apart from the punctuation around it.
-        add(&mut builder, "nested/main.rs", b"fn main() {}");
-        builder.into_inner().unwrap();
-    }
-
-    fn write(&self, name: &str, content: &str) {
-        fs::write(self.path.join(name), content).unwrap();
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-/// The two entries the fixture archive holds, in listing order.
-const ENTRIES: [&str; 3] = [
-    "foo.tar/inner.txt",
-    "foo.tar/nested/deep.bin",
-    "foo.tar/nested/main.rs",
-];
-
-fn run_lez(args: &[&str]) -> String {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary");
-    assert!(output.status.success());
-    String::from_utf8_lossy(&output.stdout).into_owned()
-}
-
+/// `foo.tar` holds `inner.txt` (5 bytes), `nested/deep.bin` (4 bytes) and
+/// `nested/main.rs` (12 bytes), next to a `.tar` that is not an archive
+/// and a plain file.
 fn fixture(prefix: &str) -> TempTestDir {
     let dir = TempTestDir::new(prefix);
-    dir.make_tar("foo.tar");
-    dir.write("broken.tar", "this is definitely not a tar archive");
-    dir.write("plain.txt", "plain");
+    write_tar(
+        &dir.path().join("foo.tar"),
+        &[
+            ("inner.txt", b"hello"),
+            ("nested/deep.bin", b"data"),
+            // A name the default theme has a rule for, so the colouring of
+            // the leaf can be told apart from the punctuation around it.
+            ("nested/main.rs", b"fn main() {}"),
+        ],
+    );
+    dir.create_file("broken.tar", b"this is definitely not a tar archive");
+    dir.create_file("plain.txt", b"plain");
     dir
 }
 
+/// The long view of the fixture, reduced to the name column.
+fn names(fixture: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(fixture.path()).args(NAME_COLUMN_ONLY).args(args))
+}
+
+/// Each entry hangs below the archive with its path inside it and its
+/// size; the last one closes the branch. A file that is not a tar archive
+/// gets no entries, and nothing is reported.
 #[test]
-fn long_view_lists_tar_entries_below_the_archive() {
+fn the_long_view_lists_tar_entries_below_the_archive() {
     let fixture = fixture("list");
-
-    let stdout = run_lez(&[
-        "-1",
-        "-l",
-        "--color=never",
-        "--inspect-archives",
-        fixture.path.to_str().unwrap(),
-    ]);
-    assert!(stdout.contains("foo.tar"), "{stdout}");
-    assert!(
-        stdout.contains("foo.tar/inner.txt"),
-        "flat entry must be listed: {stdout}"
-    );
-    assert!(
-        stdout.contains("foo.tar/nested/deep.bin"),
-        "nested entry must be listed with its archive path: {stdout}"
+    assert_eq!(
+        names(&fixture, &["--inspect-archives"]),
+        "broken.tar\n\
+         foo.tar\n\
+         ├── foo.tar/inner.txt (5 B)\n\
+         ├── foo.tar/nested/deep.bin (4 B)\n\
+         └── foo.tar/nested/main.rs (12 B)\n\
+         plain.txt\n"
     );
 }
 
-/// The last entry closes the branch. Every row used to sit on an edge, so the
-/// listing never terminated — asserting only that some connector was present
-/// could not tell the two apart.
+/// Entries come in the order the archive stores them, not sorted, and
+/// sizes past 1023 bytes use binary units.
 #[test]
-fn the_last_archive_entry_closes_the_branch() {
-    let fixture = fixture("edges");
+fn entries_keep_the_archive_order_and_binary_sizes() {
+    let dir = TempTestDir::new("inspect_order");
+    write_tar(
+        &dir.path().join("ordered.tar"),
+        &[("zeta.bin", &[0; 1536]), ("alpha.txt", b"abc")],
+    );
+    assert_eq!(
+        names(&dir, &["--inspect-archives"]),
+        "ordered.tar\n\
+         ├── ordered.tar/zeta.bin (1.5 KiB)\n\
+         └── ordered.tar/alpha.txt (3 B)\n"
+    );
+}
 
-    let stdout = run_lez(&[
-        "-1",
-        "-l",
-        "--color=never",
-        "--inspect-archives",
-        fixture.path.to_str().unwrap(),
-    ]);
-
-    let rows: Vec<&str> = stdout
-        .lines()
-        .filter(|l| ENTRIES.iter().any(|e| l.contains(e)))
+/// An archive of more entries than the listing reads ends with a note
+/// saying so, which closes the branch; it is not an entry, so it has no
+/// path inside the archive and no size.
+#[test]
+fn a_long_archive_is_cut_short_with_a_note() {
+    let dir = TempTestDir::new("inspect_long");
+    let names_inside: Vec<String> = (0..501).map(|i| format!("f{i:03}")).collect();
+    let entries: Vec<(&str, &[u8])> = names_inside
+        .iter()
+        .map(|name| (name.as_str(), &b"x"[..]))
         .collect();
-    assert_eq!(rows.len(), ENTRIES.len(), "both entries listed: {stdout}");
+    write_tar(&dir.path().join("long.tar"), &entries);
 
-    let (last, rest) = rows.split_last().expect("at least one entry");
-    for row in rest {
-        assert!(
-            row.contains('\u{251c}') && !row.contains('\u{2514}'),
-            "a non-final entry stays on an edge: {row}"
-        );
-    }
-    assert!(
-        last.contains('\u{2514}') && !last.contains('\u{251c}'),
-        "the final entry closes the branch: {last}"
+    let listed: String = names_inside[..500]
+        .iter()
+        .map(|name| format!("├── long.tar/{name} (1 B)\n"))
+        .collect();
+    assert_eq!(
+        names(&dir, &["--inspect-archives"]),
+        format!("long.tar\n{listed}└── … (more than 500 entries)\n")
     );
 }
 
-/// The leaf name carries its own file colour; the archive path and the size
-/// stay in the punctuation style, so the row still reads as an annotation.
+/// In a tree the entries hang one level below the archive, under the
+/// branch of the directory that holds it.
 #[test]
-fn archive_entry_leaf_name_is_coloured_by_type() {
-    let fixture = fixture("colour");
-
-    let stdout = run_lez(&[
-        "-1",
-        "-l",
-        "--color=always",
-        "--inspect-archives",
-        fixture.path.to_str().unwrap(),
-    ]);
-
-    // Located by leaf name alone: once the leaf is styled the escape sequence
-    // sits between the path and the name, so the joined-up "nested/main.rs"
-    // no longer occurs as a literal substring — which is the point.
-    let row = stdout
-        .lines()
-        .find(|l| l.contains("main.rs"))
-        .unwrap_or_else(|| panic!("nested entry in output: {stdout}"));
-
-    // The directory part is emitted, then the leaf gets its own escape
-    // sequence before the name. A single style across the whole row — the old
-    // behaviour — leaves nothing between "nested/" and "deep.bin".
-    let after_dirs = row
-        .split_once("nested/")
-        .map(|(_, rest)| rest)
-        .expect("row spells out the entry path");
-    assert!(
-        after_dirs.starts_with('\u{1b}'),
-        "leaf name must open its own style: {row:?}"
-    );
-    assert!(
-        !after_dirs.starts_with("main.rs"),
-        "leaf name must not inherit the path's style: {row:?}"
+fn in_a_tree_entries_hang_below_the_archive() {
+    let fixture = fixture("tree");
+    assert_eq!(
+        names(&fixture, &["-T", "--inspect-archives"]),
+        ".\n\
+         ├── broken.tar\n\
+         ├── foo.tar\n\
+         │   ├── foo.tar/inner.txt (5 B)\n\
+         │   ├── foo.tar/nested/deep.bin (4 B)\n\
+         │   └── foo.tar/nested/main.rs (12 B)\n\
+         └── plain.txt\n"
     );
 }
 
-/// Colouring the leaf must not leak escape sequences into uncoloured output.
+/// Only regular files whose name ends in `.tar`, in any case, are opened:
+/// not a directory with that name, and not a compressed `.tar.gz`, even
+/// when its contents are an uncompressed archive.
 #[test]
-fn archive_entries_stay_plain_without_colour() {
-    let fixture = fixture("plain_colour");
-
-    let stdout = run_lez(&[
-        "-1",
-        "-l",
-        "--color=never",
-        "--inspect-archives",
-        fixture.path.to_str().unwrap(),
-    ]);
-
-    assert!(
-        !stdout.contains('\u{1b}'),
-        "--color=never must emit no escape sequences: {stdout:?}"
+fn only_files_named_dot_tar_are_opened() {
+    let dir = TempTestDir::new("inspect_names");
+    write_tar(&dir.path().join("UPPER.TAR"), &[("a.txt", b"a")]);
+    write_tar(&dir.path().join("plain.tar.gz"), &[("b.txt", b"b")]);
+    dir.create_file("folder.tar/c.txt", b"c");
+    assert_eq!(
+        names(&dir, &["--inspect-archives"]),
+        "folder.tar\nplain.tar.gz\nUPPER.TAR\n└── UPPER.TAR/a.txt (1 B)\n"
     );
 }
 
+/// Outside the long view the flag does nothing, and JSON lists the archive
+/// as the file it is.
 #[test]
-fn without_the_flag_archives_stay_opaque() {
+fn without_the_flag_or_the_long_view_archives_stay_opaque() {
     let fixture = fixture("off");
+    assert_eq!(names(&fixture, &[]), "broken.tar\nfoo.tar\nplain.txt\n");
+    assert_eq!(
+        success_stdout(lez_in(fixture.path()).args(["-1", "--inspect-archives"])),
+        "broken.tar\nfoo.tar\nplain.txt\n"
+    );
 
-    let stdout = run_lez(&["-l", "--color=never", fixture.path.to_str().unwrap()]);
-    assert!(stdout.contains("foo.tar"), "{stdout}");
-    assert!(!stdout.contains("inner.txt"), "{stdout}");
+    let json: serde_json::Value =
+        serde_json::from_str(&success_stdout(lez_in(fixture.path()).args([
+            "--json",
+            "-lB",
+            "--inspect-archives",
+            "--no-permissions",
+            "--no-user",
+            "--no-time",
+            "foo.tar",
+        ])))
+        .expect("valid JSON");
+    let size = std::fs::metadata(fixture.path().join("foo.tar"))
+        .expect("stat the archive")
+        .len();
+    assert_eq!(
+        json,
+        serde_json::json!({"foo.tar": {"Size": grouped(size)}})
+    );
 }
 
+/// The archive path and the size stay in the punctuation style; the leaf
+/// name takes its own file colour when the theme has one (`.txt`, `.rs`),
+/// and keeps the punctuation style when it has none (`.bin`).
 #[test]
-fn corrupt_archive_fails_silently() {
-    let fixture = fixture("corrupt");
-
-    let stdout = run_lez(&[
-        "-l",
-        "--color=never",
-        "--inspect-archives",
-        fixture.path.to_str().unwrap(),
-    ]);
-    assert!(stdout.contains("broken.tar"), "{stdout}");
-    assert!(
-        !stdout.lines().any(|l| l.contains("broken.tar/")),
-        "no entries may be invented for a corrupt archive: {stdout}"
+fn an_entrys_leaf_name_is_coloured_by_type() {
+    let fixture = fixture("colour");
+    assert_eq!(
+        names(
+            &fixture,
+            &["--inspect-archives", "--color=always", "foo.tar"]
+        ),
+        "\u{1b}[31mfoo.tar\u{1b}[0m\n\
+         \u{1b}[1;90m├── foo.tar/\u{1b}[0m\u{1b}[32minner.txt\u{1b}[1;90m (5 B)\u{1b}[0m\n\
+         \u{1b}[1;90m├── foo.tar/nested/deep.bin (4 B)\u{1b}[0m\n\
+         \u{1b}[1;90m└── foo.tar/nested/\u{1b}[33mmain.rs\u{1b}[90m (12 B)\u{1b}[0m\n"
     );
 }

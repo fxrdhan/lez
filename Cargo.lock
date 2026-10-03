@@ -860,7 +860,6 @@ dependencies = [
  "plist",
  "proc-mounts",
  "rayon",
- "same-file",
  "serde",
  "serde_json",
  "serde_norway",

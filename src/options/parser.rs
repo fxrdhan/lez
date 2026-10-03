@@ -448,9 +448,15 @@ impl clap::builder::TypedValueParser for TimeFormatParser {
         value: &std::ffi::OsStr,
     ) -> Result<Self::Value, Error> {
         let s = value.to_str().ok_or_else(|| {
+            // A raw error is printed as it is, so it carries its own end,
+            // worded as clap words the other invalid values.
             Error::raw(
                 clap::error::ErrorKind::InvalidUtf8,
-                format!("--time-style value '{value:?}' is not valid UTF-8"),
+                format!(
+                    "invalid value '{}' for '--time-style <STYLE>': not valid UTF-8\n\n\
+                     For more information, try '--help'.\n",
+                    value.to_string_lossy()
+                ),
             )
             .with_cmd(cmd)
         })?;

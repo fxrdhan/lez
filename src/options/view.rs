@@ -103,6 +103,20 @@ impl Mode {
         };
 
         if let Some(content) = code_from_cli.or(code_from_config) {
+            // A layout flag beside `--code` changes nothing, so strict mode
+            // refuses it, `--json` included: there is no JSON summary.
+            if strict && code_from_cli.is_some() {
+                let layouts = [
+                    ("json", "json"),
+                    ("long", "long"),
+                    ("tree", "tree"),
+                    ("grid", "grid"),
+                    ("oneline", "one-line"),
+                ];
+                if let Some((_, name)) = layouts.iter().find(|(id, _)| matches.get_flag(id)) {
+                    return Err(OptionsError::Useless(name, true, "code"));
+                }
+            }
             let sub_files = match config.loc.sub_files.as_deref() {
                 Some("count" | "files" | "number") => code::SubFilesMode::Count,
                 Some("blank" | "empty" | "none") => code::SubFilesMode::Blank,
@@ -162,7 +176,7 @@ impl Mode {
         }
 
         if !long && strict {
-            Self::strict_check_long_flags(matches)?;
+            Self::strict_check_long_flags(matches, tree)?;
         }
 
         if !(long || oneline || grid || tree) {
@@ -198,7 +212,7 @@ impl Mode {
         }
 
         if tree {
-            let details = details::Options::deduce_tree(matches, vars, config);
+            let details = details::Options::deduce_tree(matches, vars, config)?;
             return Ok(Self::Details(details));
         }
 
@@ -211,7 +225,18 @@ impl Mode {
     }
 
     // TODO: handle that with Clap
-    fn strict_check_long_flags(matches: &ArgMatches) -> Result<(), OptionsError> {
+    fn strict_check_long_flags(matches: &ArgMatches, tree: bool) -> Result<(), OptionsError> {
+        // A tree draws these without `--long` too: attributes and archive
+        // contents under each file, and mount details, tags and link targets
+        // beside its name.
+        const TREE_DRAWS: [&str; 5] = [
+            "extended",
+            "tags",
+            "inspect-archives",
+            "mounts",
+            "no-symlink-targets",
+        ];
+
         // If --long hasn’t been passed, then check if we need to warn the
         // user about flags that won’t have any effect.
         for flag in &[
@@ -230,7 +255,6 @@ impl Mode {
             "git-repos-no-status",
             "git-glyphs",
             "octal-permissions",
-            "total-size",
             "smart-group",
             "extended",
             "no-extended",
@@ -249,11 +273,13 @@ impl Mode {
             "created",
             "utc",
             "inspect-archives",
-            "print-total",
             "color-scale",
             "color-scale-mode",
             "no-symlink-targets",
         ] {
+            if tree && TREE_DRAWS.contains(flag) {
+                continue;
+            }
             if matches.value_source(flag) == Some(ValueSource::CommandLine) {
                 return Err(OptionsError::Useless(flag, false, "long"));
             }
@@ -314,8 +340,12 @@ impl json::Options {
 }
 
 impl details::Options {
-    fn deduce_tree<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
-        details::Options {
+    fn deduce_tree<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
+        Ok(details::Options {
             table: None,
             header: matches.get_flag("header") || config.display.header.unwrap_or(false),
             xattr: xattr::ENABLED
@@ -327,9 +357,9 @@ impl details::Options {
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
             mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
-            color_scale: ColorScaleOptions::deduce(matches, vars, config),
+            color_scale: ColorScaleOptions::deduce(matches, vars, config)?,
             follow_links: matches.get_flag("follow-symlinks"),
-        }
+        })
     }
 
     fn deduce_json<V: Vars>(
@@ -382,7 +412,7 @@ impl details::Options {
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
             mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
-            color_scale: ColorScaleOptions::deduce(matches, vars, config),
+            color_scale: ColorScaleOptions::deduce(matches, vars, config)?,
             follow_links: matches.get_flag("follow-symlinks"),
         })
     }
@@ -418,23 +448,21 @@ impl TerminalWidth {
 
 impl RowThreshold {
     fn deduce<V: Vars>(vars: &V) -> Result<Self, OptionsError> {
-        if let Some(columns) = vars
-            .get(vars::LEZ_GRID_ROWS)
-            .or_else(|| vars.get(vars::EZA_GRID_ROWS))
-            .or_else(|| vars.get(vars::EXA_GRID_ROWS))
-            .and_then(|s| s.into_string().ok())
+        if let Some((name, columns)) = vars
+            .first_set(&[
+                vars::LEZ_GRID_ROWS,
+                vars::EZA_GRID_ROWS,
+                vars::EXA_GRID_ROWS,
+            ])
+            .and_then(|(name, value)| Some((name, value.into_string().ok()?)))
         {
             match columns.parse() {
                 Ok(rows) => Ok(Self::MinimumRows(rows)),
-                Err(e) => {
-                    let source = NumberSource::Env(if vars.get(vars::LEZ_GRID_ROWS).is_some() {
-                        vars::LEZ_GRID_ROWS
-                    } else {
-                        vars.source(vars::EZA_GRID_ROWS, vars::EXA_GRID_ROWS)
-                            .unwrap_or(vars::LEZ_GRID_ROWS)
-                    });
-                    Err(OptionsError::FailedParse(columns, source, e))
-                }
+                Err(e) => Err(OptionsError::FailedParse(
+                    columns,
+                    NumberSource::Env(name),
+                    e,
+                )),
             }
         } else {
             Ok(Self::AlwaysGrid)
@@ -449,7 +477,7 @@ impl TableOptions {
         spaces: usize,
         config: &FileConfig,
     ) -> Result<Self, OptionsError> {
-        let time_format = TimeFormat::deduce(matches, vars, config);
+        let time_format = TimeFormat::deduce(matches, vars, config)?;
         let flags_format = FlagsFormat::deduce(vars);
         let allocated_size_mode = AllocatedSizeMode::deduce(matches, &config.display);
         let size_format = SizeFormat::deduce(matches);
@@ -501,27 +529,19 @@ impl SizeDigits {
             return Ok(*digits);
         }
 
-        if let Some(val) = vars
-            .get(vars::LEZ_SIZE_DIGITS)
-            .or_else(|| vars.get(vars::EZA_SIZE_DIGITS))
-            .or_else(|| vars.get(vars::EXA_SIZE_DIGITS))
-            .map(|s| s.to_string_lossy().to_string())
-        {
-            match val.parse::<u8>() {
-                Ok(digits) if (1..=8).contains(&digits) => Ok(digits),
-                Ok(_) | Err(_) => {
-                    let source = NumberSource::Env(if vars.get(vars::LEZ_SIZE_DIGITS).is_some() {
-                        vars::LEZ_SIZE_DIGITS
-                    } else {
-                        vars.source(vars::EZA_SIZE_DIGITS, vars::EXA_SIZE_DIGITS)
-                            .unwrap_or(vars::LEZ_SIZE_DIGITS)
-                    });
-                    let err = match val.parse::<u8>() {
-                        Err(e) => e,
-                        Ok(_) => "invalid digit range".parse::<u8>().unwrap_err(),
-                    };
-                    Err(OptionsError::FailedParse(val, source, err))
-                }
+        if let Some((name, value)) = vars.first_set(&[
+            vars::LEZ_SIZE_DIGITS,
+            vars::EZA_SIZE_DIGITS,
+            vars::EXA_SIZE_DIGITS,
+        ]) {
+            let val = value.to_string_lossy().to_string();
+            let source = NumberSource::Env(name);
+            // Any whole number outside the range is out of range, as clap
+            // says of the flag, even one too large or too small for a `u8`.
+            match val.parse::<i64>().map(u8::try_from) {
+                Ok(Ok(digits)) if (1..=8).contains(&digits) => Ok(digits),
+                Ok(_) => Err(OptionsError::OutOfRange(val, source, 1..=8)),
+                Err(e) => Err(OptionsError::FailedParse(val, source, e)),
             }
         } else if let Some(digits) = config.display.size_digits {
             Ok(digits.clamp(1, 8))
@@ -543,28 +563,19 @@ impl PercentDigits {
             return Ok(*digits);
         }
 
-        if let Some(val) = vars
-            .get(vars::LEZ_PERCENT_DIGITS)
-            .or_else(|| vars.get(vars::EZA_PERCENT_DIGITS))
-            .or_else(|| vars.get(vars::EXA_PERCENT_DIGITS))
-            .map(|s| s.to_string_lossy().to_string())
-        {
-            match val.parse::<u8>() {
-                Ok(digits) if digits <= 8 => Ok(digits),
-                Ok(_) | Err(_) => {
-                    let source =
-                        NumberSource::Env(if vars.get(vars::LEZ_PERCENT_DIGITS).is_some() {
-                            vars::LEZ_PERCENT_DIGITS
-                        } else {
-                            vars.source(vars::EZA_PERCENT_DIGITS, vars::EXA_PERCENT_DIGITS)
-                                .unwrap_or(vars::LEZ_PERCENT_DIGITS)
-                        });
-                    let err = match val.parse::<u8>() {
-                        Err(e) => e,
-                        Ok(_) => "invalid digit range".parse::<u8>().unwrap_err(),
-                    };
-                    Err(OptionsError::FailedParse(val, source, err))
-                }
+        if let Some((name, value)) = vars.first_set(&[
+            vars::LEZ_PERCENT_DIGITS,
+            vars::EZA_PERCENT_DIGITS,
+            vars::EXA_PERCENT_DIGITS,
+        ]) {
+            let val = value.to_string_lossy().to_string();
+            let source = NumberSource::Env(name);
+            // Any whole number outside the range is out of range, as clap
+            // says of the flag, even one too large or too small for a `u8`.
+            match val.parse::<i64>().map(u8::try_from) {
+                Ok(Ok(digits)) if (0..=8).contains(&digits) => Ok(digits),
+                Ok(_) => Err(OptionsError::OutOfRange(val, source, 0..=8)),
+                Err(e) => Err(OptionsError::FailedParse(val, source, e)),
             }
         } else if let Some(digits) = config.loc.percent_digits {
             Ok(digits.min(8))
@@ -618,9 +629,10 @@ impl Columns {
         let links = matches.get_flag("links") || config.display.links.unwrap_or(false);
         let octal = matches.get_flag("octal-permissions")
             || config.display.octal_permissions.unwrap_or(false);
-        let security_context = xattr::ENABLED
-            && (matches.get_flag("security-context")
-                || config.display.security_context.unwrap_or(false));
+        // Shown everywhere, as `?` where there is no SELinux, as `ls -Z`
+        // prints it on a system without.
+        let security_context = matches.get_flag("security-context")
+            || config.display.security_context.unwrap_or(false);
 
         let permissions = !matches.get_flag("no-permissions");
         let filesize = !matches.get_flag("no-filesize");
@@ -803,17 +815,57 @@ fn validate_custom_format(fmt: &str) -> Result<(), String> {
 
 impl TimeFormat {
     /// Determine how time should be formatted in timestamp columns.
-    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
+    fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
         if let Some(arg) = matches.get_one::<TimeFormat>("time-style") {
-            arg.clone()
+            Ok(arg.clone())
         } else if let Some(t) = vars.get(vars::TIME_STYLE).filter(|t| !t.is_empty()) {
-            TimeFormat::try_from_str(t.to_str().unwrap_or("")).unwrap_or(TimeFormat::DefaultFormat)
+            Self::from_time_style_variable(&t, vars)
         } else if let Some(t) = &config.display.time_style {
-            TimeFormat::try_from_str(t).unwrap_or(TimeFormat::DefaultFormat)
+            Ok(TimeFormat::try_from_str(t).unwrap_or(TimeFormat::DefaultFormat))
         } else {
-            Self::DefaultFormat
+            Ok(Self::DefaultFormat)
         }
     }
+
+    /// `TIME_STYLE`, read as GNU `ls` reads it, which shares it: `locale` is
+    /// the default format, and `posix-STYLE` is STYLE except under the POSIX
+    /// time locale, where it is the default format too. Anything that is not
+    /// a time style is an option error, as it is for `ls`.
+    fn from_time_style_variable<V: Vars>(
+        value: &std::ffi::OsStr,
+        vars: &V,
+    ) -> Result<Self, OptionsError> {
+        let text = value.to_string_lossy();
+        let style = match text.strip_prefix("posix-") {
+            Some(_) if time_locale_is_posix(vars) => return Ok(Self::DefaultFormat),
+            Some(style) => style,
+            None => &text,
+        };
+        if style == "locale" {
+            return Ok(Self::DefaultFormat);
+        }
+        TimeFormat::try_from_str(style).map_err(|_| {
+            OptionsError::Unsupported(format!(
+                "Value {text:?} not valid for environment variable {}: expected default, iso, \
+                 long-iso, full-iso, relative, relative-recent[:DAYS], locale, posix-STYLE or \
+                 +FORMAT",
+                vars::TIME_STYLE
+            ))
+        })
+    }
+}
+
+/// Whether times are formatted for the POSIX locale: `LC_ALL`, else
+/// `LC_TIME`, else `LANG`, names `C` or `POSIX`, or none is set.
+fn time_locale_is_posix<V: Vars>(vars: &V) -> bool {
+    [vars::LC_ALL, vars::LC_TIME, vars::LANG]
+        .into_iter()
+        .find_map(|name| vars.get(name).filter(|value| !value.is_empty()))
+        .is_none_or(|locale| locale == "C" || locale == "POSIX")
 }
 
 impl UserFormat {
@@ -897,29 +949,11 @@ impl TimeTypes {
 }
 
 impl ColorScaleOptions {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
-        let min_luminance = match vars
-            .get(vars::LEZ_MIN_LUMINANCE)
-            .or_else(|| vars.get_with_fallback(vars::EZA_MIN_LUMINANCE, vars::EXA_MIN_LUMINANCE))
-        {
-            Some(var) => match var.to_string_lossy().parse() {
-                Ok(luminance) if (-100..=100).contains(&luminance) => luminance,
-                _ => 40,
-            },
-            None => 40,
-        };
-
-        let max_luminance = match vars
-            .get(vars::LEZ_MAX_LUMINANCE)
-            .or_else(|| vars.get_with_fallback(vars::EZA_MAX_LUMINANCE, vars::EXA_MAX_LUMINANCE))
-        {
-            Some(var) => match var.to_string_lossy().parse() {
-                Ok(luminance) if (-100..=100).contains(&luminance) => luminance,
-                _ => 100,
-            },
-            None => 100,
-        };
-
+    pub fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
         let mode = if matches.value_source("color-scale-mode")
             == Some(clap::parser::ValueSource::CommandLine)
         {
@@ -938,8 +972,8 @@ impl ColorScaleOptions {
 
         let mut options = ColorScaleOptions {
             mode,
-            min_luminance,
-            max_luminance,
+            min_luminance: 40,
+            max_luminance: 100,
             size: false,
             age: false,
         };
@@ -977,7 +1011,50 @@ impl ColorScaleOptions {
             }
         }
 
-        options
+        // The luminance variables are read only when there is a scale to
+        // shade, and like the other numeric variables are an option error
+        // when they do not hold a number in range.
+        if options.size || options.age {
+            options.min_luminance = luminance(
+                vars,
+                &[
+                    vars::LEZ_MIN_LUMINANCE,
+                    vars::EZA_MIN_LUMINANCE,
+                    vars::EXA_MIN_LUMINANCE,
+                ],
+                options.min_luminance,
+            )?;
+            options.max_luminance = luminance(
+                vars,
+                &[
+                    vars::LEZ_MAX_LUMINANCE,
+                    vars::EZA_MAX_LUMINANCE,
+                    vars::EXA_MAX_LUMINANCE,
+                ],
+                options.max_luminance,
+            )?;
+        }
+
+        Ok(options)
+    }
+}
+
+/// The luminance the first of `names` that is set gives, from -100 to 100,
+/// or `default` when none is.
+fn luminance<V: Vars>(
+    vars: &V,
+    names: &[&'static str],
+    default: isize,
+) -> Result<isize, OptionsError> {
+    let Some((name, value)) = vars.first_set(names) else {
+        return Ok(default);
+    };
+    let val = value.to_string_lossy().to_string();
+    let source = NumberSource::Env(name);
+    match val.parse::<i64>() {
+        Ok(n) if (-100..=100).contains(&n) => Ok(n as isize),
+        Ok(_) => Err(OptionsError::OutOfRange(val, source, -100..=100)),
+        Err(e) => Err(OptionsError::FailedParse(val, source, e)),
     }
 }
 
@@ -1440,7 +1517,7 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("iso"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::ISOFormat
+            Ok(TimeFormat::ISOFormat)
         );
     }
 
@@ -1453,7 +1530,7 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::ISOFormat
+            Ok(TimeFormat::ISOFormat)
         );
     }
 
@@ -1463,7 +1540,7 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("long-iso"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::LongISO
+            Ok(TimeFormat::LongISO)
         );
     }
 
@@ -1476,7 +1553,7 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::LongISO
+            Ok(TimeFormat::LongISO)
         );
     }
 
@@ -1486,7 +1563,7 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("full-iso"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::FullISO
+            Ok(TimeFormat::FullISO)
         );
     }
 
@@ -1499,7 +1576,7 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::FullISO
+            Ok(TimeFormat::FullISO)
         );
     }
 
@@ -1509,7 +1586,7 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("relative"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::Relative
+            Ok(TimeFormat::Relative)
         );
     }
 
@@ -1522,7 +1599,7 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::Relative
+            Ok(TimeFormat::Relative)
         );
     }
 
@@ -1532,9 +1609,9 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("relative-recent"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::RelativeRecent {
+            Ok(TimeFormat::RelativeRecent {
                 recent_window_days: None
-            }
+            })
         );
     }
 
@@ -1547,9 +1624,9 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::RelativeRecent {
+            Ok(TimeFormat::RelativeRecent {
                 recent_window_days: None
-            }
+            })
         );
     }
 
@@ -1559,9 +1636,9 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("relative-recent:14"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::RelativeRecent {
+            Ok(TimeFormat::RelativeRecent {
                 recent_window_days: Some(14)
-            }
+            })
         );
     }
 
@@ -1574,9 +1651,9 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::RelativeRecent {
+            Ok(TimeFormat::RelativeRecent {
                 recent_window_days: Some(3)
-            }
+            })
         );
     }
 
@@ -1635,10 +1712,10 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("+%Y-%b-%d"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::Custom {
+            Ok(TimeFormat::Custom {
                 non_recent: String::from("%Y-%b-%d"),
                 recent: None
-            }
+            })
         );
     }
 
@@ -1650,10 +1727,10 @@ mod tests {
                 &MockVars::default(),
                 &FileConfig::default()
             ),
-            TimeFormat::Custom {
+            Ok(TimeFormat::Custom {
                 non_recent: String::from("%Y-%b-%d"),
                 recent: None
-            }
+            })
         );
     }
 
@@ -1665,10 +1742,10 @@ mod tests {
                 &MockVars::default(),
                 &FileConfig::default()
             ),
-            TimeFormat::Custom {
+            Ok(TimeFormat::Custom {
                 non_recent: String::from("%Y-%m-%d %H"),
                 recent: Some(String::from("--%m-%d %H:%M"))
-            }
+            })
         );
     }
 
@@ -1680,13 +1757,13 @@ mod tests {
                 &MockVars::default(),
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
                 max_luminance: 100,
                 size: true,
                 age: true,
-            }
+            })
         );
     }
 
@@ -1700,13 +1777,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 60,
                 max_luminance: 100,
                 size: true,
                 age: false,
-            }
+            })
         );
     }
 
@@ -1720,13 +1797,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
                 min_luminance: 60,
                 max_luminance: 100,
                 size: false,
                 age: true,
-            }
+            })
         );
     }
 
@@ -1745,13 +1822,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
                 min_luminance: 99,
                 max_luminance: 100,
                 size: true,
                 age: true,
-            }
+            })
         );
     }
 
@@ -1765,13 +1842,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
                 max_luminance: 80,
                 size: true,
                 age: false,
-            }
+            })
         );
     }
 
@@ -1786,13 +1863,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
                 max_luminance: 75,
                 size: true,
                 age: false,
-            }
+            })
         );
     }
 
@@ -1807,13 +1884,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 35,
                 max_luminance: 100,
                 size: true,
                 age: false,
-            }
+            })
         );
     }
 
@@ -1828,66 +1905,57 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 30,
                 max_luminance: 70,
                 size: true,
                 age: true,
-            }
+            })
         );
     }
 
+    /// Like the other numeric variables, a luminance that is not a number
+    /// or is out of range is an option error, naming the variable.
     #[test]
-    fn deduce_color_scale_max_luminance_invalid_fallback() {
-        let mut vars = MockVars::default();
-        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("invalid_number"));
-        assert_eq!(
-            ColorScaleOptions::deduce(
-                &mock_cli(vec!["--color-scale=size"]),
-                &vars,
-                &FileConfig::default()
+    fn deduce_color_scale_refuses_a_bad_luminance() {
+        for (value, expected) in [
+            (
+                "invalid_number",
+                OptionsError::FailedParse(
+                    "invalid_number".into(),
+                    NumberSource::Env(vars::LEZ_MAX_LUMINANCE),
+                    "x".parse::<u8>().unwrap_err(),
+                ),
             ),
-            ColorScaleOptions {
-                mode: ColorScaleMode::Gradient,
-                min_luminance: 40,
-                max_luminance: 100,
-                size: true,
-                age: false,
-            }
-        );
-
-        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("150")); // out of range
-        assert_eq!(
-            ColorScaleOptions::deduce(
-                &mock_cli(vec!["--color-scale=size"]),
-                &vars,
-                &FileConfig::default()
+            (
+                "101",
+                OptionsError::OutOfRange(
+                    "101".into(),
+                    NumberSource::Env(vars::LEZ_MAX_LUMINANCE),
+                    -100..=100,
+                ),
             ),
-            ColorScaleOptions {
-                mode: ColorScaleMode::Gradient,
-                min_luminance: 40,
-                max_luminance: 100,
-                size: true,
-                age: false,
-            }
-        );
-
-        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("-150")); // out of range
-        assert_eq!(
-            ColorScaleOptions::deduce(
-                &mock_cli(vec!["--color-scale=size"]),
-                &vars,
-                &FileConfig::default()
-            ),
-            ColorScaleOptions {
-                mode: ColorScaleMode::Gradient,
-                min_luminance: 40,
-                max_luminance: 100,
-                size: true,
-                age: false,
-            }
-        );
+        ] {
+            let mut vars = MockVars::default();
+            vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from(value));
+            assert_eq!(
+                ColorScaleOptions::deduce(
+                    &mock_cli(vec!["--color-scale=size"]),
+                    &vars,
+                    &FileConfig::default()
+                ),
+                Err(expected),
+                "{value}"
+            );
+            // Without a scale the variable is not read.
+            assert_eq!(
+                ColorScaleOptions::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default())
+                    .map(|options| (options.min_luminance, options.max_luminance)),
+                Ok((40, 100)),
+                "{value}"
+            );
+        }
     }
 
     #[test]
@@ -1897,13 +1965,13 @@ mod tests {
         config.theme.color_scale_mode = Some("fixed".to_string());
         assert_eq!(
             ColorScaleOptions::deduce(&mock_cli(vec![""]), &MockVars::default(), &config),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
                 min_luminance: 40,
                 max_luminance: 100,
                 size: true,
                 age: true,
-            }
+            })
         );
     }
 
@@ -1944,7 +2012,8 @@ mod tests {
     fn deduce_details_options_tree() {
         let cli = mock_cli(vec!["--tree"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -1958,7 +2027,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -1968,7 +2038,8 @@ mod tests {
     fn deduce_details_options_tree_mounts() {
         let cli = mock_cli(vec!["--tree", "--mounts"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -1982,7 +2053,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -1992,7 +2064,8 @@ mod tests {
     fn deduce_details_options_tree_xattr() {
         let cli = mock_cli(vec!["--tree", "--extended"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -2006,7 +2079,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -2016,7 +2090,8 @@ mod tests {
     fn deduce_details_options_tree_tags() {
         let cli = mock_cli(vec!["--tree", "--tags"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -2030,7 +2105,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -2040,7 +2116,8 @@ mod tests {
     fn deduce_details_options_tree_secattr() {
         let cli = mock_cli(vec!["--tree", "--context"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -2054,7 +2131,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -2356,7 +2434,10 @@ mod tests {
 
     #[test]
     fn strict_check_long_flags_default_is_ok() {
-        assert_eq!(Mode::strict_check_long_flags(&mock_cli(vec![""])), Ok(()));
+        assert_eq!(
+            Mode::strict_check_long_flags(&mock_cli(vec![""]), false),
+            Ok(())
+        );
         assert!(
             Mode::deduce(
                 &mock_cli(vec![""]),
@@ -2387,7 +2468,7 @@ mod tests {
             let arg = format!("--{flag}");
             let matches = mock_cli(vec![&arg]);
             assert_eq!(
-                Mode::strict_check_long_flags(&matches),
+                Mode::strict_check_long_flags(&matches, false),
                 Err(OptionsError::Useless(flag, false, "long")),
                 "Expected --{flag} to trigger OptionsError::Useless without --long"
             );
@@ -2414,7 +2495,7 @@ mod tests {
         ] {
             let matches = mock_cli(vec![arg]);
             assert_eq!(
-                Mode::strict_check_long_flags(&matches),
+                Mode::strict_check_long_flags(&matches, false),
                 Err(OptionsError::Useless(flag, false, "long")),
                 "Expected {arg} to trigger OptionsError::Useless without --long"
             );
@@ -2428,6 +2509,61 @@ mod tests {
                 ),
                 Err(OptionsError::Useless(flag, false, "long")),
                 "Expected Mode::deduce with {arg} to fail in strict mode"
+            );
+        }
+    }
+
+    /// A tree draws attributes, archive contents, mount details, tags and
+    /// link targets without `--long`, so strict mode takes those beside
+    /// `--tree`, and only there.
+    #[test]
+    fn strict_mode_takes_what_a_tree_draws() {
+        for arg in [
+            "--extended",
+            "--tags",
+            "--inspect-archives",
+            "--mounts",
+            "--no-symlink-targets",
+        ] {
+            let flag = &arg[2..];
+            let deduce = |args: Vec<&str>| {
+                Mode::deduce(
+                    &mock_cli(args),
+                    &MockVars::default(),
+                    false,
+                    true,
+                    &FileConfig::default(),
+                )
+                .map(|_| ())
+            };
+            assert_eq!(deduce(vec!["--tree", arg]), Ok(()), "{arg}");
+            assert_eq!(
+                deduce(vec!["--oneline", arg]),
+                Err(OptionsError::Useless(flag, false, "long")),
+                "{arg}"
+            );
+        }
+        // Everything else stays refused in a tree.
+        assert_eq!(
+            Mode::strict_check_long_flags(&mock_cli(vec!["--tree", "--binary"]), true),
+            Err(OptionsError::Useless("binary", false, "long"))
+        );
+    }
+
+    /// `--print-total` prints its line under every view.
+    #[test]
+    fn strict_mode_takes_print_total_in_every_view() {
+        for view in ["--oneline", "--grid", "--tree", "--long"] {
+            assert!(
+                Mode::deduce(
+                    &mock_cli(vec![view, "--print-total"]),
+                    &MockVars::default(),
+                    false,
+                    true,
+                    &FileConfig::default()
+                )
+                .is_ok(),
+                "{view}"
             );
         }
     }
@@ -2479,7 +2615,7 @@ mod tests {
         for (short_flag, expected_name) in cases {
             let matches = mock_cli(vec![short_flag]);
             assert_eq!(
-                Mode::strict_check_long_flags(&matches),
+                Mode::strict_check_long_flags(&matches, false),
                 Err(OptionsError::Useless(expected_name, false, "long")),
                 "Expected {short_flag} to trigger OptionsError::Useless for {expected_name}"
             );
@@ -2501,7 +2637,7 @@ mod tests {
     fn strict_and_non_strict_blocks_flag_without_long() {
         let matches = mock_cli(vec!["--blocks"]);
         assert_eq!(
-            Mode::strict_check_long_flags(&matches),
+            Mode::strict_check_long_flags(&matches, false),
             Err(OptionsError::Useless("blocks", false, "long")),
         );
         assert_eq!(
@@ -2773,6 +2909,72 @@ mod tests {
         );
         assert!(view.file_style.is_a_tty);
         assert!(view.file_style.are_icons_enabled());
+    }
+
+    /// `TIME_STYLE` is GNU `ls`'s too: `locale` is the default format, and
+    /// `posix-STYLE` is STYLE unless times are formatted for the POSIX
+    /// locale, which is the case with no locale set at all.
+    #[test]
+    fn deduce_time_style_reads_gnu_forms() {
+        let time_style = |value: &str, locale: &[(&'static str, &str)]| {
+            let mut vars = MockVars::default();
+            vars.set(vars::TIME_STYLE, &OsString::from(value));
+            for (name, value) in locale {
+                vars.set(name, &OsString::from(value));
+            }
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default())
+        };
+        assert_eq!(time_style("locale", &[]), Ok(TimeFormat::DefaultFormat));
+        assert_eq!(time_style("posix-iso", &[]), Ok(TimeFormat::DefaultFormat));
+        for posix in ["C", "POSIX"] {
+            assert_eq!(
+                time_style("posix-long-iso", &[(vars::LANG, posix)]),
+                Ok(TimeFormat::DefaultFormat),
+                "{posix}"
+            );
+        }
+        assert_eq!(
+            time_style("posix-long-iso", &[(vars::LANG, "en_US.UTF-8")]),
+            Ok(TimeFormat::LongISO)
+        );
+        // `LC_ALL` outranks `LC_TIME`, which outranks `LANG`.
+        assert_eq!(
+            time_style(
+                "posix-full-iso",
+                &[(vars::LC_TIME, "C"), (vars::LANG, "de_DE.UTF-8")]
+            ),
+            Ok(TimeFormat::DefaultFormat)
+        );
+        assert_eq!(
+            time_style(
+                "posix-full-iso",
+                &[(vars::LC_ALL, "de_DE.UTF-8"), (vars::LC_TIME, "C")]
+            ),
+            Ok(TimeFormat::FullISO)
+        );
+        assert_eq!(
+            time_style("posix-locale", &[(vars::LANG, "de_DE.UTF-8")]),
+            Ok(TimeFormat::DefaultFormat)
+        );
+    }
+
+    /// A value that is no time style is an option error naming the
+    /// variable, as `ls` refuses it too; it used to be passed over.
+    #[test]
+    fn deduce_time_style_refuses_what_is_not_one() {
+        for value in ["invalid_env_style", "posix-bogus", "relative-recent:x"] {
+            let mut vars = MockVars::default();
+            vars.set(vars::TIME_STYLE, &OsString::from(value));
+            vars.set(vars::LANG, &OsString::from("en_US.UTF-8"));
+            assert_eq!(
+                TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
+                Err(OptionsError::Unsupported(format!(
+                    "Value {value:?} not valid for environment variable TIME_STYLE: expected \
+                     default, iso, long-iso, full-iso, relative, relative-recent[:DAYS], locale, \
+                     posix-STYLE or +FORMAT"
+                )))
+            );
+        }
     }
 
     #[test]

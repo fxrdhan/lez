@@ -1,422 +1,211 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::process::Command;
+//! `ln=target` in `LEZ_COLORS`, and `symlink: target` in a theme: a link
+//! takes the colour of what it leads to, with its own attributes (italic,
+//! bold, underline) on top. A link that leads nowhere keeps the `or`
+//! colour, attributes and all left off.
 
-use crate::common::{TempTestDir, bin_path};
+#![cfg(unix)]
+
+use std::path::Path;
+
+use crate::common::{TempTestDir, lez_in, success_stdout};
+
+/// Links of every kind, beside what they lead to: a directory, a `.rs`
+/// file, an executable, a plain file, a chain of two links, a dangling link
+/// and a loop.
+fn fixture(prefix: &str) -> TempTestDir {
+    let dir = TempTestDir::new(prefix);
+    dir.create_dir("my_target_dir");
+    dir.create_file("main.rs", b"fn main() {}\n");
+    let run = dir.create_file("run.sh", b"#!/bin/sh\n");
+    std::fs::set_permissions(&run, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+        .expect("chmod");
+    dir.create_file("doc_data", b"text\n");
+    for (target, link) in [
+        ("my_target_dir", "link_to_dir"),
+        ("main.rs", "link_to_rs"),
+        ("run.sh", "link_to_exec"),
+        ("doc_data", "link_to_doc"),
+        ("link_b", "link_a"),
+        ("my_target_dir", "link_b"),
+        ("/nonexistent_path", "broken_orphan_link"),
+        ("loop_link_2", "loop_link_1"),
+        ("loop_link_1", "loop_link_2"),
+    ] {
+        dir.create_symlink(target, link);
+        pin_link_mode(&dir.path().join(link));
+    }
+    dir
+}
+
+/// Gives a link the mode Linux gives every link, so the long view reads
+/// `lrwxrwxrwx` everywhere; macOS otherwise takes it from the umask.
+fn pin_link_mode(link: &Path) {
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let path = std::ffi::CString::new(link.as_os_str().as_bytes()).expect("no NUL");
+        // SAFETY: a valid NUL-terminated path, relative to nothing.
+        let result = unsafe {
+            libc::fchmodat(
+                libc::AT_FDCWD,
+                path.as_ptr(),
+                0o777,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        assert_eq!(result, 0, "fchmodat: {}", std::io::Error::last_os_error());
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = link;
+}
+
+/// Lists `args` in colour with `LEZ_COLORS` set to `colours` and, when
+/// given, a theme file holding `theme`.
+fn styled(dir: &TempTestDir, colours: &str, theme: Option<&str>, args: &[&str]) -> String {
+    let config = dir.path().join(".config");
+    let mut cmd = lez_in(dir.path());
+    if let Some(theme) = theme {
+        std::fs::create_dir_all(&config).expect("create the config directory");
+        std::fs::write(config.join("theme.yml"), theme).expect("write the theme");
+        cmd.env("LEZ_CONFIG_DIR", &config);
+    }
+    if !colours.is_empty() {
+        cmd.env("LEZ_COLORS", colours);
+    }
+    success_stdout(cmd.arg("--color=always").args(args))
+}
+
+const BLUE_DIRECTORIES: &str =
+    "filekinds:\n  directory:\n    foreground: Blue\n    is_bold: false\n";
 
 #[test]
-#[cfg(unix)]
-fn test_theme_symlink_foreground_target_with_italic() {
-    let config_dir = TempTestDir::new("theme_target_italic_cfg");
-    let theme_path = config_dir.path().join("theme.yml");
-    let mut f = StdFile::create(&theme_path).expect("create theme.yml");
-    writeln!(
-        f,
-        "filekinds:\n  directory:\n    foreground: Blue\n    is_bold: false\n  symlink:\n    foreground: target\n    is_italic: true"
-    )
-    .expect("write theme.yml");
+fn ln_target_borrows_the_targets_colour_and_adds_its_own_attributes() {
+    let dir = fixture("lez_colors");
+    for (colours, link, expected) in [
+        ("di=34:ln=target;3", "link_to_dir", "\x1b[3;34m"),
+        ("di=34:ln=target;1;4", "link_to_dir", "\x1b[1;4;34m"),
+        ("*.rs=35:ln=target;3", "link_to_rs", "\x1b[3;35m"),
+        ("ex=32:ln=target;4", "link_to_exec", "\x1b[4;32m"),
+    ] {
+        assert_eq!(
+            styled(&dir, colours, None, &["-d", link]),
+            format!("{expected}{link}\x1b[0m\n"),
+            "{colours}"
+        );
+    }
+}
 
-    let work_dir = TempTestDir::new("theme_target_italic_work");
-    let target_dir = work_dir.path().join("my_target_dir");
-    fs::create_dir_all(&target_dir).expect("create target dir");
-    let link_path = work_dir.path().join("link_to_dir");
-    std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
+/// The same from a theme: `foreground: target`, the bare string `target`,
+/// or `target;3`; and a theme's attributes combined with `ln=target` from
+/// the environment.
+#[test]
+fn a_theme_can_ask_for_the_targets_colour() {
+    let dir = fixture("theme");
+    let italic_blue = "\x1b[3;34mlink_to_dir\x1b[0m\n";
+    for (theme, colours, expected) in [
+        (
+            "  symlink:\n    foreground: target\n    is_italic: true\n",
+            "",
+            italic_blue,
+        ),
+        ("  symlink: \"target;3\"\n", "", italic_blue),
+        ("  symlink: target\n", "", "\x1b[34mlink_to_dir\x1b[0m\n"),
+        (
+            "  symlink:\n    is_italic: true\n",
+            "ln=target",
+            italic_blue,
+        ),
+    ] {
+        let theme = format!("{BLUE_DIRECTORIES}{theme}");
+        assert_eq!(
+            styled(&dir, colours, Some(&theme), &["-d", "link_to_dir"]),
+            expected,
+            "{theme}"
+        );
+    }
+}
 
-    let out = Command::new(bin_path())
-        .env("LEZ_CONFIG_DIR", config_dir.path())
-        .env_remove("EZA_CONFIG_DIR")
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("LS_COLORS")
-        .env_remove("LEZ_COLORS")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    // Should borrow Blue (34) from target directory AND have italic (3)
-    assert!(
-        stdout.contains("\x1b[3;34m"),
-        "Expected symlink to borrow target directory Blue (34) and apply italic (3), got: {stdout:?}"
+/// Every hop of a chain takes the colour of where the chain ends.
+#[test]
+fn a_chain_takes_the_colour_of_its_end() {
+    let dir = fixture("chain");
+    assert_eq!(
+        styled(
+            &dir,
+            "di=34:ln=target;3",
+            None,
+            &[
+                "-ld",
+                "--no-permissions",
+                "--no-filesize",
+                "--no-user",
+                "--no-time",
+                "link_a"
+            ]
+        ),
+        "\x1b[3;34mlink_a\x1b[0m \x1b[1;90m->\x1b[0m \x1b[3;34mlink_b\x1b[0m\n"
     );
 }
 
+/// In the long view the `l` has no target to borrow a colour from, so it
+/// keeps only the link's attributes, whatever the link leads to; it used to
+/// take the plain-file colour, and read as a file's `.`. The target after
+/// the arrow is painted as itself, without them.
 #[test]
-#[cfg(unix)]
-fn test_theme_symlink_attributes_combined_with_lez_colors_ln_target() {
-    let config_dir = TempTestDir::new("theme_attr_combined_cfg");
-    let theme_path = config_dir.path().join("theme.yml");
-    let mut f = StdFile::create(&theme_path).expect("create theme.yml");
-    writeln!(
-        f,
-        "filekinds:\n  directory:\n    foreground: Blue\n    is_bold: false\n  symlink:\n    is_italic: true"
-    )
-    .expect("write theme.yml");
-
-    let work_dir = TempTestDir::new("theme_attr_combined_work");
-    let target_dir = work_dir.path().join("my_target_dir");
-    fs::create_dir_all(&target_dir).expect("create target dir");
-    let link_path = work_dir.path().join("link_to_dir");
-    std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
-
-    let out = Command::new(bin_path())
-        .env("LEZ_CONFIG_DIR", config_dir.path())
-        .env_remove("EZA_CONFIG_DIR")
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "ln=target")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    assert!(
-        stdout.contains("\x1b[3;34m"),
-        "Expected combined LEZ_COLORS='ln=target' with theme italic to have Blue and italic, got: {stdout:?}"
+fn the_long_view_styles_the_type_character_and_the_target() {
+    let dir = fixture("long");
+    let permissions = "\x1b[1;33mr\x1b[31mw\x1b[32mx\x1b[0m\
+                       \x1b[33mr\x1b[31mw\x1b[32mx\
+                       \x1b[33mr\x1b[31mw\x1b[32mx\x1b[0m";
+    let long = |link: &str| {
+        styled(
+            &dir,
+            "fi=33:di=34:ln=target;3",
+            None,
+            &["-ld", "--no-filesize", "--no-user", "--no-time", link],
+        )
+    };
+    assert_eq!(
+        long("link_to_doc"),
+        format!(
+            "\x1b[3ml\x1b[0m{permissions} \x1b[3;33mlink_to_doc\x1b[0m \x1b[1;90m->\x1b[0m \x1b[33mdoc_data\x1b[0m\n"
+        )
+    );
+    assert_eq!(
+        long("link_to_dir"),
+        format!(
+            "\x1b[3ml\x1b[0m{permissions} \x1b[3;34mlink_to_dir\x1b[0m \x1b[1;90m->\x1b[0m \x1b[34mmy_target_dir\x1b[0m\n"
+        )
     );
 }
 
+/// A dangling link and a loop keep the `or` colour, without the italic
+/// `ln=target;3` or the theme would add.
 #[test]
-#[cfg(unix)]
-fn test_lez_colors_ln_target_with_italic_code() {
-    let work_dir = TempTestDir::new("env_target_italic_work");
-    let target_dir = work_dir.path().join("my_target_dir");
-    fs::create_dir_all(&target_dir).expect("create target dir");
-    let link_path = work_dir.path().join("link_to_dir");
-    std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
-
-    let out = Command::new(bin_path())
-        .arg("--no-config")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "di=34:ln=target;3")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    assert!(
-        stdout.contains("\x1b[3;34m"),
-        "Expected LEZ_COLORS='ln=target;3' to borrow Blue (34) and apply italic (3), got: {stdout:?}"
+fn a_link_that_leads_nowhere_keeps_the_orphan_colour() {
+    let dir = fixture("orphans");
+    let theme = "filekinds:\n  symlink:\n    foreground: target\n    is_italic: true\n";
+    assert_eq!(
+        styled(&dir, "or=31", Some(theme), &["-d", "broken_orphan_link"]),
+        "\x1b[31mbroken_orphan_link\x1b[0m\n"
     );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_lez_colors_ln_target_with_bold_underline_codes() {
-    let work_dir = TempTestDir::new("env_target_bold_under_work");
-    let target_dir = work_dir.path().join("my_target_dir");
-    fs::create_dir_all(&target_dir).expect("create target dir");
-    let link_path = work_dir.path().join("link_to_dir");
-    std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
-
-    let out = Command::new(bin_path())
-        .arg("--no-config")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "di=34:ln=target;1;4")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    // Must contain exact escape \x1b[1;4;34m
-    assert!(
-        stdout.contains("\x1b[1;4;34m"),
-        "Expected LEZ_COLORS='ln=target;1;4' to borrow Blue (34) with bold and underline, got: {stdout:?}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_broken_symlink_keeps_or_color_unaffected() {
-    let config_dir = TempTestDir::new("broken_symlink_unaffected_cfg");
-    let theme_path = config_dir.path().join("theme.yml");
-    let mut f = StdFile::create(&theme_path).expect("create theme.yml");
-    writeln!(
-        f,
-        "filekinds:\n  symlink:\n    foreground: target\n    is_italic: true"
-    )
-    .expect("write theme.yml");
-
-    let work_dir = TempTestDir::new("broken_symlink_unaffected_work");
-    let broken_link = work_dir.path().join("broken_orphan_link");
-    std::os::unix::fs::symlink("/nonexistent_path_target_does_not_exist", &broken_link)
-        .expect("create broken symlink");
-
-    // Test with explicit or=31 (Red) in LEZ_COLORS
-    let out = Command::new(bin_path())
-        .env("LEZ_CONFIG_DIR", config_dir.path())
-        .env_remove("EZA_CONFIG_DIR")
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "or=31")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&broken_link)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    // Broken symlink must retain or= color (31), and NOT have italic (3)
-    assert!(
-        stdout.contains("\x1b[31m"),
-        "Expected broken symlink to retain or=31 Red color, got: {stdout:?}"
-    );
-    assert!(
-        !stdout.contains("\x1b[3;") && !stdout.contains(";3m") && !stdout.contains("\x1b[3m"),
-        "Broken symlink must remain unaffected by target italic styling, but got: {stdout:?}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_theme_symlink_bare_target_string() {
-    let config_dir = TempTestDir::new("theme_bare_target_cfg");
-    let theme_path = config_dir.path().join("theme.yml");
-    let mut f = StdFile::create(&theme_path).expect("create theme.yml");
-    writeln!(
-        f,
-        "filekinds:\n  directory:\n    foreground: Blue\n    is_bold: false\n  symlink: target"
-    )
-    .expect("write theme.yml");
-
-    let work_dir = TempTestDir::new("theme_bare_target_work");
-    let target_dir = work_dir.path().join("my_target_dir");
-    fs::create_dir_all(&target_dir).expect("create target dir");
-    let link_path = work_dir.path().join("link_to_dir");
-    std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
-
-    let out = Command::new(bin_path())
-        .env("LEZ_CONFIG_DIR", config_dir.path())
-        .env_remove("EZA_CONFIG_DIR")
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("LS_COLORS")
-        .env_remove("LEZ_COLORS")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    assert!(
-        stdout.contains("\x1b[34m"),
-        "Expected symlink with 'symlink: target' to borrow Blue (34), got: {stdout:?}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_theme_symlink_target_with_ansi_string() {
-    let config_dir = TempTestDir::new("theme_ansi_target_cfg");
-    let theme_path = config_dir.path().join("theme.yml");
-    let mut f = StdFile::create(&theme_path).expect("create theme.yml");
-    writeln!(
-        f,
-        "filekinds:\n  directory:\n    foreground: Blue\n    is_bold: false\n  symlink: \"target;3\""
-    )
-    .expect("write theme.yml");
-
-    let work_dir = TempTestDir::new("theme_ansi_target_work");
-    let target_dir = work_dir.path().join("my_target_dir");
-    fs::create_dir_all(&target_dir).expect("create target dir");
-    let link_path = work_dir.path().join("link_to_dir");
-    std::os::unix::fs::symlink(&target_dir, &link_path).expect("create symlink");
-
-    let out = Command::new(bin_path())
-        .env("LEZ_CONFIG_DIR", config_dir.path())
-        .env_remove("EZA_CONFIG_DIR")
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("LS_COLORS")
-        .env_remove("LEZ_COLORS")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    assert!(
-        stdout.contains("\x1b[3;34m"),
-        "Expected symlink with 'symlink: \"target;3\"' to borrow Blue (34) and have italic (3), got: {stdout:?}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_symlink_to_file_inherits_extension_color_and_applies_style() {
-    let work_dir = TempTestDir::new("symlink_to_file_work");
-    let target_file = work_dir.path().join("lib.rs");
-    fs::write(&target_file, "// rust code\n").expect("write target file");
-    let link_path = work_dir.path().join("link_to_rs");
-    std::os::unix::fs::symlink(&target_file, &link_path).expect("create symlink");
-
-    let out = Command::new(bin_path())
-        .arg("--no-config")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "*.rs=35:ln=target;3")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    assert!(
-        stdout.contains("\x1b[3;35m"),
-        "Expected symlink to borrow Purple (35) from *.rs and apply italic (3), got: {stdout:?}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_symlink_to_executable_inherits_exec_color_and_applies_style() {
-    use std::os::unix::fs::PermissionsExt;
-    let work_dir = TempTestDir::new("symlink_to_exec_work");
-    let target_file = work_dir.path().join("script.sh");
-    fs::write(&target_file, "#!/bin/sh\n").expect("write target script");
-    fs::set_permissions(&target_file, fs::Permissions::from_mode(0o755)).expect("chmod +x");
-    let link_path = work_dir.path().join("link_to_exec");
-    std::os::unix::fs::symlink(&target_file, &link_path).expect("create symlink");
-
-    let out = Command::new(bin_path())
-        .arg("--no-config")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "ex=32:ln=target;4")
-        .env_remove("EXA_COLORS")
-        .arg("-d")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    assert!(
-        stdout.contains("\x1b[4;32m"),
-        "Expected symlink to borrow Green (32) from executable and apply underline (4), got: {stdout:?}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_multihop_symlink_inherits_target_color_and_applies_style() {
-    let work_dir = TempTestDir::new("multihop_symlink_work");
-    let target_dir = work_dir.path().join("final_target_dir");
-    fs::create_dir_all(&target_dir).expect("create target dir");
-    let link_b = work_dir.path().join("link_b");
-    std::os::unix::fs::symlink(&target_dir, &link_b).expect("create link_b");
-    let link_a = work_dir.path().join("link_a");
-    std::os::unix::fs::symlink(&link_b, &link_a).expect("create link_a");
-
-    let out = Command::new(bin_path())
-        .arg("--no-config")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "di=34:ln=target;3")
-        .env_remove("EXA_COLORS")
-        .arg("-ld")
-        .arg("--color=always")
-        .arg(&link_a)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    assert!(
-        stdout.contains("\x1b[3;34mlink_a\x1b[0m"),
-        "Expected multihop symlink link_a to borrow Blue (34) and have italic (3), got: {stdout:?}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_long_details_renders_styled_type_indicator_and_link() {
-    let work_dir = TempTestDir::new("long_details_work");
-    let target_file = work_dir.path().join("doc_data");
-    fs::write(&target_file, "text\n").expect("write target");
-    let link_path = work_dir.path().join("link_to_doc");
-    std::os::unix::fs::symlink(&target_file, &link_path).expect("create symlink");
-
-    let out = Command::new(bin_path())
-        .arg("--no-config")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "fi=33:ln=target;3")
-        .env_remove("EXA_COLORS")
-        .arg("-l")
-        .arg("--color=always")
-        .arg(&link_path)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    // Indicator "l" should borrow normal fi colour (33) and be italic (\x1b[3;33ml\x1b[0m)
-    assert!(
-        stdout.contains("\x1b[3;33ml\x1b[0m"),
-        "Expected filetype indicator 'l' to borrow normal colour and be italic in long details, got: {stdout:?}"
-    );
-    // Link name should be yellow and italic (\x1b[3;33mlink_to_doc\x1b[0m)
-    assert!(
-        stdout.contains("\x1b[3;33mlink_to_doc\x1b[0m"),
-        "Expected symlink name to be yellow (33) and italic (3), got: {stdout:?}"
-    );
-    // Target after -> should be yellow without italic (\x1b[33mdoc_data\x1b[0m)
-    assert!(
-        stdout.contains("\x1b[33mdoc_data\x1b[0m"),
-        "Expected target name to be yellow without symlink italic style, got: {stdout:?}"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_symlink_loop_cycle_falls_back_to_broken_symlink_color() {
-    let work_dir = TempTestDir::new("loop_cycle_work");
-    let link_1 = work_dir.path().join("loop_link_1");
-    let link_2 = work_dir.path().join("loop_link_2");
-    std::os::unix::fs::symlink(&link_2, &link_1).expect("create link_1");
-    std::os::unix::fs::symlink(&link_1, &link_2).expect("create link_2");
-
-    let out = Command::new(bin_path())
-        .arg("--no-config")
-        .env_remove("LS_COLORS")
-        .env("LEZ_COLORS", "or=31:ln=target;3")
-        .env_remove("EXA_COLORS")
-        .arg("-ld")
-        .arg("--color=always")
-        .arg(&link_1)
-        .output()
-        .expect("run lez");
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    // Loop cycle must not infinite-loop or panic, and should fall back to or=31
-    assert!(
-        stdout.contains("\x1b[31mloop_link_1\x1b[0m"),
-        "Expected cyclic symlink to fall back to broken symlink colour Red (31), got: {stdout:?}"
+    assert_eq!(
+        styled(
+            &dir,
+            "or=31:ln=target;3",
+            None,
+            &[
+                "-ld",
+                "--no-permissions",
+                "--no-filesize",
+                "--no-user",
+                "--no-time",
+                "loop_link_1"
+            ]
+        ),
+        "\x1b[31mloop_link_1\x1b[0m \x1b[1;90m->\x1b[0m \x1b[31mloop_link_2\x1b[0m\n"
     );
 }

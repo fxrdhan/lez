@@ -3,12 +3,16 @@
 
 # Example Configuration File for `lez`
 #
-# Global configuration discovery order:
-#   1. $LEZ_CONFIG_FILE or --config <PATH>
-#   2. $LEZ_CONFIG_DIR/{config,lez}.{toml,yaml,yml}
-#   3. $EZA_CONFIG_DIR/{config,eza}.{toml,yaml,yml}
-#   4. $XDG_CONFIG_HOME/lez/{config,lez}.{toml,yaml,yml}
-#   5. ~/.config/lez/{config,lez}.{toml,yaml,yml}
+# An explicit file is the only one read:
+#   --config <PATH>, else $LEZ_CONFIG_FILE, $EZA_CONFIG_FILE or $EXA_CONFIG_FILE
+#
+# Otherwise the first of config.toml, lez.toml, config.yaml and config.yml in
+# the configuration directory is read, which is the first of:
+#   1. $LEZ_CONFIG_DIR, else $EZA_CONFIG_DIR
+#   2. $XDG_CONFIG_HOME/lez (or .../eza if only that exists), when set
+#   3. the platform's: ~/.config/lez on Linux,
+#      ~/Library/Application Support/lez on macOS, %APPDATA%\lez on Windows
+#      (or .../eza if only that exists)
 #
 # Local (per-directory) configuration:
 #   .lez.toml, .lez.yaml, .lez.yml, .eza.toml, .eza.yaml in current working directory.
@@ -38,14 +42,19 @@
 # Show mount points / filesystem info in long mode
 # mounts = false
 
-# Show allocated filesystem blocks
+# Show the size of the allocated filesystem blocks, in bytes (`-S`)
 # blocksize = false
 
-# Calculate and show recursive directory total size (can be slow on large trees)
+# Show the number of allocated filesystem blocks (`--blocks`)
+# blocks = false
+
+# Calculate and show recursive directory total size (can be slow on large trees);
+# only the long view and size sorts use it, so other views skip the walk
 # total_size = false
 
-# Number of decimal/fraction digits for file size (e.g. 0 to 4)
-# size_digits = 1
+# Characters in a file size's number, the decimal point included, from 1 to 8
+# (default 3, as in `2.3M`; 4 gives `2.35M`)
+# size_digits = 3
 
 # Timestamp style: "default", "iso", "long-iso", "full-iso", "relative", "relative-recent", or custom strftime "+%Y-%m-%d %H:%M"
 # time_style = "default"

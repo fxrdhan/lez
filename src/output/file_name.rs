@@ -238,10 +238,12 @@ pub enum QuoteStyle {
     /// Quote every file name, space or not.
     Always,
 
-    /// Quote file names that contain a space or a quote of either kind, in
+    /// Quote file names holding anything a shell gives a meaning to (a
+    /// space, a quote, `$`, `;`, `*` and the rest GNU `ls` quotes for), in
     /// whichever form a shell reads back as the name on disk: single quotes
-    /// by default, double quotes for a name holding an apostrophe, and for a
-    /// name holding both, single quotes broken out of for each apostrophe.
+    /// by default, double quotes for a name holding an apostrophe and nothing
+    /// they would expand, and otherwise single quotes broken out of for each
+    /// apostrophe.
     #[default]
     Auto,
 
@@ -252,10 +254,10 @@ pub enum QuoteStyle {
 impl QuoteStyle {
     /// Whether the given name needs to be quoted under this style.
     #[must_use]
-    pub fn quotes_needed(self, name_has_spaces: bool) -> bool {
+    pub fn quotes_needed(self, name_needs_quotes: bool) -> bool {
         match self {
             Self::Always => true,
-            Self::Auto => name_has_spaces,
+            Self::Auto => name_needs_quotes,
             Self::Never => false,
         }
     }
@@ -361,20 +363,24 @@ impl<C: Colours> FileName<'_, '_, C> {
             _ => false,
         };
 
+        // A theme's colour for the name is the icon's too, unless the theme
+        // gives the icon one of its own.
+        let file_style = filename_style_override.unwrap_or_else(|| self.style());
+
         if let Some(spaces_count) = spaces_count_opt {
             let (style, icon) = match icon_override {
                 Some(icon_override) => (
                     if let Some(style_override) = icon_override.style {
                         style_override
                     } else {
-                        iconify_style(self.style())
+                        iconify_style(file_style)
                     },
                     icon_override.glyph.unwrap_or_else(|| {
                         icon_for_file(self.file, self.options.empty_dir_icon).to_string()
                     }),
                 ),
                 None => (
-                    iconify_style(self.style()),
+                    iconify_style(file_style),
                     icon_for_file(self.file, self.options.empty_dir_icon).to_string(),
                 ),
             };
@@ -405,7 +411,6 @@ impl<C: Colours> FileName<'_, '_, C> {
         };
 
         let display_name = self.display_name();
-        let file_style = filename_style_override.unwrap_or_else(|| self.style());
 
         self.append_path_and_name_bits(
             &mut bits,
@@ -556,8 +561,8 @@ impl<C: Colours> FileName<'_, '_, C> {
 
         let quoting = escape::Quoting::for_string(&full_path_for_quoting, quote_style);
 
-        if let Some(quote_bit) = quoting.quote_bit(self.colours.quote()) {
-            bits.push(quote_bit);
+        if let Some(opening) = quoting.opening_bit(self.colours.quote()) {
+            bits.push(opening);
         }
 
         if let Some((parent_str, is_root)) = parent_info {
@@ -606,8 +611,8 @@ impl<C: Colours> FileName<'_, '_, C> {
             }
         }
 
-        if let Some(quote_bit) = quoting.quote_bit(self.colours.quote()) {
-            bits.push(quote_bit);
+        if let Some(closing) = quoting.closing_bit(self.colours.quote()) {
+            bits.push(closing);
         }
     }
 

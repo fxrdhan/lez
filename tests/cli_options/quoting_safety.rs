@@ -17,14 +17,36 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Names a shell would mangle if they were printed bare.
-const AWKWARD_NAMES: [&str; 6] = [
+/// Names a shell would mangle if they were printed bare: quotes, spaces,
+/// every other character a shell reads, `#` and `~` where they start a
+/// word, and an apostrophe beside what double quotes would still expand.
+const AWKWARD_NAMES: [&str; 26] = [
     r#"julia's "file".txt"#,
     "it's.txt",
     r#"say"hi".txt"#,
     "plain space.txt",
     r#"both'and" spaced.txt"#,
     "plain.txt",
+    "amp&er.txt",
+    r"back\slash.txt",
+    "bang!.txt",
+    "br[ack]et.txt",
+    "caret^.txt",
+    "dollar$HOME.txt",
+    "eq=sign.txt",
+    "lt<gt>.txt",
+    "paren(s).txt",
+    "pipe|x.txt",
+    "q?.txt",
+    "semi;colon.txt",
+    "star*.txt",
+    "tick`x`.txt",
+    "#hash.txt",
+    "~tilde.txt",
+    "it's $HOME.txt",
+    "it's `x`.txt",
+    r"it's \x.txt",
+    "it's !x.txt",
 ];
 
 struct TempDir {
@@ -58,7 +80,7 @@ impl Drop for TempDir {
 }
 
 fn listing(dir: &PathBuf, args: &[&str]) -> Vec<String> {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let output = crate::common::lez_cmd()
         .current_dir(dir)
         .args(args)
         .output()
@@ -114,28 +136,75 @@ fn printed_names_survive_the_shell_under_always() {
     assert_every_name_round_trips(&["-1", "--color=never", "--quotes=always"]);
 }
 
-/// The exact form `ls` prints, so the fix is pinned to a known-good reference
-/// rather than only to "some form the shell happens to accept".
+/// The exact forms GNU `ls --quoting-style=shell` prints for the same
+/// names, so the quoting is pinned to a known-good reference rather than
+/// only to "some form the shell happens to accept". Names a shell reads as
+/// they are stay bare.
 #[test]
-fn a_name_with_both_quotes_matches_what_ls_prints() {
+fn every_name_takes_the_form_ls_prints() {
     let dir = TempDir::new("gnu_form");
-    let lines = listing(&dir.path, &["-1", "--color=never"]);
-
-    assert!(
-        lines.contains(&r#"'julia'\''s "file".txt'"#.to_owned()),
-        "expected the ls form, got {lines:?}"
-    );
+    for name in [
+        "at@x.txt",
+        "brace{x}.txt",
+        "mid#hash.txt",
+        "mid~tilde.txt",
+        "pct%x.txt",
+    ] {
+        fs::write(dir.path.join(name), b"").unwrap();
+    }
+    let mut lines = listing(&dir.path, &["-1", "--color=never"]);
+    lines.sort();
+    let mut expected: Vec<String> = [
+        r#""it's.txt""#,
+        r"'#hash.txt'",
+        r"'amp&er.txt'",
+        r"'back\slash.txt'",
+        r"'bang!.txt'",
+        r#"'both'\''and" spaced.txt'"#,
+        r"'br[ack]et.txt'",
+        r"'caret^.txt'",
+        r"'dollar$HOME.txt'",
+        r"'eq=sign.txt'",
+        r"'it'\''s !x.txt'",
+        r"'it'\''s $HOME.txt'",
+        r"'it'\''s \x.txt'",
+        r"'it'\''s `x`.txt'",
+        r#"'julia'\''s "file".txt'"#,
+        r"'lt<gt>.txt'",
+        r"'paren(s).txt'",
+        r"'pipe|x.txt'",
+        r"'plain space.txt'",
+        r"'q?.txt'",
+        r#"'say"hi".txt'"#,
+        r"'semi;colon.txt'",
+        r"'star*.txt'",
+        r"'tick`x`.txt'",
+        r"'~tilde.txt'",
+        "at@x.txt",
+        "brace{x}.txt",
+        "mid#hash.txt",
+        "mid~tilde.txt",
+        "pct%x.txt",
+        "plain.txt",
+    ]
+    .iter()
+    .map(|line| (*line).to_owned())
+    .collect();
+    expected.sort();
+    assert_eq!(lines, expected);
 }
 
 /// `--quotes=never` is an explicit request for the bare name, and stays that
-/// way — the shell cannot read it back, which is the point of the flag.
+/// way; the shell cannot read it back, which is the point of the flag.
 #[test]
 fn never_still_prints_the_bare_name() {
     let dir = TempDir::new("never");
-    let lines = listing(&dir.path, &["-1", "--color=never", "--quotes=never"]);
-
-    assert!(
-        lines.contains(&r#"julia's "file".txt"#.to_owned()),
-        "expected the unquoted name, got {lines:?}"
-    );
+    let mut lines = listing(&dir.path, &["-1", "--color=never", "--quotes=never"]);
+    lines.sort();
+    let mut names: Vec<String> = AWKWARD_NAMES
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect();
+    names.sort();
+    assert_eq!(lines, names);
 }

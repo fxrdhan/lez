@@ -75,6 +75,7 @@
 //! it’s clear what the user wants.
 
 use clap::ArgMatches;
+use clap::parser::ValueSource;
 
 use crate::fs::dir_action::DirAction;
 use crate::fs::filter::{FileFilter, GitIgnore};
@@ -192,7 +193,7 @@ impl Options {
             .or_else(|| vars.get_with_fallback(vars::EZA_STRICT, vars::EXA_STRICT))
             .is_some();
 
-        let view = View::deduce(matches, vars, strict, config)?;
+        let mut view = View::deduce(matches, vars, strict, config)?;
         let dir_action = DirAction::deduce(
             matches,
             matches!(view.mode, Mode::Details(_) | Mode::Json(_)),
@@ -200,7 +201,20 @@ impl Options {
             config,
         )?;
         let filter = FileFilter::deduce(matches, strict, vars, config)?;
-        let theme = ThemeOptions::deduce(matches, vars, config);
+
+        // A directory's total size is a walk of everything under it, so it
+        // is taken only where it shows: in a size column, or in the order a
+        // size sort gives.
+        if view.total_size && !view.mode.shows_sizes() && !filter.sort_field.compares_sizes() {
+            if strict
+                && !matches!(view.mode, Mode::Json(_) | Mode::Code(_))
+                && matches.value_source("total-size") == Some(ValueSource::CommandLine)
+            {
+                return Err(OptionsError::Useless("total-size", false, "long"));
+            }
+            view.total_size = false;
+        }
+        let theme = ThemeOptions::deduce(matches, vars, config)?;
         let stdin = FilesInput::deduce(matches, vars);
         let no_git = matches.get_flag("no-git")
             || vars
@@ -216,5 +230,85 @@ impl Options {
             stdin,
             no_git,
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::ffi::OsString;
+
+    use super::*;
+    use crate::options::file_config::FileConfig;
+    use crate::options::parser::test::mock_cli;
+    use crate::options::vars::test::MockVars;
+
+    /// Whether the deduced view takes directories' total sizes.
+    fn total_size(args: &[&str], strict: bool, config: &FileConfig) -> Result<bool, OptionsError> {
+        let vars = MockVars {
+            strict: OsString::from(if strict { "1" } else { "" }),
+            ..MockVars::default()
+        };
+        Options::deduce_with_config(&mock_cli(args.to_vec()), &vars, config)
+            .map(|options| options.view.total_size)
+    }
+
+    /// A total size is a walk of the whole directory, so it is taken only
+    /// for a size column or a size sort.
+    #[test]
+    fn total_sizes_are_taken_only_where_they_show() {
+        let none = FileConfig::default();
+        for args in [
+            &["--total-size", "-l"][..],
+            &["--total-size", "-l", "--grid"],
+            &["--total-size", "-l", "-T"],
+            &["--total-size", "--json", "-l"],
+            &["--total-size", "-s", "size"],
+            &["--total-size", "-s", "size", "-T"],
+            &["--total-size", "-s", "size", "--json"],
+            #[cfg(unix)]
+            &["--total-size", "-s", "blocksize", "-1"],
+        ] {
+            assert_eq!(total_size(args, false, &none), Ok(true), "{args:?}");
+        }
+        for args in [
+            &["--total-size"][..],
+            &["--total-size", "-1"],
+            &["--total-size", "--grid"],
+            &["--total-size", "-T"],
+            &["--total-size", "--json"],
+            &["--total-size", "-s", "name", "-1"],
+            &["--total-size", "--code"],
+            &["-l"],
+        ] {
+            assert_eq!(total_size(args, false, &none), Ok(false), "{args:?}");
+        }
+
+        let mut config = FileConfig::default();
+        config.display.total_size = Some(true);
+        assert_eq!(total_size(&["-l"], false, &config), Ok(true));
+        assert_eq!(total_size(&[], false, &config), Ok(false));
+        assert_eq!(total_size(&["-1"], false, &config), Ok(false));
+    }
+
+    /// Strict mode refuses `--total-size` where it has no effect, and takes
+    /// it beside a size sort, whose order it changes.
+    #[test]
+    fn strict_mode_takes_total_size_beside_a_size_sort() {
+        let none = FileConfig::default();
+        let useless = Err(OptionsError::Useless("total-size", false, "long"));
+        assert_eq!(total_size(&["--total-size"], true, &none), useless);
+        assert_eq!(total_size(&["--total-size", "-1"], true, &none), useless);
+        assert_eq!(total_size(&["--total-size", "-T"], true, &none), useless);
+        assert_eq!(
+            total_size(&["--total-size", "-s", "size"], true, &none),
+            Ok(true)
+        );
+        assert_eq!(total_size(&["--total-size", "-l"], true, &none), Ok(true));
+
+        // A configured total size is the user's standing choice, not a flag
+        // given for this run, so strict mode does not hold it against them.
+        let mut config = FileConfig::default();
+        config.display.total_size = Some(true);
+        assert_eq!(total_size(&["-1"], true, &config), Ok(false));
     }
 }

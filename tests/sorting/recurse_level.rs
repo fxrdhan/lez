@@ -1,395 +1,162 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! `--level` with `-R` and `-T`: how deep recursion goes, in text and JSON.
+//! The top directory counts as level 1, so `--level=1` lists only its own
+//! entries.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::{TempTestDir, lez_in, native, success_stdout};
 
-struct TempTestDir {
-    path: PathBuf,
+/// `top/{top.txt, empty/, a/{a.txt, b/{b.txt, c/{c.txt}}}}`, and `other/`
+/// beside it holding `o.txt` and `deep/d.txt`.
+fn fixture(prefix: &str) -> TempTestDir {
+    let dir = TempTestDir::new(prefix);
+    dir.create_file("top/top.txt", b"t");
+    dir.create_dir("top/empty");
+    dir.create_file("top/a/a.txt", b"a");
+    dir.create_file("top/a/b/b.txt", b"b");
+    dir.create_file("top/a/b/c/c.txt", b"c");
+    dir.create_file("other/o.txt", b"o");
+    dir.create_file("other/deep/d.txt", b"d");
+    dir
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_recurse_level_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
+fn lez(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(dir.path()).args(args))
+}
 
-    fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
+#[test]
+fn recursion_stops_at_the_level_given() {
+    let dir = fixture("text");
+    let top_only = "a\nempty\ntop.txt\n";
+    let two = native("a\nempty\ntop.txt\n\ntop/a:\na.txt\nb\n\ntop/empty:\n");
+    let three =
+        native("a\nempty\ntop.txt\n\ntop/a:\na.txt\nb\n\ntop/a/b:\nb.txt\nc\n\ntop/empty:\n");
+    let all = native(
+        "a\nempty\ntop.txt\n\ntop/a:\na.txt\nb\n\ntop/a/b:\nb.txt\nc\n\ntop/a/b/c:\nc.txt\n\ntop/empty:\n",
+    );
+
+    // Level 0 is taken as 1.
+    assert_eq!(lez(&dir, &["-1", "-R", "--level=0", "top"]), top_only);
+    assert_eq!(lez(&dir, &["-1", "-R", "--level=1", "top"]), top_only);
+    assert_eq!(lez(&dir, &["-1", "-R", "--level=2", "top"]), two);
+    assert_eq!(lez(&dir, &["-1", "-R", "--level=3", "top"]), three);
+    assert_eq!(lez(&dir, &["-1", "-R", "--level=4", "top"]), all);
+    assert_eq!(lez(&dir, &["-1", "-R", "top"]), all);
+
+    // An absolute path recurses the same way, with absolute headers.
+    let absolute = dir.path().join("top").canonicalize().expect("canonicalize");
+    let absolute = absolute.to_str().expect("UTF-8 path");
+    assert_eq!(
+        lez(&dir, &["-1", "-R", "--level=2", absolute]),
+        format!(
+            "a\nempty\ntop.txt\n\n{}:\na.txt\nb\n\n{}:\n",
+            std::path::Path::new(absolute).join("a").display(),
+            std::path::Path::new(absolute).join("empty").display()
+        )
+    );
+}
+
+/// Each directory named gets its own section, and its own depth budget.
+#[test]
+fn each_argument_is_limited_on_its_own() {
+    let dir = fixture("arguments");
+    assert_eq!(
+        lez(&dir, &["-1", "-R", "--level=1", "top", "other"]),
+        "other:\ndeep\no.txt\n\ntop:\na\nempty\ntop.txt\n"
+    );
+    assert_eq!(
+        lez(&dir, &["-1", "-R", "--level=2", "other", "top"]),
+        native(
+            "other:\ndeep\no.txt\n\nother/deep:\nd.txt\n\n\
+             top:\na\nempty\ntop.txt\n\ntop/a:\na.txt\nb\n\ntop/empty:\n"
+        )
+    );
+}
+
+fn json(dir: &TempTestDir, args: &[&str]) -> serde_json::Value {
+    serde_json::from_str(&lez(dir, args)).expect("valid JSON")
+}
+
+/// Below the cut a directory is a name among the files. `-R` then leaves
+/// out the `directories` key, where `-T` writes it empty.
+#[test]
+fn json_nests_directories_down_to_the_level() {
+    let dir = fixture("json");
+    let full = serde_json::json!({"top": {
+        "files": ["top.txt"],
+        "directories": {
+            "a": {"files": ["a.txt"], "directories": {
+                "b": {"files": ["b.txt"], "directories": {
+                    "c": {"files": ["c.txt"], "directories": {}}
+                }}
+            }},
+            "empty": {"files": [], "directories": {}}
         }
-        let mut file = StdFile::create(&file_path).unwrap();
-        file.write_all(content).unwrap();
-        file_path
-    }
+    }});
+    assert_eq!(json(&dir, &["--json", "-R", "top"]), full);
+    assert_eq!(json(&dir, &["--json", "--tree", "top"]), full);
 
-    fn create_dir(&self, rel_path: &str) -> PathBuf {
-        let dir_path = self.path.join(rel_path);
-        fs::create_dir_all(&dir_path).unwrap();
-        dir_path
-    }
+    assert_eq!(
+        json(&dir, &["--json", "-R", "--level=1", "top"]),
+        serde_json::json!({"top": {"files": ["a", "empty", "top.txt"]}})
+    );
+    assert_eq!(
+        json(&dir, &["--json", "-R", "--level=2", "top"]),
+        serde_json::json!({"top": {
+            "files": ["top.txt"],
+            "directories": {
+                "a": {"files": ["a.txt", "b"]},
+                "empty": {"files": []}
+            }
+        }})
+    );
+    assert_eq!(
+        json(&dir, &["--json", "--tree", "--level=1", "top"]),
+        serde_json::json!({"top": {"files": ["a", "empty", "top.txt"], "directories": {}}})
+    );
+    assert_eq!(
+        json(&dir, &["--json", "--tree", "--level=2", "top"]),
+        serde_json::json!({"top": {
+            "files": ["top.txt"],
+            "directories": {
+                "a": {"files": ["a.txt", "b"], "directories": {}},
+                "empty": {"files": [], "directories": {}}
+            }
+        }})
+    );
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn run_lez(args: &[&str]) -> std::process::Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    Command::new(bin_path)
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
+/// `-f` keeps descending into directories while listing only files; `-D`
+/// lists no files, but a directory at the cut is still named.
 #[test]
-fn test_recurse_level_1_with_explicit_relative_path() {
-    let fixture = TempTestDir::new("level1_rel");
-    fixture.create_file("root/level1/file_l1.txt", b"level 1");
-    fixture.create_file("root/level1/sub_l2/file_l2.txt", b"level 2");
-    fixture.create_file("root/level1/sub_l2/sub_l3/file_l3.txt", b"level 3");
-
-    let target_dir = fixture.path.join("root/level1");
-    let output = run_lez(&[
-        "-R",
-        "--level=1",
-        "--color=never",
-        target_dir.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Should list immediate children of level1
-    assert!(stdout.contains("file_l1.txt"), "Should contain file_l1.txt");
-    assert!(stdout.contains("sub_l2"), "Should contain sub_l2");
-
-    // Should NOT descend into sub_l2
-    assert!(
-        !stdout.contains("file_l2.txt"),
-        "Should not contain file_l2.txt at level 1"
+fn json_trees_filter_files_and_directories() {
+    let dir = fixture("json_filters");
+    let tree = |files: &[&str], a: &[&str], b: &[&str], c: &[&str]| {
+        serde_json::json!({"top": {
+            "files": files,
+            "directories": {
+                "a": {"files": a, "directories": {
+                    "b": {"files": b, "directories": {
+                        "c": {"files": c, "directories": {}}
+                    }}
+                }},
+                "empty": {"files": [], "directories": {}}
+            }
+        }})
+    };
+    assert_eq!(
+        json(&dir, &["--json", "--tree", "-f", "top"]),
+        tree(&["top.txt"], &["a.txt"], &["b.txt"], &["c.txt"])
     );
-    assert!(
-        !stdout.contains("sub_l3"),
-        "Should not contain sub_l3 at level 1"
+    assert_eq!(
+        json(&dir, &["--json", "--tree", "-D", "top"]),
+        tree(&[], &[], &[], &[])
     );
-}
-
-#[test]
-fn test_recurse_level_2_with_explicit_relative_path() {
-    let fixture = TempTestDir::new("level2_rel");
-    fixture.create_file("base/a/file_a.txt", b"a");
-    fixture.create_file("base/a/child1/file_child1.txt", b"c1");
-    fixture.create_file("base/a/child1/grandchild/file_gc.txt", b"gc");
-    fixture.create_file("base/a/child2/file_child2.txt", b"c2");
-
-    let target_dir = fixture.path.join("base/a");
-    let output = run_lez(&[
-        "-R",
-        "--level=2",
-        "--color=never",
-        target_dir.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Root entries
-    assert!(stdout.contains("file_a.txt"));
-    assert!(stdout.contains("child1"));
-    assert!(stdout.contains("child2"));
-
-    // Level 2 subdirectories (child1, child2)
-    assert!(stdout.contains("file_child1.txt"));
-    assert!(stdout.contains("file_child2.txt"));
-    assert!(stdout.contains("grandchild"));
-
-    // Should NOT descend into grandchild (level 3)
-    assert!(
-        !stdout.contains("file_gc.txt"),
-        "Should not contain grandchild file at level 2"
+    assert_eq!(
+        json(&dir, &["--json", "--tree", "-D", "-L", "1", "top"]),
+        serde_json::json!({"top": {"files": ["a", "empty"], "directories": {}}})
     );
-}
-
-#[test]
-fn test_recurse_level_3_with_explicit_relative_path() {
-    let fixture = TempTestDir::new("level3_rel");
-    fixture.create_file("root/l1/f1.txt", b"1");
-    fixture.create_file("root/l1/l2/f2.txt", b"2");
-    fixture.create_file("root/l1/l2/l3/f3.txt", b"3");
-    fixture.create_file("root/l1/l2/l3/l4/f4.txt", b"4");
-
-    let target_dir = fixture.path.join("root/l1");
-    let output = run_lez(&[
-        "-R",
-        "--level=3",
-        "--color=never",
-        target_dir.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("f1.txt"));
-    assert!(stdout.contains("f2.txt"));
-    assert!(stdout.contains("f3.txt"));
-    assert!(
-        !stdout.contains("f4.txt"),
-        "Should not descend to level 4 when --level=3"
-    );
-}
-
-/// Whether `name` is listed as an entry in its own right.
-///
-/// `stdout.contains(name)` is not the same question. Recursion prints a
-/// header line carrying the absolute path of each subdirectory, so a fixture
-/// living under ".../deeply/..." makes `contains("y")` true whether or not the
-/// directory `y` was ever listed.
-fn has_entry(stdout: &str, name: &str) -> bool {
-    stdout.lines().any(|line| line.trim() == name)
-}
-
-#[test]
-fn test_recurse_level_with_explicit_absolute_path() {
-    let fixture = TempTestDir::new("level_abs");
-    fixture.create_file("deeply/nested/directory/structure/x/f_x.txt", b"x");
-    fixture.create_file("deeply/nested/directory/structure/x/y/f_y.txt", b"y");
-    fixture.create_file("deeply/nested/directory/structure/x/y/z/f_z.txt", b"z");
-
-    let target_dir = fixture
-        .path
-        .join("deeply/nested/directory/structure/x")
-        .canonicalize()
-        .expect("canonicalize failed");
-
-    // Level 1 with absolute path
-    let output_l1 = run_lez(&[
-        "-R",
-        "--level=1",
-        "--color=never",
-        target_dir.to_str().unwrap(),
-    ]);
-    assert!(output_l1.status.success());
-    let stdout_l1 = String::from_utf8_lossy(&output_l1.stdout);
-    assert!(has_entry(&stdout_l1, "f_x.txt"), "level 1:\n{stdout_l1}");
-    assert!(has_entry(&stdout_l1, "y"), "level 1:\n{stdout_l1}");
-    assert!(!stdout_l1.contains("f_y.txt"), "level 1:\n{stdout_l1}");
-
-    // Level 2 with absolute path
-    let output_l2 = run_lez(&[
-        "-R",
-        "--level=2",
-        "--color=never",
-        target_dir.to_str().unwrap(),
-    ]);
-    assert!(output_l2.status.success());
-    let stdout_l2 = String::from_utf8_lossy(&output_l2.stdout);
-    assert!(has_entry(&stdout_l2, "f_x.txt"), "level 2:\n{stdout_l2}");
-    assert!(has_entry(&stdout_l2, "y"), "level 2:\n{stdout_l2}");
-    assert!(has_entry(&stdout_l2, "f_y.txt"), "level 2:\n{stdout_l2}");
-    assert!(has_entry(&stdout_l2, "z"), "level 2:\n{stdout_l2}");
-    assert!(
-        !stdout_l2.contains("f_z.txt"),
-        "Level 2 should not recurse into z"
-    );
-}
-
-#[test]
-fn test_recurse_level_multi_directory_arguments() {
-    let fixture = TempTestDir::new("multi_dir");
-    fixture.create_file("dir_alpha/file_a.txt", b"a");
-    fixture.create_file("dir_alpha/sub_a/file_sub_a.txt", b"sa");
-    fixture.create_file("dir_alpha/sub_a/deep_a/file_deep_a.txt", b"da");
-
-    fixture.create_file("dir_beta/file_b.txt", b"b");
-    fixture.create_file("dir_beta/sub_b/file_sub_b.txt", b"sb");
-    fixture.create_file("dir_beta/sub_b/deep_b/file_deep_b.txt", b"db");
-
-    let dir_alpha = fixture.path.join("dir_alpha");
-    let dir_beta = fixture.path.join("dir_beta");
-
-    let output = run_lez(&[
-        "-R",
-        "--level=2",
-        "--color=never",
-        dir_alpha.to_str().unwrap(),
-        dir_beta.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Both directories should be processed up to level 2
-    assert!(stdout.contains("file_a.txt"));
-    assert!(stdout.contains("file_sub_a.txt"));
-    assert!(
-        !stdout.contains("file_deep_a.txt"),
-        "dir_alpha should stop at level 2"
-    );
-
-    assert!(stdout.contains("file_b.txt"));
-    assert!(stdout.contains("file_sub_b.txt"));
-    assert!(
-        !stdout.contains("file_deep_b.txt"),
-        "dir_beta should stop at level 2"
-    );
-}
-
-#[test]
-fn test_recurse_level_zero() {
-    let fixture = TempTestDir::new("level0");
-    fixture.create_file("root/top.txt", b"top");
-    fixture.create_file("root/child/sub.txt", b"sub");
-
-    let target_dir = fixture.path.join("root");
-    let output = run_lez(&[
-        "-R",
-        "--level=0",
-        "--color=never",
-        target_dir.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("top.txt"));
-    assert!(stdout.contains("child"));
-    assert!(
-        !stdout.contains("sub.txt"),
-        "Level 0 should not descend into child"
-    );
-}
-
-#[test]
-fn test_recurse_level_json_mode() {
-    let fixture = TempTestDir::new("level_json");
-    fixture.create_file("jsontest/file1.txt", b"1");
-    fixture.create_file("jsontest/sub1/file2.txt", b"2");
-    fixture.create_file("jsontest/sub1/sub2/file3.txt", b"3");
-
-    let target_dir = fixture.path.join("jsontest");
-
-    // Level 1 JSON
-    let output_l1 = run_lez(&["--json", "-R", "--level=1", target_dir.to_str().unwrap()]);
-    assert!(output_l1.status.success());
-    let stdout_l1 = String::from_utf8_lossy(&output_l1.stdout);
-    let parsed_l1: serde_json::Value =
-        serde_json::from_str(&stdout_l1).expect("Valid JSON for level 1");
-    assert!(parsed_l1.get("jsontest").is_some());
-    let jsontest_obj = &parsed_l1["jsontest"];
-    assert!(jsontest_obj.get("files").is_some());
-    // Should NOT have nested directories at level 1
-    assert!(
-        jsontest_obj.get("directories").is_none(),
-        "Level 1 JSON should not contain nested directories"
-    );
-
-    // Level 2 JSON
-    let output_l2 = run_lez(&["--json", "-R", "--level=2", target_dir.to_str().unwrap()]);
-    assert!(output_l2.status.success());
-    let stdout_l2 = String::from_utf8_lossy(&output_l2.stdout);
-    let parsed_l2: serde_json::Value =
-        serde_json::from_str(&stdout_l2).expect("Valid JSON for level 2");
-    let jsontest_obj2 = &parsed_l2["jsontest"];
-    assert!(jsontest_obj2.get("directories").is_some());
-    let sub1_obj = &jsontest_obj2["directories"]["sub1"];
-    assert!(sub1_obj.get("files").is_some());
-    assert!(
-        sub1_obj.get("directories").is_none(),
-        "Level 2 JSON should not contain sub2 directories"
-    );
-}
-
-#[test]
-fn test_tree_json_mode() {
-    let fixture = TempTestDir::new("tree_json");
-    fixture.create_file("treetest/file1.txt", b"1");
-    fixture.create_file("treetest/sub1/file2.txt", b"2");
-    fixture.create_file("treetest/sub1/sub2/file3.txt", b"3");
-
-    let target_dir = fixture.path.join("treetest");
-
-    // Full tree JSON without --level
-    let output = run_lez(&["--tree", "--json", target_dir.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: serde_json::Value =
-        serde_json::from_str(&stdout).expect("Valid JSON for --tree --json");
-    let treetest_obj = &parsed["treetest"];
-    assert!(treetest_obj.get("files").is_some());
-    assert!(treetest_obj.get("directories").is_some());
-    let sub1_obj = &treetest_obj["directories"]["sub1"];
-    assert!(sub1_obj.get("files").is_some());
-    assert!(sub1_obj.get("directories").is_some());
-    let sub2_obj = &sub1_obj["directories"]["sub2"];
-    assert!(sub2_obj.get("files").is_some());
-
-    // Tree with --level=2
-    let output_l2 = run_lez(&[
-        "--tree",
-        "--level=2",
-        "--json",
-        target_dir.to_str().unwrap(),
-    ]);
-    assert!(output_l2.status.success());
-    let stdout_l2 = String::from_utf8_lossy(&output_l2.stdout);
-    let parsed_l2: serde_json::Value =
-        serde_json::from_str(&stdout_l2).expect("Valid JSON for --tree --level=2 --json");
-    let treetest_obj2 = &parsed_l2["treetest"];
-    assert!(treetest_obj2.get("directories").is_some());
-    let sub1_obj2 = &treetest_obj2["directories"]["sub1"];
-    assert!(sub1_obj2.get("files").is_some());
-    assert!(
-        sub1_obj2
-            .get("directories")
-            .is_some_and(|d| d.as_object().unwrap().is_empty()),
-        "Level 2 tree JSON should contain empty sub1 directories object"
-    );
-    let sub1_files = sub1_obj2["files"].as_array().unwrap();
-    assert!(
-        sub1_files.contains(&serde_json::json!("sub2")),
-        "sub1 files must contain directory sub2 at cutoff level"
-    );
-}
-
-#[test]
-fn test_recurse_level_with_empty_directories() {
-    let fixture = TempTestDir::new("empty_dirs");
-    fixture.create_dir("parent/empty_child1");
-    fixture.create_dir("parent/empty_child2/deep_child");
-    fixture.create_file("parent/regular.txt", b"reg");
-
-    let target_dir = fixture.path.join("parent");
-    let output = run_lez(&[
-        "-R",
-        "--level=1",
-        "--color=never",
-        target_dir.to_str().unwrap(),
-    ]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("empty_child1"));
-    assert!(stdout.contains("empty_child2"));
-    assert!(stdout.contains("regular.txt"));
-    assert!(!stdout.contains("deep_child"));
 }
 
 #[test]
@@ -420,122 +187,4 @@ fn test_recurse_options_is_too_deep_unit() {
     assert!(!level_2.is_too_deep(1));
     assert!(level_2.is_too_deep(2));
     assert!(level_2.is_too_deep(3));
-}
-
-#[test]
-fn test_tree_json_mode_duplicate_prevention_and_type_filters() {
-    let fixture = TempTestDir::new("tree_json_filters");
-    fixture.create_file("root/alpha.txt", b"alpha");
-    fixture.create_file("root/child/beta.txt", b"beta");
-    fixture.create_file("root/child/nested/gamma.txt", b"gamma");
-
-    let target = fixture.path.join("root");
-
-    // 1. Normal tree JSON: files should not contain child directory names
-    let out_normal = run_lez(&["--tree", "--json", target.to_str().unwrap()]);
-    assert!(out_normal.status.success());
-    let parsed_normal: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&out_normal.stdout)).unwrap();
-    let root_obj = &parsed_normal["root"];
-    let root_files: Vec<&str> = root_obj["files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| v.as_str().unwrap())
-        .collect();
-    assert_eq!(root_files, vec!["alpha.txt"]);
-    assert!(root_obj["directories"].get("child").is_some());
-
-    let child_obj = &root_obj["directories"]["child"];
-    let child_files: Vec<&str> = child_obj["files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| v.as_str().unwrap())
-        .collect();
-    assert_eq!(child_files, vec!["beta.txt"]);
-    assert!(child_obj["directories"].get("nested").is_some());
-
-    // 2. Only files (-f): directories are traversed but never listed in "files"
-    let out_files = run_lez(&["--tree", "--json", "-f", target.to_str().unwrap()]);
-    assert!(out_files.status.success());
-    let parsed_files: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&out_files.stdout)).unwrap();
-    let rf_obj = &parsed_files["root"];
-    let rf_files: Vec<&str> = rf_obj["files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| v.as_str().unwrap())
-        .collect();
-    assert_eq!(rf_files, vec!["alpha.txt"]);
-    let rf_child = &rf_obj["directories"]["child"];
-    let rf_child_files: Vec<&str> = rf_child["files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| v.as_str().unwrap())
-        .collect();
-    assert_eq!(rf_child_files, vec!["beta.txt"]);
-
-    // 3. Only dirs (-D): files are empty, directories are listed
-    let out_dirs = run_lez(&["--tree", "--json", "-D", target.to_str().unwrap()]);
-    assert!(out_dirs.status.success());
-    let parsed_dirs: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&out_dirs.stdout)).unwrap();
-    let rd_obj = &parsed_dirs["root"];
-    assert!(rd_obj["files"].as_array().unwrap().is_empty());
-    assert!(rd_obj["directories"].get("child").is_some());
-    let rd_child = &rd_obj["directories"]["child"];
-    assert!(rd_child["files"].as_array().unwrap().is_empty());
-    assert!(rd_child["directories"].get("nested").is_some());
-
-    // 4. Max depth limit (-L 1): directories key is retained as empty object, and child directory is preserved in files array
-    let out_l1 = run_lez(&["--tree", "-L", "1", "--json", target.to_str().unwrap()]);
-    assert!(out_l1.status.success());
-    let parsed_l1: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&out_l1.stdout)).unwrap();
-    let rl1_obj = &parsed_l1["root"];
-    assert!(
-        rl1_obj["directories"].as_object().unwrap().is_empty(),
-        "At depth limit, directories must be an empty object, not omitted"
-    );
-    let rl1_files: Vec<&str> = rl1_obj["files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| v.as_str().unwrap())
-        .collect();
-    assert!(
-        rl1_files.contains(&"child"),
-        "At depth cutoff, child directory must be retained in files array: {rl1_files:?}"
-    );
-    assert!(
-        rl1_files.contains(&"alpha.txt"),
-        "At depth cutoff, regular files must be retained in files array: {rl1_files:?}"
-    );
-
-    // 5. Max depth limit with -D (-L 1 -D): child directory retained in files array, not dropped
-    let out_l1_d = run_lez(&[
-        "--tree",
-        "-L",
-        "1",
-        "-D",
-        "--json",
-        target.to_str().unwrap(),
-    ]);
-    assert!(out_l1_d.status.success());
-    let parsed_l1_d: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&out_l1_d.stdout)).unwrap();
-    let rl1_d_files: Vec<&str> = parsed_l1_d["root"]["files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| v.as_str().unwrap())
-        .collect();
-    assert_eq!(
-        rl1_d_files,
-        vec!["child"],
-        "With -D at depth cutoff, child directory must be present in files array"
-    );
 }

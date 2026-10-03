@@ -24,6 +24,8 @@ You can use the `dircolors` program to generate a script that sets the variable 
 
 The key half of the pair can either be a two-letter code or a file glob, and anything that’s not a valid code will be treated as a glob, including keys that happen to be two letters long.
 
+A regular file matching a glob takes the glob’s colour ahead of `ca`, `ex` and `mh`, so lez never has to ask the filesystem for its mode or capabilities. GNU `ls` puts those three first: there `*.sh=33:ex=32` paints an executable script green, here yellow. To colour executables by permission, leave their extensions out of the globs.
+
 For backwards compatibility `EZA_COLORS` and `EXA_COLORS` environment variables are checked if `LEZ_COLORS` is unset.
 
 
@@ -73,7 +75,7 @@ LIST OF CODES
 : character devices
 
 `ln`
-: symlinks (`ln=target` borrows the target file's colour, and can be combined with style attributes like `ln=target;3` for italic)
+: symlinks (`ln=target` borrows the target file's colour, and can be combined with style attributes like `ln=target;3` for italic; the `l` in the long view has no target to borrow from and keeps only those attributes)
 
 `or`
 : symlinks with no target
@@ -87,7 +89,7 @@ LIST OF CODES
 `mh`
 : regular files with more than one hard link
 
-Note: `ca` is unset by default, and only when it is set does lez ask the filesystem whether a file has capabilities — one extra syscall per file. GNU `ls` stopped colouring these by default in coreutils 8.31 for the same reason. The attribute is Linux's alone; the code is accepted and ignored elsewhere.
+Note: `ca` is unset by default, and only when it is set does lez ask the filesystem whether a file has capabilities — one extra syscall per file. As in GNU `ls`, an empty, `0` or `00` value for `ca`, `mh` or `mi` leaves it unset, so `ca=00`, which `dircolors` writes by default, costs nothing and a missing path under `mi=00` keeps the `or` colour. GNU `ls` stopped colouring these by default in coreutils 8.31 for the same reason. The attribute is Linux's alone; the code is accepted and ignored elsewhere.
 
 Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are coloured like any other file until it is given a style. It applies to regular files only — directories are linked from each of their subdirectories, so colouring those would light up almost everything. Unix only.
 

@@ -28,15 +28,19 @@ fi
 
 touch tests/cmd/"$test_name".toml
 
-echo 'bin.name = "lez"' >> tests/cmd/"$test_name".toml
-echo 'args = "'"$*"'"' >> tests/cmd/"$test_name".toml
+{
+    echo 'bin.name = "lez"'
+    echo 'args = "'"$*"'"'
+    echo 'env.inherit = false'
+} >> tests/cmd/"$test_name".toml
 
 # Generate expected output
 
 binary="${CARGO_TARGET_DIR:-target}/debug/lez"
 
 if [ -f "$binary" ]; then
-    "$binary" "$@" > tests/cmd/"$test_name".stdout 2> tests/cmd/"$test_name".stderr
+    # The case runs with `env.inherit = false`, so record it the same way.
+    env -i LEZ_CONFIG_DIR=/nonexistent-lez-config "$binary" "$@" > tests/cmd/"$test_name".stdout 2> tests/cmd/"$test_name".stderr
     returncode=$?
     if [ $returncode -ne 0 ]; then
         echo -e 'status.code = '$returncode'' >> tests/cmd/"$test_name".toml

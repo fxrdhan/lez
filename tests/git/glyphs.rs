@@ -1,440 +1,192 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! `--git-glyphs` swaps each letter of the Git column for a Nerd Font glyph,
+//! and a theme can name a glyph of its own for any status. Each status is
+//! pinned in both forms, side by side, so a glyph that went missing or one
+//! printed next to the letter it replaces both fail.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::{GIT_COLUMN_ONLY, TempGitRepo, TempTestDir, lez_in, success_stdout};
 
-struct TempGitRepo {
-    path: PathBuf,
-}
+const NEW: char = '\u{f457}';
+const MODIFIED: char = '\u{f459}';
+const DELETED: char = '\u{f458}';
+const TYPE_CHANGE: char = '\u{f471}';
+const IGNORED: char = '\u{f474}';
+const CONFLICTED: char = '\u{f47f}';
 
-impl TempGitRepo {
-    fn new(prefix: &str) -> Option<Self> {
-        if !git_available() {
-            return None;
-        }
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_glyphs_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp repo root");
-
-        let repo = Self { path };
-        if !repo.git(&["init", "-q"]) {
-            return None;
-        }
-        repo.git(&["config", "user.name", "Test User"]);
-        repo.git(&["config", "user.email", "test@example.com"]);
-        Some(repo)
+/// One repository holding every status lez can show. A deleted file is not
+/// listed, so deletions show through the directory that held it, and a type
+/// change through a file replaced by a symlink.
+fn every_status() -> TempGitRepo {
+    let repo = TempGitRepo::new("glyphs");
+    repo.create_file(".gitignore", b"ignored.txt\n");
+    for file in [
+        "clean.txt",
+        "modified.txt",
+        "both.txt",
+        "removed/gone.txt",
+        "removed/kept.txt",
+        "staged_removal/gone.txt",
+        "staged_removal/kept.txt",
+        "retyped/file.txt",
+    ] {
+        repo.create_file(file, b"v1\n");
     }
+    repo.git(&["add", "."]);
+    repo.git(&["commit", "-q", "-m", "base"]);
 
-    fn write_file(&self, rel: &str, content: &[u8]) -> PathBuf {
-        let p = self.path.join(rel);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut f = StdFile::create(&p).unwrap();
-        f.write_all(content).unwrap();
-        p
-    }
-
-    fn git(&self, args: &[&str]) -> bool {
-        let output = Command::new("git")
-            .args(
-                [
-                    "-c",
-                    "user.name=Test User",
-                    "-c",
-                    "user.email=test@example.com",
-                ]
-                .iter()
-                .chain(args.iter()),
-            )
-            .current_dir(&self.path)
-            .env("GIT_CONFIG_GLOBAL", "/dev/null")
-            .env("GIT_CONFIG_SYSTEM", "/dev/null")
-            .output()
-            .expect("Failed to spawn git");
-        output.status.success()
-    }
+    repo.create_file("modified.txt", b"v2\n");
+    repo.create_file("both.txt", b"v2\n");
+    repo.git(&["add", "both.txt"]);
+    repo.create_file("both.txt", b"v3\n");
+    repo.create_file("staged.txt", b"new\n");
+    repo.git(&["add", "staged.txt"]);
+    repo.create_file("untracked.txt", b"new\n");
+    repo.create_file("ignored.txt", b"secret\n");
+    std::fs::remove_file(repo.path().join("removed/gone.txt")).expect("remove");
+    repo.git(&["rm", "-q", "staged_removal/gone.txt"]);
+    std::fs::remove_file(repo.path().join("retyped/file.txt")).expect("remove");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("../clean.txt", repo.path().join("retyped/file.txt"))
+        .expect("symlink");
+    repo
 }
 
-impl Drop for TempGitRepo {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn git_available() -> bool {
-    Command::new("git")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success())
-}
-
-fn run_lez(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    Command::new(bin_path)
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
-// ----------------------------------------------------------------------------
-// Git Status Glyphs / Visual Formatting Tests
-// ----------------------------------------------------------------------------
-
-#[test]
-fn test_git_glyphs_flag_accepted() {
-    let Some(repo) = TempGitRepo::new("glyphs_flag") else {
-        return;
-    };
-    repo.write_file("file.txt", b"content\n");
-
-    let output = run_lez(&[
-        "-l",
-        "--git",
-        "--git-glyphs",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(
-        output.status.success(),
-        "--git-glyphs flag must be accepted by CLI parser: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+fn rows(dir: &std::path::Path, args: &[&str]) -> String {
+    success_stdout(lez_in(dir).args(GIT_COLUMN_ONLY).args(args))
 }
 
 #[test]
-fn test_git_glyphs_replaces_ascii_status_modified() {
-    let Some(repo) = TempGitRepo::new("glyphs_mod") else {
-        return;
-    };
-    let f_mod = repo.write_file("mod.txt", b"v1\n");
-    assert!(repo.git(&["add", "mod.txt"]));
-    assert!(repo.git(&["commit", "-q", "-m", "init"]));
+#[cfg(unix)]
+fn every_status_has_a_letter_and_a_glyph() {
+    let repo = every_status();
 
-    fs::write(&f_mod, b"v2\n").unwrap();
-
-    let output = run_lez(&[
-        "-l",
-        "--git",
-        "--git-glyphs",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let mod_line = stdout
-        .lines()
-        .find(|l| l.contains("mod.txt"))
-        .expect("mod.txt in output");
-    // The glyph has to be there, and the ASCII form it replaces has to be
-    // gone. Accepting "or the ASCII form is absent" made this unfalsifiable:
-    // with glyphs the column reads "-", which contains no "-M", so the
-    // assertion held even if no glyph had been rendered at all.
-    assert!(
-        mod_line.contains('\u{f459}'),
-        "modified file with --git-glyphs must render the modified glyph: {mod_line}"
+    assert_eq!(
+        rows(repo.path(), &[]),
+        "MM both.txt\n\
+         -- clean.txt\n\
+         -I ignored.txt\n\
+         -M modified.txt\n\
+         -D removed\n\
+         -T retyped\n\
+         N- staged.txt\n\
+         D- staged_removal\n\
+         -N untracked.txt\n"
     );
-    assert!(
-        !mod_line.contains("-M"),
-        "--git-glyphs must replace the ASCII status, not sit beside it: {mod_line}"
+    assert_eq!(
+        rows(repo.path(), &["--git-glyphs"]),
+        format!(
+            "{MODIFIED}{MODIFIED} both.txt\n\
+             -- clean.txt\n\
+             -{IGNORED} ignored.txt\n\
+             -{MODIFIED} modified.txt\n\
+             -{DELETED} removed\n\
+             -{TYPE_CHANGE} retyped\n\
+             {NEW}- staged.txt\n\
+             {DELETED}- staged_removal\n\
+             -{NEW} untracked.txt\n"
+        )
+    );
+    assert_eq!(
+        rows(&repo.path().join("retyped"), &["--git-glyphs"]),
+        format!("-{TYPE_CHANGE} file.txt -> ../clean.txt\n")
     );
 }
 
+/// The glyphs replace the letters in every view that has a Git column.
 #[test]
-fn test_git_glyphs_untracked_and_added() {
-    let Some(repo) = TempGitRepo::new("glyphs_untracked") else {
-        return;
-    };
-    repo.write_file("untracked.txt", b"new\n");
-    repo.write_file("staged.txt", b"staged\n");
-    assert!(repo.git(&["add", "staged.txt"]));
+fn glyphs_are_used_in_the_tree_grid_and_icon_views() {
+    let repo = TempGitRepo::new("glyph_views");
+    repo.create_file("sub/file.txt", b"x");
 
-    let output = run_lez(&[
-        "-l",
-        "--git",
-        "--git-glyphs",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let staged_line = stdout
-        .lines()
-        .find(|l| l.contains("staged.txt"))
-        .expect("staged.txt in output");
-    let untracked_line = stdout
-        .lines()
-        .find(|l| l.contains("untracked.txt"))
-        .expect("untracked.txt in output");
-
-    assert!(
-        staged_line.contains('\u{f457}'),
-        "staged new file with --git-glyphs must render the added glyph: {staged_line}"
+    assert_eq!(
+        rows(repo.path(), &["--git-glyphs", "-T", "sub"]),
+        format!("-{NEW} sub\n-{NEW} └── file.txt\n")
     );
-    assert!(
-        !staged_line.contains("N-"),
-        "--git-glyphs must replace the ASCII status, not sit beside it: {staged_line}"
+    assert_eq!(
+        rows(repo.path(), &["--git-glyphs", "-G", "--width=60", "sub"]),
+        format!("-{NEW} file.txt\n")
     );
-    assert!(
-        untracked_line.contains('\u{f457}') || untracked_line.contains('\u{f47f}'),
-        "untracked file with --git-glyphs must render a glyph: {untracked_line}"
-    );
-    assert!(
-        !untracked_line.contains("-N"),
-        "--git-glyphs must replace the ASCII status, not sit beside it: {untracked_line}"
+    assert_eq!(
+        rows(repo.path(), &["--git-glyphs", "--icons=always", "sub"]),
+        format!("-{NEW} \u{f15c} file.txt\n")
     );
 }
 
+/// The repository column of `--git-repos` has no glyph form.
 #[test]
-fn test_default_without_git_glyphs_is_ascii() {
-    let Some(repo) = TempGitRepo::new("ascii_default") else {
-        return;
+fn glyphs_leave_the_repository_column_alone() {
+    let repo = TempGitRepo::named("glyph_repos", "repo");
+    repo.create_file("committed.txt", b"x");
+    repo.git(&["add", "."]);
+    repo.git(&["commit", "-q", "-m", "base"]);
+    repo.create_file("untracked.txt", b"x");
+    let listing = |extra: &[&str]| {
+        success_stdout(
+            lez_in(repo.parent())
+                .args(GIT_COLUMN_ONLY)
+                .arg("--git-repos")
+                .args(extra),
+        )
     };
-    let f_mod = repo.write_file("mod.txt", b"v1\n");
-    assert!(repo.git(&["add", "mod.txt"]));
-    assert!(repo.git(&["commit", "-q", "-m", "init"]));
-    fs::write(&f_mod, b"v2\n").unwrap();
 
-    let output = run_lez(&["-l", "--git", "--color=never", repo.path.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(listing(&[]), "+ main repo\n");
+    assert_eq!(listing(&["--git-glyphs"]), "+ main repo\n");
+}
 
-    let mod_line = stdout
-        .lines()
-        .find(|l| l.contains("mod.txt"))
-        .expect("mod.txt in output");
-    assert!(
-        mod_line.contains("-M") || mod_line.contains(" M"),
-        "Default without --git-glyphs must use standard ASCII indicator: {mod_line}"
+#[test]
+fn a_conflict_has_a_glyph_too() {
+    let repo = TempGitRepo::new("glyph_conflict");
+    repo.create_file("conflict.txt", b"base\n");
+    repo.git(&["add", "."]);
+    repo.git(&["commit", "-q", "-m", "base"]);
+    repo.git(&["checkout", "-q", "-b", "theirs"]);
+    repo.create_file("conflict.txt", b"theirs\n");
+    repo.git(&["commit", "-q", "-a", "-m", "theirs"]);
+    repo.git(&["checkout", "-q", "main"]);
+    repo.create_file("conflict.txt", b"ours\n");
+    repo.git(&["commit", "-q", "-a", "-m", "ours"]);
+    assert_eq!(
+        repo.git_allow_failure(&["merge", "-q", "theirs"])
+            .status
+            .code(),
+        Some(1)
+    );
+
+    assert_eq!(
+        rows(repo.path(), &["--git-glyphs"]),
+        format!("-{CONFLICTED} conflict.txt\n")
     );
 }
 
+/// A glyph named in `theme.yml` is used whether or not `--git-glyphs` is
+/// given; statuses the theme leaves out keep their letter or default glyph.
 #[test]
-fn test_git_glyphs_with_icons() {
-    let Some(repo) = TempGitRepo::new("glyphs_icons") else {
-        return;
-    };
-    repo.write_file("script.py", b"print(1)\n");
-
-    let output = run_lez(&[
-        "-l",
-        "--git",
-        "--git-glyphs",
-        "--icons=always",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("script.py"));
-}
-
-#[test]
-fn test_git_glyphs_deleted_and_renamed() {
-    let Some(repo) = TempGitRepo::new("glyphs_del_ren") else {
-        return;
-    };
-    let f1 = repo.write_file("deleted.txt", b"to be deleted\n");
-    let f2 = repo.write_file("old.txt", b"to be renamed\n");
-    assert!(repo.git(&["add", "."]));
-    assert!(repo.git(&["commit", "-q", "-m", "init"]));
-
-    fs::remove_file(&f1).unwrap();
-    fs::rename(&f2, repo.path.join("new.txt")).unwrap();
-
-    let output = run_lez(&[
-        "-l",
-        "--git",
-        "--git-glyphs",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Deleted file icon: \u{f458} or Renamed file icon: \u{f45a} or Untracked new.txt: \u{f457}
-    assert!(stdout.contains("new.txt"));
-}
-
-#[test]
-fn test_git_glyphs_ignored_and_clean() {
-    let Some(repo) = TempGitRepo::new("glyphs_ign_clean") else {
-        return;
-    };
-    repo.write_file(".gitignore", b"ignored.txt\n");
-    repo.write_file("ignored.txt", b"secret\n");
-    repo.write_file("clean.txt", b"clean content\n");
-    assert!(repo.git(&["add", ".gitignore", "clean.txt"]));
-    assert!(repo.git(&["commit", "-q", "-m", "init"]));
-
-    let output = run_lez(&[
-        "-l",
-        "-a",
-        "--git",
-        "--git-glyphs",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let clean_line = stdout
-        .lines()
-        .find(|l| l.contains("clean.txt"))
-        .expect("clean.txt in output");
-    // Clean file has status --
-    assert!(
-        clean_line.contains("--"),
-        "Clean file should show -- status: {clean_line}"
+#[cfg(unix)]
+fn a_theme_glyph_replaces_the_letter_and_the_default_glyph() {
+    let repo = every_status();
+    let config = TempTestDir::new("glyph_theme");
+    config.create_file(
+        "theme.yml",
+        b"git:\n  new:\n    glyph: \"+\"\n  modified:\n    glyph: \"*\"\n",
     );
+    let themed = |extra: &[&str]| {
+        success_stdout(
+            lez_in(repo.path())
+                .env("LEZ_CONFIG_DIR", config.path())
+                .args(GIT_COLUMN_ONLY)
+                .args(["staged.txt", "untracked.txt", "modified.txt", "ignored.txt"])
+                .args(extra),
+        )
+    };
 
-    let ignored_line = stdout
-        .lines()
-        .find(|l| l.contains("ignored.txt"))
-        .expect("ignored.txt in output");
-    // Ignored file with glyph: \u{f474} or 
-    assert!(
-        ignored_line.contains('\u{f474}'),
-        "ignored file with --git-glyphs must render the ignored glyph: {ignored_line}"
+    assert_eq!(
+        themed(&[]),
+        "-I ignored.txt\n-* modified.txt\n+- staged.txt\n-+ untracked.txt\n"
     );
-    assert!(
-        !ignored_line.contains("-I"),
-        "--git-glyphs must replace the ASCII status, not sit beside it: {ignored_line}"
-    );
-}
-
-#[test]
-fn test_git_glyphs_with_git_repos() {
-    let Some(repo) = TempGitRepo::new("glyphs_repos") else {
-        return;
-    };
-    repo.write_file("file.txt", b"file\n");
-
-    let output = run_lez(&[
-        "-l",
-        "--git",
-        "--git-repos",
-        "--git-glyphs",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("file.txt"));
-}
-
-#[test]
-fn test_git_glyphs_in_tree_view() {
-    let Some(repo) = TempGitRepo::new("glyphs_tree") else {
-        return;
-    };
-    repo.write_file("sub/file.txt", b"content\n");
-
-    let output = run_lez(&[
-        "-l",
-        "--tree",
-        "--git",
-        "--git-glyphs",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("file.txt"));
-}
-
-#[test]
-fn test_git_glyphs_in_grid_details() {
-    let Some(repo) = TempGitRepo::new("glyphs_grid_details") else {
-        return;
-    };
-    repo.write_file("f1.txt", b"content1\n");
-    repo.write_file("f2.txt", b"content2\n");
-
-    let output = run_lez(&[
-        "-l",
-        "-G",
-        "--git",
-        "--git-glyphs",
-        "--color=never",
-        repo.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("f1.txt") && stdout.contains("f2.txt"));
-}
-
-#[test]
-fn test_custom_git_glyphs_from_theme_yaml() {
-    let Some(repo) = TempGitRepo::new("custom_glyphs_theme") else {
-        return;
-    };
-
-    // Create untracked file
-    repo.write_file("new_file.txt", b"new content\n");
-
-    // Create and commit a file, then modify it
-    repo.write_file("modified_file.txt", b"initial\n");
-    assert!(repo.git(&["add", "modified_file.txt"]));
-    assert!(repo.git(&["commit", "-m", "initial commit"]));
-    repo.write_file("modified_file.txt", b"changed\n");
-
-    // Create a theme config directory
-    let config_dir = repo.path.join(".lez_config");
-    fs::create_dir_all(&config_dir).unwrap();
-    let theme_file = config_dir.join("theme.yml");
-    fs::write(
-        &theme_file,
-        r#"
-git:
-  new:
-    glyph: "✚"
-  modified:
-    glyph: "●"
-"#,
-    )
-    .unwrap();
-
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    let output = Command::new(bin_path)
-        .args(["-l", "--git", "--color=never", repo.path.to_str().unwrap()])
-        .env("LEZ_CONFIG_DIR", &config_dir)
-        .output()
-        .expect("Failed to execute lez binary");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let new_line = stdout
-        .lines()
-        .find(|l| l.contains("new_file.txt"))
-        .expect("new_file.txt in output");
-    assert!(
-        new_line.contains("✚"),
-        "Custom new glyph ✚ should be displayed for new file: {new_line}"
-    );
-
-    let mod_line = stdout
-        .lines()
-        .find(|l| l.contains("modified_file.txt"))
-        .expect("modified_file.txt in output");
-    assert!(
-        mod_line.contains("●"),
-        "Custom modified glyph ● should be displayed for modified file: {mod_line}"
+    assert_eq!(
+        themed(&["--git-glyphs"]),
+        format!("-{IGNORED} ignored.txt\n-* modified.txt\n+- staged.txt\n-+ untracked.txt\n")
     );
 }

@@ -20,25 +20,6 @@ fn get_zsh_compat_completion_path() -> PathBuf {
     get_repo_root().join("completions").join("zsh").join("_eza")
 }
 
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
-#[test]
-fn test_zsh_completion_file_exists() {
-    let path = get_zsh_completion_path();
-    assert!(
-        path.exists(),
-        "Zsh completion file must exist at completions/zsh/_lez"
-    );
-
-    let compat = get_zsh_compat_completion_path();
-    assert!(
-        compat.exists(),
-        "Zsh compatibility completion must exist at completions/zsh/_eza"
-    );
-}
-
 /// Two files installed into the same site-functions directory must not both
 /// claim `eza`, or which one zsh loads comes down to order.
 #[test]
@@ -93,50 +74,40 @@ fn test_zsh_completion_classify_with_equals_and_when_values() {
     );
 }
 
+/// `zsh -n` parses both files without running them. zsh is the default
+/// shell on macOS and CI installs it on Linux, so there it is required;
+/// anywhere else without it the check is skipped, saying so. It used to
+/// pass without a word wherever `which zsh` found nothing.
 #[test]
-fn test_zsh_completion_syntax_check() {
-    let path = get_zsh_completion_path();
-    let which_zsh = Command::new("which").arg("zsh").output();
-
-    if let Ok(which_out) = which_zsh
-        && which_out.status.success()
-    {
+fn zsh_parses_both_completion_files() {
+    let available = Command::new("zsh")
+        .args(["-c", "true"])
+        .output()
+        .is_ok_and(|output| output.status.success());
+    if !available {
+        let required = cfg!(target_os = "macos")
+            || (cfg!(target_os = "linux")
+                && std::env::var_os("CI").is_some()
+                && std::env::var_os("NIX_BUILD_TOP").is_none());
+        assert!(
+            !required,
+            "zsh is needed here to check the completion files"
+        );
+        eprintln!("skipped: no zsh on this machine");
+        return;
+    }
+    for path in [get_zsh_completion_path(), get_zsh_compat_completion_path()] {
         let output = Command::new("zsh")
             .arg("-n")
             .arg(&path)
             .output()
-            .expect("Failed to execute zsh syntax check");
-
+            .expect("run zsh -n");
+        assert_eq!(output.status.code(), Some(0), "{}", path.display());
         assert!(
-            output.status.success(),
-            "zsh -n syntax check failed for {}:\nstdout: {}\nstderr: {}",
+            output.stderr.is_empty(),
+            "{}: {}",
             path.display(),
-            String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
     }
-}
-
-#[test]
-fn test_cli_f_flag_and_classify_option_parity() {
-    // Verify that the CLI itself accepts -F with no args
-    let output_short = Command::new(bin_path())
-        .arg("-F")
-        .output()
-        .expect("Failed to run lez -F");
-    assert!(output_short.status.success());
-
-    // Verify that the CLI accepts --classify=always
-    let output_long = Command::new(bin_path())
-        .arg("--classify=always")
-        .output()
-        .expect("Failed to run lez --classify=always");
-    assert!(output_long.status.success());
-
-    // Verify that the CLI accepts --classify=never
-    let output_never = Command::new(bin_path())
-        .arg("--classify=never")
-        .output()
-        .expect("Failed to run lez --classify=never");
-    assert!(output_never.status.success());
 }

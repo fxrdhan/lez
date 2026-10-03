@@ -723,6 +723,18 @@ pub enum SortCase {
 }
 
 impl SortField {
+    /// Whether the order depends on how big each file is, which for a
+    /// directory is its total size when `--total-size` is given.
+    #[must_use]
+    pub fn compares_sizes(self) -> bool {
+        match self {
+            Self::Size => true,
+            #[cfg(unix)]
+            Self::BlockSize => true,
+            _ => false,
+        }
+    }
+
     /// Compares two files to determine the order they should be listed in,
     /// falling back to standard `natord` natural sorting when no locale collator is present.
     pub fn compare_files(self, a: &File<'_>, b: &File<'_>) -> Ordering {

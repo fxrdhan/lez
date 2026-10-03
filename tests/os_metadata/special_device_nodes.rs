@@ -1,258 +1,211 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Invariants and behavior for Special Device Nodes:
-//! - Unix Character Devices (/dev/null, /dev/zero, /dev/urandom) major/minor number formatting in -l, --bytes, and --json.
-//! - Unix Domain Sockets: Unprivileged creation via UnixListener::bind, asserting on -l (type s), -F (=), --json ("type": "socket"), and so styling.
-//! - Named Pipes / FIFOs: Unprivileged creation via libc::mkfifo, asserting on -l (type p), -F (|), --json ("type": "pipe"), and pi styling.
-//! - Non-blocking I/O safety: lez must never block or hang when traversing directories containing active/idle FIFOs or sockets.
+//! Character devices, sockets and FIFOs: their type character, the
+//! `major,minor` pair in place of a size, their `-F` indicators and their
+//! JSON form. Listing a FIFO must not open it, or lez would block on it.
 
 #![cfg(unix)]
 
-use std::fs::{self, File as StdFile};
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixListener;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::Path;
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
+use crate::common::{TempTestDir, lez_cmd, lez_in, success_stdout};
+
+/// The device numbers of `/dev/null` and `/dev/zero`, which each kernel
+/// fixes; spelled out rather than computed the way lez computes them.
+#[cfg(target_os = "linux")]
+const DEVICES: [(&str, &str); 2] = [("/dev/null", "1,3"), ("/dev/zero", "1,5")];
+#[cfg(target_os = "macos")]
+const DEVICES: [(&str, &str); 2] = [("/dev/null", "3,2"), ("/dev/zero", "3,3")];
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn a_character_device_shows_its_major_and_minor_numbers() {
+    let [(null, null_numbers), (zero, zero_numbers)] = DEVICES;
+
+    assert_eq!(
+        success_stdout(lez_cmd().args(["-l", "--no-user", "--no-time", null, zero])),
+        format!("crw-rw-rw- {null_numbers} {null}\ncrw-rw-rw- {zero_numbers} {zero}\n")
+    );
+    // `-B` asks for bytes, which a device does not have.
+    assert_eq!(
+        success_stdout(lez_cmd().args(["-lB", "--no-user", "--no-time", null])),
+        format!("crw-rw-rw- {null_numbers} {null}\n")
+    );
+
+    let json: serde_json::Value = serde_json::from_str(&success_stdout(lez_cmd().args([
+        "--json",
+        "-l",
+        "--no-user",
+        "--no-time",
+        null,
+    ])))
+    .expect("valid JSON");
+    assert_eq!(
+        json,
+        serde_json::json!({"null": {"Permissions": "crw-rw-rw-", "Size": null_numbers}})
+    );
 }
 
-struct SpecialNodeTestDir {
-    path: PathBuf,
+/// A directory with a FIFO, a listening socket and a regular file, modes
+/// pinned.
+struct SpecialNodes {
+    dir: TempTestDir,
+    _listener: UnixListener,
 }
 
-impl SpecialNodeTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_special_nodes_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create special node temp dir");
-        Self { path }
+impl SpecialNodes {
+    fn new() -> Self {
+        let dir = TempTestDir::under_tmp();
+        let path = dir.path();
+
+        let fifo =
+            std::ffi::CString::new(path.join("data_stream.pipe").to_str().expect("UTF-8 path"))
+                .expect("no NUL in path");
+        // SAFETY: a valid NUL-terminated path.
+        assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o644) }, 0, "mkfifo");
+        let listener = UnixListener::bind(path.join("test_service.sock")).expect("bind a socket");
+        fs::write(path.join("regular.txt"), b"content").expect("write a file");
+
+        for (name, mode) in [
+            ("data_stream.pipe", 0o644),
+            ("test_service.sock", 0o755),
+            ("regular.txt", 0o644),
+        ] {
+            fs::set_permissions(path.join(name), fs::Permissions::from_mode(mode)).expect("chmod");
+        }
+        Self {
+            dir,
+            _listener: listener,
+        }
     }
 
-    fn create_fifo(&self, name: &str) -> Option<PathBuf> {
-        use std::ffi::CString;
-        use std::os::unix::ffi::OsStrExt;
-
-        let p = self.path.join(name);
-        let c_path = CString::new(p.as_os_str().as_bytes()).ok()?;
-
-        // SAFETY: Calling libc::mkfifo with 0o644 permissions
-        let ret = unsafe { libc::mkfifo(c_path.as_ptr(), 0o644) };
-        if ret == 0 { Some(p) } else { None }
-    }
-
-    fn create_socket(&self, name: &str) -> Option<(PathBuf, UnixListener)> {
-        let p = self.path.join(name);
-        let listener = UnixListener::bind(&p).ok()?;
-        Some((p, listener))
+    fn path(&self) -> &Path {
+        self.dir.path()
     }
 }
 
-impl Drop for SpecialNodeTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
+/// The type characters are `|` for a FIFO and `s` for a socket; neither
+/// has a size. Getting here at all means the FIFO was not opened.
+#[test]
+fn sockets_and_fifos_have_a_type_character_and_no_size() {
+    let nodes = SpecialNodes::new();
+
+    assert_eq!(
+        success_stdout(lez_in(nodes.path()).args(["-l", "--no-user", "--no-time"])),
+        "|rw-r--r-- - data_stream.pipe\n\
+         .rw-r--r-- 7 regular.txt\n\
+         srwxr-xr-x - test_service.sock\n"
+    );
+
+    let json: serde_json::Value =
+        serde_json::from_str(&success_stdout(lez_in(nodes.path()).args([
+            "--json",
+            "-l",
+            "--no-user",
+            "--no-time",
+        ])))
+        .expect("valid JSON");
+    assert_eq!(
+        json,
+        serde_json::json!({
+            "data_stream.pipe": {"Permissions": "|rw-r--r--"},
+            "regular.txt": {"Permissions": ".rw-r--r--", "Size": "7"},
+            "test_service.sock": {"Permissions": "srwxr-xr-x"},
+        })
+    );
 }
 
 #[test]
-fn test_char_device_major_minor_numbers_in_long_view() {
-    let dev_null = Path::new("/dev/null");
-    if !dev_null.exists() {
-        eprintln!("Skipping: /dev/null does not exist on this platform");
+fn classify_marks_a_fifo_with_a_bar_and_a_socket_with_an_equals_sign() {
+    let nodes = SpecialNodes::new();
+    assert_eq!(
+        success_stdout(lez_in(nodes.path()).args(["-1", "-F=always"])),
+        "data_stream.pipe|\nregular.txt\ntest_service.sock=\n"
+    );
+    // Named on the command line, they are classified the same way.
+    assert_eq!(
+        success_stdout(lez_in(nodes.path()).args([
+            "-1",
+            "-F=always",
+            "test_service.sock",
+            "data_stream.pipe"
+        ])),
+        "data_stream.pipe|\ntest_service.sock=\n"
+    );
+}
+
+/// The `pi` and `so` colours, and the type character painted to match.
+#[test]
+fn fifos_and_sockets_take_their_own_colours() {
+    let nodes = SpecialNodes::new();
+    let listing = success_stdout(lez_in(nodes.path()).args([
+        "-l",
+        "--no-permissions",
+        "--no-filesize",
+        "--no-user",
+        "--no-time",
+        "--color=always",
+    ]));
+    assert_eq!(
+        listing,
+        "\u{1b}[33mdata_stream.pipe\u{1b}[0m\n\
+         \u{1b}[32mregular.txt\u{1b}[0m\n\
+         \u{1b}[1;31mtest_service.sock\u{1b}[0m\n"
+    );
+
+    let themed = success_stdout(lez_in(nodes.path()).env("LS_COLORS", "pi=35:so=36").args([
+        "-1",
+        "--color=always",
+        "data_stream.pipe",
+        "test_service.sock",
+    ]));
+    assert_eq!(
+        themed,
+        "\u{1b}[35mdata_stream.pipe\u{1b}[0m\n\u{1b}[36mtest_service.sock\u{1b}[0m\n"
+    );
+}
+
+/// Every entry of the live `/dev` (devices, terminals, links into `/proc`,
+/// whatever the machine has) is listed, and the long view renders each of
+/// them without an error. Entries can come and go while the test runs, so
+/// the listing is compared with `read_dir` before and after it, and taken
+/// again if those two disagree.
+#[test]
+fn every_entry_of_the_live_dev_is_listed() {
+    let snapshot = || -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir("/dev")
+            .expect("read /dev")
+            .map(|entry| {
+                entry
+                    .expect("a /dev entry")
+                    .file_name()
+                    .into_string()
+                    .expect("a UTF-8 name")
+            })
+            .collect();
+        names.sort();
+        names
+    };
+
+    for _ in 0..5 {
+        let before = snapshot();
+        let mut listed: Vec<String> =
+            success_stdout(lez_cmd().args(["-1", "-a", "--quotes=never", "/dev"]))
+                .lines()
+                .map(str::to_owned)
+                .collect();
+        let long = success_stdout(lez_cmd().args(["-la", "/dev"]));
+        if snapshot() != before {
+            continue;
+        }
+        listed.sort();
+        assert_eq!(listed, before);
+        assert_eq!(long.lines().count(), before.len(), "{long}");
         return;
     }
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--color=never")
-        .arg("/dev/null")
-        .output()
-        .expect("Failed to run lez -l /dev/null");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // /dev/null should have character device type 'c' in permissions column: crw-rw-rw-
-    assert!(
-        stdout.starts_with('c') || stdout.contains("crw-"),
-        "Character device /dev/null must have 'c' as its type character, got: {stdout}"
-    );
-
-    // Major and minor numbers must be present, separated by comma
-    assert!(
-        stdout.contains(','),
-        "Character device must display major and minor numbers separated by comma, got: {stdout}"
-    );
-    assert!(stdout.contains("null"));
-}
-
-#[test]
-fn test_char_device_major_minor_in_json_mode() {
-    let dev_zero = Path::new("/dev/zero");
-    if !dev_zero.exists() {
-        eprintln!("Skipping: /dev/zero does not exist on this platform");
-        return;
-    }
-
-    let output = Command::new(bin_path())
-        .arg("--json")
-        .arg("-l")
-        .arg("/dev/zero")
-        .output()
-        .expect("Failed to run lez --json -l /dev/zero");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("zero"));
-    assert!(stdout.contains("custom") || stdout.contains("size") || stdout.contains(','));
-}
-
-#[test]
-fn test_unix_domain_socket_creation_and_classification() {
-    let dir = SpecialNodeTestDir::new("socket_test");
-    let sock_res = dir.create_socket("test_service.sock");
-    if sock_res.is_none() {
-        eprintln!("Skipping: unable to bind UnixListener in temp directory");
-        return;
-    }
-    let (sock_path, _listener) = sock_res.unwrap();
-
-    // 1. Long view -l: type character must be 's' (socket)
-    let output_long = Command::new(bin_path())
-        .arg("-l")
-        .arg("--color=never")
-        .arg(&sock_path)
-        .output()
-        .expect("Failed to run lez -l on socket");
-
-    assert!(output_long.status.success());
-    let stdout_long = String::from_utf8_lossy(&output_long.stdout);
-    assert!(
-        stdout_long.starts_with('s') || stdout_long.contains("srw"),
-        "Socket permissions column must start with 's', got: {stdout_long}"
-    );
-    assert!(stdout_long.contains("test_service.sock"));
-
-    // 2. Classification flag -F=always / --classify=always: must append '=' to socket names
-    let output_classify = Command::new(bin_path())
-        .arg("-F=always")
-        .arg(&sock_path)
-        .output()
-        .expect("Failed to run lez -F=always on socket");
-
-    assert!(output_classify.status.success());
-    let stdout_classify = String::from_utf8_lossy(&output_classify.stdout);
-    assert!(
-        stdout_classify.contains("test_service.sock="),
-        "Classify mode must append '=' indicator to Unix domain socket, got: {stdout_classify}"
-    );
-
-    // 3. JSON mode: must not hang and must list socket name
-    let output_json = Command::new(bin_path())
-        .arg("--json")
-        .arg(&sock_path)
-        .output()
-        .expect("Failed to run lez --json on socket");
-
-    assert!(output_json.status.success());
-    let stdout_json = String::from_utf8_lossy(&output_json.stdout);
-    assert!(stdout_json.contains("test_service.sock"));
-}
-
-#[test]
-fn test_named_pipe_fifo_creation_and_classification() {
-    let dir = SpecialNodeTestDir::new("fifo_test");
-    let fifo_res = dir.create_fifo("data_stream.pipe");
-    if fifo_res.is_none() {
-        eprintln!("Skipping: mkfifo not supported on this filesystem");
-        return;
-    }
-    let fifo_path = fifo_res.unwrap();
-
-    // 1. Long view -l: type character must be 'p' or '|' (pipe)
-    let output_long = Command::new(bin_path())
-        .arg("-l")
-        .arg("--color=never")
-        .arg(&fifo_path)
-        .output()
-        .expect("Failed to run lez -l on fifo");
-
-    assert!(output_long.status.success());
-    let stdout_long = String::from_utf8_lossy(&output_long.stdout);
-    assert!(
-        stdout_long.starts_with('|')
-            || stdout_long.starts_with('p')
-            || stdout_long.contains("|rw")
-            || stdout_long.contains("prw"),
-        "FIFO permissions column must start with '|' or 'p', got: {stdout_long}"
-    );
-    assert!(stdout_long.contains("data_stream.pipe"));
-
-    // 2. Classification flag -F=always / --classify=always: must append '|' to FIFO names
-    let output_classify = Command::new(bin_path())
-        .arg("-F=always")
-        .arg(&fifo_path)
-        .output()
-        .expect("Failed to run lez -F=always on fifo");
-
-    assert!(output_classify.status.success());
-    let stdout_classify = String::from_utf8_lossy(&output_classify.stdout);
-    assert!(
-        stdout_classify.contains("data_stream.pipe|"),
-        "Classify mode must append '|' indicator to FIFO named pipe, got: {stdout_classify}"
-    );
-
-    // 3. JSON mode: must not hang and must list pipe name
-    let output_json = Command::new(bin_path())
-        .arg("--json")
-        .arg(&fifo_path)
-        .output()
-        .expect("Failed to run lez --json on fifo");
-
-    assert!(output_json.status.success());
-    let stdout_json = String::from_utf8_lossy(&output_json.stdout);
-    assert!(stdout_json.contains("data_stream.pipe"));
-}
-
-#[test]
-fn test_mixed_special_nodes_directory_listing_does_not_block() {
-    let dir = SpecialNodeTestDir::new("mixed_special");
-    let _ = dir.create_fifo("input.fifo");
-    let sock_res = dir.create_socket("control.sock");
-    let regular = dir.path.join("regular.txt");
-    let mut f = StdFile::create(&regular).unwrap();
-    std::io::Write::write_all(&mut f, b"content").unwrap();
-    drop(f);
-
-    // Run recursive, long, classified, colored listing across the directory
-    let output = Command::new(bin_path())
-        .arg("-la")
-        .arg("-F")
-        .arg("--color=always")
-        .arg(&dir.path)
-        .output()
-        .expect("Failed to run lez on mixed special directory");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("regular.txt"));
-    assert!(stdout.contains("input.fifo"));
-    if sock_res.is_some() {
-        assert!(stdout.contains("control.sock"));
-    }
+    panic!("/dev kept changing while it was being listed");
 }

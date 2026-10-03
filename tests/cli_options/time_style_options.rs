@@ -121,15 +121,15 @@ fn test_systemtime_to_naivedatetime_far_past_dates() {
     assert_eq!(dt_1901.and_utc().timestamp(), -2_147_483_648);
     assert_eq!(dt_1901.year(), 1901);
 
-    // Year 1800 (~170 years before 1970 = ~5,364,792,000s)
-    let st_1800 = UNIX_EPOCH - Duration::from_secs(5_364_792_000);
-    let dt_1800 = File::systemtime_to_naivedatetime(st_1800).expect("1800 date");
-    assert!(dt_1800.year() <= 1800);
+    // 62092.5 days before the epoch, across the 1800 non-leap year.
+    let st_1799 = UNIX_EPOCH - Duration::from_secs(5_364_792_000);
+    let dt_1799 = File::systemtime_to_naivedatetime(st_1799).expect("1799 date");
+    assert_eq!(dt_1799.to_string(), "1799-12-30 12:00:00");
 
-    // Year 1600 (leap year)
+    // 135140 days before the epoch, across the 1600 leap year.
     let st_1600 = UNIX_EPOCH - Duration::from_secs(11_676_096_000);
     let dt_1600 = File::systemtime_to_naivedatetime(st_1600).expect("1600 date");
-    assert!(dt_1600.year() <= 1600);
+    assert_eq!(dt_1600.to_string(), "1600-01-01 00:00:00");
 }
 
 #[test]
@@ -155,54 +155,92 @@ fn test_pre_epoch_leap_year_dates() {
 // TIME STYLE ERROR & NON-UTF-8 VALIDATION
 // =========================================================================
 
+/// A value that is not UTF-8 is refused like any other invalid value, and
+/// the message ends its line. It used to stop short of a newline, so the
+/// shell's prompt followed it on the same line.
 #[cfg(unix)]
 #[test]
 fn test_non_utf8_time_style_returns_invalid_utf8_error() {
     use std::os::unix::ffi::OsStringExt;
 
+    let value = OsString::from_vec(b"\xff\xfe".to_vec());
     let args = vec![
         OsString::from("lez"),
         OsString::from("--time-style"),
-        OsString::from_vec(b"\xff\xfe".to_vec()),
+        value.clone(),
     ];
+    let error = get_command()
+        .try_get_matches_from(args)
+        .expect_err("not UTF-8");
+    assert_eq!(error.kind(), clap::error::ErrorKind::InvalidUtf8);
 
-    let result = get_command().try_get_matches_from(args);
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert_eq!(err.kind(), clap::error::ErrorKind::InvalidUtf8);
-    let err_str = err.to_string();
-    assert!(
-        err_str.contains("not valid UTF-8"),
-        "Error message should mention UTF-8: {err_str}"
+    let output = crate::common::lez_cmd()
+        .arg("--time-style")
+        .arg(value)
+        .output()
+        .expect("run lez");
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "error: invalid value '\u{fffd}\u{fffd}' for '--time-style <STYLE>': not valid UTF-8\n\n\
+         For more information, try '--help'.\n"
     );
 }
 
 #[test]
 fn test_invalid_time_style_string_returns_invalid_value_error() {
+    const NEEDS_A_PLUS: &str = "Please start the format with a plus sign (+) to indicate a \
+                                custom format.\nFor example: \"+%Y-%m-%d %H:%M:%S\"";
+    let bad_days = |days: &str| {
+        format!(
+            "Invalid days duration for relative-recent: '{days}'. Please specify a valid \
+             integer for days (e.g. 'relative-recent:7')."
+        )
+    };
     let invalid_styles = [
-        "not_a_valid_style",
-        "FULL-ISO",
-        "iso-long",
-        "%Y-%m-%d", // Missing leading '+'
-        "+",        // Empty custom format
-        "relative-recent:abc",
-        "relative-recent:-5",
-        "relative-recent:",
+        ("not_a_valid_style", NEEDS_A_PLUS.to_owned()),
+        ("FULL-ISO", NEEDS_A_PLUS.to_owned()),
+        ("iso-long", NEEDS_A_PLUS.to_owned()),
+        // Missing leading '+'
+        ("%Y-%m-%d", NEEDS_A_PLUS.to_owned()),
+        (
+            "+",
+            "Custom timestamp format is empty, please supply a chrono format string after \
+             the +."
+                .to_owned(),
+        ),
+        ("relative-recent:abc", bad_days("abc")),
+        ("relative-recent:-5", bad_days("-5")),
+        ("relative-recent:", bad_days("")),
     ];
 
-    for style in invalid_styles {
-        let args = ["lez", "--time-style", style];
-        let result = get_command().try_get_matches_from(args);
-        assert!(
-            result.is_err(),
-            "Expected --time-style '{style}' to be rejected"
-        );
-        let err = result.unwrap_err();
+    for (style, reason) in invalid_styles {
+        let error = get_command()
+            .try_get_matches_from(["lez", "--time-style", style])
+            .expect_err(style);
         assert_eq!(
-            err.kind(),
+            error.kind(),
             clap::error::ErrorKind::InvalidValue,
-            "Expected InvalidValue for '{style}', got: {:?}",
-            err.kind()
+            "{style}"
+        );
+
+        let output = crate::common::lez_cmd()
+            .args(["--time-style", style])
+            .output()
+            .expect("run lez");
+        assert_eq!(output.status.code(), Some(3), "{style}");
+        assert!(output.stdout.is_empty(), "{style}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stderr),
+            format!(
+                "error: invalid value '{style}' for '--time-style <STYLE>'\n  \
+                 [possible values: default, iso, long-iso, full-iso, relative, \
+                 relative-recent, +<CUSTOM_FORMAT>]\n\n\
+                 {reason}\n\n\
+                 For more information, try '--help'.\n"
+            ),
+            "{style}"
         );
     }
 }
@@ -236,10 +274,8 @@ fn test_valid_time_styles_pass() {
 
 #[test]
 fn test_time_style_cli_process_exit_code() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-
     // Invalid format string -> Clap error with exit code 3 (OPTIONS_ERROR)
-    let output_invalid = Command::new(bin_path)
+    let output_invalid = crate::common::lez_cmd()
         .args(["--time-style", "bogus_time_style"])
         .output()
         .expect("Failed to execute lez binary");
@@ -249,20 +285,81 @@ fn test_time_style_cli_process_exit_code() {
         Some(3),
         "Expected exit code 3 for invalid --time-style"
     );
-    let stderr = String::from_utf8_lossy(&output_invalid.stderr);
-    assert!(stderr.contains("error:"));
+    assert!(output_invalid.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output_invalid.stderr),
+        "error: invalid value 'bogus_time_style' for '--time-style <STYLE>'\n  \
+         [possible values: default, iso, long-iso, full-iso, relative, relative-recent, \
+         +<CUSTOM_FORMAT>]\n\n\
+         Please start the format with a plus sign (+) to indicate a custom format.\n\
+         For example: \"+%Y-%m-%d %H:%M:%S\"\n\n\
+         For more information, try '--help'.\n"
+    );
 }
 
+/// `TIME_STYLE` is read as GNU `ls` reads it: `locale` is the default
+/// format, and `posix-STYLE` is STYLE unless the time locale is POSIX's
+/// (the harness sets `LANG=C`). A value that is no time style is an option
+/// error for the long view, which reads it; it used to be passed over.
 #[test]
-fn test_time_style_env_var_fallback() {
-    let vars_invalid = MockVars::new().with_var("TIME_STYLE", "invalid_env_style");
-    let matches = parse_cli_args(&["-l"]);
-    let opts = Options::deduce(&matches, &vars_invalid).unwrap();
-    match opts.view.mode {
-        Mode::Details(details_opts) => {
-            let table = details_opts.table.expect("Table options present for -l");
-            assert_eq!(table.time_format, TimeFormat::DefaultFormat);
+fn test_time_style_env_var_is_read_as_ls_reads_it() {
+    let dir = crate::common::TempTestDir::new("time_style_env");
+    let file = dir.create_file("f.txt", b"x");
+    // 2001-10-02 21:43 UTC.
+    std::fs::File::options()
+        .write(true)
+        .open(&file)
+        .and_then(|f| f.set_modified(UNIX_EPOCH + Duration::from_secs(1_002_058_980)))
+        .expect("set the modified time");
+    let row = |envs: &[(&str, &str)]| {
+        let mut cmd = crate::common::lez_in(dir.path());
+        cmd.env("TZ", "UTC");
+        for (key, value) in envs {
+            cmd.env(key, value);
         }
-        other => panic!("Expected Details mode for -l, got: {other:?}"),
+        cmd.args([
+            "-l",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "f.txt",
+        ])
+        .output()
+        .expect("run lez")
+    };
+    let text = |bytes: Vec<u8>| String::from_utf8(bytes).expect("UTF-8");
+
+    for (envs, date) in [
+        (&[][..], " 2 Oct  2001"),
+        (&[("TIME_STYLE", "locale")], " 2 Oct  2001"),
+        (&[("TIME_STYLE", "posix-long-iso")], " 2 Oct  2001"),
+        (
+            &[("TIME_STYLE", "posix-long-iso"), ("LANG", "en_US.UTF-8")],
+            "2001-10-02 21:43",
+        ),
+        (&[("TIME_STYLE", "long-iso")], "2001-10-02 21:43"),
+    ] {
+        let output = row(envs);
+        assert_eq!(output.status.code(), Some(0), "{envs:?}");
+        assert_eq!(text(output.stdout), format!("{date} f.txt\n"), "{envs:?}");
     }
+
+    let output = row(&[("TIME_STYLE", "invalid_env_style")]);
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        text(output.stderr),
+        "lez: Value \"invalid_env_style\" not valid for environment variable TIME_STYLE: \
+         expected default, iso, long-iso, full-iso, relative, relative-recent[:DAYS], locale, \
+         posix-STYLE or +FORMAT\n"
+    );
+    // A view without times does not read it.
+    assert_eq!(
+        crate::common::success_stdout(
+            crate::common::lez_in(dir.path())
+                .env("TIME_STYLE", "invalid_env_style")
+                .arg("-1")
+        ),
+        "f.txt\n"
+    );
 }

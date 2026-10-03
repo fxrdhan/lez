@@ -128,8 +128,7 @@ impl Render<'_> {
             return writeln!(w, "{}", style.paint("No recognised source code found."));
         }
 
-        let numerics =
-            locale::Numeric::load_user_locale().unwrap_or_else(|_| locale::Numeric::english());
+        let numerics = crate::output::numbers::user_numeric();
 
         // The eza-flavoured palette: quantities take the size colour, the
         // language names the date colour, and structure stays dim.
@@ -404,14 +403,33 @@ impl Render<'_> {
             }
         }
 
-        writeln!(w, "{}", paint_row(&header_row, &widths, self.show_icons))?;
+        // The branches of a sub-language tree are dimmed, unless colours
+        // are off.
+        let tree_style = if self.theme.plain {
+            Style::default()
+        } else {
+            Style::default().dimmed()
+        };
+        writeln!(
+            w,
+            "{}",
+            paint_row(&header_row, &widths, self.show_icons, tree_style)
+        )?;
         for row in &body {
-            writeln!(w, "{}", paint_row(row, &widths, self.show_icons))?;
+            writeln!(
+                w,
+                "{}",
+                paint_row(row, &widths, self.show_icons, tree_style)
+            )?;
         }
 
         let rule_width = 1 + widths.iter().sum::<usize>() + 2 * (columns - 1);
         writeln!(w, "{}", dim.paint("─".repeat(rule_width)))?;
-        writeln!(w, "{}", paint_row(&total_row, &widths, self.show_icons))?;
+        writeln!(
+            w,
+            "{}",
+            paint_row(&total_row, &widths, self.show_icons, tree_style)
+        )?;
 
         Ok(())
     }
@@ -438,7 +456,7 @@ fn bar(value: usize, max: usize) -> String {
 /// Paint one row: a leading space, then each cell padded to its column width
 /// and separated by two spaces. Trailing whitespace is trimmed so bars and
 /// short final cells don’t leave invisible padding behind.
-fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
+fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool, tree_style: Style) -> String {
     let mut out = String::from(" ");
     for (i, cell) in cells.iter().enumerate() {
         if i > 0 {
@@ -453,7 +471,6 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
         let painted = if i == 0 {
             if let Some(rest) = cell.text.strip_prefix("├── ") {
                 let tree = "├── ";
-                let tree_dim = Style::default().dimmed();
                 if iconify_first && rest.chars().count() > 2 {
                     let split = rest
                         .char_indices()
@@ -462,16 +479,15 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
                     let (prefix, name) = rest.split_at(split);
                     format!(
                         "{}{}{}",
-                        tree_dim.paint(tree),
+                        tree_style.paint(tree),
                         iconify_style(cell.style).paint(prefix),
                         cell.style.paint(name)
                     )
                 } else {
-                    format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
+                    format!("{}{}", tree_style.paint(tree), cell.style.paint(rest))
                 }
             } else if let Some(rest) = cell.text.strip_prefix("└── ") {
                 let tree = "└── ";
-                let tree_dim = Style::default().dimmed();
                 if iconify_first && rest.chars().count() > 2 {
                     let split = rest
                         .char_indices()
@@ -480,12 +496,12 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool) -> String {
                     let (prefix, name) = rest.split_at(split);
                     format!(
                         "{}{}{}",
-                        tree_dim.paint(tree),
+                        tree_style.paint(tree),
                         iconify_style(cell.style).paint(prefix),
                         cell.style.paint(name)
                     )
                 } else {
-                    format!("{}{}", tree_dim.paint(tree), cell.style.paint(rest))
+                    format!("{}{}", tree_style.paint(tree), cell.style.paint(rest))
                 }
             } else if iconify_first && cell.width() > 2 {
                 // Paint the icon prefix separately from the name, so underlined

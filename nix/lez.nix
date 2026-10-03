@@ -21,6 +21,12 @@ naersk'.buildPackage rec {
     installShellFiles
     pandoc
   ];
+  # Tools the tests run, which fail rather than skip without them: git
+  # builds repository fixtures, chattr sets Linux file flags.
+  nativeCheckInputs = [
+    pkgs.git
+  ]
+  ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.e2fsprogs ];
 
   buildNoDefaultFeatures = true;
   buildFeatures = "git,inspect-archives";

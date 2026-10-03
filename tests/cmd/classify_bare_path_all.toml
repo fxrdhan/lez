@@ -1,2 +1,3 @@
 bin.name = "lez"
 args = "-alF tests/cmd"
+env.inherit = false

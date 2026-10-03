@@ -17,8 +17,9 @@ pub enum Quoting {
     /// Wrap in single quotes. Nothing inside them needs escaping.
     Single,
 
-    /// Wrap in double quotes, for a name holding an apostrophe but no double
-    /// quote. Kept over escaping because it reads better.
+    /// Wrap in double quotes, for a name holding an apostrophe and nothing a
+    /// shell still reads inside double quotes (`"`, `$`, `` ` ``, `\`, `!`).
+    /// Kept over escaping because it reads better.
     Double,
 
     /// Wrap in single quotes and break out of them for each apostrophe, the
@@ -27,6 +28,35 @@ pub enum Quoting {
     /// it in either kind leaves the other one bare, and the shell then reads
     /// the name as something else entirely.
     SingleEscaped,
+
+    /// Wrap in ANSI-C quotes, `$'…'`, for a name holding a control
+    /// character: inside them `\n`, `\t` and `\033` are the characters they
+    /// name, which no other quoting can say, and `\'` and `\\` are an
+    /// apostrophe and a backslash. `new<newline>line` prints as
+    /// `$'new\nline'`, which bash, zsh and ksh read back as the name, as
+    /// GNU `ls` prints it.
+    Ansi,
+}
+
+/// Whether a shell gives `c` a meaning of its own anywhere in a word, so a
+/// name holding it has to be quoted to be read back. The same characters
+/// GNU `ls` quotes for, less four on Windows: `\` separates the parts of
+/// every path there, and neither cmd nor PowerShell reads it or `[` as
+/// anything but itself in a word; `?` and `*` cannot be part of a file's
+/// name, so they appear only in the `\\?\` prefix of a verbatim path.
+fn is_shell_special(c: char) -> bool {
+    matches!(
+        c,
+        ' ' | '!' | '"' | '$' | '&' | '\'' | '(' | ')' | ';' | '<' | '=' | '>' | '^' | '`' | '|'
+    ) || (cfg!(not(windows)) && matches!(c, '*' | '?' | '[' | '\\'))
+}
+
+/// Whether a shell still gives `c` a meaning inside double quotes: it
+/// expands `$` and `` ` ``, ends the quotes at `"`, reads `\` as an escape
+/// (except on Windows, where it separates paths) and, at a prompt, `!` as
+/// history.
+fn is_read_inside_double_quotes(c: char) -> bool {
+    matches!(c, '"' | '$' | '`' | '!') || (cfg!(not(windows)) && c == '\\')
 }
 
 impl Quoting {
@@ -34,29 +64,73 @@ impl Quoting {
     #[must_use]
     pub fn for_string(string: &str, quote_style: QuoteStyle) -> Self {
         let has_apostrophe = string.contains('\'');
-        let has_double_quote = string.contains('"');
-        let needs_quotes = string.contains(' ') || has_apostrophe || has_double_quote;
+        // Windows shells have no quotes that can hold a control character,
+        // so there it keeps its visible escape, as without quotes.
+        let has_control = cfg!(not(windows)) && string.chars().any(char::is_control);
+        // A comment and a home directory start only at the start of a word.
+        let needs_quotes =
+            has_control || string.starts_with(['#', '~']) || string.chars().any(is_shell_special);
 
         if quote_style.quotes_needed(needs_quotes) {
-            match (has_apostrophe, has_double_quote) {
-                (true, true) => Self::SingleEscaped,
-                (true, false) => Self::Double,
-                _ => Self::Single,
+            if has_control {
+                Self::Ansi
+            } else if !has_apostrophe {
+                Self::Single
+            } else if string.chars().any(is_read_inside_double_quotes) {
+                Self::SingleEscaped
+            } else {
+                Self::Double
             }
         } else {
             Self::None
         }
     }
 
-    /// Returns the ANSI quote token for this quoting mode, styled with `quote_style`.
+    /// The token that opens a name in this quoting, styled with
+    /// `quote_style`.
     #[must_use]
-    pub fn quote_bit<'a>(self, quote_style: Style) -> Option<ANSIString<'a>> {
+    pub fn opening_bit<'a>(self, quote_style: Style) -> Option<ANSIString<'a>> {
+        match self {
+            Self::Ansi => Some(quote_style.paint("$'")),
+            _ => self.closing_bit(quote_style),
+        }
+    }
+
+    /// The token that closes a name in this quoting, styled with
+    /// `quote_style`.
+    #[must_use]
+    pub fn closing_bit<'a>(self, quote_style: Style) -> Option<ANSIString<'a>> {
         match self {
             Self::None => None,
             Self::Double => Some(quote_style.paint("\"")),
-            Self::Single | Self::SingleEscaped => Some(quote_style.paint("'")),
+            Self::Single | Self::SingleEscaped | Self::Ansi => Some(quote_style.paint("'")),
         }
     }
+}
+
+/// How `c` is written inside ANSI-C quotes, if it has to be escaped there.
+/// Control characters other than the seven with a letter of their own are
+/// written as the octal bytes of their UTF-8, as GNU `ls` does: unlike
+/// `\e`, `\xHH` or `\uHHHH`, every shell with these quotes reads three
+/// octal digits the same way, whatever its version or locale.
+fn ansi_c_escape(c: char) -> Option<String> {
+    Some(match c {
+        '\'' => r"\'".to_owned(),
+        '\\' => r"\\".to_owned(),
+        '\u{7}' => r"\a".to_owned(),
+        '\u{8}' => r"\b".to_owned(),
+        '\t' => r"\t".to_owned(),
+        '\n' => r"\n".to_owned(),
+        '\u{b}' => r"\v".to_owned(),
+        '\u{c}' => r"\f".to_owned(),
+        '\r' => r"\r".to_owned(),
+        c if c.is_control() => c
+            .encode_utf8(&mut [0; 4])
+            .bytes()
+            .map(|byte| format!("\\{byte:03o}"))
+            .collect(),
+        _ => return None,
+    })
 }
 
 pub fn is_printable(c: char) -> bool {
@@ -71,7 +145,15 @@ pub fn escape_inner_chars(
     bad: Style,
     quoting: Quoting,
 ) {
-    if quoting != Quoting::SingleEscaped && string.chars().all(is_printable) {
+    if quoting == Quoting::Ansi {
+        for c in string.chars() {
+            match ansi_c_escape(c) {
+                Some(escape) if is_printable(c) => bits.push(good.paint(escape)),
+                Some(escape) => bits.push(bad.paint(escape)),
+                None => bits.push(good.paint(c.to_string())),
+            }
+        }
+    } else if quoting != Quoting::SingleEscaped && string.chars().all(is_printable) {
         bits.push(good.paint(string.to_string()));
     } else {
         for c in string.chars() {
@@ -101,9 +183,11 @@ pub fn escape_with_quote_style(
 
     escape_inner_chars(&string, bits, good, bad, quoting);
 
-    if let Some(quote_bit) = quoting.quote_bit(quote_colour) {
-        bits.insert(bits_starting_length, quote_bit.clone());
-        bits.push(quote_bit);
+    if let Some(opening) = quoting.opening_bit(quote_colour) {
+        bits.insert(bits_starting_length, opening);
+    }
+    if let Some(closing) = quoting.closing_bit(quote_colour) {
+        bits.push(closing);
     }
 }
 
@@ -305,12 +389,146 @@ mod test {
         );
     }
 
-    /// Control characters keep their visible escape and their own style; the
-    /// quoting change must not disturb that.
+    /// Every character a shell gives a meaning to quotes the name, as GNU
+    /// `ls` quotes it; `#` and `~` only at the start, where they begin a
+    /// comment or a home directory.
     #[test]
-    fn control_characters_keep_their_rendering() {
-        assert_eq!(quoted("with\ttab", QuoteStyle::Auto), r"with\ttab");
-        assert_eq!(quoted("it's\ttab", QuoteStyle::Auto), r#""it's\ttab""#);
+    fn shell_specials_take_quotes_as_in_ls() {
+        for name in [
+            "amp&er",
+            "bang!",
+            "caret^",
+            "dollar$sign",
+            "eq=sign",
+            "lt<gt>",
+            "paren(s)",
+            "pipe|x",
+            "semi;colon",
+            "tick`",
+            "#hash",
+            "~tilde",
+        ] {
+            assert_eq!(
+                quoted(name, QuoteStyle::Auto),
+                format!("'{name}'"),
+                "{name}"
+            );
+        }
+        for name in [
+            "at@x",
+            "brace{x}",
+            "colon:x",
+            "comma,x",
+            "pct%x",
+            "plus+x",
+            "mid#hash",
+            "mid~tilde",
+        ] {
+            assert_eq!(quoted(name, QuoteStyle::Auto), name, "{name}");
+        }
+    }
+
+    /// Inside double quotes a shell still expands `$` and `` ` `` and,
+    /// interactively, reads `!` as history; with any of those an apostrophe
+    /// is broken out of single quotes instead.
+    #[test]
+    fn an_apostrophe_beside_what_double_quotes_expand_breaks_out_of_single_ones() {
+        for (name, expected) in [
+            ("it's $HOME", r"'it'\''s $HOME'"),
+            ("it's `x`", r"'it'\''s `x`'"),
+            ("it's !x", r"'it'\''s !x'"),
+        ] {
+            assert_eq!(quoted(name, QuoteStyle::Auto), expected, "{name}");
+        }
+    }
+
+    /// `\`, `[`, `?` and `*` are quoted as `ls` quotes them, except on
+    /// Windows: `\` separates the parts of every path there, neither cmd nor
+    /// PowerShell reads it or `[` as anything but itself, and `?` and `*`
+    /// cannot be part of a name, so they come only from the `\\?\` prefix
+    /// of a verbatim path, as in `\\?\C:\dir`. Nor does a Windows shell
+    /// read `\` as an escape inside double quotes.
+    #[test]
+    fn backslash_bracket_and_wildcards_are_plain_on_windows() {
+        for name in ["back\\slash", "br[ack]et", "q?", "star*", r"\\?\C:\dir"] {
+            let expected = if cfg!(windows) {
+                name.to_owned()
+            } else {
+                format!("'{name}'")
+            };
+            assert_eq!(quoted(name, QuoteStyle::Auto), expected, "{name}");
+        }
+        let expected = if cfg!(windows) {
+            r#""it's \x""#
+        } else {
+            r"'it'\''s \x'"
+        };
+        assert_eq!(quoted("it's \\x", QuoteStyle::Auto), expected);
+    }
+
+    /// A control character is written the way ANSI-C quotes read it back:
+    /// the seven with a letter of their own by that letter, the rest as the
+    /// octal bytes of their UTF-8. An apostrophe and a backslash are escaped
+    /// inside those quotes, and nothing else is.
+    #[test]
+    #[cfg(not(windows))]
+    fn control_characters_are_ansi_c_quoted() {
+        for (name, expected) in [
+            ("with\ttab", r"$'with\ttab'"),
+            ("new\nline", r"$'new\nline'"),
+            ("\u{7}\u{8}\u{b}\u{c}\r", r"$'\a\b\v\f\r'"),
+            ("esc\u{1b}[31m", r"$'esc\033[31m'"),
+            ("del\u{7f}", r"$'del\177'"),
+            ("nel\u{85}csi\u{9b}", r"$'nel\302\205csi\302\233'"),
+            ("it's\tback\\slash", r"$'it\'s\tback\\slash'"),
+            ("space $\"`!\tcafé", "$'space $\"`!\\tcafé'"),
+        ] {
+            assert_eq!(quoted(name, QuoteStyle::Auto), expected, "{name:?}");
+            assert_eq!(quoted(name, QuoteStyle::Always), expected, "{name:?}");
+        }
+    }
+
+    /// Without quotes, and on Windows, whose shells have no quotes that can
+    /// hold one, a control character keeps its visible escape.
+    #[test]
+    fn control_characters_are_escaped_without_ansi_c_quotes() {
+        assert_eq!(quoted("with\ttab", QuoteStyle::Never), r"with\ttab");
+        assert_eq!(quoted("it's\ttab", QuoteStyle::Never), r"it's\ttab");
+        if cfg!(windows) {
+            assert_eq!(quoted("with\ttab", QuoteStyle::Auto), r"with\ttab");
+            assert_eq!(quoted("it's\ttab", QuoteStyle::Auto), r#""it's\ttab""#);
+        }
+    }
+
+    /// The escapes stay in the style for what cannot be printed, and the
+    /// rest of the name, escaped apostrophe included, in the name's own.
+    #[test]
+    #[cfg(not(windows))]
+    fn ansi_c_escapes_keep_their_style() {
+        let (good, bad, quote) = (
+            Style::new().bold(),
+            Style::new().underline(),
+            Style::new().italic(),
+        );
+        let mut bits = Vec::new();
+        escape_with_quote_style(
+            "a'\n".to_owned(),
+            &mut bits,
+            good,
+            bad,
+            quote,
+            QuoteStyle::Auto,
+        );
+        assert_eq!(
+            bits,
+            vec![
+                quote.paint("$'"),
+                good.paint("a"),
+                good.paint(r"\'"),
+                bad.paint(r"\n"),
+                quote.paint("'"),
+            ]
+        );
     }
 
     #[test]

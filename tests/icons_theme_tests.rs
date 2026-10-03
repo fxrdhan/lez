@@ -17,6 +17,10 @@ mod default_overrides;
 mod dev_eclass_astro;
 #[path = "icons_theme/empty_dirs.rs"]
 mod empty_dirs;
+#[path = "icons_theme/glob_precedence.rs"]
+mod glob_precedence;
+#[path = "icons_theme/icon_colours.rs"]
+mod icon_colours;
 #[path = "icons_theme/isolation.rs"]
 mod isolation;
 #[path = "icons_theme/multicodepoint_emoji.rs"]

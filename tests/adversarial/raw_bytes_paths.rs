@@ -1,207 +1,218 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Adversarial test suite for raw OS bytes, non-UTF-8 paths, control characters,
-//! and extreme filename encodings.
+//! Names that are not valid UTF-8, contain shell or control characters, are
+//! near the length limit, or mix scripts and combining marks.
+//!
+//! Every fixture name must be created; a filesystem that refuses one would
+//! otherwise leave the test checking nothing.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Command, Output};
 
-struct RawBytesTestDir {
-    path: PathBuf,
-}
+use crate::common::{TempTestDir, lez_in};
 
-impl RawBytesTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("lez_raw_{prefix}_{}_{}", std::process::id(), nanos));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-}
-
-impl Drop for RawBytesTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn run_lez(dir: &Path, args: &[&str]) -> (bool, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
-        .current_dir(dir)
+fn run(dir: &TempTestDir, args: &[&str]) -> String {
+    let output: Output = lez_in(dir.path())
         .args(args)
-        .env("NO_COLOR", "1")
-        .env("LEZ_COLORS", "reset")
         .output()
-        .expect("Failed to execute lez binary");
-
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stdout).to_string(),
-        String::from_utf8_lossy(&output.stderr).to_string(),
-    )
+        .expect("failed to run lez");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{args:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty(), "{args:?}");
+    String::from_utf8(output.stdout).expect("lez prints UTF-8")
 }
 
+/// Linux filesystems store arbitrary bytes; APFS rejects invalid UTF-8, so
+/// the test is limited to where the fixture can exist. Undecodable bytes are
+/// shown as U+FFFD, in the listing and in JSON alike.
 #[test]
-#[cfg(unix)]
-fn non_utf8_raw_byte_filenames_do_not_panic() {
+#[cfg(target_os = "linux")]
+fn undecodable_bytes_in_names_are_shown_as_replacement_characters() {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
 
-    let fixture = RawBytesTestDir::new("raw_bytes");
-
-    // Always create a baseline valid file
-    StdFile::create(fixture.path.join("baseline.txt"))
-        .unwrap()
-        .write_all(b"baseline")
-        .unwrap();
-
-    // Create files with invalid UTF-8 byte sequences if filesystem supports it (Linux ext4/tmpfs)
-    let invalid_utf8_names: &[&[u8]] = &[
-        b"raw_byte_\xff\xfe.dat",
-        b"high_ascii_\x80\x81\x82.txt",
-        b"mixed_\xef\xbb_test.bin",
-        b"lone_continuation_\xa0\xb0.log",
-    ];
-
-    let mut created_raw_count = 0;
-    for raw_name in invalid_utf8_names {
-        let os_name = OsStr::from_bytes(raw_name);
-        let file_path = fixture.path.join(os_name);
-        // APFS on macOS rejects raw non-UTF8 bytes with EINVAL; Linux filesystems accept it.
-        if let Ok(mut f) = StdFile::create(&file_path) {
-            let _ = f.write_all(b"raw byte content");
-            created_raw_count += 1;
-        }
-    }
-
-    // Run in multiple modes to verify no UTF-8 decode panics occur
-    for mode_args in [
-        vec!["-1", "--color=never"],
-        vec!["-l", "--color=never"],
-        vec!["-G", "--color=never"],
-        vec!["-T", "--color=never"],
-        vec!["--json", "--color=never"],
+    let dir = TempTestDir::new("raw_bytes");
+    dir.create_file("baseline.txt", b"x");
+    for raw in [
+        &b"raw_byte_\xff\xfe.dat"[..],
+        &b"high_ascii_\x80\x81\x82.txt"[..],
+        &b"mixed_\xef\xbb_test.bin"[..],
     ] {
-        let (success, stdout, stderr) = run_lez(&fixture.path, &mode_args);
-        assert!(
-            success,
-            "lez {mode_args:?} failed on raw byte paths: stderr: {stderr}"
-        );
-        assert!(
-            !stderr.contains("panicked at"),
-            "lez panicked on raw byte paths with args {mode_args:?}: {stderr}"
-        );
-        assert!(stdout.contains("baseline.txt"));
+        std::fs::write(dir.path().join(OsStr::from_bytes(raw)), b"x").expect("create raw name");
     }
 
-    if created_raw_count > 0 {
-        println!(
-            "Filesystem accepted {created_raw_count} raw non-UTF8 filenames and lez handled them without panic."
+    let [base, high, mixed, raw] = [
+        "baseline.txt",
+        "high_ascii_\u{fffd}\u{fffd}\u{fffd}.txt",
+        "mixed_\u{fffd}_test.bin",
+        "raw_byte_\u{fffd}\u{fffd}.dat",
+    ];
+    assert_eq!(
+        run(&dir, &["-1"]),
+        format!("{base}\n{high}\n{mixed}\n{raw}\n")
+    );
+    assert_eq!(
+        run(&dir, &["--json"]),
+        format!("[\"{base}\",\"{high}\",\"{mixed}\",\"{raw}\"]\n")
+    );
+    assert_eq!(
+        run(&dir, &["-l", "--no-permissions", "--no-user", "--no-time"]),
+        format!("1 {base}\n1 {high}\n1 {mixed}\n1 {raw}\n")
+    );
+    assert_eq!(
+        run(&dir, &["-T"]),
+        format!(".\n├── {base}\n├── {high}\n├── {mixed}\n└── {raw}\n")
+    );
+    assert_eq!(
+        run(&dir, &["-G", "--width=200"]),
+        format!("{base}  {high}  {mixed}  {raw}\n")
+    );
+}
+
+/// Each name as printed is read back by bash as that name and nothing else,
+/// whatever it holds: control characters, C1 ones among them, an
+/// apostrophe beside what double quotes still read, a leading `#` or `~`.
+/// A control character used to print as `\n` or `\u{85}`, which a shell
+/// reads as other characters, quoted or not.
+#[test]
+#[cfg(unix)]
+fn printed_names_are_read_back_by_the_shell() {
+    let mut names = [
+        "new\nline",
+        "tab\tand space",
+        "esc\u{1b}[31m",
+        "del\u{7f}",
+        "nel\u{85}csi\u{9b}31m",
+        "bell\u{7}\u{8}\u{b}\u{c}\r",
+        "it's\nback\\slash",
+        "it's \"$HOME\" `x` !",
+        "#comment",
+        "~home",
+        "glob*?[a]",
+        "plain.txt",
+    ];
+    let dir = TempTestDir::new("shell_round_trip");
+    for name in names {
+        dir.create_file(name, b"x");
+    }
+    names.sort_unstable();
+
+    for quotes in ["--quotes=auto", "--quotes=always"] {
+        let script: String = run(&dir, &["-1", quotes])
+            .lines()
+            .map(|word| format!("printf '%s\\0' {word}\n"))
+            .collect();
+        let output = match Command::new("bash").arg("-c").arg(&script).output() {
+            Ok(output) => output,
+            Err(error) => {
+                assert!(std::env::var_os("CI").is_none(), "run bash: {error}");
+                eprintln!("skipped: there is no bash to read the names back");
+                return;
+            }
+        };
+        assert!(
+            output.status.success(),
+            "{quotes}: {}",
+            String::from_utf8_lossy(&output.stderr)
         );
+        let mut read_back: Vec<String> = String::from_utf8(output.stdout)
+            .expect("bash prints the UTF-8 names back")
+            .split_terminator('\0')
+            .map(str::to_owned)
+            .collect();
+        read_back.sort_unstable();
+        assert_eq!(read_back, names, "{quotes}:\n{script}");
     }
 }
 
+/// Spaces, quotes and the other characters a shell reads earn quoting by
+/// default; control characters are escaped inside ANSI-C quotes;
+/// `--quotes=always` quotes everything. JSON keeps names verbatim.
 #[test]
-fn extreme_control_characters_and_whitespace_boundaries() {
-    let fixture = RawBytesTestDir::new("control_chars");
-
-    let special_names = [
-        "leading_space.txt",
-        "trailing_space.txt",
-        "multiple   spaces   inside.txt",
-        "semicolon;pipe|ampersand&.txt",
-        "backtick`dollar$paren().txt",
-        "brackets[one][two].txt",
-        "braces{alpha,beta}.txt",
-        "tilde~hash#percent%.txt",
-        "caret^at@exclam!.txt",
+#[cfg(unix)]
+fn shell_and_control_characters_are_quoted_and_escaped() {
+    let dir = TempTestDir::new("special_names");
+    for name in [
+        " leading_space.txt",
+        "trailing_space.txt ",
+        "multiple   spaces.txt",
+        "semi;pipe|amp&.txt",
+        "tick`dollar$paren().txt",
         "tab_\t_tab.txt",
-    ];
-
-    for name in special_names {
-        let path = fixture.path.join(name);
-        if let Ok(mut f) = StdFile::create(&path) {
-            let _ = f.write_all(b"special name content");
-        }
+        "new\nline.txt",
+        "quote\"d.txt",
+        "apos'trophe.txt",
+    ] {
+        dir.create_file(name, b"x");
     }
 
-    let (success, stdout, stderr) =
-        run_lez(&fixture.path, &["-1", "--color=never", "--quotes=always"]);
-    assert!(success, "lez -1 failed: {stderr}");
-    assert!(!stderr.contains("panicked at"));
-    assert!(!stdout.is_empty());
+    assert_eq!(
+        run(&dir, &["-1"]),
+        "\"apos'trophe.txt\"\n\
+         ' leading_space.txt'\n\
+         'multiple   spaces.txt'\n\
+         $'new\\nline.txt'\n\
+         'quote\"d.txt'\n\
+         'semi;pipe|amp&.txt'\n\
+         $'tab_\\t_tab.txt'\n\
+         'tick`dollar$paren().txt'\n\
+         'trailing_space.txt '\n"
+    );
+    assert_eq!(
+        run(&dir, &["-1", "--quotes=always"]),
+        "\"apos'trophe.txt\"\n\
+         ' leading_space.txt'\n\
+         'multiple   spaces.txt'\n\
+         $'new\\nline.txt'\n\
+         'quote\"d.txt'\n\
+         'semi;pipe|amp&.txt'\n\
+         $'tab_\\t_tab.txt'\n\
+         'tick`dollar$paren().txt'\n\
+         'trailing_space.txt '\n"
+    );
 
-    // JSON mode must produce valid JSON even with special characters
-    let (json_success, json_out, json_err) = run_lez(&fixture.path, &["--json", "--color=never"]);
-    assert!(json_success, "lez --json failed: {json_err}");
-    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json_out);
-    assert!(
-        parsed.is_ok(),
-        "lez --json output was not valid JSON for special chars:\n{json_out}"
+    // JSON escapes what its strings cannot hold raw: quotes, newlines, tabs.
+    assert_eq!(
+        run(&dir, &["--json"]),
+        r#"["apos'trophe.txt"," leading_space.txt","multiple   spaces.txt","new\nline.txt","quote\"d.txt","semi;pipe|amp&.txt","tab_\t_tab.txt","tick`dollar$paren().txt","trailing_space.txt "]"#
+            .to_owned()
+            + "\n"
     );
 }
 
 #[test]
-fn long_filename_boundaries() {
-    let fixture = RawBytesTestDir::new("long_names");
+fn names_near_the_length_limit_are_listed_whole() {
+    let dir = TempTestDir::new("long_names");
+    let long_a = format!("{}.txt", "a".repeat(200));
+    let long_b = format!("{}.log", "b".repeat(240));
+    dir.create_file(&long_a, b"a");
+    dir.create_file(&long_b, b"b");
 
-    // Most filesystems support filenames up to 255 bytes
-    let long_200_a = format!("{}.txt", "a".repeat(200));
-    let long_240_b = format!("{}.log", "b".repeat(240));
-
-    StdFile::create(fixture.path.join(&long_200_a))
-        .unwrap()
-        .write_all(b"long name a")
-        .unwrap();
-    StdFile::create(fixture.path.join(&long_240_b))
-        .unwrap()
-        .write_all(b"long name b")
-        .unwrap();
-
-    let (success, stdout, stderr) = run_lez(&fixture.path, &["-1", "--color=never"]);
-    assert!(success, "lez failed on long filenames: {stderr}");
-    assert!(stdout.contains(&long_200_a));
-    assert!(stdout.contains(&long_240_b));
+    assert_eq!(run(&dir, &["-1"]), format!("{long_a}\n{long_b}\n"));
 }
 
 #[test]
-fn unicode_normalization_and_combining_characters() {
-    let fixture = RawBytesTestDir::new("unicode_combining");
-
-    // Combining diacritical marks (e + combining acute accent) vs precomposed (é)
-    let precomposed = "café_precomposed.txt";
+fn combining_marks_joiners_and_right_to_left_names_are_listed_intact() {
+    let dir = TempTestDir::new("unicode_names");
     let decomposed = "cafe\u{0301}_decomposed.txt";
-    let zero_width_joiner = "family_👨‍👩‍👧‍👦_emoji.txt";
-    let rtl_arabic = "مرحبا_arabic_test.txt";
-    let rtl_hebrew = "שלום_hebrew_test.txt";
-
-    for name in [
-        precomposed,
-        decomposed,
-        zero_width_joiner,
-        rtl_arabic,
-        rtl_hebrew,
-    ] {
-        let path = fixture.path.join(name);
-        if let Ok(mut f) = StdFile::create(&path) {
-            let _ = f.write_all(b"unicode text");
-        }
+    let precomposed = "caf\u{e9}_precomposed.txt";
+    let family = "family_\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}\u{200d}\u{1f466}_emoji.txt";
+    let hebrew = "\u{5e9}\u{5dc}\u{5d5}\u{5dd}_hebrew_test.txt";
+    let arabic = "\u{645}\u{631}\u{62d}\u{628}\u{627}_arabic_test.txt";
+    for name in [precomposed, decomposed, family, arabic, hebrew] {
+        dir.create_file(name, b"x");
     }
 
-    let (success, stdout, stderr) = run_lez(&fixture.path, &["-G", "--color=never"]);
-    assert!(success, "lez -G failed: {stderr}");
-    assert!(!stdout.is_empty());
-
-    let (l_success, l_stdout, l_stderr) = run_lez(&fixture.path, &["-l", "--color=never"]);
-    assert!(l_success, "lez -l failed: {l_stderr}");
-    assert!(!l_stdout.is_empty());
+    assert_eq!(
+        run(&dir, &["-1"]),
+        format!("{decomposed}\n{precomposed}\n{family}\n{hebrew}\n{arabic}\n")
+    );
+    assert_eq!(
+        run(&dir, &["-G", "--width=200"]),
+        format!("{decomposed}  {precomposed}  {family}  {hebrew}  {arabic}\n")
+    );
 }

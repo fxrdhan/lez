@@ -192,8 +192,8 @@ fn the_committed_cmd_cases_agree_with_the_generator() {
         let case = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
         assert!(
-            case.contains(&expected),
-            "{} should name the {binary} binary",
+            case.lines().any(|line| line.trim() == expected),
+            "{} should name the {binary} binary on a line of its own",
             path.display()
         );
         checked += 1;

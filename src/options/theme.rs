@@ -7,18 +7,21 @@ use clap::ArgMatches;
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use crate::options::parser::ShowWhen;
-use crate::options::{vars, Vars};
+use crate::options::{OptionsError, Vars, vars};
 use crate::output::color_scale::ColorScaleOptions;
 use crate::theme::{Definitions, Options, UseColours};
-use std::path::PathBuf;
 
-use super::config::{ThemeConfig, config_dir_from_env};
+use super::config::{ThemeConfig, config_dir};
 use crate::options::file_config::FileConfig;
 
 impl Options {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
+    pub fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
         let use_colours = UseColours::deduce(matches, vars, config);
-        let colour_scale = ColorScaleOptions::deduce(matches, vars, config);
+        let colour_scale = ColorScaleOptions::deduce(matches, vars, config)?;
         let theme_config = if matches.get_flag("no-config") {
             None
         } else {
@@ -31,24 +34,18 @@ impl Options {
             Definitions::deduce(vars)
         };
 
-        Self {
+        Ok(Self {
             use_colours,
             colour_scale,
             definitions,
             theme_config,
-        }
+        })
     }
 }
 
 impl ThemeConfig {
     pub(crate) fn deduce<V: Vars>(vars: &V) -> Option<Self> {
-        let custom = vars
-            .get_with_fallback(vars::LEZ_CONFIG_DIR, vars::EZA_CONFIG_DIR)
-            .map(PathBuf::from);
-        let xdg = vars.get(vars::XDG_CONFIG_HOME).map(PathBuf::from);
-        let home = vars.get(vars::HOME).map(PathBuf::from);
-
-        let config_dir = config_dir_from_env(custom, xdg, home);
+        let config_dir = config_dir(vars);
 
         let theme_yml = config_dir.join("theme.yml");
         if theme_yml.exists() {
@@ -113,6 +110,7 @@ mod tests {
     use super::*;
     use crate::options::{parser::test::mock_cli, vars::test::MockVars};
     use std::ffi::OsString;
+    use std::path::PathBuf;
 
     #[test]
     fn deduce_definitions() {
@@ -390,12 +388,14 @@ mod tests {
 
         // Without --no-config
         let matches_normal = mock_cli(vec![""]);
-        let opts_normal = Options::deduce(&matches_normal, &vars, &FileConfig::default());
+        let opts_normal =
+            Options::deduce(&matches_normal, &vars, &FileConfig::default()).expect("options");
         assert!(opts_normal.theme_config.is_some());
 
         // With --no-config
         let matches_no_config = mock_cli(vec!["--no-config"]);
-        let opts_no_config = Options::deduce(&matches_no_config, &vars, &FileConfig::default());
+        let opts_no_config =
+            Options::deduce(&matches_no_config, &vars, &FileConfig::default()).expect("options");
         assert!(opts_no_config.theme_config.is_none());
     }
 }

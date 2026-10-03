@@ -1,133 +1,112 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! The user's own folders (home, configuration, desktop, documents,
+//! downloads, music, pictures, videos) have icons of their own. lez finds
+//! them where the platform says they are: under `$HOME` on macOS, and
+//! through `$XDG_CONFIG_HOME` and its `user-dirs.dirs` on Linux. The test
+//! gives lez a home of its own, so the host's folders never come into it.
+//! (Windows asks the shell for them, which an environment variable cannot
+//! redirect.)
+//!
+//! A folder has its icon however it is reached: listed from its parent,
+//! from inside the home, or by a relative path.
 
-use std::fs::{self, File as StdFile};
-use std::path::{Path, PathBuf};
-use std::process::Command;
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
+use std::ffi::OsStr;
+use std::path::Path;
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
-struct TempSpecialDir {
-    path: PathBuf,
-}
-
-impl TempSpecialDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_special_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp special dir");
-        Self { path }
-    }
-
-    fn create_dir(&self, rel_path: &str) -> PathBuf {
-        let dir_path = self.path.join(rel_path);
-        fs::create_dir_all(&dir_path).unwrap();
-        dir_path
-    }
-}
-
-impl Drop for TempSpecialDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
+use crate::common::{TempTestDir, lez_cmd, lez_in, success_stdout};
 
 #[test]
-fn test_special_dirs_icons_cli() {
-    let mut tested_any = false;
+fn the_users_folders_get_their_own_icons() {
+    let dir = TempTestDir::new("special_dirs");
+    // Matched against the absolute path lez builds from its working
+    // directory, which macOS reports with `/private` in front.
+    let home = dir.path().canonicalize().expect("canonicalize");
+    dir.create_dir("Plain");
 
-    // 1. If download_dir or document_dir exists on the system, running lez -d --icons=always on it should succeed
-    if let Some(doc_dir) = dirs::document_dir()
-        && doc_dir.exists()
-    {
-        let output = Command::new(bin_path())
-            .arg("-d")
-            .arg("--icons=always")
-            .arg(&doc_dir)
-            .output()
-            .expect("Failed to run lez on documents dir");
-        assert!(output.status.success());
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let doc_glyph = '\u{f0c82}'.to_string(); // 󰲂
-        assert!(
-            stdout.contains(&doc_glyph),
-            "Output should contain documents icon for {doc_dir:?}: {stdout}"
+    // Names the icon table does not know, so only the folders' places
+    // can give them their icons.
+    #[cfg(target_os = "linux")]
+    let (folders, expected) = {
+        dir.create_file(
+            "Settings/user-dirs.dirs",
+            b"XDG_DESKTOP_DIR=\"$HOME/Desk\"\n\
+              XDG_DOCUMENTS_DIR=\"$HOME/Docs\"\n\
+              XDG_DOWNLOAD_DIR=\"$HOME/Fetched\"\n\
+              XDG_MUSIC_DIR=\"$HOME/Tunes\"\n\
+              XDG_PICTURES_DIR=\"$HOME/Photos\"\n\
+              XDG_VIDEOS_DIR=\"$HOME/Clips\"\n",
         );
-        tested_any = true;
+        (
+            ["Clips", "Desk", "Docs", "Fetched", "Photos", "Tunes"],
+            "\u{f03d} Clips\n\u{f108} Desk\n\u{f0c82} Docs\n\u{f024d} Fetched\n\
+             \u{f024f} Photos\n\u{f115} Plain\n\u{e5fc} Settings\n\u{f1359} Tunes\n",
+        )
+    };
+    // The names are fixed here. The configuration folder is
+    // `Library/Application Support`, so `Library` itself is a plain folder;
+    // `Movies` is the videos folder, whose icon is not the one the table
+    // gives the name.
+    #[cfg(target_os = "macos")]
+    let (folders, expected) = {
+        dir.create_dir("Library/Application Support");
+        (
+            [
+                "Desktop",
+                "Documents",
+                "Downloads",
+                "Movies",
+                "Music",
+                "Pictures",
+            ],
+            "\u{f108} Desktop\n\u{f0c82} Documents\n\u{f024d} Downloads\n\u{e5ff} Library\n\
+             \u{f03d} Movies\n\u{f1359} Music\n\u{f024f} Pictures\n\u{f115} Plain\n",
+        )
+    };
+    for folder in folders {
+        dir.create_dir(folder);
     }
+    let run = |cwd: &Path, args: &[&OsStr]| {
+        let mut cmd = lez_in(cwd);
+        #[cfg(target_os = "linux")]
+        cmd.env("XDG_CONFIG_HOME", home.join("Settings"));
+        success_stdout(cmd.env("HOME", &home).arg("--icons=always").args(args))
+    };
 
-    if let Some(dl_dir) = dirs::download_dir()
-        && dl_dir.exists()
-    {
-        let output = Command::new(bin_path())
-            .arg("-d")
-            .arg("--icons=always")
-            .arg(&dl_dir)
-            .output()
-            .expect("Failed to run lez on downloads dir");
-        assert!(output.status.success());
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let dl_glyph = '\u{f024d}'.to_string(); // 󰉍
-        assert!(
-            stdout.contains(&dl_glyph),
-            "Output should contain downloads icon for {dl_dir:?}: {stdout}"
-        );
-        tested_any = true;
-    }
-
-    // 2. Deterministic isolated test: create simulated environment
-    let temp = TempSpecialDir::new("isolated_special");
-    let docs = temp.create_dir("Documents");
-    let dls = temp.create_dir("Downloads");
-    let music = temp.create_dir("Music");
-    let pics = temp.create_dir("Pictures");
-
-    let output = Command::new(bin_path())
-        .arg("--icons=always")
-        .arg(&temp.path)
-        .env("HOME", &temp.path)
-        .env("XDG_DOCUMENTS_DIR", &docs)
-        .env("XDG_DOWNLOAD_DIR", &dls)
-        .env("XDG_MUSIC_DIR", &music)
-        .env("XDG_PICTURES_DIR", &pics)
-        .output()
-        .expect("Failed to run lez on simulated special dirs");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Documents"));
-    assert!(stdout.contains("Downloads"));
-    assert!(stdout.contains("Music"));
-    assert!(stdout.contains("Pictures"));
-
-    // Ensure icon rendering succeeded on all folders
-    assert!(
-        stdout.contains('\u{f0c82}')
-            || stdout.contains('\u{f024d}')
-            || stdout.contains('\u{e5ff}')
-            || stdout.contains('\u{f115}'),
-        "Output should render folder icons for special directories: {stdout}"
+    // From inside the home, which holds relative paths.
+    assert_eq!(run(&home, &["-1".as_ref()]), expected);
+    // From elsewhere, by the home's absolute path.
+    let elsewhere = TempTestDir::new("special_dirs_elsewhere");
+    assert_eq!(
+        run(elsewhere.path(), &["-1".as_ref(), home.as_os_str()]),
+        expected
     );
+    // From a sibling, each by `../` and its name.
+    let siblings: Vec<String> = folders.iter().map(|f| format!("../{f}")).collect();
+    let mut args = vec![OsStr::new("-1d")];
+    args.extend(siblings.iter().map(OsStr::new));
+    let by_sibling: String = expected
+        .lines()
+        .filter_map(|line| {
+            let (icon, name) = line.split_once(' ')?;
+            folders
+                .contains(&name)
+                .then(|| format!("{icon} ../{name}\n"))
+        })
+        .collect();
+    assert_eq!(run(&home.join("Plain"), &args), by_sibling);
 
-    // If host didn't have special dirs, the simulated isolated test guaranteed test execution
-    let _ = tested_any;
+    // The home folder itself, as an entry.
+    assert_eq!(
+        success_stdout(
+            lez_cmd()
+                .env("HOME", &home)
+                .args(["-d", "--icons=always"])
+                .arg(&home)
+        ),
+        format!("\u{f10b5} {}\n", home.display())
+    );
 }

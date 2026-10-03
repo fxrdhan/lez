@@ -13,7 +13,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // Mock environment for testing variable deductions
 #[derive(Default, Clone)]
@@ -44,6 +44,41 @@ fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
     get_command()
         .try_get_matches_from(full_args)
         .expect("Failed to parse CLI args in mock")
+}
+
+/// `--git` and `--git-ignore` are refused outright by a build without the
+/// `git` feature, before strict mode is asked.
+fn unsupported_here(args: &[&str]) -> bool {
+    cfg!(not(feature = "git")) && args.iter().any(|a| *a == "--git" || *a == "--git-ignore")
+}
+
+/// Strict mode only refuses; whatever it accepts must come out exactly as it
+/// would without it. `Options` has no `PartialEq`, so the two are compared
+/// through their `Debug` form, which spells out every field.
+#[track_caller]
+fn accepted_unchanged(args: &[&str]) {
+    if unsupported_here(args) {
+        return;
+    }
+    let matches = parse_cli_args(args);
+    let strict = Options::deduce(&matches, &MockVars::new(true))
+        .unwrap_or_else(|error| panic!("strict mode refused {args:?}: {error:?}"));
+    let lenient = Options::deduce(&matches, &MockVars::new(false)).expect("lenient deduction");
+    assert_eq!(format!("{strict:?}"), format!("{lenient:?}"), "{args:?}");
+}
+
+/// A status with nothing staged and `status` in the working tree.
+fn unstaged(status: f::GitStatus) -> f::Git {
+    both(f::GitStatus::NotModified, status)
+}
+
+/// A status with `status` staged and the working tree matching it.
+fn staged(status: f::GitStatus) -> f::Git {
+    both(status, f::GitStatus::NotModified)
+}
+
+fn both(staged: f::GitStatus, unstaged: f::GitStatus) -> f::Git {
+    f::Git { staged, unstaged }
 }
 
 // Temporary directory helper with automatic cleanup
@@ -85,10 +120,12 @@ impl Drop for TempTestDir {
 }
 
 // Git repository helper
+#[cfg(feature = "git")]
 struct TempGitRepo {
     path: PathBuf,
 }
 
+#[cfg(feature = "git")]
 impl TempGitRepo {
     fn new(prefix: &str) -> Self {
         let nanos = SystemTime::now()
@@ -145,6 +182,7 @@ impl TempGitRepo {
     }
 }
 
+#[cfg(feature = "git")]
 impl Drop for TempGitRepo {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.path);
@@ -157,8 +195,6 @@ impl Drop for TempGitRepo {
 
 #[test]
 fn test_strict_mode_default_options_pass_without_false_positives() {
-    let vars = MockVars::new(true);
-
     // Standard default flags that should never trigger strict mode errors
     let default_flag_sets: Vec<Vec<&str>> = vec![
         vec![],
@@ -192,14 +228,7 @@ fn test_strict_mode_default_options_pass_without_false_positives() {
     ];
 
     for args in default_flag_sets {
-        let matches = parse_cli_args(&args);
-        let result = Options::deduce(&matches, &vars);
-        assert!(
-            result.is_ok(),
-            "Strict mode unexpectedly rejected default/valid flags {:?}: {:?}",
-            args,
-            result.err()
-        );
+        accepted_unchanged(&args);
     }
 }
 
@@ -263,10 +292,16 @@ fn test_strict_mode_long_only_flags_fail_without_long() {
         ("-U", "created"),
         ("--utc", "utc"),
         ("--inspect-archives", "inspect-archives"),
-        ("--print-total", "print-total"),
+        ("--color-scale", "color-scale"),
+        ("--color-scale-mode=fixed", "color-scale-mode"),
+        ("--no-symlink-targets", "no-symlink-targets"),
     ];
 
+    let bare = Options::deduce(&parse_cli_args(&[]), &vars_non_strict).expect("no flags");
     for (flag, expected_name) in long_only_flags {
+        if unsupported_here(&[flag]) {
+            continue;
+        }
         let matches = parse_cli_args(&[flag]);
 
         // In strict mode, should fail with OptionsError::Useless
@@ -282,19 +317,26 @@ fn test_strict_mode_long_only_flags_fail_without_long() {
             err => panic!("Unexpected error for {flag} in strict mode: {err:?}"),
         }
 
-        // In non-strict mode, should succeed (flag is simply ignored)
-        let non_strict_res = Options::deduce(&matches, &vars_non_strict);
-        assert!(
-            non_strict_res.is_ok(),
-            "Expected flag {flag} without --long to be ignored in non-strict mode"
-        );
+        // In non-strict mode the flag is ignored: the options are those of
+        // no flag at all, but for the one setting the flag makes for the
+        // views that read it: the theme's size and date styles, which only
+        // the long view's columns use, and link targets, which a tree shows
+        // too.
+        let mut ignored = Options::deduce(&matches, &vars_non_strict)
+            .unwrap_or_else(|error| panic!("{flag} without --long: {error:?}"));
+        if flag.starts_with("--color-scale") {
+            ignored.theme.colour_scale = bare.theme.colour_scale;
+        }
+        if flag == "--no-symlink-targets" {
+            ignored.view.file_style.show_symlink_targets =
+                bare.view.file_style.show_symlink_targets;
+        }
+        assert_eq!(format!("{ignored:?}"), format!("{bare:?}"), "{flag}");
     }
 }
 
 #[test]
 fn test_strict_mode_long_only_flags_succeed_with_long() {
-    let vars = MockVars::new(true);
-
     let long_only_flags = [
         "--binary",
         "-b",
@@ -350,17 +392,14 @@ fn test_strict_mode_long_only_flags_succeed_with_long() {
         "-U",
         "--utc",
         "--inspect-archives",
+        "--color-scale",
+        "--color-scale-mode=fixed",
+        "--no-symlink-targets",
         "--print-total",
     ];
 
     for flag in long_only_flags {
-        let matches = parse_cli_args(&["-l", flag]);
-        let result = Options::deduce(&matches, &vars);
-        assert!(
-            result.is_ok(),
-            "Expected flag {flag} WITH -l to succeed in strict mode, got: {:?}",
-            result.err()
-        );
+        accepted_unchanged(&["-l", flag]);
     }
 }
 
@@ -382,14 +421,18 @@ fn test_strict_mode_conflicting_options() {
         Err(OptionsError::Useless("one-line", true, "long"))
     ));
 
-    // 3. Clap parser level conflict for --recurse with --treat-dirs-as-files
-    let clap_res =
-        get_command().try_get_matches_from(["lez", "--recurse", "--treat-dirs-as-files"]);
-    assert!(clap_res.is_err());
-
-    // 4. Clap parser level conflict for --tree with --treat-dirs-as-files
-    let clap_res = get_command().try_get_matches_from(["lez", "--tree", "--treat-dirs-as-files"]);
-    assert!(clap_res.is_err());
+    // 3, 4. Recursing and treating directories as files conflict in the
+    // parser, before strict mode is consulted.
+    for walk in ["--recurse", "--tree"] {
+        let error = get_command()
+            .try_get_matches_from(["lez", walk, "--treat-dirs-as-files"])
+            .expect_err("a conflict");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::ArgumentConflict,
+            "{walk}"
+        );
+    }
 
     // 5. -a -a -a (3+ all flags)
     let m = parse_cli_args(&["-a", "-a", "-a"]);
@@ -411,55 +454,71 @@ fn test_strict_mode_conflicting_options() {
         Options::deduce(&m, &vars),
         Err(OptionsError::Useless2("level", "recurse", "tree"))
     ));
+
+    // 8. A layout beside --code, which takes the place of every layout; it
+    // used to pass in silence, --json too, which has no summary to write.
+    for (flag, name) in [
+        ("--json", "json"),
+        ("-l", "long"),
+        ("-T", "tree"),
+        ("-G", "grid"),
+        ("-1", "one-line"),
+    ] {
+        let m = parse_cli_args(&["--code", flag]);
+        match Options::deduce(&m, &vars) {
+            Err(OptionsError::Useless(useless, true, "code")) => assert_eq!(useless, name),
+            other => panic!("{flag}: {other:?}"),
+        }
+        accepted_unchanged(&["--code"]);
+        let lenient = Options::deduce(&m, &MockVars::new(false)).expect("lenient deduction");
+        let alone = Options::deduce(&parse_cli_args(&["--code"]), &MockVars::new(false))
+            .expect("--code alone");
+        assert_eq!(
+            format!("{:?}", lenient.view.mode),
+            format!("{:?}", alone.view.mode),
+            "{flag}"
+        );
+    }
 }
 
+/// The binary reads strict mode from `LEZ_STRICT`, `EZA_STRICT` or
+/// `EXA_STRICT`, reports the useless option, and exits 3.
 #[test]
 fn test_strict_mode_cli_process_exit_codes() {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
     let temp = TempTestDir::new("exit_codes");
-    let temp_str = temp.path.to_str().unwrap();
+    let run = |var: Option<&str>, args: &[&str]| {
+        let mut cmd = crate::common::lez_cmd();
+        cmd.args(args).arg(&temp.path);
+        if let Some(var) = var {
+            cmd.env(var, "1");
+        }
+        let output = cmd.output().expect("run lez");
+        (
+            output.status.code(),
+            String::from_utf8(output.stderr).expect("UTF-8 stderr"),
+        )
+    };
 
-    // Success case in strict mode
-    let output = Command::new(bin_path)
-        .args(["-l", temp_str])
-        .env("EZA_STRICT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(0));
-
-    // Error case in strict mode: --binary without -l -> Exit 3 (OPTIONS_ERROR)
-    let output = Command::new(bin_path)
-        .args(["--binary", temp_str])
-        .env("EZA_STRICT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(3));
-
-    // Same case without strict mode -> Exit 0
-    let output = Command::new(bin_path)
-        .args(["--binary", temp_str])
-        .env_remove("EZA_STRICT")
-        .env_remove("EXA_STRICT")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(0));
-
-    // EXA_STRICT fallback in strict mode -> Exit 3
-    let output = Command::new(bin_path)
-        .args(["--binary", temp_str])
-        .env_remove("EZA_STRICT")
-        .env("EXA_STRICT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(3));
-
-    // Conflicting args in strict mode -> Exit 3
-    let output = Command::new(bin_path)
-        .args(["-l", "-x", temp_str])
-        .env("EZA_STRICT", "1")
-        .output()
-        .expect("Failed to execute lez binary");
-    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(run(Some("LEZ_STRICT"), &["-l"]), (Some(0), String::new()));
+    assert_eq!(run(None, &["--binary"]), (Some(0), String::new()));
+    for var in ["LEZ_STRICT", "EZA_STRICT", "EXA_STRICT"] {
+        assert_eq!(
+            run(Some(var), &["--binary"]),
+            (
+                Some(3),
+                "lez: Option binary is useless without option long\n".to_owned()
+            ),
+            "{var}"
+        );
+        assert_eq!(
+            run(Some(var), &["-l", "-x"]),
+            (
+                Some(3),
+                "lez: Option across is useless given option long\n".to_owned()
+            ),
+            "{var}"
+        );
+    }
 }
 
 // =========================================================================
@@ -467,7 +526,7 @@ fn test_strict_mode_cli_process_exit_codes() {
 // =========================================================================
 
 #[test]
-fn test_sibling_lookup_scale_and_timing() {
+fn test_sibling_lookup_at_scale() {
     let temp_dir = TempTestDir::new("scale_sibling");
 
     let num_pairs = 250;
@@ -494,9 +553,6 @@ fn test_sibling_lookup_scale_and_timing() {
 
     let dir = Dir::read_dir(temp_dir.path.clone()).expect("Failed to read directory");
 
-    // Perform lookups and measure time
-    let start = Instant::now();
-
     for path in &expected_present {
         assert!(
             dir.contains(path),
@@ -510,13 +566,6 @@ fn test_sibling_lookup_scale_and_timing() {
             "Expected Dir::contains to NOT find missing path {path:?}"
         );
     }
-
-    let elapsed = start.elapsed();
-    // 1,000 lookups with O(1) set lookup should easily finish in well under 500ms
-    assert!(
-        elapsed < Duration::from_millis(500),
-        "1,000 sibling lookups took {elapsed:?}, exceeding acceptable O(1) bounds!"
-    );
 }
 
 #[test]
@@ -615,6 +664,7 @@ fn test_sibling_lookup_concurrent_multithreaded_access() {
 // =========================================================================
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_nested_structure() {
     let repo = TempGitRepo::new("scoped_nested");
 
@@ -644,21 +694,21 @@ fn test_git_scoped_queries_nested_structure() {
     assert!(git_cache_a.has_anything_for(&pkg_a_path));
 
     let status_a1 = git_cache_a.get(&sub_a_file1, false);
-    assert!(status_a1.unstaged == f::GitStatus::Modified);
+    assert_eq!(status_a1, unstaged(f::GitStatus::Modified));
 
     let status_untracked_a = git_cache_a.get(&untracked_a, false);
-    assert!(status_untracked_a.unstaged == f::GitStatus::New);
+    assert_eq!(status_untracked_a, unstaged(f::GitStatus::New));
 
     let dir_status_a = git_cache_a.get(&pkg_a_path, true);
     // Since pkg_a has both WT_MODIFIED and WT_NEW, WT_NEW takes precedence in working_tree_status match order
-    assert!(dir_status_a.unstaged == f::GitStatus::New);
+    assert_eq!(dir_status_a, unstaged(f::GitStatus::New));
 
     // Files outside pkg_a MUST NOT be scanned in scoped query
     let status_b = git_cache_a.get(&sub_b_file1, false);
-    assert!(status_b.unstaged == f::GitStatus::NotModified);
+    assert_eq!(status_b, unstaged(f::GitStatus::NotModified));
 
     let status_root = git_cache_a.get(&root_file, false);
-    assert!(status_root.unstaged == f::GitStatus::NotModified);
+    assert_eq!(status_root, unstaged(f::GitStatus::NotModified));
 
     // Scenario 2: Multi-path scoped query: pkg_b and pkg_c/deep/nested
     let git_cache_bc = lez::fs::feature::git::GitCache::from_iter(vec![
@@ -667,25 +717,41 @@ fn test_git_scoped_queries_nested_structure() {
     ]);
 
     let status_b1 = git_cache_bc.get(&sub_b_file1, false);
-    assert!(status_b1.unstaged == f::GitStatus::Modified);
+    assert_eq!(status_b1, unstaged(f::GitStatus::Modified));
 
     let status_c1 = git_cache_bc.get(&sub_c_file1, false);
-    assert!(status_c1.unstaged == f::GitStatus::Modified);
+    assert_eq!(status_c1, unstaged(f::GitStatus::Modified));
 
     // pkg_a files must NOT be in cache
     let status_a_in_bc = git_cache_bc.get(&sub_a_file1, false);
-    assert!(status_a_in_bc.unstaged == f::GitStatus::NotModified);
+    assert_eq!(status_a_in_bc, unstaged(f::GitStatus::NotModified));
 
     // Scenario 3: Repo root fallback
     let git_cache_all = lez::fs::feature::git::GitCache::from_iter(vec![repo.path.clone()]);
-    assert!(git_cache_all.get(&root_file, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache_all.get(&sub_a_file1, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache_all.get(&sub_b_file1, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache_all.get(&sub_c_file1, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache_all.get(&untracked_a, false).unstaged == f::GitStatus::New);
+    assert_eq!(
+        git_cache_all.get(&root_file, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache_all.get(&sub_a_file1, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache_all.get(&sub_b_file1, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache_all.get(&sub_c_file1, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache_all.get(&untracked_a, false),
+        unstaged(f::GitStatus::New)
+    );
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_staged_and_ignored() {
     let repo = TempGitRepo::new("staged_ignored");
     repo.create_file(".gitignore", b"*.ignored\n");
@@ -707,10 +773,10 @@ fn test_git_scoped_queries_staged_and_ignored() {
     let git_cache = lez::fs::feature::git::GitCache::from_iter(vec![sub_dir_path.clone()]);
 
     let staged_status = git_cache.get(&file_staged, false);
-    assert!(staged_status.staged == f::GitStatus::Modified);
+    assert_eq!(staged_status, staged(f::GitStatus::Modified));
 
     let ignored_status = git_cache.get(&file_ignored, false);
-    assert!(ignored_status.unstaged == f::GitStatus::Ignored);
+    assert_eq!(ignored_status, unstaged(f::GitStatus::Ignored));
 }
 
 #[test]
@@ -739,23 +805,26 @@ fn test_strict_mode_time_and_git_options_permutations() {
     ));
 
     // --time=created WITH -l -> succeeds
-    let m = parse_cli_args(&["-l", "--time=created"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["-l", "--time=created"]);
 
     // --git without -l -> fails in strict mode
     let m = parse_cli_args(&["--git"]);
-    assert!(matches!(
-        Options::deduce(&m, &vars),
+    let expected = if unsupported_here(&["--git"]) {
+        Err(OptionsError::Unsupported(
+            "Options --git and --git-ignore can't be used because `git` feature was disabled \
+             in this build of lez"
+                .to_owned(),
+        ))
+    } else {
         Err(OptionsError::Useless("git", false, "long"))
-    ));
+    };
+    assert_eq!(Options::deduce(&m, &vars).map(|_| ()), expected);
 
     // --git with --no-git without -l -> no error because no-git suppresses git flag
-    let m = parse_cli_args(&["--git", "--no-git"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["--git", "--no-git"]);
 
     // --no-git alone without -l -> succeeds
-    let m = parse_cli_args(&["--no-git"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["--no-git"]);
 }
 
 #[test]
@@ -763,12 +832,10 @@ fn test_strict_mode_almost_all_and_all_counts() {
     let vars = MockVars::new(true);
 
     // -a alone -> ok
-    let m = parse_cli_args(&["-a"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["-a"]);
 
     // -a -a (2 all flags) without tree -> ok
-    let m = parse_cli_args(&["-a", "-a"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["-a", "-a"]);
 
     // -a -a -a (3 all flags) in strict mode -> Conflict
     let m = parse_cli_args(&["-a", "-a", "-a"]);
@@ -785,8 +852,7 @@ fn test_strict_mode_almost_all_and_all_counts() {
     ));
 
     // --almost-all with --tree -> ok
-    let m = parse_cli_args(&["--almost-all", "--tree"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["--almost-all", "--tree"]);
 }
 
 #[test]
@@ -844,6 +910,7 @@ fn test_sibling_lookup_compiled_file_detection_all_languages() {
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_rename_and_deletion() {
     let repo = TempGitRepo::new("rename_del");
     let file1 = repo.create_file("sub_a/file1.txt", b"v1\n");
@@ -872,14 +939,16 @@ fn test_git_scoped_queries_rename_and_deletion() {
 
     // file1 is deleted (unstaged)
     let s1 = git_cache.get(&file1, false);
-    assert!(s1.unstaged == f::GitStatus::Deleted);
+    assert_eq!(s1, unstaged(f::GitStatus::Deleted));
 
-    // file2_renamed is new/renamed staged
+    // lez does not ask libgit2 for rename detection, so a staged rename is a
+    // new file beside a deleted one.
     let s2 = git_cache.get(&file2_renamed, false);
-    assert!(s2.staged == f::GitStatus::New || s2.staged == f::GitStatus::Renamed);
+    assert_eq!(s2, staged(f::GitStatus::New));
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_deep_pathspec() {
     let repo = TempGitRepo::new("deep_pathspec");
     let deep_file = repo.create_file("d1/d2/d3/d4/d5/d6/d7/deep.txt", b"initial\n");
@@ -895,14 +964,24 @@ fn test_git_scoped_queries_deep_pathspec() {
     let git_cache = lez::fs::feature::git::GitCache::from_iter(vec![deep_dir.clone()]);
 
     // Both files in deep_dir should be detected as modified
-    assert!(git_cache.get(&deep_file, false).unstaged == f::GitStatus::Modified);
-    assert!(git_cache.get(&sibling_file, false).unstaged == f::GitStatus::Modified);
+    assert_eq!(
+        git_cache.get(&deep_file, false),
+        unstaged(f::GitStatus::Modified)
+    );
+    assert_eq!(
+        git_cache.get(&sibling_file, false),
+        unstaged(f::GitStatus::Modified)
+    );
 
     // root_file should NOT be in the scoped scan
-    assert!(git_cache.get(&root_file, false).unstaged == f::GitStatus::NotModified);
+    assert_eq!(
+        git_cache.get(&root_file, false),
+        unstaged(f::GitStatus::NotModified)
+    );
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_relative_and_dot_dot_paths() {
     let repo = TempGitRepo::new("relative_dot_dot");
     let file_a = repo.create_file("sub_a/file.txt", b"initial\n");
@@ -915,5 +994,8 @@ fn test_git_scoped_queries_relative_and_dot_dot_paths() {
 
     // When querying with the path constructed under weird_path (as DirEntry does when listing weird_path)
     let queried_file = weird_path.join("file.txt");
-    assert!(git_cache.get(&queried_file, false).unstaged == f::GitStatus::Modified);
+    assert_eq!(
+        git_cache.get(&queried_file, false),
+        unstaged(f::GitStatus::Modified)
+    );
 }

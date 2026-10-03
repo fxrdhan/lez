@@ -380,6 +380,9 @@ fn all_clap_flags_are_present_in_completions() {
             && long != "version"
         {
             clap_longs.push(long.to_owned());
+            for alias in arg.get_visible_aliases().unwrap_or_default() {
+                clap_longs.push(alias.to_owned());
+            }
         }
     }
     assert!(!clap_longs.is_empty());
@@ -394,12 +397,32 @@ fn all_clap_flags_are_present_in_completions() {
             );
         } else {
             for flag in &clap_longs {
-                let zsh_expanded = flag.replace("color", "colo{,u}r");
+                // fish names a long option `-l name`; zsh may spell `colour`
+                // both ways at once.
+                let spellings = match dir {
+                    "fish" => vec![format!("-l {flag}")],
+                    "zsh" => vec![
+                        format!("--{flag}"),
+                        format!("--{}", flag.replace("color", "colo{,u}r")),
+                    ],
+                    _ => vec![format!("--{flag}")],
+                };
                 assert!(
-                    script.contains(flag) || (dir == "zsh" && script.contains(&zsh_expanded)),
+                    spellings
+                        .iter()
+                        .any(|spelling| names_the_option(&script, spelling)),
                     "completions/{dir}/{primary} is missing CLI flag --{flag}"
                 );
             }
         }
     }
+}
+
+/// Whether `script` holds `option` as a whole option name: `--git` is not
+/// named by `--git-ignore` or `--git-repos`.
+fn names_the_option(script: &str, option: &str) -> bool {
+    script.match_indices(option).any(|(at, _)| {
+        !script[at + option.len()..]
+            .starts_with(|c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    })
 }

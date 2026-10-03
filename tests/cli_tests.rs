@@ -1,15 +1,23 @@
+mod common;
+
+/// Runs the cases matching `pattern`. Each case file sets
+/// `env.inherit = false`, so lez sees none of the environment the tests run
+/// in (`LS_COLORS`, `TZ`, `COLUMNS`, a `LEZ_*` setting, the user's config)
+/// beyond what is added here and in the case itself.
 fn run_isolated(pattern: &str) {
-    trycmd::TestCases::new()
-        .env("LS_COLORS", "")
-        .env("LEZ_COLORS", "")
-        .env("EZA_COLORS", "")
-        .env("EXA_COLORS", "")
-        .env("TIME_STYLE", "")
-        .env("NO_COLOR", "")
-        .env("LEZ_STRICT", "")
-        .env("EZA_STRICT", "")
-        .env("EXA_STRICT", "")
-        .case(pattern);
+    let cases = trycmd::TestCases::new();
+    cases.env(
+        "LEZ_CONFIG_DIR",
+        common::no_config_dir().to_string_lossy().into_owned(),
+    );
+    // Windows programs expect these, as `common::lez_cmd` notes.
+    #[cfg(windows)]
+    for name in ["SystemRoot", "SYSTEMROOT", "USERPROFILE", "ComSpec"] {
+        if let Ok(value) = std::env::var(name) {
+            cases.env(name, value);
+        }
+    }
+    cases.case(pattern);
 }
 
 #[test]

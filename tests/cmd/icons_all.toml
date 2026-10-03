@@ -1,2 +1,3 @@
 bin.name = "lez"
 args = "tests/itest --icons=always"
+env.inherit = false

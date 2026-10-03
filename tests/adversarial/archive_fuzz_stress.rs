@@ -1,386 +1,307 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Adversarial fuzzing and stress test suite for tar archive inspection
-//! (`--inspect-archives`):
-//! - Zero-byte, truncated, and sub-512-byte tar archives
-//! - Corrupted magic bytes, invalid checksums, and garbled octal headers
-//! - Pathological entry counts (800+ entries) asserting `MAX_ENTRIES` (500) truncation
-//! - Astronomical declared entry sizes (100 TiB / u64::MAX) without payload
-//! - Deeply nested archive paths (80+ directory segments)
-//! - Non-UTF-8 and raw byte sequences in tar entry filenames
-//! - Special tar entry kinds (symlinks, hardlinks, FIFOs, devices)
-//! - End-to-end CLI execution across long, json, and tree modes without panics
+//! Malformed and pathological tar archives fed to `archives::read_entries`.
+//!
+//! The reader only returns `Err` when the file cannot be opened; everything
+//! wrong inside the archive ends the walk and keeps what was read so far
+//! (`src/fs/archives.rs`). So each case pins the exact entries that survive,
+//! because asserting `is_ok()` on an existing file can never fail.
+//!
+//! How the listing renders entries is covered in `filesystem/inspect_archives.rs`.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use lez::fs::archives;
 
-struct ArchiveFuzzDir {
-    path: PathBuf,
+use crate::common::TempTestDir;
+
+/// The entries of an archive small enough to be read whole.
+fn entries(path: &Path) -> Vec<(String, u64)> {
+    let listing = archives::read_entries(path).expect("an existing archive is always readable");
+    assert!(!listing.truncated, "{path:?} was cut short");
+    listing
+        .entries
+        .into_iter()
+        .map(|entry| (entry.path, entry.size))
+        .collect()
 }
 
-impl ArchiveFuzzDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_arcfuzz_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp archive fuzz directory");
-        Self { path }
-    }
-
-    fn create_raw_file(&self, name: &str, bytes: &[u8]) -> PathBuf {
-        let p = self.path.join(name);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut f = StdFile::create(&p).unwrap();
-        f.write_all(bytes).unwrap();
-        p
-    }
-}
-
-impl Drop for ArchiveFuzzDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
-fn run_lez(dir: &Path, args: &[&str]) -> (bool, String, String) {
-    let output = Command::new(bin_path())
-        .current_dir(dir)
-        .args(args)
-        .env("NO_COLOR", "1")
-        .env("LEZ_COLORS", "reset")
-        .output()
-        .expect("Failed to execute lez binary");
-
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stdout).to_string(),
-        String::from_utf8_lossy(&output.stderr).to_string(),
-    )
-}
-
-#[test]
-fn test_zero_byte_and_sub_block_tar_archives() {
-    let fixture = ArchiveFuzzDir::new("zero_sub");
-
-    // 0 bytes
-    fixture.create_raw_file("empty.tar", &[]);
-    // 1 byte
-    fixture.create_raw_file("one_byte.tar", &[0x42]);
-    // 511 bytes (one byte short of standard 512-byte tar header block)
-    fixture.create_raw_file("partial_header.tar", &vec![0xAA; 511]);
-    // 512 bytes with pure garbage
-    fixture.create_raw_file("garbage_512.tar", &vec![0xFF; 512]);
-
-    for name in [
-        "empty.tar",
-        "one_byte.tar",
-        "partial_header.tar",
-        "garbage_512.tar",
-    ] {
-        let p = fixture.path.join(name);
-        let res = archives::read_entries(&p);
-        assert!(
-            res.is_ok(),
-            "read_entries on {name} must return Ok(vec) or fail silently"
-        );
-        let entries = res.unwrap();
-        assert!(
-            entries.is_empty(),
-            "Corrupted/sub-block tar {name} must yield 0 entries, got: {entries:?}"
-        );
-    }
-}
-
-#[test]
-fn test_corrupted_magic_and_checksum_headers() {
-    let fixture = ArchiveFuzzDir::new("corrupt_hdr");
-
-    // Construct a 1024-byte block with partial valid tar fields and intentionally corrupted magic/checksum
-    let mut header_block = vec![0u8; 1024];
-    // Write a filename in first 100 bytes
-    header_block[..9].copy_from_slice(b"dummy.txt");
-    // Size field: 12 bytes at offset 124 (e.g. "00000000100 ")
-    header_block[124..136].copy_from_slice(b"00000000100 ");
-    // Bad checksum at offset 148
-    header_block[148..156].copy_from_slice(b"999999\0 ");
-    // Garbled magic bytes at offset 257 (should be "ustar\0")
-    header_block[257..263].copy_from_slice(b"NOSTAR");
-
-    let p = fixture.create_raw_file("bad_magic.tar", &header_block);
-    let res = archives::read_entries(&p);
-    assert!(res.is_ok());
-}
-
-#[test]
-fn test_pathological_entry_count_truncation_at_500() {
-    let fixture = ArchiveFuzzDir::new("trunc_500");
-    let tar_path = fixture.path.join("massive_800.tar");
-    let file = StdFile::create(&tar_path).unwrap();
-    let mut builder = tar::Builder::new(file);
-
-    // Append 800 files into the tar archive
-    for i in 0..800 {
-        let mut header = tar::Header::new_gnu();
-        header.set_size(10);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder
-            .append_data(&mut header, format!("file_{i:04}.txt"), &b"0123456789"[..])
-            .unwrap();
-    }
-    builder.into_inner().unwrap();
-
-    let entries = archives::read_entries(&tar_path).expect("read_entries on 800-entry archive");
-    // Max entries is 500 plus 1 synthetic truncation entry = 501
-    assert_eq!(
-        entries.len(),
-        501,
-        "Archive with 800 entries must be capped at 500 + 1 truncation marker"
-    );
-    assert_eq!(
-        entries.last().unwrap().path,
-        "… (truncated)",
-        "Last entry must be the truncation indicator"
-    );
-}
-
-#[test]
-fn test_pathological_huge_declared_size_without_payload() {
-    let fixture = ArchiveFuzzDir::new("huge_size");
-    let tar_path = fixture.path.join("huge_declared.tar");
-    let file = StdFile::create(&tar_path).unwrap();
-    let mut builder = tar::Builder::new(file);
-
+fn regular_header(size: u64) -> tar::Header {
     let mut header = tar::Header::new_gnu();
-    // Declare 100 TiB (100 * 1024^4 bytes)
-    header.set_size(100 * 1024 * 1024 * 1024 * 1024);
+    header.set_size(size);
     header.set_mode(0o644);
     header.set_cksum();
-    // Do not append 100TB, only append header + 0 bytes
-    let _ = builder.append_data(&mut header, "ghost_100tib.dat", &b""[..]);
-    let _ = builder.into_inner();
+    header
+}
 
-    let res = archives::read_entries(&tar_path);
-    assert!(res.is_ok(), "Must not crash or hang on huge declared size");
+fn tar_bytes(files: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (name, data) in files {
+        let mut header = regular_header(data.len() as u64);
+        builder
+            .append_data(&mut header, name, *data)
+            .expect("append to in-memory archive");
+    }
+    builder.into_inner().expect("finish in-memory archive")
+}
+
+fn write(dir: &TempTestDir, name: &str, bytes: &[u8]) -> PathBuf {
+    dir.create_file(name, bytes)
 }
 
 #[test]
-fn test_deeply_nested_paths_inside_archive() {
-    let fixture = ArchiveFuzzDir::new("deep_nested");
-    let tar_path = fixture.path.join("deep_tree.tar");
-    let file = StdFile::create(&tar_path).unwrap();
-    let mut builder = tar::Builder::new(file);
+fn a_missing_archive_is_the_only_error() {
+    let dir = TempTestDir::new("arc_missing");
+    let err = archives::read_entries(&dir.path().join("absent.tar"))
+        .expect_err("opening a missing file must fail");
+    assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+}
 
+#[test]
+fn archives_too_short_or_garbled_for_a_header_yield_nothing() {
+    let dir = TempTestDir::new("arc_short");
+    for (name, bytes) in [
+        ("empty.tar", Vec::new()),
+        ("one_byte.tar", vec![0x42]),
+        ("partial_header.tar", vec![0xAA; 511]),
+        ("garbage_block.tar", vec![0xFF; 512]),
+    ] {
+        let path = write(&dir, name, &bytes);
+        assert_eq!(entries(&path), [], "{name}");
+    }
+}
+
+#[test]
+fn a_header_with_a_bad_checksum_ends_the_listing() {
+    let dir = TempTestDir::new("arc_cksum");
+    let mut bytes = tar_bytes(&[("first.txt", b"ok"), ("second.txt", b"ok")]);
+    // Corrupt the second header's checksum field; the first entry survives.
+    bytes[512 + 512 + 148..512 + 512 + 156].copy_from_slice(b"999999\0 ");
+    let path = write(&dir, "bad_checksum.tar", &bytes);
+    assert_eq!(entries(&path), [("first.txt".to_owned(), 2)]);
+}
+
+#[test]
+fn a_declared_size_without_payload_is_reported_as_declared() {
+    let dir = TempTestDir::new("arc_huge");
+    let declared = 100 * 1024 * 1024 * 1024 * 1024;
+    // A lone header block that promises 100 TiB and is followed by nothing.
+    let mut header = tar::Header::new_gnu();
+    header.set_path("ghost.dat").expect("short path");
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_size(declared);
+    header.set_mode(0o644);
+    header.set_cksum();
+
+    let path = write(&dir, "huge_declared.tar", header.as_bytes());
+    assert_eq!(entries(&path), [("ghost.dat".to_owned(), declared)]);
+}
+
+#[test]
+fn more_than_five_hundred_entries_are_cut_short_and_marked() {
+    let dir = TempTestDir::new("arc_trunc");
+    let names: Vec<String> = (0..800).map(|i| format!("file_{i:04}.txt")).collect();
+    let files: Vec<(&str, &[u8])> = names
+        .iter()
+        .map(|name| (name.as_str(), &b"0123456789"[..]))
+        .collect();
+    let path = write(&dir, "massive.tar", &tar_bytes(&files));
+
+    let listing = archives::read_entries(&path).expect("readable");
+    assert!(listing.truncated);
+    assert_eq!(
+        listing
+            .entries
+            .into_iter()
+            .map(|entry| (entry.path, entry.size))
+            .collect::<Vec<_>>(),
+        names[..archives::MAX_ENTRIES]
+            .iter()
+            .map(|name| (name.clone(), 10))
+            .collect::<Vec<_>>()
+    );
+
+    // Exactly the limit is not cut short.
+    let path = write(
+        &dir,
+        "exact.tar",
+        &tar_bytes(&files[..archives::MAX_ENTRIES]),
+    );
+    assert_eq!(entries(&path).len(), archives::MAX_ENTRIES);
+}
+
+#[test]
+fn deeply_nested_entry_paths_are_kept_whole() {
+    let dir = TempTestDir::new("arc_deep");
     let deep_path = (0..60)
         .map(|i| format!("d_{i:02}"))
         .collect::<Vec<_>>()
         .join("/")
         + "/leaf.txt";
-
-    let mut header = tar::Header::new_gnu();
-    header.set_size(5);
-    header.set_mode(0o644);
-    header.set_cksum();
-    builder
-        .append_data(&mut header, deep_path.as_str(), &b"hello"[..])
-        .unwrap();
-    builder.into_inner().unwrap();
-
-    let entries = archives::read_entries(&tar_path).unwrap();
-    assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].path, deep_path);
+    let path = write(&dir, "deep.tar", &tar_bytes(&[(&deep_path, b"hello")]));
+    assert_eq!(entries(&path), [(deep_path, 5)]);
 }
 
 #[test]
-fn test_special_entry_kinds_and_directories_skipped() {
-    let fixture = ArchiveFuzzDir::new("special_kinds");
-    let tar_path = fixture.path.join("special.tar");
-    let file = StdFile::create(&tar_path).unwrap();
-    let mut builder = tar::Builder::new(file);
+fn directories_are_skipped_and_other_kinds_are_listed() {
+    let dir = TempTestDir::new("arc_kinds");
+    let mut builder = tar::Builder::new(Vec::new());
 
-    // 1. Directory entry (should be skipped by read_entries)
-    let mut dir_hdr = tar::Header::new_gnu();
-    dir_hdr.set_entry_type(tar::EntryType::Directory);
-    dir_hdr.set_size(0);
-    dir_hdr.set_mode(0o755);
-    dir_hdr.set_cksum();
+    let mut folder = tar::Header::new_gnu();
+    folder.set_entry_type(tar::EntryType::Directory);
+    folder.set_size(0);
+    folder.set_mode(0o755);
+    folder.set_cksum();
     builder
-        .append_data(&mut dir_hdr, "folder/", &b""[..])
-        .unwrap();
+        .append_data(&mut folder, "folder/", &b""[..])
+        .expect("append directory");
 
-    // 2. Symlink entry
-    let mut sym_hdr = tar::Header::new_gnu();
-    sym_hdr.set_entry_type(tar::EntryType::Symlink);
-    sym_hdr.set_size(0);
-    sym_hdr.set_mode(0o777);
-    sym_hdr.set_link_name("target.txt").unwrap();
-    sym_hdr.set_cksum();
+    let mut link = tar::Header::new_gnu();
+    link.set_entry_type(tar::EntryType::Symlink);
+    link.set_size(0);
+    link.set_mode(0o777);
+    link.set_link_name("target.txt").expect("link name");
+    link.set_cksum();
     builder
-        .append_data(&mut sym_hdr, "link_to_target", &b""[..])
-        .unwrap();
+        .append_data(&mut link, "link_to_target", &b""[..])
+        .expect("append symlink");
 
-    // 3. Regular file
-    let mut file_hdr = tar::Header::new_gnu();
-    file_hdr.set_entry_type(tar::EntryType::Regular);
-    file_hdr.set_size(4);
-    file_hdr.set_mode(0o644);
-    file_hdr.set_cksum();
+    let mut file = regular_header(4);
     builder
-        .append_data(&mut file_hdr, "file.txt", &b"data"[..])
-        .unwrap();
+        .append_data(&mut file, "folder/file.txt", &b"data"[..])
+        .expect("append file");
 
-    builder.into_inner().unwrap();
-
-    let entries = archives::read_entries(&tar_path).unwrap();
-    // Directory should be excluded, file and symlink entries included
-    assert!(entries.iter().any(|e| e.path == "file.txt"));
-    assert!(!entries.iter().any(|e| e.path == "folder/"));
+    let path = write(
+        &dir,
+        "kinds.tar",
+        &builder.into_inner().expect("finish archive"),
+    );
+    assert_eq!(
+        entries(&path),
+        [
+            ("link_to_target".to_owned(), 0),
+            ("folder/file.txt".to_owned(), 4),
+        ]
+    );
 }
 
 #[test]
-fn test_cli_end_to_end_fuzz_corpus_execution() {
-    let fixture = ArchiveFuzzDir::new("cli_e2e");
+fn a_second_archive_after_the_end_marker_is_not_read() {
+    let dir = TempTestDir::new("arc_concat");
+    let mut bytes = tar_bytes(&[("part1.txt", b"first")]);
+    bytes.extend_from_slice(&tar_bytes(&[("part2.txt", b"second")]));
+    bytes.extend_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
+    let path = write(&dir, "concatenated.tar", &bytes);
+    assert_eq!(entries(&path), [("part1.txt".to_owned(), 5)]);
+}
 
-    // Populate all types of pathological archives in one directory
-    fixture.create_raw_file("corrupt_zero.tar", &[]);
-    fixture.create_raw_file("corrupt_partial.tar", &[0xAA; 250]);
-    fixture.create_raw_file("corrupt_garbage.tar", &[0xDE, 0xAD, 0xBE, 0xEF]);
+#[test]
+fn an_archive_cut_mid_way_keeps_the_complete_entries() {
+    let dir = TempTestDir::new("arc_cut");
+    let payload = [b'X'; 100];
+    let names: Vec<String> = (0..5).map(|i| format!("entry_{i}.dat")).collect();
+    let files: Vec<(&str, &[u8])> = names
+        .iter()
+        .map(|name| (name.as_str(), &payload[..]))
+        .collect();
+    let bytes = tar_bytes(&files);
+    // Each entry is one header block and one data block: cutting after three
+    // of them leaves the fourth header missing.
+    let path = write(&dir, "cut.tar", &bytes[..3 * 1024]);
+    assert_eq!(
+        entries(&path),
+        [
+            ("entry_0.dat".to_owned(), 100),
+            ("entry_1.dat".to_owned(), 100),
+            ("entry_2.dat".to_owned(), 100),
+        ]
+    );
 
-    // Valid small tar
-    let valid_tar = fixture.path.join("valid.tar");
-    let file = StdFile::create(&valid_tar).unwrap();
-    let mut builder = tar::Builder::new(file);
-    let mut h = tar::Header::new_gnu();
-    h.set_size(4);
-    h.set_mode(0o644);
-    h.set_cksum();
+    // Cutting through the third entry's data still keeps the two before it,
+    // and the half-read entry, whose header was complete.
+    let path = write(&dir, "cut_in_data.tar", &bytes[..2 * 1024 + 600]);
+    assert_eq!(
+        entries(&path),
+        [
+            ("entry_0.dat".to_owned(), 100),
+            ("entry_1.dat".to_owned(), 100),
+            ("entry_2.dat".to_owned(), 100),
+        ]
+    );
+}
+
+/// Past the 8 GiB a ustar size field holds, writers put the size in a PAX
+/// `size` record and leave the field at zero. The record is the entry's
+/// size, and it is also what places the next header.
+#[test]
+fn a_pax_size_record_overrides_the_header_field() {
+    let dir = TempTestDir::new("arc_pax_size");
+    let mut builder = tar::Builder::new(Vec::new());
     builder
-        .append_data(&mut h, "doc.txt", &b"text"[..])
-        .unwrap();
-    builder.into_inner().unwrap();
-
-    // 1. Long view with --inspect-archives
-    let (l_ok, l_out, l_err) = run_lez(
-        &fixture.path,
-        &["-l", "--inspect-archives", "--color=never"],
+        .append_pax_extensions([("size", &b"5"[..])])
+        .expect("append a PAX record");
+    builder
+        .append_data(&mut regular_header(0), "big.img", &b"hello"[..])
+        .expect("append the entry");
+    builder
+        .append_data(&mut regular_header(2), "after.txt", &b"ok"[..])
+        .expect("append the next entry");
+    let path = write(
+        &dir,
+        "pax_size.tar",
+        &builder.into_inner().expect("finish archive"),
     );
-    assert!(l_ok, "lez -l --inspect-archives failed: {l_err}");
-    assert!(l_out.contains("valid.tar"));
-    assert!(l_out.contains("valid.tar/doc.txt"));
-    assert!(l_out.contains("corrupt_zero.tar"));
-    assert!(l_out.contains("corrupt_garbage.tar"));
-
-    // 2. JSON mode with --inspect-archives
-    let (j_ok, j_out, j_err) = run_lez(
-        &fixture.path,
-        &["--json", "-l", "--inspect-archives", "--color=never"],
+    assert_eq!(
+        entries(&path),
+        [("big.img".to_owned(), 5), ("after.txt".to_owned(), 2)]
     );
-    assert!(j_ok, "lez --json -l --inspect-archives failed: {j_err}");
-    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&j_out);
-    assert!(parsed.is_ok(), "JSON was invalid: {j_out}");
-
-    // 3. Tree mode with --inspect-archives
-    let (t_ok, t_out, t_err) = run_lez(
-        &fixture.path,
-        &["-T", "-l", "--inspect-archives", "--color=never"],
-    );
-    assert!(t_ok, "lez -T -l --inspect-archives failed: {t_err}");
-    assert!(t_out.contains("valid.tar"));
 }
 
+/// A PAX `path` record replaces the name in the header.
 #[test]
-fn test_concatenated_and_trailing_garbage_tar_archives() {
-    let fixture = ArchiveFuzzDir::new("concat_tar");
-
-    // Build first tar with file1
-    let mut buf1 = Vec::new();
-    {
-        let mut builder = tar::Builder::new(&mut buf1);
-        let mut h = tar::Header::new_gnu();
-        h.set_size(5);
-        h.set_mode(0o644);
-        h.set_cksum();
-        builder
-            .append_data(&mut h, "part1.txt", &b"first"[..])
-            .unwrap();
-        builder.into_inner().unwrap();
-    }
-
-    // Build second tar with file2
-    let mut buf2 = Vec::new();
-    {
-        let mut builder = tar::Builder::new(&mut buf2);
-        let mut h = tar::Header::new_gnu();
-        h.set_size(6);
-        h.set_mode(0o644);
-        h.set_cksum();
-        builder
-            .append_data(&mut h, "part2.txt", &b"second"[..])
-            .unwrap();
-        builder.into_inner().unwrap();
-    }
-
-    // Concatenate both buffers plus trailing random garbage
-    let mut concat = buf1;
-    concat.extend_from_slice(&buf2);
-    concat.extend_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33]);
-
-    let p = fixture.create_raw_file("concatenated.tar", &concat);
-    let entries = archives::read_entries(&p).expect("read_entries must not panic");
-    assert!(
-        !entries.is_empty(),
-        "Must read at least entries from the first tar block"
+fn a_pax_path_record_names_the_entry() {
+    let dir = TempTestDir::new("arc_pax_path");
+    let long_path = format!("{}/payload.txt", "long_directory_name_".repeat(8));
+    let mut builder = tar::Builder::new(Vec::new());
+    builder
+        .append_pax_extensions([("path", long_path.as_bytes())])
+        .expect("append a PAX record");
+    builder
+        .append_data(&mut regular_header(2), "placeholder", &b"ok"[..])
+        .expect("append the entry");
+    let path = write(
+        &dir,
+        "pax_path.tar",
+        &builder.into_inner().expect("finish archive"),
     );
-    assert!(entries.iter().any(|e| e.path == "part1.txt"));
+    assert_eq!(entries(&path), [(long_path, 2)]);
 }
 
+/// A GNU sparse entry stores only its data blocks; its size is the length
+/// of the file it describes.
 #[test]
-fn test_truncated_tar_blocks_in_middle_of_file() {
-    let fixture = ArchiveFuzzDir::new("mid_trunc");
-
-    let mut buf = Vec::new();
-    {
-        let mut builder = tar::Builder::new(&mut buf);
-        for i in 0..5 {
-            let mut h = tar::Header::new_gnu();
-            h.set_size(100);
-            h.set_mode(0o644);
-            h.set_cksum();
-            builder
-                .append_data(&mut h, format!("entry_{i}.dat"), &vec![b'X'; 100][..])
-                .unwrap();
-        }
-        builder.into_inner().unwrap();
-    }
-
-    // Truncate halfway through the buffer (cutting an entry body or header in half)
-    let half_len = buf.len() / 2;
-    let truncated_buf = &buf[..half_len];
-
-    let p = fixture.create_raw_file("half_truncated.tar", truncated_buf);
-    let entries = archives::read_entries(&p).expect("read_entries on truncated archive");
-    // Should return whatever entries were completely parsed before truncation
-    assert!(
-        !entries.is_empty(),
-        "Should return partially parsed valid entries"
+fn a_sparse_entry_has_the_size_of_the_whole_file() {
+    let dir = TempTestDir::new("arc_sparse");
+    let real_size = 1 << 20;
+    let mut header = regular_header(512);
+    header.set_entry_type(tar::EntryType::GNUSparse);
+    let gnu = header.as_gnu_mut().expect("a GNU header");
+    gnu.set_real_size(real_size);
+    // One block of data at the start, and the empty block GNU tar writes
+    // to mark where the file ends.
+    gnu.sparse[0].set_offset(0);
+    gnu.sparse[0].set_length(512);
+    gnu.sparse[1].set_offset(real_size);
+    gnu.sparse[1].set_length(0);
+    let mut builder = tar::Builder::new(Vec::new());
+    builder
+        .append_data(&mut header, "sparse.img", &[b'x'; 512][..])
+        .expect("append the entry");
+    let path = write(
+        &dir,
+        "sparse.tar",
+        &builder.into_inner().expect("finish archive"),
     );
+    assert_eq!(entries(&path), [("sparse.img".to_owned(), real_size)]);
 }

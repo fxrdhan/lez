@@ -1,2 +1,3 @@
 bin.name = "lez"
 args = "tests/itest --long --no-user --no-time --no-filesize"
+env.inherit = false

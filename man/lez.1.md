@@ -106,6 +106,8 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 
 : The given paths (or the current directory) are walked recursively, honouring a git repository’s `.gitignore` when one is present, and each recognised language (including Odin, Rust, C/C++, Python, Go, and 100+ others) is reported with its file, line, code, comment, and blank counts, plus a bar visualising its share of the code. Valid modes are ‘`lines`’, ‘`percent`’, and ‘`both`’ (the default).
 
+: It takes the place of every layout: `--long`, `--tree`, `--grid`, `--oneline` and `--json` given beside it change nothing, and strict mode refuses them. There is no JSON summary.
+
 `--json`
 : Output file listing and metadata as structured JSON for easy parsing and scripting.
 
@@ -146,9 +148,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 `automatic` or `auto` will display icons only when the standard output is connected to a real terminal. If `lez` is run while in a `tty`, or the output of `lez` is either redirected to a file or piped into another program, icons will not be used. Setting this option to ‘`always`’ causes `lez` to always display icons, while ‘`never`’ disables the use of icons.
 
 `--quotes=WHEN`
-: When to quote file names. The default, `auto`, quotes names that contain spaces or quotes; `always` quotes every name; `never` quotes nothing (like `ls -N`).
+: When to quote file names. The default, `auto`, quotes names holding anything a shell gives a meaning to, the same characters `ls` quotes for: a space, `` ! " $ & ' ( ) * ; < = > ? [ \ ^ ` | ``, a control character, or a leading `#` or `~` (on Windows, where `\` separates paths, `\` and `[` are left bare, as are `?` and `*`, which a name there cannot hold and which appear only in a `\\?\` path prefix); `always` quotes every name; `never` quotes nothing (like `ls -N`).
 
-A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe, and for a name holding both kinds the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`.
+A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe and nothing double quotes would still expand (`` " $ ` \ ! ``), and otherwise the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`. A name holding a control character, such as a newline, is written in ANSI-C quotes, which bash, zsh and ksh read: the character as `\n`, `\t`, `\r`, `\a`, `\b`, `\v` or `\f`, or else as the octal escapes of its bytes, with `\'` and `\\` for an apostrophe and a backslash, so `new<newline>line` prints as `$'new\nline'`. With `never`, and on Windows, whose shells have no such quotes, a control character is shown as an escape such as `\n` or `\u{85}` that is not read back.
 
 `--spacing=SPACES`
 : Number of spaces to print between columns in the grid views. Accepts `0` to `255`; the default is `2`.
@@ -159,10 +161,13 @@ A quoted name is written so a shell reads back the name on disk. Single quotes a
 : A path component beginning with a Nix store hash — exactly 32 characters of Nix’s base32 alphabet followed by a dash, like `vlkia5wk0svsikwv50554mh06iayg2m2-source.drv` — is displayed with the hash shortened to its first 8 characters and an ellipsis, painted dim so the name stands out: `vlkia5wk…-source.drv`. This applies to listed names, symbolic link targets, and absolute paths.
 
 `--no-symlink-targets`
-: Do not show symlink targets (the `-> ...`) in long details and lines view modes.
+: Do not show symlink targets (the `-> ...`) in the long and tree views, the two that show them, nor their `Target` in long JSON.
 
 `--summary`
 : Display total summary statistics of entries (directories count, files count, symlinks count, and total count).
+
+`--print-total`
+: Print the total number of files and directories listed at the bottom of the output, in any view.
 
 `--hyperlink[=WHEN]`
 : Display entries as hyperlinks.
@@ -292,7 +297,7 @@ These options are available when running with `--long` (`-l`):
 : List file sizes in bytes, without any prefixes. Overrides preceding `-b`/`--binary` flags.
 
 `--size-digits=(NUM)`, `--digits=(NUM)`
-: Number of digits to display for file sizes (1..=8, default: 3). Can also be set via the `LEZ_SIZE_DIGITS` environment variable.
+: Number of digits to display for file sizes, the decimal point counting as one (1..=8, default: 3, as in `2.3M`). Can also be set via the `LEZ_SIZE_DIGITS` environment variable.
 
 `--percent-digits=(NUM)`, `--precision-percent=(NUM)`
 : Number of decimal digits to display for percentages (0..=8, default: 1). Can also be set via the `LEZ_PERCENT_DIGITS` environment variable or `[loc] percent_digits` in configuration.
@@ -355,7 +360,7 @@ These options are available when running with `--long` (`-l`):
 Alternatively, `<FORMAT>` can be a two line string, the first line will be used for non-recent files and the second for recent files. E.g., if `<FORMAT>` is "`%Y-%m-%d %H<newline>--%m-%d %H:%M`", non-recent files => "`2022-12-30 13`", recent files => "`--09-30 13:34`".
 
 `--total-size`
-: Show recursive directory size (unix only).
+: Show recursive directory size (unix only). The sizes are worked out only where they are used: in the long view's size and block columns, and when sorting by size or block size, which then orders directories by their contents in any view.
 
 `-u`, `--accessed`
 : Use the accessed timestamp field.
@@ -390,9 +395,6 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `--stdin0`
 : Like `--stdin`, but paths are separated by NUL (`\0`) characters, as produced by `find -print0` or `fd -0`. Always uses NUL, ignoring `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR`. Overrides `--stdin` and vice versa; the last one given wins.
 
-`--print-total`
-: Print the total number of files and directories listed at the bottom of the output.
-
 `-@`, `--extended`
 : List each file’s extended attributes and sizes.
 
@@ -406,7 +408,7 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 : In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files. Each entry's own file name is coloured by type as a normal listing would colour it, while the archive path and the entry size stay in the punctuation style; names the theme has no rule for stay punctuation too.
 
 `-Z`, `--context`
-: List each file's security context.
+: List each file's security context: its SELinux label, or `?` where it has none, as on every system but Linux.
 
 `--git` [if lez was built with git support]
 : List each file’s Git status, if tracked.
@@ -442,6 +444,14 @@ For example, ‘`COLUMNS=80 lez`’ will show a grid view with a maximum width o
 
 This option won’t do anything when lez’s output doesn’t wrap, such as when using the `--long` view.
 
+## `TIME_STYLE`
+
+The time style for the long view when `--time-style` is not given, read as GNU `ls` reads it, which shares it: any value `--time-style` accepts, `locale` for the default format, or `posix-STYLE`, which is STYLE unless times are formatted for the POSIX locale (`LC_ALL`, else `LC_TIME`, else `LANG`, is `C` or `POSIX`, or none is set), where it is the default format. Any other value is an error. The `time_style` key of the config file comes after it.
+
+## `LC_ALL`, `LC_NUMERIC`, `LANG`
+
+The locale sizes and counts are written in on Unix, the first of them set: its separator between groups of digits, and the one before a fraction. `C` and `POSIX`, or none set, group no digits, so 15003 bytes read `15003` and 1500 read `1.5k`; under `de_DE.UTF-8` they read `15.003` and `1,5k`. A locale the system does not have falls back to English grouping. On Windows the user's regional format is used instead.
+
 ## `LEZ_STRICT`, `EZA_STRICT`
 
 Enables _strict mode_, which will make lez error when two command-line options are incompatible.
@@ -473,7 +483,7 @@ Telling the two apart means asking the filesystem about each directory listed: i
 
 ## `LEZ_SIZE_DIGITS`, `EZA_SIZE_DIGITS`
 
-Specifies the default number of digits (from 1 to 8) to display for formatted file sizes (default: `3`).
+Specifies the default number of digits (from 1 to 8) to display for formatted file sizes, the decimal point counting as one (default: `3`).
 
 For example, setting `LEZ_SIZE_DIGITS=4` causes sizes like `2.3Gi` to be formatted with higher precision as `2.34Gi`.
 
@@ -501,11 +511,11 @@ Overrides any `--git` or `--git-repos` argument.
 
 ## `LEZ_MIN_LUMINANCE`, `EZA_MIN_LUMINANCE`
 
-Specifies the minimum luminance to use when color-scale is active. Its value can be between -100 to 100.
+Specifies the minimum luminance to use when color-scale is active. Its value can be between -100 to 100; anything else is an error.
 
 ## `LEZ_MAX_LUMINANCE`, `EZA_MAX_LUMINANCE`
 
-Specifies the maximum luminance to use when color-scale is active. Its value can be between -100 to 100.
+Specifies the maximum luminance to use when color-scale is active. Its value can be between -100 to 100; anything else is an error.
 
 ## `LEZ_ICONS_AUTO`, `EZA_ICONS_AUTO`
 
@@ -519,11 +529,11 @@ Specifies the separator to use when file names are piped from stdin with `--stdi
 
 ## `LEZ_CONFIG_FILE`, `EZA_CONFIG_FILE`
 
-Explicitly specifies the path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). Overrides standard discovery.
+Explicitly specifies the path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). Overrides standard discovery. An empty value names no file and is passed over, as if it were unset.
 
 ## `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR`
 
-Specifies the directory where lez will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lez`, `$XDG_CONFIG_HOME/eza`, `$HOME/.config/lez`, or `$HOME/.config/eza` if `XDG_CONFIG_HOME` is not set.
+Specifies the directory where lez will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lez` when `XDG_CONFIG_HOME` is set to an absolute path, otherwise the platform's configuration directory: `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows. In either place an existing `eza` directory is used when there is no `lez` one.
 
 ## `LEZ_QUOTING_STYLE`, `EZA_QUOTING_STYLE`
 

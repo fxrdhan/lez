@@ -220,6 +220,22 @@ impl Vars for LiveVars {
     fn get(&self, name: &'static str) -> Option<OsString> {
         env::var_os(name)
     }
+
+    fn get_locale(&self) -> Option<String> {
+        sys_locale::get_locale()
+    }
+
+    fn stdout_is_terminal(&self) -> bool {
+        io::stdout().is_terminal()
+    }
+
+    fn platform_config_dir(&self) -> Option<PathBuf> {
+        dirs::config_dir()
+    }
+
+    fn platform_home_dir(&self) -> Option<PathBuf> {
+        dirs::home_dir()
+    }
 }
 
 /// Create a Git cache populated with the arguments that are going to be
@@ -584,6 +600,9 @@ impl Lez<'_> {
             let dir = match dir.read() {
                 Ok(dir) => dir,
                 Err(e) => {
+                    // What was listed so far goes out first, so the message
+                    // lands where it happened, as `ls` has it.
+                    self.writer.flush()?;
                     if e.kind() == ErrorKind::PermissionDenied {
                         let _ = writeln!(
                             io::stderr(),
@@ -696,6 +715,7 @@ impl Lez<'_> {
                         .as_ref()
                         .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
                     {
+                        self.writer.flush()?;
                         let _ = writeln!(io::stderr(), "{warn_line}");
                     }
                     let status = self.print_dirs(
@@ -719,11 +739,13 @@ impl Lez<'_> {
                 .as_ref()
                 .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
             {
+                self.writer.flush()?;
                 let _ = writeln!(io::stderr(), "{warn_line}");
             }
         }
 
         if !denied_dirs.is_empty() {
+            self.writer.flush()?;
             denied_anywhere = true;
             let _ = writeln!(
                 io::stderr(),

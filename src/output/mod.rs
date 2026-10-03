@@ -18,6 +18,7 @@ pub mod hidden_count;
 pub mod icons;
 pub mod json;
 pub mod lines;
+pub mod numbers;
 pub mod render;
 pub mod summary;
 pub mod table;
@@ -53,6 +54,23 @@ pub enum Mode {
     /// files.
     Code(code::Options),
     Json(json::Options),
+}
+
+impl Mode {
+    /// Whether the view has a size column, which a directory's total size
+    /// fills: the long view (as a grid too) and long JSON.
+    #[must_use]
+    pub fn shows_sizes(&self) -> bool {
+        match self {
+            Self::Details(details) => details.table.is_some(),
+            Self::GridDetails(grid) => grid.details.table.is_some(),
+            Self::Json(json) => json
+                .details
+                .as_ref()
+                .is_some_and(|details| details.table.is_some()),
+            Self::Grid(_) | Self::Lines | Self::Code(_) => false,
+        }
+    }
 }
 
 /// The width of the terminal requested by the user.

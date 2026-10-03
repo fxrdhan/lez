@@ -1,473 +1,181 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! Linked worktrees in `--git-repos`: a worktree is a repository root of its
+//! own, shows its own branch and state, and its branch can be styled apart
+//! from an ordinary one (`Gw` in `LEZ_COLORS`, `git_repo.branch_worktree` in
+//! the theme). A submodule, whose `.git` is also a file, is not a worktree.
 
-use std::fs::{self, File as StdFile, FileTimes};
+use std::fs::{File as StdFile, FileTimes};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 
-struct TempWorkspace {
-    path: PathBuf,
+use lez::fs::fields::{SubdirGitRepo, SubdirGitRepoStatus};
+
+use crate::common::{NAME_COLUMN_ONLY, TempTestDir, git_in, lez_in, success_stdout};
+
+/// `main_repo` with one commit, a linked worktree `worktree_repo` on branch
+/// `wt-dev`, and a directory that is no repository.
+fn workspace(tag: &str) -> TempTestDir {
+    let ws = TempTestDir::new(tag);
+    let main_repo = create_repo(&ws, "main_repo");
+    git_in(
+        &main_repo,
+        &["worktree", "add", "-q", "-b", "wt-dev", "../worktree_repo"],
+    );
+    ws.create_dir("plain_dir");
+    ws
 }
 
-impl TempWorkspace {
-    fn new(prefix: &str) -> Option<Self> {
-        if !git_available() {
-            return None;
-        }
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_worktree_test_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp workspace root");
-        Some(Self { path })
-    }
-
-    fn create_repo(&self, rel_name: &str) -> PathBuf {
-        let repo_path = self.path.join(rel_name);
-        fs::create_dir_all(&repo_path).unwrap();
-
-        let _ = Command::new("git")
-            .args(["-c", "init.defaultBranch=main", "init", "-q"])
-            .current_dir(&repo_path)
-            .output();
-
-        let _ = Command::new("git")
-            .args(["config", "user.name", "Test User"])
-            .current_dir(&repo_path)
-            .output();
-        let _ = Command::new("git")
-            .args(["config", "user.email", "test@example.com"])
-            .current_dir(&repo_path)
-            .output();
-
-        let file_path = repo_path.join("file.txt");
-        let mut f = StdFile::create(&file_path).unwrap();
-        f.write_all(b"initial file content\n").unwrap();
-
-        let _ = Command::new("git")
-            .args(["add", "file.txt"])
-            .current_dir(&repo_path)
-            .output();
-        let _ = Command::new("git")
-            .args(["commit", "-q", "-m", "init"])
-            .current_dir(&repo_path)
-            .output();
-
-        repo_path
-    }
-
-    fn create_worktree(&self, main_repo: &Path, wt_rel_name: &str, branch_name: &str) -> PathBuf {
-        let wt_path = self.path.join(wt_rel_name);
-        let output = Command::new("git")
-            .args([
-                "worktree",
-                "add",
-                "-b",
-                branch_name,
-                wt_path.to_str().unwrap(),
-            ])
-            .current_dir(main_repo)
-            .output()
-            .expect("Failed to create worktree via git");
-
-        assert!(
-            output.status.success(),
-            "git worktree add failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-
-        wt_path
-    }
-
-    fn create_submodule(&self, main_repo: &Path, sub_rel_name: &str) -> PathBuf {
-        // Create an independent repo to add as a submodule
-        let external_repo = self.create_repo("external_sub");
-
-        let _ = Command::new("git")
-            .args([
-                "-c",
-                "protocol.file.allow=always",
-                "submodule",
-                "add",
-                "-q",
-                external_repo.to_str().unwrap(),
-                sub_rel_name,
-            ])
-            .current_dir(main_repo)
-            .output();
-
-        let _ = Command::new("git")
-            .args(["commit", "-q", "-m", "add submodule"])
-            .current_dir(main_repo)
-            .output();
-
-        main_repo.join(sub_rel_name)
-    }
+fn create_repo(ws: &TempTestDir, name: &str) -> PathBuf {
+    let path = ws.create_dir(name);
+    git_in(&path, &["-c", "init.defaultBranch=main", "init", "-q"]);
+    ws.create_file(&format!("{name}/file.txt"), b"init\n");
+    git_in(&path, &["add", "file.txt"]);
+    git_in(&path, &["commit", "-q", "-m", "init"]);
+    path
 }
 
-impl Drop for TempWorkspace {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
+fn repos(ws: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(ws.path()).args(NAME_COLUMN_ONLY).args(args))
 }
-
-fn git_available() -> bool {
-    Command::new("git")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success())
-}
-
-fn run_lez(args: &[&str]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    Command::new(bin_path)
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary")
-}
-
-fn run_lez_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
-    let bin_path = env!("CARGO_BIN_EXE_lez");
-    let mut cmd = Command::new(bin_path);
-    cmd.args(args);
-    for (k, v) in envs {
-        cmd.env(k, v);
-    }
-    cmd.output().expect("Failed to execute lez binary with env")
-}
-
-// ----------------------------------------------------------------------------
-// Unit Tests: Worktree Recognition & Status Accuracy
-// ----------------------------------------------------------------------------
 
 #[test]
-fn test_worktree_detection_unit() {
-    let Some(ws) = TempWorkspace::new("unit_wt") else {
-        return;
-    };
-    let main_repo = ws.create_repo("main_repo");
-    let wt_path = ws.create_worktree(&main_repo, "wt_feature", "feature-branch");
+fn a_worktree_is_recognised_with_its_branch_and_state() {
+    let ws = workspace("wt_unit");
+    let worktree = ws.path().join("worktree_repo");
 
-    // 1. Worktree detection on worktree root
-    let wt_status = lez::fs::fields::SubdirGitRepo::from_path(&wt_path, true);
-    assert!(
-        wt_status.is_worktree,
-        "Expected is_worktree == true for worktree root"
-    );
-    assert_eq!(
-        wt_status.branch.as_deref(),
-        Some("feature-branch"),
-        "Expected branch 'feature-branch'"
-    );
-    assert_eq!(
-        wt_status.status,
-        Some(lez::fs::fields::SubdirGitRepoStatus::GitClean)
-    );
+    let clean = SubdirGitRepo::from_path(&worktree, true);
+    assert!(clean.is_worktree);
+    assert_eq!(clean.branch.as_deref(), Some("wt-dev"));
+    assert_eq!(clean.status, Some(SubdirGitRepoStatus::GitClean));
 
-    // 2. Modify a file in the worktree -> Dirty status
-    let mut f = StdFile::create(wt_path.join("file.txt")).unwrap();
+    let mut f = StdFile::create(worktree.join("file.txt")).expect("open");
     f.write_all(b"modified in worktree, now with different length\n")
-        .unwrap();
+        .expect("write");
     // Pin an mtime far away from the index snapshot: coarse timestamp
     // granularity (Windows/NTFS) can otherwise make libgit2 classify the
     // rewritten same-inode entry as racily clean and skip rehashing it.
     f.set_times(
         FileTimes::new().set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(1_500_000_000)),
     )
-    .unwrap();
+    .expect("set mtime");
+    let dirty = SubdirGitRepo::from_path(&worktree, true);
+    assert!(dirty.is_worktree);
+    assert_eq!(dirty.status, Some(SubdirGitRepoStatus::GitDirty));
 
-    let wt_dirty_status = lez::fs::fields::SubdirGitRepo::from_path(&wt_path, true);
-    assert!(wt_dirty_status.is_worktree);
-    assert_eq!(
-        wt_dirty_status.status,
-        Some(lez::fs::fields::SubdirGitRepoStatus::GitDirty)
-    );
+    let main_repo = SubdirGitRepo::from_path(&ws.path().join("main_repo"), true);
+    assert!(!main_repo.is_worktree);
+    assert_eq!(main_repo.branch.as_deref(), Some("main"));
+    assert_eq!(main_repo.status, Some(SubdirGitRepoStatus::GitClean));
 
-    // 3. Main repository must have is_worktree == false
-    let main_status = lez::fs::fields::SubdirGitRepo::from_path(&main_repo, true);
-    assert!(
-        !main_status.is_worktree,
-        "Expected is_worktree == false for main repository"
-    );
-    assert!(
-        main_status.branch.as_deref() == Some("main")
-            || main_status.branch.as_deref() == Some("master")
-    );
+    let plain = SubdirGitRepo::from_path(&ws.path().join("plain_dir"), true);
+    assert!(!plain.is_worktree);
+    assert_eq!(plain.branch, None);
+    assert_eq!(plain.status, Some(SubdirGitRepoStatus::NoRepo));
 }
 
 #[test]
-fn test_submodule_not_marked_as_worktree() {
-    let Some(ws) = TempWorkspace::new("unit_submod") else {
-        return;
-    };
-    let main_repo = ws.create_repo("main_repo");
-    let sub_path = ws.create_submodule(&main_repo, "nested_sub");
-
-    let sub_status = lez::fs::fields::SubdirGitRepo::from_path(&sub_path, true);
-    assert!(
-        !sub_status.is_worktree,
-        "Expected is_worktree == false for submodule, got is_worktree == true"
+fn a_submodule_is_not_a_worktree() {
+    let ws = TempTestDir::new("wt_submodule");
+    let main_repo = create_repo(&ws, "main_repo");
+    let external = create_repo(&ws, "external");
+    git_in(
+        &main_repo,
+        &[
+            "submodule",
+            "add",
+            "-q",
+            external.to_str().expect("UTF-8 path"),
+            "nested_sub",
+        ],
     );
-    assert!(sub_status.branch.is_some());
-}
+    git_in(&main_repo, &["commit", "-q", "-m", "add submodule"]);
+    let sub = main_repo.join("nested_sub");
+    assert!(sub.join(".git").is_file());
 
-#[test]
-fn test_non_repo_dir_has_no_worktree() {
-    let Some(ws) = TempWorkspace::new("unit_plain") else {
-        return;
-    };
-    let plain_dir = ws.path.join("plain_dir");
-    fs::create_dir_all(&plain_dir).unwrap();
-
-    let status = lez::fs::fields::SubdirGitRepo::from_path(&plain_dir, true);
+    let status = SubdirGitRepo::from_path(&sub, true);
     assert!(!status.is_worktree);
+    assert_eq!(status.branch.as_deref(), Some("main"));
+}
+
+#[test]
+fn the_repository_column_shows_a_worktrees_branch() {
+    let ws = workspace("wt_cli");
+
     assert_eq!(
-        status.status,
-        Some(lez::fs::fields::SubdirGitRepoStatus::NoRepo)
+        repos(&ws, &["--git-repos"]),
+        "| main   main_repo\n- -      plain_dir\n| wt-dev worktree_repo\n"
     );
-    assert_eq!(status.branch, None);
-}
-
-// ----------------------------------------------------------------------------
-// Integration Tests: CLI Display (--git-repos and --git-repos-no-stat)
-// ----------------------------------------------------------------------------
-
-#[test]
-fn test_cli_git_repos_worktree_table_output() {
-    let Some(ws) = TempWorkspace::new("cli_table") else {
-        return;
-    };
-    let main_repo = ws.create_repo("main_repo");
-    let _ = ws.create_worktree(&main_repo, "worktree_repo", "wt-dev");
-    let plain_dir = ws.path.join("plain_dir");
-    fs::create_dir_all(&plain_dir).unwrap();
-
-    let output = run_lez(&[
-        "-l",
-        "--git-repos",
-        "--color=never",
-        ws.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Verify main_repo line displays its branch. The cleanliness symbol is
-    // environment-dependent (a stray untracked file or CRLF policy can make a
-    // freshly committed repo read as dirty), so accept either indicator but
-    // require the branch name.
-    let main_line = stdout
-        .lines()
-        .find(|l| l.contains("main_repo"))
-        .expect("main_repo line in output");
-    assert!(
-        main_line.contains("| main")
-            || main_line.contains("| master")
-            || main_line.contains("+ main")
-            || main_line.contains("+ master"),
-        "main_repo line should display clean/dirty status and branch: {main_line}"
+    assert_eq!(
+        repos(&ws, &["--git-repos-no-status"]),
+        "main   main_repo\n-      plain_dir\nwt-dev worktree_repo\n"
     );
 
-    // Verify worktree_repo line displays the wt-dev branch (clean or dirty)
-    let wt_line = stdout
-        .lines()
-        .find(|l| l.contains("worktree_repo"))
-        .expect("worktree_repo line in output");
-    assert!(
-        wt_line.contains("| wt-dev") || wt_line.contains("+ wt-dev"),
-        "worktree line should display '| wt-dev' or '+ wt-dev': {wt_line}"
-    );
-
-    // Verify plain directory displays '- -'
-    let plain_line = stdout
-        .lines()
-        .find(|l| l.contains("plain_dir"))
-        .expect("plain_dir line in output");
-    assert!(
-        plain_line.contains("- -"),
-        "plain_dir line should display '- -': {plain_line}"
+    let json: serde_json::Value = serde_json::from_str(&success_stdout(
+        lez_in(ws.path())
+            .arg("--json")
+            .args(NAME_COLUMN_ONLY)
+            .arg("--git-repos"),
+    ))
+    .expect("valid JSON");
+    assert_eq!(
+        json,
+        serde_json::json!({
+            "main_repo": {"Git Repo": "| main"},
+            "plain_dir": {"Git Repo": "- -"},
+            "worktree_repo": {"Git Repo": "| wt-dev"},
+        })
     );
 }
 
-#[test]
-fn test_cli_git_repos_no_stat_worktree_output() {
-    let Some(ws) = TempWorkspace::new("cli_nostat") else {
-        return;
-    };
-    let main_repo = ws.create_repo("main_repo");
-    let _ = ws.create_worktree(&main_repo, "worktree_repo", "wt-nostat");
-
-    let output = run_lez(&[
-        "-l",
-        "--git-repos-no-status",
-        "--color=never",
-        ws.path.to_str().unwrap(),
-    ]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let wt_line = stdout
-        .lines()
-        .find(|l| l.contains("worktree_repo"))
-        .expect("worktree_repo line in output");
-    assert!(
-        wt_line.contains("wt-nostat"),
-        "worktree line should contain branch 'wt-nostat': {wt_line}"
-    );
-    // Should NOT contain status character '|'
-    assert!(
-        !wt_line.contains("| wt-nostat"),
-        "no-status should omit status '|': {wt_line}"
-    );
+/// The worktree row as coloured with `env` and `config_dir`. The other rows
+/// are compared too, so a style that leaks onto an ordinary branch fails.
+fn coloured(ws: &TempTestDir, env: &[(&str, &str)], config_dir: Option<&Path>) -> String {
+    let mut cmd = lez_in(ws.path());
+    cmd.args(NAME_COLUMN_ONLY)
+        .args(["--git-repos", "--color=always"]);
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    if let Some(dir) = config_dir {
+        cmd.env("LEZ_CONFIG_DIR", dir);
+    }
+    success_stdout(&mut cmd)
 }
 
-// ----------------------------------------------------------------------------
-// Integration Tests: JSON Mode
-// ----------------------------------------------------------------------------
-
-#[test]
-fn test_cli_git_repos_json_output() {
-    let Some(ws) = TempWorkspace::new("cli_json") else {
-        return;
-    };
-    let main_repo = ws.create_repo("main_repo");
-    let _ = ws.create_worktree(&main_repo, "worktree_repo", "wt-json-branch");
-
-    let output = run_lez(&["-l", "--git-repos", "--json", ws.path.to_str().unwrap()]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("wt-json-branch"),
-        "JSON output must contain worktree branch: {stdout}"
-    );
-    assert!(
-        stdout.contains("| wt-json-branch"),
-        "JSON output must format git repo column with status: {stdout}"
-    );
-}
-
-// ----------------------------------------------------------------------------
-// Integration Tests: Styling via LEZ_COLORS, EZA_COLORS, and theme.yml
-// ----------------------------------------------------------------------------
-
-#[test]
-fn test_worktree_styling_via_lez_colors() {
-    let Some(ws) = TempWorkspace::new("lez_colors") else {
-        return;
-    };
-    let main_repo = ws.create_repo("main_repo");
-    let _ = ws.create_worktree(&main_repo, "wt_color", "custom-wt-branch");
-
-    // Gw=35;4 sets Magenta (35) with Underline (4) for worktree branch
-    let output = run_lez_with_env(
-        &[
-            "-l",
-            "--git-repos",
-            "--color=always",
-            ws.path.to_str().unwrap(),
-        ],
-        &[("LEZ_COLORS", "Gw=35;4")],
-    );
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let wt_line = stdout
-        .lines()
-        .find(|l| l.contains("wt_color"))
-        .expect("wt_color line in output");
-
-    // Both orderings of the two SGR parameters are accepted, but the branch
-    // name has to actually carry them. The previous fallback — "35" appears
-    // somewhere and so does the branch name — was satisfied by the escape
-    // codes of any other coloured column, so an unstyled branch passed.
-    assert!(
-        wt_line.contains("\x1b[4;35mcustom-wt-branch\x1b[0m")
-            || wt_line.contains("\x1b[35;4mcustom-wt-branch\x1b[0m"),
-        "worktree branch must be painted magenta+underline: {wt_line:?}"
-    );
+fn expected_with_worktree_branch(style: &str) -> String {
+    format!(
+        "\u{1b}[32m|\u{1b}[0m \u{1b}[32mmain\u{1b}[0m   \u{1b}[1;34mmain_repo\u{1b}[0m\n\
+         \u{1b}[1;90m-\u{1b}[0m \u{1b}[1;90m-\u{1b}[0m      \u{1b}[1;34mplain_dir\u{1b}[0m\n\
+         \u{1b}[32m|\u{1b}[0m \u{1b}[{style}mwt-dev\u{1b}[0m \u{1b}[1;34mworktree_repo\u{1b}[0m\n"
+    )
 }
 
 #[test]
-fn test_worktree_styling_via_eza_colors() {
-    let Some(ws) = TempWorkspace::new("eza_colors") else {
-        return;
-    };
-    let main_repo = ws.create_repo("main_repo");
-    let _ = ws.create_worktree(&main_repo, "wt_eza", "eza-wt-branch");
-
-    // Gw=36;1 sets Cyan (36) Bold (1) for worktree branch
-    let output = run_lez_with_env(
-        &[
-            "-l",
-            "--git-repos",
-            "--color=always",
-            ws.path.to_str().unwrap(),
-        ],
-        &[("EZA_COLORS", "Gw=36;1")],
+fn a_worktree_branch_has_a_style_of_its_own() {
+    let ws = workspace("wt_style");
+    assert_eq!(
+        coloured(&ws, &[], None),
+        expected_with_worktree_branch("36")
     );
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let wt_line = stdout
-        .lines()
-        .find(|l| l.contains("wt_eza"))
-        .expect("wt_eza line in output");
-
-    assert!(
-        wt_line.contains("36") && wt_line.contains("eza-wt-branch"),
-        "Worktree branch should be styled with cyan ANSI escape: {wt_line}"
+    assert_eq!(
+        coloured(&ws, &[("LEZ_COLORS", "Gw=35;4")], None),
+        expected_with_worktree_branch("4;35")
     );
-}
-
-#[test]
-fn test_worktree_styling_via_theme_yml() {
-    let Some(ws) = TempWorkspace::new("theme_yml") else {
-        return;
-    };
-    let main_repo = ws.create_repo("main_repo");
-    let _ = ws.create_worktree(&main_repo, "wt_theme", "theme-wt-branch");
-
-    let config_dir = ws.path.join("config");
-    fs::create_dir_all(&config_dir).unwrap();
-    let theme_file = config_dir.join("theme.yml");
-    let theme_content = r#"
-git_repo:
-  branch_worktree:
-    foreground: "purple"
-    underline: true
-"#;
-    let mut f = StdFile::create(&theme_file).unwrap();
-    f.write_all(theme_content.as_bytes()).unwrap();
-
-    let output = run_lez_with_env(
-        &[
-            "-l",
-            "--git-repos",
-            "--color=always",
-            ws.path.to_str().unwrap(),
-        ],
-        &[("LEZ_CONFIG_DIR", config_dir.to_str().unwrap())],
+    assert_eq!(
+        coloured(&ws, &[("EZA_COLORS", "Gw=36;1")], None),
+        expected_with_worktree_branch("1;36")
     );
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
 
-    let wt_line = stdout
-        .lines()
-        .find(|l| l.contains("wt_theme"))
-        .expect("wt_theme line in output");
-
-    assert!(
-        wt_line.contains("theme-wt-branch"),
-        "Worktree branch should appear in styled output: {wt_line}"
+    let config = TempTestDir::new("wt_theme");
+    config.create_file(
+        "theme.yml",
+        b"git_repo:\n  branch_worktree:\n    foreground: \"purple\"\n    is_underline: true\n",
+    );
+    assert_eq!(
+        coloured(&ws, &[], Some(config.path())),
+        expected_with_worktree_branch("4;35")
     );
 }

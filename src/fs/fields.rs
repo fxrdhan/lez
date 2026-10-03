@@ -279,7 +279,7 @@ pub struct DeviceIDs {
 /// A file’s status in a Git repository. Whether a file is in a repository or
 /// not is handled by the Git module, rather than having a “null” variant in
 /// this enum.
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum GitStatus {
     /// This file hasn’t changed since the last commit.
     NotModified,
@@ -310,7 +310,7 @@ pub enum GitStatus {
 /// A file’s complete Git status. It’s possible to make changes to a file, add
 /// it to the staging area, then make *more* changes, so we need to list each
 /// file’s status for both of these.
-#[derive(Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub struct Git {
     pub staged: GitStatus,
     pub unstaged: GitStatus,

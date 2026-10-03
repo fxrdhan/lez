@@ -64,9 +64,9 @@ fn mi_is_read_from_ls_colors_too() {
             .env("LS_COLORS", "mi=35"),
     );
     assert_eq!(code, Some(0));
-    assert!(
-        stdout.ends_with("\x1b[4;35mmissing\x1b[0m\n"),
-        "got {stdout:?}"
+    assert_eq!(
+        stdout,
+        "\x1b[36mlink\x1b[0m \x1b[31m->\x1b[0m \x1b[4;35mmissing\x1b[0m\n"
     );
 }
 
@@ -81,6 +81,29 @@ fn missing_path_falls_back_to_the_orphan_colour() {
         stdout,
         "\x1b[36mlink\x1b[0m \x1b[32m->\x1b[0m \x1b[4;32mmissing\x1b[0m\n"
     );
+}
+
+/// `mi=00`, which `dircolors` writes by default, colours nothing, as in GNU
+/// `ls`, so the missing path falls back to `or` here too. It used to be
+/// painted plain.
+#[test]
+fn an_uncoloured_mi_falls_back_to_the_orphan_colour() {
+    let tmp = TempTestDir::new("broken_mi_00");
+    tmp.create_symlink("missing", "link");
+
+    for mi in ["mi=00", "mi=0", "mi="] {
+        let (code, stdout) = exit_and_stdout(
+            lez_in(tmp.path())
+                .args(NAME_COLUMN_ONLY)
+                .args(["-d", "--color=always", "link"])
+                .env("LS_COLORS", format!("or=32:{mi}")),
+        );
+        assert_eq!(code, Some(0));
+        assert_eq!(
+            stdout, "\x1b[36mlink\x1b[0m \x1b[32m->\x1b[0m \x1b[4;32mmissing\x1b[0m\n",
+            "{mi}"
+        );
+    }
 }
 
 #[test]
@@ -104,9 +127,12 @@ fn broken_link_in_working_directory_gets_a_hyperlink() {
     let (code, stdout) =
         exit_and_stdout(lez_in(tmp.path()).args(["-1", "--hyperlink=always", "link"]));
     assert_eq!(code, Some(0));
-    assert!(
-        stdout.contains(&format!("file://{}", expected.display())),
-        "got {stdout:?}"
+    assert_eq!(
+        stdout,
+        format!(
+            "\x1b]8;;file://{}\x1b\\link\x1b]8;;\x1b\\\n",
+            expected.display()
+        )
     );
 }
 
@@ -115,25 +141,61 @@ fn broken_link_in_working_directory_gets_a_hyperlink() {
 /// Only reading the link itself failing is an error.
 #[test]
 fn unsearchable_target_is_listed_like_a_broken_link() {
-    if unsafe { libc::geteuid() } == 0 {
-        return; // root ignores the permission bits this test relies on
+    if !crate::common::permission_checks_apply() {
+        return;
     }
     let tmp = TempTestDir::new("broken_eacces");
     let locked = tmp.create_dir("locked");
     tmp.create_file("locked/secret.txt", b"x");
     tmp.create_symlink("locked/secret.txt", "link");
+    tmp.create_symlink("missing", "broken");
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
 
-    let plain = long_name_column(tmp.path(), &["-d", "--color=never", "link"], "");
-    let missing = long_name_column(
-        tmp.path(),
-        &["-d", "--color=never", "link", "does-not-exist"],
-        "",
-    );
+    let run = |args: &[&str]| {
+        let output = lez_in(tmp.path())
+            .args(NAME_COLUMN_ONLY)
+            .arg("-d")
+            .args(args)
+            .output()
+            .expect("failed to run lez");
+        (
+            output.status.code(),
+            String::from_utf8(output.stdout).expect("UTF-8 stdout"),
+            String::from_utf8(output.stderr).expect("UTF-8 stderr"),
+        )
+    };
+    let plain = run(&["--color=never", "link"]);
+    let painted = run(&["--color=always", "broken", "link"]);
+    let missing = run(&["--color=never", "link", "does-not-exist"]);
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
 
-    assert_eq!(plain, (Some(0), "link -> locked/secret.txt\n".to_owned()));
-    // A missing argument still decides the exit code.
-    assert_eq!(missing.0, Some(2));
-    assert_eq!(missing.1, "link -> locked/secret.txt\n");
+    assert_eq!(
+        plain,
+        (
+            Some(0),
+            "link -> locked/secret.txt\n".to_owned(),
+            String::new()
+        )
+    );
+    // The same paint as a link to nothing.
+    assert_eq!(
+        painted,
+        (
+            Some(0),
+            "\x1b[36mbroken\x1b[0m \x1b[31m->\x1b[0m \x1b[4;31mmissing\x1b[0m\n\
+             \x1b[36mlink\x1b[0m \x1b[31m->\x1b[0m \x1b[4;31mlocked/secret.txt\x1b[0m\n"
+                .to_owned(),
+            String::new()
+        )
+    );
+    // A missing argument still decides the exit code, and is the only error.
+    let not_found = fs::metadata(tmp.path().join("does-not-exist")).expect_err("missing");
+    assert_eq!(
+        missing,
+        (
+            Some(2),
+            "link -> locked/secret.txt\n".to_owned(),
+            format!("\"does-not-exist\": {not_found}\n")
+        )
+    );
 }

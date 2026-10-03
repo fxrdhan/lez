@@ -40,14 +40,23 @@ pub fn format_size(size: u64) -> String {
     }
 }
 
+/// The entries read from an archive, and whether there were more.
+#[derive(Debug, Clone)]
+pub struct ArchiveListing {
+    pub entries: Vec<ArchiveEntry>,
+    /// The archive holds more than [`MAX_ENTRIES`]; the rest are not read.
+    pub truncated: bool,
+}
+
 /// Safety valve so a pathological archive cannot flood the listing.
-const MAX_ENTRIES: usize = 500;
+pub const MAX_ENTRIES: usize = 500;
 
 /// Reads the entries of a tar archive at `path`.
 ///
-/// Directories are skipped; the result is capped at [`MAX_ENTRIES`] with the
-/// remaining count folded into the final synthetic entry when truncated.
-pub fn read_entries(path: &Path) -> io::Result<Vec<ArchiveEntry>> {
+/// Directories are skipped. Reading stops at [`MAX_ENTRIES`], marking the
+/// listing truncated; what is left is not counted, which would mean reading
+/// on through an archive of any size.
+pub fn read_entries(path: &Path) -> io::Result<ArchiveListing> {
     use std::fs::File;
 
     let file = File::open(path)?;
@@ -68,10 +77,11 @@ pub fn read_entries(path: &Path) -> io::Result<Vec<ArchiveEntry>> {
             truncated = true;
             break;
         }
-        let size = match entry.header().size() {
-            Ok(size) => size,
-            Err(_) => continue,
-        };
+        // Not `entry.header().size()`: that reads only the header field,
+        // which writers leave at zero once a size passes the 8 GiB it can
+        // hold and put the real one in a PAX `size` record. `Entry::size`
+        // honours that record, and is a GNU sparse file's real length.
+        let size = entry.size();
         let path_bytes = entry.path_bytes();
         #[cfg(unix)]
         let name = {
@@ -86,13 +96,10 @@ pub fn read_entries(path: &Path) -> io::Result<Vec<ArchiveEntry>> {
         out.push(ArchiveEntry { path: name, size });
     }
 
-    if truncated {
-        out.push(ArchiveEntry {
-            path: "… (truncated)".to_owned(),
-            size: 0,
-        });
-    }
-    Ok(out)
+    Ok(ArchiveListing {
+        entries: out,
+        truncated,
+    })
 }
 
 #[cfg(test)]

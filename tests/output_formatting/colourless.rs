@@ -8,181 +8,178 @@
 //! making it either.
 //!
 //! `LEZ_DEBUG` is the portable window onto that: `File::metadata` logs each
-//! time it goes to the filesystem.
+//! time it goes to the filesystem, so the tests below compare the exact set
+//! of paths it went to.
 
-use std::fs;
+#[cfg(unix)]
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
 
-/// Only the syscall-counting tests need this fixture, and those are Unix
-/// only: the Windows executable check reads `PATHEXT` and never stats.
-#[cfg(unix)]
-const ENTRIES: usize = 40;
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
+/// Every path lez stats while listing `root` with `args`, and with
+/// `LEZ_COLORS` set to `colours` when given, sorted as `LEZ_DEBUG` logs them.
 #[cfg(unix)]
-fn plain_files(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lez-colourless-{name}"));
-    let _ = fs::remove_dir_all(&root);
-    fs::create_dir_all(&root).expect("fixture directory");
-    for i in 0..ENTRIES {
-        fs::write(root.join(format!("f{i:03}")), b"").expect("fixture file");
+fn statted(root: &Path, colours: Option<&str>, args: &[&str]) -> Vec<String> {
+    let mut cmd = crate::common::lez_cmd();
+    if let Some(colours) = colours {
+        cmd.env("LEZ_COLORS", colours);
     }
-    root
-}
-
-fn run(args: &[&str], root: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lez"))
-        .args(args)
-        .arg(root.to_str().unwrap())
-        .output()
-        .expect("failed to execute lez")
-}
-
-#[cfg(unix)]
-fn stat_count(args: &[&str], root: &Path) -> usize {
-    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
+    let output = cmd
         .env("LEZ_DEBUG", "1")
         .args(args)
-        .arg(root.to_str().unwrap())
+        .arg(root)
         .output()
-        .expect("failed to execute lez");
-
-    String::from_utf8_lossy(&out.stderr)
+        .expect("run lez");
+    assert_eq!(output.status.code(), Some(0), "{args:?}");
+    let mut paths: Vec<String> = String::from_utf8(output.stderr)
+        .expect("UTF-8 stderr")
         .lines()
-        .filter(|line| line.contains("Statting file"))
-        .count()
+        .filter_map(|line| {
+            line.split_once(" Statting file ")
+                .map(|(_, path)| path.to_owned())
+        })
+        .collect();
+    paths.sort();
+    paths
 }
 
-/// The listing walks the directory once and prints what readdir gave it.
-/// One stat for the directory named on the command line is expected; forty
-/// more for its contents are not.
+/// `paths` as `LEZ_DEBUG` writes them, sorted.
 #[cfg(unix)]
-#[test]
-fn a_colourless_listing_does_not_stat_every_entry() {
-    let root = plain_files("never");
-    let stats = stat_count(&["-1", "--color=never"], &root);
-
-    assert!(
-        stats < ENTRIES,
-        "listing {ENTRIES} files without colour took {stats} stats",
-    );
-
-    let _ = fs::remove_dir_all(&root);
+fn logged(paths: impl IntoIterator<Item = PathBuf>) -> Vec<String> {
+    let mut paths: Vec<String> = paths.into_iter().map(|path| format!("{path:?}")).collect();
+    paths.sort();
+    paths
 }
 
-/// And the check is skipped only because nothing needs it. Turn colours on
-/// and the executable style has to be resolved, which means the mode, which
-/// means the stat is back. If this ever stops being true, the shortcut has
-/// grown past what it can justify.
+/// Forty empty files whose names have no extension, so no theme rule can
+/// colour them by name.
 #[cfg(unix)]
-#[test]
-fn a_coloured_listing_still_looks_for_executables() {
-    let root = plain_files("always");
-    let stats = stat_count(&["-1", "--color=always"], &root);
-
-    assert!(
-        stats >= ENTRIES,
-        "listing {ENTRIES} files with colour took only {stats} stats, so the \
-         executable check is no longer happening",
-    );
-
-    let _ = fs::remove_dir_all(&root);
+fn plain_files() -> (TempTestDir, Vec<PathBuf>) {
+    let dir = TempTestDir::new("colourless");
+    let files = (0..40)
+        .map(|i| dir.create_file(&format!("f{i:03}"), b""))
+        .collect();
+    (dir, files)
 }
 
-/// The visible half of the same guard: with colours on, an executable is
-/// painted. A shortcut applied too widely would show up here first, before
-/// anyone counted a syscall.
-#[cfg(unix)]
-#[test]
-fn a_coloured_listing_still_paints_executables() {
-    let root = one_of_everything("painted");
-    let out = Command::new(env!("CARGO_BIN_EXE_lez"))
-        .env("LEZ_COLORS", "ex=31")
-        .args(["-1", "--color=always"])
-        .arg(root.to_str().unwrap())
-        .output()
-        .expect("failed to execute lez");
-
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        stdout.contains("\u{1b}[31mscript.sh\u{1b}[0m"),
-        "the executable should be painted; got {stdout:?}",
-    );
-
-    let _ = fs::remove_dir_all(&root);
-}
-
-/// A directory holding one of everything the style code branches on.
-fn one_of_everything(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("lez-colourless-{name}"));
-    let _ = fs::remove_dir_all(&root);
-    fs::create_dir_all(root.join("adir")).expect("fixture directory");
-    fs::write(root.join("plain.txt"), b"").expect("plain file");
-    fs::write(root.join("script.sh"), b"").expect("script");
-
+/// A directory holding one of everything the style code branches on, with
+/// the modes pinned so the umask does not show in the long view.
+fn one_of_everything(prefix: &str) -> TempTestDir {
+    let dir = TempTestDir::new(prefix);
+    let adir = dir.create_dir("adir");
+    let plain = dir.create_file("plain.txt", b"");
+    let script = dir.create_file("script.sh", b"");
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(root.join("script.sh"), fs::Permissions::from_mode(0o755))
-            .expect("chmod");
-        std::os::unix::fs::symlink("plain.txt", root.join("good.link")).expect("symlink");
-        std::os::unix::fs::symlink("nowhere", root.join("broken.link")).expect("broken symlink");
+        for (path, mode) in [(&adir, 0o755), (&plain, 0o644), (&script, 0o755)] {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).expect("chmod");
+        }
+        dir.create_symlink("plain.txt", "good.link");
+        dir.create_symlink("nowhere", "broken.link");
     }
+    #[cfg(not(unix))]
+    let _ = (adir, plain, script);
+    dir
+}
 
-    root
+/// The listing walks the directory once and prints what readdir gave it.
+/// The directory named on the command line is statted; its forty files are
+/// not. `--color=auto` is off here too, as stdout is a pipe.
+#[cfg(unix)]
+#[test]
+fn a_colourless_listing_stats_only_the_directory_it_was_given() {
+    let (dir, _) = plain_files();
+    for args in [["-1", "--color=never"], ["-1", "--color=auto"]] {
+        assert_eq!(
+            statted(dir.path(), None, &args),
+            logged([dir.path().to_path_buf()]),
+            "{args:?}"
+        );
+    }
+}
+
+/// And the check is skipped only because nothing needs it. Turn colours on
+/// and the executable style has to be resolved for a file nothing else
+/// colours, which means its mode, which means the stat is back. If this ever
+/// stops being true, the shortcut has grown past what it can justify.
+#[cfg(unix)]
+#[test]
+fn a_coloured_listing_still_looks_for_executables() {
+    let (dir, files) = plain_files();
+    assert_eq!(
+        statted(dir.path(), None, &["-1", "--color=always"]),
+        logged(std::iter::once(dir.path().to_path_buf()).chain(files))
+    );
+}
+
+/// A regular file whose name already picks its colour is not statted: the
+/// built-in theme colours `*.txt`, and so does an `LEZ_COLORS` glob. Clear
+/// the theme with `reset` and `plain.txt` has to be asked about again.
+/// Directories and links take their style from what readdir reported.
+#[cfg(unix)]
+#[test]
+fn a_name_that_picks_the_colour_spares_the_stat() {
+    let dir = one_of_everything("named_style");
+    let root = dir.path().to_path_buf();
+    let run = |colours| statted(&root, colours, &["-1", "--color=always"]);
+    let script_only = logged([root.clone(), root.join("script.sh")]);
+    assert_eq!(run(None), script_only);
+    assert_eq!(run(Some("*.txt=33")), script_only);
+    assert_eq!(
+        run(Some("reset:ex=31")),
+        logged([root.clone(), root.join("plain.txt"), root.join("script.sh")])
+    );
+}
+
+/// The visible half of the same guard: with colours on, the executable is
+/// painted, and with the theme cleared it is the only thing that is.
+#[cfg(unix)]
+#[test]
+fn a_coloured_listing_still_paints_executables() {
+    let dir = one_of_everything("painted");
+    assert_eq!(
+        success_stdout(
+            lez_in(dir.path())
+                .env("LEZ_COLORS", "reset:ex=31")
+                .args(["-1", "--color=always"])
+        ),
+        "adir\nbroken.link\ngood.link\nplain.txt\n\x1b[31mscript.sh\x1b[0m\n"
+    );
 }
 
 /// Skipping the choice must not change what is printed.
 #[test]
 fn the_names_are_unchanged() {
-    let root = one_of_everything("names");
-    let out = run(&["-1", "--color=never"], &root);
-
-    assert!(out.status.success());
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let names: Vec<&str> = stdout
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .collect();
-
-    for expected in ["adir", "plain.txt", "script.sh"] {
-        assert!(
-            names.contains(&expected),
-            "{expected} missing from {names:?}"
-        );
-    }
-    #[cfg(unix)]
-    for expected in ["good.link", "broken.link"] {
-        assert!(
-            names.contains(&expected),
-            "{expected} missing from {names:?}"
-        );
-    }
-
-    let _ = fs::remove_dir_all(&root);
+    let dir = one_of_everything("names");
+    let expected = if cfg!(unix) {
+        "adir\nbroken.link\ngood.link\nplain.txt\nscript.sh\n"
+    } else {
+        "adir\nplain.txt\nscript.sh\n"
+    };
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(["-1", "--color=never"])),
+        expected
+    );
 }
 
 /// `--classify` needs the executable bit for its own reasons and is not
-/// part of the colour question, so it keeps paying for the stat and keeps
-/// marking the file.
+/// part of the colour question, so it keeps paying for the stat of each
+/// regular file and keeps marking them.
 #[cfg(unix)]
 #[test]
 fn classify_still_marks_executables_without_colour() {
-    let root = one_of_everything("classify");
-    let out = run(&["-1", "--classify=always", "--color=never"], &root);
-
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        stdout.contains("script.sh*"),
-        "the executable should still be marked; got {stdout:?}",
+    let dir = one_of_everything("classify");
+    let args = ["-1", "--classify=always", "--color=never"];
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(args)),
+        "adir/\nbroken.link@\ngood.link@\nplain.txt\nscript.sh*\n"
     );
-    assert!(
-        stdout.contains("adir/"),
-        "the directory should still be marked; got {stdout:?}",
+    let root = dir.path().to_path_buf();
+    assert_eq!(
+        statted(&root, None, &args),
+        logged([root.clone(), root.join("plain.txt"), root.join("script.sh")])
     );
-
-    let _ = fs::remove_dir_all(&root);
 }
 
 /// The long view reads metadata for its own columns, so the shortcut must
@@ -190,18 +187,24 @@ fn classify_still_marks_executables_without_colour() {
 #[cfg(unix)]
 #[test]
 fn the_long_view_is_unaffected() {
-    let root = one_of_everything("long");
-    let out = run(&["-l", "--color=never"], &root);
-
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        stdout.contains("rwxr-xr-x") && stdout.contains("script.sh"),
-        "the long view should still show the executable's mode; got {stdout:?}",
+    let dir = one_of_everything("long");
+    let link = |name: &str| crate::common::symlink_permissions(&dir.path().join(name));
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args([
+            "-l",
+            "--color=never",
+            "--no-user",
+            "--no-time",
+            "--no-filesize",
+        ])),
+        format!(
+            "drwxr-xr-x adir\n\
+             {} broken.link -> nowhere\n\
+             {} good.link -> plain.txt\n\
+             .rw-r--r-- plain.txt\n\
+             .rwxr-xr-x script.sh\n",
+            link("broken.link"),
+            link("good.link")
+        )
     );
-    assert!(
-        stdout.contains("broken.link"),
-        "and its broken symlink; got {stdout:?}",
-    );
-
-    let _ = fs::remove_dir_all(&root);
 }

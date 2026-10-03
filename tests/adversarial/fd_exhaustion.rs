@@ -1,140 +1,139 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Adversarial test suite for low file-descriptor limits (FD exhaustion resilience)
-//! and directory recursion descriptor leaks.
+//! Recursive listings under a tight open-file limit (#123, #124).
+//!
+//! The defect was not a crash but entries silently missing once `EMFILE`
+//! hit, so every case compares the whole listing rather than looking for
+//! one name.
 
 #![cfg(unix)]
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::os::unix::process::CommandExt;
 
-struct FdTestDir {
-    path: PathBuf,
+use crate::common::{TempTestDir, TreeNode, draw_tree, lez_in};
+
+const WIDTH: usize = 80;
+const DEPTH: usize = 3;
+
+/// `dir_NNN/leaf_top.txt` and `dir_NNN/nest_0/.../nest_{DEPTH-1}/leaf_deep.txt`
+/// in each of `WIDTH` sibling directories.
+fn wide_tree() -> TempTestDir {
+    let dir = TempTestDir::new("fd_limit");
+    for w in 0..WIDTH {
+        let mut rel = format!("dir_{w:03}");
+        dir.create_file(&format!("{rel}/leaf_top.txt"), b"top\n");
+        for d in 0..DEPTH {
+            rel.push_str(&format!("/nest_{d}"));
+            dir.create_file(&format!("{rel}/leaf_deep.txt"), b"deep\n");
+        }
+    }
+    dir
 }
 
-impl FdTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("lez_fd_{prefix}_{}_{}", std::process::id(), nanos));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
+/// Runs lez with `RLIMIT_NOFILE` lowered to `limit` in the child only.
+fn run_with_fd_limit(dir: &TempTestDir, args: &[&str], limit: u64) -> String {
+    let mut cmd = lez_in(dir.path());
+    cmd.args(args);
+    // SAFETY: setrlimit is async-signal-safe and touches only the child.
+    unsafe {
+        cmd.pre_exec(move || {
+            let rlim = libc::rlimit {
+                rlim_cur: limit as libc::rlim_t,
+                rlim_max: limit as libc::rlim_t,
+            };
+            if libc::setrlimit(libc::RLIMIT_NOFILE, &rlim) == 0 {
+                Ok(())
+            } else {
+                Err(std::io::Error::last_os_error())
+            }
+        });
     }
+    let output = cmd.output().expect("failed to run lez");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{args:?} under ulimit -n {limit}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "{args:?} under ulimit -n {limit}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("UTF-8 stdout")
+}
 
-    /// Creates a wide tree with 120 sibling subdirectories, each containing nested files.
-    fn populate_wide_nested_tree(&self, width: usize, depth: usize) {
-        for w in 0..width {
-            let mut curr = self.path.join(format!("dir_{w:03}"));
-            fs::create_dir_all(&curr).unwrap();
-            StdFile::create(curr.join("leaf_top.txt"))
-                .unwrap()
-                .write_all(b"top")
-                .unwrap();
+/// `dir_NNN`'s nests from level `d` down.
+fn nests(d: usize) -> Vec<TreeNode> {
+    if d == DEPTH {
+        return Vec::new();
+    }
+    let mut children = vec![TreeNode::leaf("leaf_deep.txt")];
+    children.extend(nests(d + 1));
+    vec![TreeNode(format!("nest_{d}"), children)]
+}
 
-            for d in 0..depth {
-                curr = curr.join(format!("nest_{d}"));
-                fs::create_dir_all(&curr).unwrap();
-                StdFile::create(curr.join("leaf_deep.txt"))
-                    .unwrap()
-                    .write_all(b"deep")
-                    .unwrap();
+#[test]
+fn recursing_lists_every_entry_under_a_tight_descriptor_limit() {
+    let dir = wide_tree();
+    // The top listing, then each branch depth first: its top leaf and first
+    // nest, then each nest's leaf and the nest below it.
+    let mut expected: String = (0..WIDTH).map(|w| format!("dir_{w:03}\n")).collect();
+    for w in 0..WIDTH {
+        let mut path = format!("./dir_{w:03}");
+        expected.push_str(&format!("\n{path}:\nleaf_top.txt\nnest_0\n"));
+        for d in 0..DEPTH {
+            path.push_str(&format!("/nest_{d}"));
+            expected.push_str(&format!("\n{path}:\nleaf_deep.txt\n"));
+            if d + 1 < DEPTH {
+                expected.push_str(&format!("nest_{}\n", d + 1));
             }
         }
     }
-}
-
-impl Drop for FdTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
+    // 128 is a common default soft limit; 16 leaves only a handful of
+    // descriptors once the standard streams and the binary are open.
+    for limit in [128, 16] {
+        assert_eq!(
+            run_with_fd_limit(&dir, &["-R", "-1"], limit),
+            expected,
+            "limit {limit}"
+        );
     }
 }
 
-fn run_with_fd_limit(dir: &Path, lez_args: &[&str], fd_limit: u64) -> (bool, String, String) {
-    let binary = env!("CARGO_BIN_EXE_lez");
-    let args_joined = lez_args.join(" ");
-
-    // Use sh to set ulimit -n and execute lez
-    let script = format!("ulimit -n {fd_limit} && \"{binary}\" {args_joined}");
-    let output = Command::new("sh")
-        .current_dir(dir)
-        .arg("-c")
-        .arg(&script)
-        .output()
-        .expect("Failed to run sh script with ulimit");
-
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stdout).to_string(),
-        String::from_utf8_lossy(&output.stderr).to_string(),
-    )
+#[test]
+fn a_tree_lists_every_entry_under_a_tight_descriptor_limit() {
+    let dir = wide_tree();
+    let branches: Vec<TreeNode> = (0..WIDTH)
+        .map(|w| {
+            let mut children = vec![TreeNode::leaf("leaf_top.txt")];
+            children.extend(nests(0));
+            TreeNode(format!("dir_{w:03}"), children)
+        })
+        .collect();
+    assert_eq!(run_with_fd_limit(&dir, &["-T"], 16), draw_tree(&branches));
 }
 
 #[test]
-fn recursive_traversal_does_not_leak_descriptors_under_tight_limit() {
-    let fixture = FdTestDir::new("tight_limit");
-    // 80 wide x 3 deep = ~320 directories
-    fixture.populate_wide_nested_tree(80, 3);
-
-    // Limit to 128 file descriptors (standard low limit)
-    let (success, stdout, stderr) = run_with_fd_limit(&fixture.path, &["-R", "--color=never"], 128);
-
-    assert!(
-        success,
-        "lez -R failed under ulimit -n 128: stderr: {stderr}"
+fn total_size_sums_every_branch_under_a_tight_descriptor_limit() {
+    let dir = wide_tree();
+    let stdout = run_with_fd_limit(
+        &dir,
+        &[
+            "-l",
+            "--total-size",
+            "--bytes",
+            "--no-permissions",
+            "--no-user",
+            "--no-time",
+        ],
+        16,
     );
-    assert!(!stdout.is_empty(), "Expected output from recursive listing");
-    assert!(stdout.contains("leaf_deep.txt"));
-}
-
-#[test]
-fn tree_view_survives_tight_descriptor_limit() {
-    let fixture = FdTestDir::new("tree_limit");
-    fixture.populate_wide_nested_tree(60, 3);
-
-    let (success, stdout, stderr) = run_with_fd_limit(&fixture.path, &["-T", "--color=never"], 128);
-
-    assert!(
-        success,
-        "lez -T failed under ulimit -n 128: stderr: {stderr}"
-    );
-    assert!(!stdout.is_empty());
-    assert!(stdout.contains("dir_000"));
-}
-
-#[test]
-fn total_size_recursive_scan_handles_bounded_descriptors() {
-    let fixture = FdTestDir::new("total_size_fd");
-    fixture.populate_wide_nested_tree(50, 2);
-
-    let (success, stdout, stderr) =
-        run_with_fd_limit(&fixture.path, &["-l", "--total-size", "--color=never"], 128);
-
-    assert!(
-        success,
-        "lez -l --total-size failed under ulimit -n 128: stderr: {stderr}"
-    );
-    assert!(!stdout.is_empty());
-}
-
-#[test]
-fn extreme_fd_exhaustion_does_not_panic() {
-    let fixture = FdTestDir::new("extreme_exhaust");
-    fixture.populate_wide_nested_tree(30, 2);
-
-    // Very low FD limit (40 FDs, where process base + dynamic linker consumes ~25-30)
-    let (_, _, stderr) = run_with_fd_limit(&fixture.path, &["-R", "--color=never"], 40);
-
-    // Ensure no Rust panic occurred (stderr should not contain 'panicked at')
-    assert!(
-        !stderr.contains("panicked at"),
-        "lez panicked under extreme FD starvation: {stderr}"
-    );
+    // Each branch holds "top\n" once and "deep\n" once per level.
+    let branch_bytes = 4 + 5 * DEPTH;
+    let expected: String = (0..WIDTH)
+        .map(|w| format!("{branch_bytes} dir_{w:03}\n"))
+        .collect();
+    assert_eq!(stdout, expected);
 }

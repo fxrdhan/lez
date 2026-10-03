@@ -2,10 +2,16 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 //! Guards for the shipped `theme.yml` JSON schema and its wiring into the
-//! example theme file.
+//! example theme file. The schema forbids keys it does not list, so an
+//! editor validating against it rejects any section it leaves out; the
+//! keys it should list are taken from the struct lez reads themes into.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
+
+use lez::options::config::UiStylesOverride;
+use serde_json::{Value, json};
 
 fn docs_file(name: &str) -> String {
     fs::read_to_string(
@@ -16,109 +22,95 @@ fn docs_file(name: &str) -> String {
     .unwrap_or_else(|e| panic!("docs/{name} should be readable: {e}"))
 }
 
-#[test]
-fn schema_is_valid_json_with_expected_structure() {
-    let schema: serde_json::Value =
-        serde_json::from_str(&docs_file("theme-schema.json")).expect("schema must parse");
-    assert_eq!(schema["$schema"], "http://json-schema.org/draft-07/schema#");
-    for def in ["color", "style", "icon"] {
-        assert!(schema["$defs"][def].is_object(), "$defs/{def} must exist");
-    }
+fn schema() -> Value {
+    serde_json::from_str(&docs_file("theme-schema.json")).expect("the schema is valid JSON")
+}
+
+/// The sections that hold a fixed set of keys of their own.
+const NESTED: [&str; 10] = [
+    "filekinds",
+    "perms",
+    "size",
+    "users",
+    "links",
+    "git",
+    "git_repo",
+    "security_context",
+    "file_type",
+    "tags",
+];
+
+/// Every key a theme can hold. An empty value for each nested section
+/// deserializes to all `None`, and serializing that back names every field.
+fn accepted_keys() -> Value {
+    let empty = NESTED.map(|section| (section.to_owned(), json!({})));
+    let parsed: UiStylesOverride =
+        serde_json::from_value(Value::Object(empty.into_iter().collect()))
+            .expect("empty sections deserialize");
+    serde_json::to_value(parsed).expect("serialize")
+}
+
+fn keys(value: &Value) -> BTreeSet<&str> {
+    value
+        .as_object()
+        .unwrap_or_else(|| panic!("an object: {value}"))
+        .keys()
+        .map(String::as_str)
+        .collect()
 }
 
 #[test]
-fn schema_covers_every_theme_section_lez_accepts() {
-    let schema: serde_json::Value = serde_json::from_str(&docs_file("theme-schema.json")).unwrap();
-    let props = schema["properties"].as_object().unwrap();
-    for section in [
-        "filekinds",
-        "perms",
-        "size",
-        "users",
-        "links",
-        "git",
-        "git_repo",
-        "security_context",
-        "file_type",
-        "tags",
-        "punctuation",
-        "date",
-        "inode",
-        "blocks",
-        "header",
-        "octal",
-        "flags",
-        "symlink_path",
-        "control_char",
-        "broken_symlink",
-        "filenames",
-        "extensions",
-        "directorynames",
-        "mimetypes",
-    ] {
-        assert!(
-            props.contains_key(section),
-            "schema is missing the {section} section"
+fn the_schema_documents_exactly_the_keys_a_theme_can_hold() {
+    let schema = schema();
+    let accepted = accepted_keys();
+    assert_eq!(keys(&schema["properties"]), keys(&accepted));
+    for section in NESTED {
+        assert_eq!(
+            keys(&schema["properties"][section]["properties"]),
+            keys(&accepted[section]),
+            "{section}"
         );
     }
 }
 
 #[test]
+fn the_schema_is_draft_7_with_shared_definitions() {
+    let schema = schema();
+    assert_eq!(schema["$schema"], "http://json-schema.org/draft-07/schema#");
+    assert_eq!(schema["additionalProperties"], false);
+    for def in ["color", "style", "icon", "symlink_style", "symlink_color"] {
+        assert!(schema["$defs"][def].is_object(), "$defs/{def}");
+    }
+}
+
+/// A link's style may be a style, `target`, or `target` with ANSI codes.
+#[test]
 fn filekinds_symlink_allows_the_target_keyword() {
-    let schema: serde_json::Value = serde_json::from_str(&docs_file("theme-schema.json")).unwrap();
-    let symlink = &schema["properties"]["filekinds"]["properties"]["symlink"];
-    let text = serde_json::to_string(symlink).unwrap();
-    assert!(text.contains("\"target\""), "symlink must allow target");
-    assert!(
-        text.contains("symlink_style"),
-        "symlink must reference symlink_style"
+    let schema = schema();
+    assert_eq!(
+        schema["properties"]["filekinds"]["properties"]["symlink"]["oneOf"],
+        json!([
+            {"$ref": "#/$defs/symlink_style"},
+            {"$ref": "#/$defs/style"},
+            {"type": "string", "const": "target"},
+            {"type": "string", "pattern": "^(?i:target)(;[0-9]+)+$"}
+        ])
     );
-    assert!(
-        schema["$defs"]["symlink_style"].is_object(),
-        "$defs/symlink_style must exist"
-    );
-    assert!(
-        schema["$defs"]["symlink_color"].is_object(),
-        "$defs/symlink_color must exist"
+    assert_eq!(
+        schema["$defs"]["symlink_color"]["oneOf"],
+        json!([
+            {"$ref": "#/$defs/color"},
+            {"type": "string", "pattern": "^(?i:target)(;[0-9]+)*$"}
+        ])
     );
 }
 
 #[test]
 fn example_theme_references_the_schema() {
-    let yml = docs_file("theme.yml");
-    assert!(
-        yml.contains("yaml-language-server: $schema="),
-        "example theme should reference the schema for editor validation"
+    assert_eq!(
+        docs_file("theme.yml").lines().next(),
+        Some(
+            "# yaml-language-server: $schema=https://raw.githubusercontent.com/fxrdhan/lez/main/docs/theme-schema.json"
+        )
     );
-    assert!(
-        yml.contains("theme-schema.json"),
-        "schema reference must point at theme-schema.json"
-    );
-}
-
-#[test]
-fn schema_file_type_covers_all_variants() {
-    let schema: serde_json::Value = serde_json::from_str(&docs_file("theme-schema.json")).unwrap();
-    let ft_props = schema["properties"]["file_type"]["properties"]
-        .as_object()
-        .unwrap();
-    for ft in [
-        "image",
-        "video",
-        "music",
-        "lossless",
-        "crypto",
-        "document",
-        "compressed",
-        "temp",
-        "compiled",
-        "build",
-        "source",
-        "data",
-    ] {
-        assert!(
-            ft_props.contains_key(ft),
-            "file_type schema missing variant {ft}"
-        );
-    }
 }

@@ -1,137 +1,129 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
+//! `--no-config` ignores the theme file; a theme file that does not parse
+//! is reported, and the listing falls back to the built-in theme.
 
-struct TempTestDir {
-    path: PathBuf,
+use std::path::Path;
+use std::process::Output;
+
+use crate::common::{TempTestDir, lez_in};
+
+fn run(dir: &TempTestDir, config: &Path, extra: &[&str]) -> Output {
+    lez_in(dir.path())
+        .env("LEZ_CONFIG_DIR", config)
+        .args(["--color=always", "-1"])
+        .args(extra)
+        .arg("test_sample.txt")
+        .output()
+        .expect("run lez")
 }
 
-impl TempTestDir {
-    fn new(label: &str) -> Self {
-        let unique = format!(
-            "lez_theme_test_{label}_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
-        let path = std::env::temp_dir().join(unique);
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("create temp test dir");
-        Self { path }
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join(if cfg!(windows) { "lez.exe" } else { "lez" })
-}
-
-#[test]
-fn test_no_config_flag_suppresses_theme_yml() {
-    let config_dir = TempTestDir::new("noconfig_theme");
-    let theme_path = config_dir.path.join("theme.yml");
-    let mut f = StdFile::create(&theme_path).expect("create theme.yml");
-    writeln!(
-        f,
-        "filenames:\n  test_sample.txt:\n    filename:\n      foreground: Red"
+/// Stdout and stderr, of a run that succeeded.
+fn streams(output: Output) -> (String, String) {
+    assert_eq!(output.status.code(), Some(0));
+    (
+        String::from_utf8(output.stdout).expect("UTF-8 stdout"),
+        String::from_utf8(output.stderr).expect("UTF-8 stderr"),
     )
-    .expect("write theme.yml");
+}
 
-    let work_dir = TempTestDir::new("noconfig_work");
-    let sample = work_dir.path.join("test_sample.txt");
-    StdFile::create(&sample).expect("create sample file");
+const BUILT_IN: &str = "\x1b[32mtest_sample.txt\x1b[0m\n";
 
-    // 1. Without --no-config: theme.yml is loaded and applies Red color (\x1b[31m)
-    let out_themed = Command::new(bin_path())
-        .env("LEZ_CONFIG_DIR", &config_dir.path)
-        .env_remove("EZA_CONFIG_DIR")
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("LS_COLORS")
-        .env_remove("LEZ_COLORS")
-        .env_remove("EXA_COLORS")
-        .arg("--color=always")
-        .arg(&sample)
-        .output()
-        .expect("run lez with theme");
-    assert!(out_themed.status.success());
-    let stdout_themed = String::from_utf8_lossy(&out_themed.stdout);
-    assert!(
-        stdout_themed.contains("\x1b[31m"),
-        "Expected Red ANSI color from theme.yml, got: {stdout_themed:?}"
+#[test]
+fn no_config_ignores_the_theme_file() {
+    let dir = TempTestDir::new("no_config");
+    dir.create_file("test_sample.txt", b"");
+    dir.create_file(
+        "config/theme.yml",
+        b"filenames:\n  test_sample.txt:\n    filename:\n      foreground: Red\n",
     );
+    let config = dir.path().join("config");
 
-    // 2. With --no-config: theme.yml MUST NOT be loaded
-    let out_noconfig = Command::new(bin_path())
-        .env("LEZ_CONFIG_DIR", &config_dir.path)
-        .env_remove("EZA_CONFIG_DIR")
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("LS_COLORS")
-        .env_remove("LEZ_COLORS")
-        .env_remove("EXA_COLORS")
-        .arg("--no-config")
-        .arg("--color=always")
-        .arg(&sample)
-        .output()
-        .expect("run lez with --no-config");
-    assert!(out_noconfig.status.success());
-    let stdout_noconfig = String::from_utf8_lossy(&out_noconfig.stdout);
-    assert!(
-        !stdout_noconfig.contains("\x1b[31m"),
-        "--no-config must suppress theme.yml loading, but found Red ANSI color: {stdout_noconfig:?}"
+    assert_eq!(
+        streams(run(&dir, &config, &[])),
+        ("\x1b[31mtest_sample.txt\x1b[0m\n".to_owned(), String::new())
+    );
+    assert_eq!(
+        streams(run(&dir, &config, &["--no-config"])),
+        (BUILT_IN.to_owned(), String::new())
     );
 }
 
 #[test]
-fn test_corrupt_theme_yml_falls_back_to_default_theme_with_warning() {
-    let config_dir = TempTestDir::new("corrupt_theme");
-    let theme_path = config_dir.path.join("theme.yml");
-    let mut f = StdFile::create(&theme_path).expect("create theme.yml");
-    writeln!(f, "[[[ this is definitely corrupted yaml : {{").expect("write corrupt yaml");
-
-    let work_dir = TempTestDir::new("corrupt_theme_work");
-    let sample = work_dir.path.join("sample_file.txt");
-    StdFile::create(&sample).expect("create sample file");
-
-    let out = Command::new(bin_path())
-        .env("LEZ_CONFIG_DIR", &config_dir.path)
-        .env_remove("EZA_CONFIG_DIR")
-        .env_remove("XDG_CONFIG_HOME")
-        .arg("-l")
-        .arg("--color=always")
-        .arg(&sample)
-        .output()
-        .expect("run lez with corrupt theme");
-
-    assert!(
-        out.status.success(),
-        "lez should not crash or fail when theme is corrupt"
+fn a_theme_that_does_not_parse_is_reported_and_ignored() {
+    let dir = TempTestDir::new("corrupt_theme");
+    dir.create_file("test_sample.txt", b"");
+    dir.create_file(
+        "config/theme.yml",
+        b"[[[ this is definitely corrupted yaml : {\n",
     );
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("Failed to parse theme file"),
-        "Expected stderr warning about failed theme parsing, got: {stderr}"
-    );
+    // Joined a part at a time, as lez joins it, so the separators match on
+    // Windows.
+    let theme = dir.path().join("config").join("theme.yml");
 
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    // When falling back to default theme with --color=always, ANSI styling must still be present
-    assert!(
-        stdout.contains("\x1b["),
-        "Output should retain default theme ANSI styling instead of plain text, got: {stdout:?}"
+    assert_eq!(
+        streams(run(&dir, &dir.path().join("config"), &[])),
+        (
+            BUILT_IN.to_owned(),
+            format!(
+                "lez: Failed to parse theme file {theme:?}: \
+                 invalid type: sequence, expected struct UiStylesOverride\n"
+            )
+        )
     );
+}
+
+/// A theme file is laid over the built-in theme, so a theme that sets
+/// nothing, or only styles a name that is not there, changes nothing: down
+/// to the bold total of `--summary`.
+#[test]
+fn a_theme_that_sets_nothing_changes_nothing() {
+    let dir = TempTestDir::new("idle_theme");
+    dir.create_file("test_sample.txt", b"");
+    dir.create_dir("docs");
+    let config = dir.path().join("config");
+    std::fs::create_dir(&config).expect("create the config directory");
+    let listing = || {
+        streams(
+            lez_in(dir.path())
+                .env("LEZ_CONFIG_DIR", &config)
+                .args([
+                    "--color=always",
+                    "-1",
+                    "--summary",
+                    "docs",
+                    "test_sample.txt",
+                ])
+                .output()
+                .expect("run lez"),
+        )
+    };
+
+    let built_in = listing();
+    assert_eq!(
+        built_in,
+        (
+            "\x1b[32mtest_sample.txt\x1b[0m\n\
+             \x1b[1;34m\x1b[0m\x1b[32m0\x1b[0m \x1b[1;34mdirectories\x1b[0m, \
+             \x1b[32m1\x1b[0m file, \
+             \x1b[36m\x1b[0m\x1b[32m0\x1b[0m \x1b[36msymlinks\x1b[0m \
+             \x1b[1;90m(\x1b[0m\x1b[1m1 total\x1b[0m\x1b[1;90m)\x1b[0m\n\
+             \n\
+             docs:\n\
+             \x1b[1;34m\x1b[0m\x1b[32m0\x1b[0m \x1b[1;34mdirectories\x1b[0m, \
+             \x1b[32m0\x1b[0m files, \
+             \x1b[36m\x1b[0m\x1b[32m0\x1b[0m \x1b[36msymlinks\x1b[0m \
+             \x1b[1;90m(\x1b[0m\x1b[1m0 total\x1b[0m\x1b[1;90m)\x1b[0m\n"
+                .to_owned(),
+            String::new()
+        )
+    );
+    for theme in [
+        "{}\n",
+        "filenames:\n  absent_name:\n    filename:\n      foreground: Red\n",
+    ] {
+        std::fs::write(config.join("theme.yml"), theme).expect("write the theme");
+        assert_eq!(listing(), built_in, "{theme}");
+    }
 }

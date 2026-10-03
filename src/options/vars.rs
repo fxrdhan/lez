@@ -5,7 +5,7 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use std::ffi::OsString;
-use std::io::{self, IsTerminal};
+use std::path::PathBuf;
 
 // General variables
 
@@ -25,9 +25,10 @@ pub static TIME_STYLE: &str = "TIME_STYLE";
 /// See: <https://no-color.org/>
 pub static NO_COLOR: &str = "NO_COLOR";
 
-/// Environment variables for POSIX locale collation.
+/// Environment variables for POSIX locale collation and time formats.
 pub static LC_ALL: &str = "LC_ALL";
 pub static LC_COLLATE: &str = "LC_COLLATE";
+pub static LC_TIME: &str = "LC_TIME";
 pub static LANG: &str = "LANG";
 
 // lez-specific variables
@@ -151,18 +152,36 @@ pub static LEZ_PERCENT_DIGITS: &str = "LEZ_PERCENT_DIGITS";
 pub static EZA_PERCENT_DIGITS: &str = "EZA_PERCENT_DIGITS";
 pub static EXA_PERCENT_DIGITS: &str = "EXA_PERCENT_DIGITS";
 
-/// Mockable wrapper for `std::env::var_os`.
+/// Mockable wrapper for `std::env::var_os` and the few other facts about the
+/// running system that options depend on.
+///
+/// Everything beyond `get` defaults to "unknown", so an implementation only
+/// sees the real system when it asks for it. The binary's live
+/// implementation does; a test's mock does not, and so cannot pick up the
+/// locale, terminal or configuration of the machine running the tests.
 pub trait Vars {
     fn get(&self, name: &'static str) -> Option<OsString>;
 
-    /// Return system locale if available.
+    /// The system locale, when no locale variable names one.
     fn get_locale(&self) -> Option<String> {
-        sys_locale::get_locale()
+        None
     }
 
-    /// Check if stdout is connected to a terminal / TTY.
+    /// Whether stdout is connected to a terminal / TTY.
     fn stdout_is_terminal(&self) -> bool {
-        io::stdout().is_terminal()
+        false
+    }
+
+    /// The platform's per-user configuration directory, consulted when
+    /// neither `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR` nor `XDG_CONFIG_HOME` names
+    /// one.
+    fn platform_config_dir(&self) -> Option<PathBuf> {
+        None
+    }
+
+    /// The user's home directory, consulted when `HOME` is not set.
+    fn platform_home_dir(&self) -> Option<PathBuf> {
+        None
     }
 
     /// Get the variable `name` and if not set get the variable `fallback`.
@@ -170,17 +189,12 @@ pub trait Vars {
         self.get(name).or_else(|| self.get(fallback))
     }
 
-    /// Get the source of the value.  If the variable `name` is set return
-    /// `Some(name)` else if the variable `fallback` is set return
-    /// `Some(fallback)` else `None`.
-    fn source(&self, name: &'static str, fallback: &'static str) -> Option<&'static str> {
-        match self.get(name) {
-            Some(v) if !v.is_empty() => Some(name),
-            _ => match self.get(fallback) {
-                Some(v) if !v.is_empty() => Some(fallback),
-                _ => None,
-            },
-        }
+    /// The first of `names` that is set, together with its value, so that an
+    /// error about the value names the variable it actually came from.
+    fn first_set(&self, names: &[&'static str]) -> Option<(&'static str, OsString)> {
+        names
+            .iter()
+            .find_map(|&name| self.get(name).map(|value| (name, value)))
     }
 }
 
@@ -249,6 +263,7 @@ pub mod test {
         pub percent_digits: OsString,
         pub lc_all: OsString,
         pub lc_collate: OsString,
+        pub lc_time: OsString,
         pub lang: OsString,
         pub lez_flags_format: OsString,
         pub eza_flags_format: OsString,
@@ -418,6 +433,7 @@ pub mod test {
                 }
                 "LC_ALL" if !self.lc_all.is_empty() => Some(self.lc_all.clone()),
                 "LC_COLLATE" if !self.lc_collate.is_empty() => Some(self.lc_collate.clone()),
+                "LC_TIME" if !self.lc_time.is_empty() => Some(self.lc_time.clone()),
                 "LANG" if !self.lang.is_empty() => Some(self.lang.clone()),
                 _ => None,
             }
@@ -473,6 +489,7 @@ pub mod test {
                 "EZA_WINDOWS_ATTRIBUTES" => self.eza_windows_attributes = value.clone(),
                 "LC_ALL" => self.lc_all = value.clone(),
                 "LC_COLLATE" => self.lc_collate = value.clone(),
+                "LC_TIME" => self.lc_time = value.clone(),
                 "LANG" => self.lang = value.clone(),
                 "LEZ_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON" => {
                     self.no_empty_dir_icon = value.clone();
@@ -605,20 +622,27 @@ pub mod test {
     }
 
     #[test]
-    fn test_vars_source_fallback_logic() {
+    fn first_set_names_the_variable_that_supplied_the_value() {
+        let names = [LEZ_ICON_SPACING, EZA_ICON_SPACING, EXA_ICON_SPACING];
         let mut vars = MockVars::default();
-        assert_eq!(vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING), None);
+        assert_eq!(vars.first_set(&names), None);
+
+        vars.set(EXA_ICON_SPACING, &OsString::from("3"));
+        assert_eq!(
+            vars.first_set(&names),
+            Some((EXA_ICON_SPACING, OsString::from("3")))
+        );
 
         vars.set(EZA_ICON_SPACING, &OsString::from("2"));
         assert_eq!(
-            vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING),
-            Some(EZA_ICON_SPACING)
+            vars.first_set(&names),
+            Some((EZA_ICON_SPACING, OsString::from("2")))
         );
 
         vars.set(LEZ_ICON_SPACING, &OsString::from("4"));
         assert_eq!(
-            vars.source(LEZ_ICON_SPACING, EZA_ICON_SPACING),
-            Some(LEZ_ICON_SPACING)
+            vars.first_set(&names),
+            Some((LEZ_ICON_SPACING, OsString::from("4")))
         );
     }
 }

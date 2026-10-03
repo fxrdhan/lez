@@ -248,6 +248,9 @@ nix run github:fxrdhan/lez
 - **-f**, **--only-files**: list only files
 - **--no-symlinks**: don't show symbolic links
 - **--show-symlinks**: explicitly show links (with `--only-dirs` and `--only-files`)
+- **--no-system**: don't show system files (Windows only)
+- **--no-hidden-attrib**: don't show entries with the hidden attribute (Windows only)
+- **--no-hidden-links**: don't show hidden profile links and junctions (Windows only)
 - **--git-ignore**: ignore files mentioned in `.gitignore`
 - **-W**, **--warn-hidden**: print a tally of hidden and gitignored entries; give twice to always print it
 - **--cachedir-ignore**: ignore directories containing a `CACHEDIR.TAG` file
@@ -267,7 +270,8 @@ These options are available when running with `--long` (`-l`):
 
 - **-b**, **--binary**: list file sizes with binary prefixes (overrides `--bytes` if passed after)
 - **-B**, **--bytes**: list file sizes in bytes, without any prefixes (overrides `--binary` if passed after)
-- **--size-digits=(NUM)**, **--digits=(NUM)**: number of digits to display for file sizes (1..=8, default: 3; also configurable via `LEZ_SIZE_DIGITS`)
+- **--size-digits=(NUM)**, **--digits=(NUM)**: number of digits to display for file sizes, the decimal point counting as one (1..=8, default: 3, as in `2.3M`; also configurable via `LEZ_SIZE_DIGITS`)
+- **--percent-digits=(NUM)**, **--precision-percent=(NUM)**: number of decimal digits for code shares in `--code` and `--loc` (0..=8, default: 1; also configurable via `LEZ_PERCENT_DIGITS`)
 - **-g**, **--group**: list each file’s group
 - **--smart-group**: only show group if it has a different name from owner (automatically enables group column)
 - **-n**, **--numeric**: show user and group as their numeric IDs
@@ -343,7 +347,7 @@ These options work with every view:
 1. **CLI Flag**: `--config <PATH>` or `--no-config`
 2. **Environment Variable**: `LEZ_CONFIG_FILE`
 3. **Local (per-directory) Config**: `.lez.toml`, `.lez.yaml`, `.lez.yml`, `.eza.toml`, `.eza.yaml` in the current working directory
-4. **Global Config**: `config.toml`, `lez.toml`, `config.yaml` in `$LEZ_CONFIG_DIR` (or `$XDG_CONFIG_HOME/lez`, `~/.config/lez`)
+4. **Global Config**: `config.toml`, `lez.toml`, `config.yaml`, `config.yml` in `$LEZ_CONFIG_DIR` (or `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS, `%APPDATA%\lez` on Windows)
 5. **Built-in Defaults**
 
 ### Example `config.toml`
@@ -378,16 +382,16 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 | Variable | Description |
 |---|---|
 | `LEZ_CONFIG_FILE` / `EZA_CONFIG_FILE` | Explicit path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). |
-| `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez` or `~/.config/lez`). |
+| `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS, `%APPDATA%\lez` on Windows). |
 | `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. |
-| `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (0..=100) for color scaling on dates and sizes. |
+| `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (-100..=100) for color scaling on dates and sizes. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
 | `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
 | `LEZ_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |
 | `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin`; ignored by `--stdin0` (default: newline `\n`). Supports escape sequences (e.g. `\0`, `\n`, `\t`, `\x00`) and `null`/`nul`. |
-| `LEZ_SIZE_DIGITS` / `EZA_SIZE_DIGITS` | Default number of digits (1..=8) to display for formatted file sizes (default: `3`). |
+| `LEZ_SIZE_DIGITS` / `EZA_SIZE_DIGITS` | Default number of digits (1..=8) to display for formatted file sizes, the decimal point counting as one (default: `3`). |
 | `LEZ_OVERRIDE_AUTO_COLOR` | Force automatic color detection behavior. |
-| `TIME_STYLE` | Default timestamp format style (`default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or `+<FORMAT>`). |
+| `TIME_STYLE` | Default timestamp format style (`default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or `+<FORMAT>`), also read in GNU `ls`'s `locale` and `posix-<STYLE>` forms; any other value is an error. |
 | `NO_COLOR` / `CLICOLOR` / `CLICOLOR_FORCE` | Standard terminal color control flags. |
 
 </details>
@@ -400,7 +404,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 **`lez`** supports a `theme.yml` file, where you can customize theme options available for the `LS_COLORS`, `EZA_COLORS`, and `LEZ_COLORS` environment variables, as well as specify custom icons for different file types and extensions.
 
 An example theme file is available in [`docs/theme.yml`](docs/theme.yml), and can be placed in a directory specified by 
-`$LEZ_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in `$XDG_CONFIG_HOME/lez` or `$XDG_CONFIG_HOME/eza`.
+`$LEZ_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in the configuration directory: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows (an existing `eza` directory there is used when there is no `lez` one).
 
 ### Schema Validation in IDEs
 

@@ -4,7 +4,6 @@
 //! Edge-case syntax validation for the LOC (Lines of Code) engine:
 //! - Disambiguation of comment tokens inside string literals and raw strings
 //! - Nested multiline block comments
-//! - Mathematical invariants: code + comments + blanks == total lines
 //! - Multi-language token isolation across Rust, Python, JavaScript, C++, Shell, Janet, and Lua
 
 use lez::loc::{self, LocCounts};
@@ -26,14 +25,17 @@ fn main() {
 }
 "##;
 
-    let counts = LocCounts::from_source(source, lang);
+    // Rust block comments nest, so the line after the inner close is still
+    // inside the outer comment: a blank, 5 comment lines, 5 of code.
     assert_eq!(
-        counts.code + counts.comments + counts.blanks,
-        counts.lines,
-        "Invariant violated: code + comments + blanks != lines"
+        LocCounts::from_source(source, lang),
+        LocCounts {
+            lines: 11,
+            code: 5,
+            comments: 5,
+            blanks: 1,
+        }
     );
-    assert!(counts.comments >= 4, "Expected comment lines detected");
-    assert!(counts.code >= 4, "Expected code lines detected");
 }
 
 #[test]
@@ -51,14 +53,17 @@ def foo():
     return x
 "##;
 
-    let counts = LocCounts::from_source(source, lang);
+    // A triple-quoted string standing alone is counted as a comment, all
+    // four of its lines; the `#` inside it and in the string are not.
     assert_eq!(
-        counts.code + counts.comments + counts.blanks,
-        counts.lines,
-        "Invariant violated"
+        LocCounts::from_source(source, lang),
+        LocCounts {
+            lines: 9,
+            code: 3,
+            comments: 5,
+            blanks: 1,
+        }
     );
-    assert!(counts.comments >= 3);
-    assert!(counts.code >= 3);
 }
 
 #[test]
@@ -72,14 +77,72 @@ VAR="# also not a comment"
 echo $VAR # trailing comment
 "##;
 
-    let counts = LocCounts::from_source(source, lang);
+    // The shebang and the comment; the three lines with code, a trailing
+    // comment included.
     assert_eq!(
-        counts.code + counts.comments + counts.blanks,
-        counts.lines,
-        "Invariant violated"
+        LocCounts::from_source(source, lang),
+        LocCounts {
+            lines: 5,
+            code: 3,
+            comments: 2,
+            blanks: 0,
+        }
     );
-    assert!(counts.comments >= 2);
-    assert!(counts.code >= 3);
+}
+
+/// A here-document's lines are the text it holds, so a `#` at the start of
+/// one is not a comment; the run of the binary counts the same, and so does
+/// a fenced block in Markdown.
+#[test]
+fn test_heredoc_lines_are_text_not_comments() {
+    let shell = "#!/bin/sh\n\
+                 cat <<EOF\n\
+                 # usage: run [options]\n\
+                 \n\
+                 EOF\n\
+                 # a real comment\n";
+    let lang = loc::language_for("run.sh", Some("sh")).expect("Shell language");
+    // The shebang and the last line are comments; the opener, the two lines
+    // of text (the empty one too) and the closing word are code.
+    assert_eq!(
+        LocCounts::from_source(shell, lang),
+        LocCounts {
+            lines: 6,
+            code: 4,
+            comments: 2,
+            blanks: 0,
+        }
+    );
+
+    let ruby = "query = <<~SQL\n  -- not Ruby\n  # nor this\n  SQL\n# comment\n";
+    let lang = loc::language_for("db.rb", Some("rb")).expect("Ruby language");
+    assert_eq!(
+        LocCounts::from_source(ruby, lang),
+        LocCounts {
+            lines: 5,
+            code: 4,
+            comments: 1,
+            blanks: 0,
+        }
+    );
+
+    let dir = crate::common::TempTestDir::new("loc_heredoc");
+    dir.create_file("run.sh", shell.as_bytes());
+    dir.create_file("README.md", format!("```sh\n{shell}```\n").as_bytes());
+    assert_eq!(
+        crate::common::success_stdout(crate::common::lez_in(dir.path()).arg("--code=lines")),
+        // The fences are Markdown's own lines, under its row.
+        format!(
+            " Language           Files  Lines  Code  Comments  Blanks\n\
+             \x20Markdown               1      8     6         2       0\n\
+             \x20├── Shell              *      6     4         2       0\n\
+             \x20└── Text / Markup      *      2     2         0       0\n\
+             \x20Shell                  1      6     4         2       0\n\
+             {}\n\
+             \x20Total                  2     14    10         4       0\n",
+            "─".repeat(56)
+        )
+    );
 }
 
 #[test]
@@ -98,14 +161,17 @@ int main() {
 }
 "##;
 
-    let counts = LocCounts::from_source(source, lang);
+    // `#include` is code in C++; the line comment and the two-line block
+    // are comments, the comment markers in the string are not.
     assert_eq!(
-        counts.code + counts.comments + counts.blanks,
-        counts.lines,
-        "Invariant violated"
+        LocCounts::from_source(source, lang),
+        LocCounts {
+            lines: 10,
+            code: 5,
+            comments: 3,
+            blanks: 2,
+        }
     );
-    assert!(counts.comments >= 3);
-    assert!(counts.code >= 5);
 }
 
 #[test]
@@ -119,12 +185,15 @@ Multiline comment
 ]]
 print(s)
 "##;
-    let lua_counts = LocCounts::from_source(lua_source, lua);
     assert_eq!(
-        lua_counts.code + lua_counts.comments + lua_counts.blanks,
-        lua_counts.lines
+        LocCounts::from_source(lua_source, lua),
+        LocCounts {
+            lines: 7,
+            code: 2,
+            comments: 4,
+            blanks: 1,
+        }
     );
-    assert!(lua_counts.comments >= 3);
 
     let ada = loc::language_for("main.adb", Some("adb")).expect("Ada language");
     let ada_source = r##"
@@ -135,12 +204,15 @@ begin
    null;
 end Main;
 "##;
-    let ada_counts = LocCounts::from_source(ada_source, ada);
     assert_eq!(
-        ada_counts.code + ada_counts.comments + ada_counts.blanks,
-        ada_counts.lines
+        LocCounts::from_source(ada_source, ada),
+        LocCounts {
+            lines: 7,
+            code: 5,
+            comments: 1,
+            blanks: 1,
+        }
     );
-    assert!(ada_counts.comments >= 1);
 }
 
 #[test]
@@ -158,14 +230,17 @@ export function Component() {
     return <div>{template}</div>;
 }
 "##;
-    let counts = LocCounts::from_source(js_source, js);
+    // The comment inside the template's `${}` and the `//` in the escaped
+    // template are part of code lines.
     assert_eq!(
-        counts.code + counts.comments + counts.blanks,
-        counts.lines,
-        "Mathematical invariant code + comments + blanks == lines must hold"
+        LocCounts::from_source(js_source, js),
+        LocCounts {
+            lines: 11,
+            code: 6,
+            comments: 3,
+            blanks: 2,
+        }
     );
-    assert!(counts.comments >= 3, "Must count comment lines");
-    assert!(counts.code >= 4, "Must count code lines");
 }
 
 #[test]
@@ -181,13 +256,17 @@ def render_doc
     puts heredoc # trailing comment
 end
 "##;
-    let rb_counts = LocCounts::from_source(rb_source, rb);
+    // The heredoc's lines, the `#` one among them, are text, and so code,
+    // up to its closing word; the header is the only comment.
     assert_eq!(
-        rb_counts.code + rb_counts.comments + rb_counts.blanks,
-        rb_counts.lines
+        LocCounts::from_source(rb_source, rb),
+        LocCounts {
+            lines: 9,
+            code: 7,
+            comments: 1,
+            blanks: 1,
+        }
     );
-    assert!(rb_counts.comments >= 2);
-    assert!(rb_counts.code >= 5);
 
     let pl = loc::language_for("script.pl", Some("pl")).expect("Perl language");
     let pl_source = r##"
@@ -198,12 +277,17 @@ my $text = <<'END';
 END
 print $text;
 "##;
-    let pl_counts = LocCounts::from_source(pl_source, pl);
+    // The same for Perl: the shebang and the real comment are comments,
+    // the heredoc's `#` line is text.
     assert_eq!(
-        pl_counts.code + pl_counts.comments + pl_counts.blanks,
-        pl_counts.lines
+        LocCounts::from_source(pl_source, pl),
+        LocCounts {
+            lines: 7,
+            code: 4,
+            comments: 2,
+            blanks: 1,
+        }
     );
-    assert!(pl_counts.comments >= 2);
 }
 
 #[test]
@@ -222,13 +306,17 @@ fn test_html_xml_markdown_comment_structures() {
 </body>
 </html>
 "##;
-    let html_counts = LocCounts::from_source(html_source, html);
+    // The two-line comment; the comment inside `<title>` shares its line
+    // with markup, so that line is code.
     assert_eq!(
-        html_counts.code + html_counts.comments + html_counts.blanks,
-        html_counts.lines
+        LocCounts::from_source(html_source, html),
+        LocCounts {
+            lines: 12,
+            code: 9,
+            comments: 2,
+            blanks: 1,
+        }
     );
-    assert!(html_counts.comments >= 2);
-    assert!(html_counts.code >= 8);
 }
 
 #[test]

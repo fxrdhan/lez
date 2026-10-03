@@ -1,118 +1,62 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Timestamps must render with the zone offset that was in effect at each
-//! file's own time, not the offset in effect when lez runs — a file written
-//! during daylight saving time keeps its summer wall clock in winter.
+//! Timestamps render with the zone offset that was in effect at each file's
+//! own time, not the offset in effect when lez runs: a file written during
+//! daylight saving time keeps its summer wall clock in winter. `--utc`
+//! ignores the zone.
 
 #![cfg(unix)]
 
-use std::fs::FileTimes;
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, UNIX_EPOCH};
 
-struct TempTestDir {
-    path: PathBuf,
-}
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("lez_tz_{prefix}_{}_{}", std::process::id(), nanos));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
+/// A POSIX rule for CET (+1) in winter and CEST (+2) in summer, which needs
+/// no zoneinfo database.
+const CET: &str = "CET-1CEST,M3.5.0,M10.5.0";
+
+/// `jan.txt` and `jul.txt`, each modified at 12:00 UTC.
+fn fixture() -> TempTestDir {
+    let dir = TempTestDir::new("dst");
+    for (name, seconds) in [("jan.txt", 1_705_320_000), ("jul.txt", 1_721_044_800)] {
+        let file = std::fs::File::create(dir.path().join(name)).expect("create");
+        file.set_times(
+            std::fs::FileTimes::new().set_modified(UNIX_EPOCH + Duration::from_secs(seconds)),
+        )
+        .expect("set the modified time");
     }
-
-    fn create_file_at(&self, name: &str, mtime: SystemTime) {
-        let file_path = self.path.join(name);
-        let mut file = StdFile::create(&file_path).unwrap();
-        file.write_all(b"x").unwrap();
-        let times = FileTimes::new().set_modified(mtime);
-        file.set_times(times).unwrap();
-    }
+    dir
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-/// 12:00 UTC on each date; the POSIX TZ rule below is CET (+1) in winter
-/// and CEST (+2) in summer, without needing a zoneinfo database.
-fn jan_utc() -> SystemTime {
-    UNIX_EPOCH + Duration::from_secs(1_705_320_000)
-}
-
-fn jul_utc() -> SystemTime {
-    UNIX_EPOCH + Duration::from_secs(1_721_044_800)
+fn stamps(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(
+        lez_in(dir.path())
+            .env("TZ", CET)
+            .args(["-l", "--no-permissions", "--no-filesize", "--no-user"])
+            .args(args),
+    )
 }
 
 #[test]
-fn timestamps_use_the_offset_in_effect_at_their_own_time() {
-    let fixture = TempTestDir::new("dst");
-
-    fixture.create_file_at("jan.txt", jan_utc());
-    fixture.create_file_at("jul.txt", jul_utc());
-
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
-        .env("TZ", "CET-1CEST,M3.5.0,M10.5.0")
-        .args([
-            "-1",
-            "-l",
-            "--color=never",
-            "--time-style=+%H:%M:%S",
-            fixture.path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("Failed to execute lez binary");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let jan_line = stdout.lines().find(|l| l.contains("jan.txt")).unwrap();
-    let jul_line = stdout.lines().find(|l| l.contains("jul.txt")).unwrap();
-
-    assert!(
-        jan_line.contains("13:00:00"),
-        "January stamp must render in CET (+1): {jan_line:?} in {stdout:?}"
+fn each_timestamp_takes_the_offset_of_its_own_date() {
+    let dir = fixture();
+    assert_eq!(
+        stamps(&dir, &["--time-style=+%Y-%m-%d %H:%M:%S %z"]),
+        "2024-01-15 13:00:00 +0100 jan.txt\n2024-07-15 14:00:00 +0200 jul.txt\n"
     );
-    assert!(
-        jul_line.contains("14:00:00"),
-        "July stamp must render in CEST (+2): {jul_line:?} in {stdout:?}"
+    assert_eq!(
+        stamps(&dir, &["--time-style=full-iso"]),
+        "2024-01-15 13:00:00.000000000 +0100 jan.txt\n\
+         2024-07-15 14:00:00.000000000 +0200 jul.txt\n"
     );
 }
 
 #[test]
-fn utc_flag_still_renders_utc_wall_clock() {
-    let fixture = TempTestDir::new("utc");
-
-    fixture.create_file_at("jan.txt", jan_utc());
-
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
-        .env("TZ", "CET-1CEST,M3.5.0,M10.5.0")
-        .args([
-            "-1",
-            "-l",
-            "--color=never",
-            "--utc",
-            "--time-style=+%H:%M:%S",
-            fixture.path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("Failed to execute lez binary");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("12:00:00"),
-        "--utc must ignore the zone entirely: {stdout:?}"
+fn utc_ignores_the_zone() {
+    let dir = fixture();
+    assert_eq!(
+        stamps(&dir, &["--utc", "--time-style=+%Y-%m-%d %H:%M:%S %z"]),
+        "2024-01-15 12:00:00 +0000 jan.txt\n2024-07-15 12:00:00 +0000 jul.txt\n"
     );
 }

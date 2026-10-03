@@ -1,301 +1,246 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Virtual Pseudo-Terminal (PTY) integration tests.
+//! What a terminal changes. When stdout is a TTY, `--color=auto` turns on
+//! (unless `NO_COLOR` is set and not empty), `--icons=auto` turns on, the
+//! default view is the grid, and the grid takes its width from the
+//! terminal's `winsize` when neither `--width` nor `COLUMNS` gives one.
 //!
-//! Tests lez terminal interactions under genuine TTY conditions (`isatty(1) == true`):
-//! - Automatic color output (`--color=auto` emitting ANSI SGR escapes).
-//! - Automatic icon output (`--icons=auto` emitting Nerd Font Unicode glyphs).
-//! - Dynamic terminal width column wrapping based on `winsize.ws_col`.
-//! - Clean colorless mode (`--color=never`) in interactive terminals.
+//! Each run goes through a real pseudo-terminal. Its output is compared
+//! with the same listing written to a pipe with those settings given
+//! outright, and pinned where both sides of that comparison could be wrong
+//! the same way. The terminal turns each `\n` into `\r\n` on its way out.
 
-use std::fs::{self, File as StdFile};
+use std::fs::File as StdFile;
 use std::io::Read;
-use std::os::fd::FromRawFd;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::path::Path;
+use std::process::Stdio;
 
-struct TempPtyDir {
-    path: PathBuf,
-}
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
-impl TempPtyDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("lez_pty_{prefix}_{}_{}", std::process::id(), nanos));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp pty dir");
-        Self { path }
-    }
-
-    fn create_file(&self, rel_path: &str, content: &[u8]) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(&file_path, content).unwrap();
-        file_path
-    }
-}
-
-impl Drop for TempPtyDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-struct PtySession {
-    master_file: StdFile,
-    child: std::process::Child,
-}
-
-impl PtySession {
-    fn spawn(args: &[&str], cols: u16, rows: u16, envs: &[(&str, &str)]) -> Self {
-        let master_fd = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY) };
-        assert!(master_fd >= 0, "posix_openpt failed");
-
-        let grant_res = unsafe { libc::grantpt(master_fd) };
-        assert_eq!(grant_res, 0, "grantpt failed");
-
-        let unlock_res = unsafe { libc::unlockpt(master_fd) };
-        assert_eq!(unlock_res, 0, "unlockpt failed");
-
-        let slave_name_ptr = unsafe { libc::ptsname(master_fd) };
-        assert!(!slave_name_ptr.is_null(), "ptsname returned null");
-
-        let slave_fd = unsafe { libc::open(slave_name_ptr, libc::O_RDWR | libc::O_NOCTTY) };
-        assert!(slave_fd >= 0, "open slave pty failed");
-
-        let win = libc::winsize {
-            ws_row: rows,
+/// Runs lez in `dir` on a fresh pseudo-terminal `cols` columns wide, and
+/// returns everything it wrote to stdout and stderr, after checking it
+/// succeeded.
+fn on_a_terminal(dir: &Path, args: &[&str], cols: u16, envs: &[(&str, &str)]) -> String {
+    // SAFETY: plain libc calls on descriptors this function owns; each
+    // result is checked before it is used, and each descriptor is handed to
+    // exactly one owner.
+    let (master, slave) = unsafe {
+        let master = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
+        assert!(
+            master >= 0,
+            "posix_openpt: {}",
+            std::io::Error::last_os_error()
+        );
+        let master = OwnedFd::from_raw_fd(master);
+        assert_eq!(libc::grantpt(master.as_raw_fd()), 0);
+        assert_eq!(libc::unlockpt(master.as_raw_fd()), 0);
+        let name = libc::ptsname(master.as_raw_fd());
+        assert!(!name.is_null(), "ptsname");
+        let slave = libc::open(name, libc::O_RDWR | libc::O_NOCTTY);
+        assert!(
+            slave >= 0,
+            "open the slave: {}",
+            std::io::Error::last_os_error()
+        );
+        let slave = OwnedFd::from_raw_fd(slave);
+        let size = libc::winsize {
+            ws_row: 24,
             ws_col: cols,
             ws_xpixel: 0,
             ws_ypixel: 0,
         };
-        unsafe {
-            libc::ioctl(slave_fd, libc::TIOCSWINSZ, &win);
-        }
+        assert_eq!(
+            libc::ioctl(slave.as_raw_fd(), libc::TIOCSWINSZ, &size),
+            0,
+            "TIOCSWINSZ: {}",
+            std::io::Error::last_os_error()
+        );
+        (master, slave)
+    };
 
-        let master_file = unsafe { StdFile::from_raw_fd(master_fd) };
-        let slave_out = unsafe { Stdio::from_raw_fd(slave_fd) };
-        let slave_err = unsafe { Stdio::from_raw_fd(libc::dup(slave_fd)) };
-
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_lez"));
-        cmd.args(args)
-            .stdout(slave_out)
-            .stderr(slave_err)
-            .env_remove("NO_COLOR")
-            .env_remove("EZA_STRICT")
-            .env_remove("EXA_STRICT")
-            .env_remove("COLUMNS")
-            .env_remove("LINES");
-
-        for (k, v) in envs {
-            cmd.env(k, v);
-        }
-
-        let child = cmd.spawn().expect("Failed to spawn lez in pty");
-        Self { master_file, child }
+    let mut cmd = lez_in(dir);
+    cmd.args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(slave.try_clone().expect("dup the slave")))
+        .stderr(Stdio::from(slave));
+    for (key, value) in envs {
+        cmd.env(key, value);
     }
+    let mut child = cmd.spawn().expect("run lez");
+    // The parent's copies of the slave went with `cmd`, so once lez exits
+    // nothing holds the terminal open and the reads below come to an end.
+    drop(cmd);
 
-    fn read_to_string(mut self) -> (std::process::ExitStatus, String) {
-        let mut output = Vec::new();
-        let mut buf = [0u8; 4096];
-        loop {
-            match self.master_file.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => output.extend_from_slice(&buf[..n]),
-                Err(_) => break, // EIO on slave close
-            }
+    let mut master = StdFile::from(master);
+    let mut output = Vec::new();
+    let mut buffer = [0u8; 4096];
+    loop {
+        match master.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(n) => output.extend_from_slice(&buffer[..n]),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            // Linux reports the closed slave as EIO once the data is read.
+            Err(e) if e.raw_os_error() == Some(libc::EIO) => break,
+            Err(e) => panic!("read the terminal: {e}"),
         }
-        let status = self.child.wait().expect("Failed to wait on child");
-        (status, String::from_utf8_lossy(&output).into_owned())
     }
+    let status = child.wait().expect("wait for lez");
+    assert!(status.success(), "{args:?}: {status}");
+    String::from_utf8(output).expect("UTF-8 output")
 }
 
-#[test]
-fn test_pty_auto_color_emits_ansi_escapes_on_terminal() {
-    let temp = TempPtyDir::new("color_auto");
-    temp.create_file("document.rs", b"fn main() {}\n");
-    temp.create_file("style.css", b"body { margin: 0; }\n");
-
-    let pty = PtySession::spawn(
-        &["--color=auto", temp.path.to_str().unwrap()],
-        80,
-        24,
-        &[("LS_COLORS", "rs=32:css=35")],
-    );
-
-    let (status, stdout) = pty.read_to_string();
-    assert!(status.success());
-    assert!(
-        stdout.contains("\x1b[") || stdout.contains("\u{1b}["),
-        "PTY session with --color=auto must emit ANSI escape sequences: {stdout:?}"
-    );
-    assert!(stdout.contains("document.rs"));
-    assert!(stdout.contains("style.css"));
+/// The same listing written to a pipe, as the terminal would show it.
+fn on_a_pipe(dir: &Path, args: &[&str]) -> String {
+    success_stdout(lez_in(dir).args(args)).replace('\n', "\r\n")
 }
 
-#[test]
-fn test_pty_auto_icons_emits_nerd_font_glyphs_on_terminal() {
-    let temp = TempPtyDir::new("icons_auto");
-    temp.create_file("main.rs", b"fn main() {}\n");
-    temp.create_file("README.md", b"# Markdown\n");
-
-    let pty = PtySession::spawn(&["--icons=auto", temp.path.to_str().unwrap()], 80, 24, &[]);
-
-    let (status, stdout) = pty.read_to_string();
-    assert!(status.success());
-    // In interactive TTY, --icons=auto enables icons by default
-    assert!(
-        stdout.contains('\u{e7a8}') || stdout.contains('\u{e68b}') || stdout.contains("main.rs"),
-        "PTY session with --icons=auto must render correctly: {stdout:?}"
-    );
-}
-
-#[test]
-fn test_pty_grid_wrapping_respects_terminal_width() {
-    let temp = TempPtyDir::new("grid_wrap");
+/// Ten names of sixteen characters: four fit in 80 columns, two in 40.
+fn ten_files() -> TempTestDir {
+    let dir = TempTestDir::new("pty");
     for i in 0..10 {
-        temp.create_file(&format!("file_{i:02}_data.txt"), b"data");
+        dir.create_file(&format!("file_{i:02}_data.txt"), b"data");
     }
+    dir
+}
 
-    // Width 40 should wrap across multiple rows
-    let pty_narrow = PtySession::spawn(&["--grid", temp.path.to_str().unwrap()], 40, 24, &[]);
-    let (status_narrow, stdout_narrow) = pty_narrow.read_to_string();
-    assert!(status_narrow.success());
+const GRID_80: &str = "file_00_data.txt  file_03_data.txt  file_06_data.txt  file_09_data.txt\r\n\
+                       file_01_data.txt  file_04_data.txt  file_07_data.txt\r\n\
+                       file_02_data.txt  file_05_data.txt  file_08_data.txt\r\n";
 
-    // Width 200 should fit into fewer rows
-    let pty_wide = PtySession::spawn(&["--grid", temp.path.to_str().unwrap()], 200, 24, &[]);
-    let (status_wide, stdout_wide) = pty_wide.read_to_string();
-    assert!(status_wide.success());
+#[test]
+fn colours_turn_on_by_default_and_icons_when_asked() {
+    let dir = ten_files();
+    let path = dir.path();
+    let painted = on_a_pipe(path, &["--grid", "--width=80", "--color=always"]);
+    assert_eq!(on_a_terminal(path, &[], 80, &[]), painted);
+    assert_eq!(on_a_terminal(path, &["--color=auto"], 80, &[]), painted);
+    assert_eq!(
+        painted,
+        GRID_80
+            .replace("file_", "\x1b[32mfile_")
+            .replace(".txt", ".txt\x1b[0m")
+    );
 
-    let narrow_lines: Vec<&str> = stdout_narrow
-        .lines()
-        .filter(|l| !l.trim().is_empty())
+    let with_icons = on_a_pipe(
+        path,
+        &["--grid", "--width=80", "--icons=always", "--color=never"],
+    );
+    assert_eq!(
+        on_a_terminal(path, &["--icons=auto", "--color=never"], 80, &[]),
+        with_icons
+    );
+    assert_eq!(with_icons, GRID_80.replace("file_", "\u{f15c} file_"));
+}
+
+/// On a pipe the same `auto` settings stay off, so the terminal is what
+/// turned them on above.
+#[test]
+fn auto_stays_off_on_a_pipe() {
+    let dir = ten_files();
+    let plain: String = (0..10)
+        .map(|i| format!("file_{i:02}_data.txt\r\n"))
         .collect();
-    let wide_lines: Vec<&str> = stdout_wide
-        .lines()
-        .filter(|l| !l.trim().is_empty())
+    assert_eq!(
+        on_a_pipe(dir.path(), &["--color=auto", "--icons=auto"]),
+        plain
+    );
+}
+
+/// The other views keep their layout on a terminal; only the colours and
+/// icons come on.
+#[test]
+fn every_view_on_a_terminal_matches_the_pipe_with_auto_made_explicit() {
+    let dir = TempTestDir::new("pty_views");
+    dir.create_file("main.rs", b"fn main() {}\n");
+    dir.create_file("README.md", b"# Read me\n");
+    dir.create_file("src/lib.rs", b"\n");
+    for view in [
+        &["-1"][..],
+        &["-T"],
+        &["-l", "--no-time"],
+        &["-lT", "--no-time"],
+    ] {
+        let auto = [view, &["--color=auto", "--icons=auto"]].concat();
+        let explicit = [view, &["--color=always", "--icons=always"]].concat();
+        let piped = on_a_pipe(dir.path(), &explicit);
+        assert_ne!(
+            piped,
+            on_a_pipe(dir.path(), &[view, &["--color=never"]].concat()),
+            "{view:?}"
+        );
+        assert_eq!(on_a_terminal(dir.path(), &auto, 80, &[]), piped, "{view:?}");
+    }
+}
+
+/// The grid takes the terminal's width; `COLUMNS` comes first, and a
+/// terminal that reports no width at all gets one name per line.
+#[test]
+fn the_grid_takes_the_terminals_width() {
+    let dir = ten_files();
+    let path = dir.path();
+    let one_per_line: String = (0..10)
+        .map(|i| format!("file_{i:02}_data.txt\r\n"))
         .collect();
-
-    assert!(
-        narrow_lines.len() >= wide_lines.len(),
-        "Narrow terminal ({}) should have >= lines than wide terminal ({})",
-        narrow_lines.len(),
-        wide_lines.len()
+    let two_columns: String = (0..5)
+        .map(|i| format!("file_{i:02}_data.txt  file_{:02}_data.txt\r\n", i + 5))
+        .collect();
+    let one_row = format!(
+        "{}\r\n",
+        (0..10)
+            .map(|i| format!("file_{i:02}_data.txt"))
+            .collect::<Vec<_>>()
+            .join("  ")
     );
-}
-
-#[test]
-fn test_pty_colorless_mode_clean_output() {
-    let temp = TempPtyDir::new("color_never");
-    temp.create_file("test.txt", b"plain text");
-
-    let pty = PtySession::spawn(&["--color=never", temp.path.to_str().unwrap()], 80, 24, &[]);
-
-    let (status, stdout) = pty.read_to_string();
-    assert!(status.success());
-    assert!(
-        !stdout.contains("\x1b["),
-        "--color=never in PTY must not contain ANSI escape sequences: {stdout:?}"
-    );
-    assert!(stdout.contains("test.txt"));
-}
-
-#[test]
-fn test_pty_extreme_geometry_narrow_terminal() {
-    let temp = TempPtyDir::new("narrow_geom");
-    for i in 0..6 {
-        temp.create_file(&format!("long_filename_item_{i:02}.txt"), b"data");
+    for (cols, expected) in [
+        (10, &one_per_line),
+        (40, &two_columns),
+        (200, &one_row),
+        (400, &one_row),
+    ] {
+        let width = format!("--width={cols}");
+        assert_eq!(
+            on_a_pipe(path, &["--grid", &width, "--color=never"]),
+            *expected,
+            "{cols}"
+        );
+        assert_eq!(
+            on_a_terminal(path, &["--color=never"], cols, &[]),
+            *expected,
+            "{cols}"
+        );
     }
-
-    // Extremely narrow terminal (10 columns, clamped to minimal valid cell width)
-    let pty = PtySession::spawn(&["--grid", temp.path.to_str().unwrap()], 10, 24, &[]);
-    let (status, stdout) = pty.read_to_string();
-    assert!(status.success());
-    assert!(!stdout.is_empty());
-    assert!(stdout.contains("long_filename_item_00.txt"));
+    assert_eq!(
+        on_a_terminal(path, &["--color=never"], 200, &[("COLUMNS", "40")]),
+        two_columns
+    );
+    assert_eq!(
+        on_a_terminal(path, &["--color=never"], 0, &[]),
+        one_per_line
+    );
 }
 
+/// `NO_COLOR` set to anything turns `auto` off; set but empty it does not
+/// (<https://no-color.org>). An explicit `--color=always` still wins.
 #[test]
-fn test_pty_extreme_geometry_ultra_wide_terminal() {
-    let temp = TempPtyDir::new("wide_geom");
-    for i in 0..12 {
-        temp.create_file(&format!("item_{i:02}.txt"), b"data");
+fn no_color_turns_auto_off_unless_empty() {
+    let dir = ten_files();
+    let path = dir.path();
+    let painted = on_a_pipe(path, &["--grid", "--width=80", "--color=always"]);
+    let plain = on_a_pipe(path, &["--grid", "--width=80", "--color=never"]);
+    assert_eq!(plain, GRID_80);
+    for (no_color, args, expected) in [
+        ("1", &["--color=auto"][..], &plain),
+        ("1", &[], &plain),
+        ("", &["--color=auto"], &painted),
+        ("1", &["--color=always"], &painted),
+    ] {
+        assert_eq!(
+            on_a_terminal(path, args, 80, &[("NO_COLOR", no_color)]),
+            *expected,
+            "NO_COLOR={no_color:?} {args:?}"
+        );
     }
-
-    // Ultra-wide terminal (400 columns)
-    let pty = PtySession::spawn(&["--grid", temp.path.to_str().unwrap()], 400, 50, &[]);
-    let (status, stdout) = pty.read_to_string();
-    assert!(status.success());
-    assert!(!stdout.is_empty());
-    assert!(stdout.contains("item_00.txt"));
-    assert!(stdout.contains("item_11.txt"));
-}
-
-#[test]
-fn test_pty_tree_and_long_view_interactive() {
-    let temp = TempPtyDir::new("tree_long_tty");
-    let sub = temp.path.join("nested_folder");
-    fs::create_dir_all(&sub).unwrap();
-    temp.create_file("nested_folder/child.txt", b"child");
-
-    // Interactive tree mode
-    let pty_tree = PtySession::spawn(&["-T", temp.path.to_str().unwrap()], 120, 40, &[]);
-    let (status_t, stdout_t) = pty_tree.read_to_string();
-    assert!(status_t.success());
-    assert!(stdout_t.contains("nested_folder"));
-    assert!(stdout_t.contains("child.txt"));
-
-    // Interactive long mode
-    let pty_long = PtySession::spawn(&["-l", temp.path.to_str().unwrap()], 120, 40, &[]);
-    let (status_l, stdout_l) = pty_long.read_to_string();
-    assert!(status_l.success());
-    assert!(stdout_l.contains("nested_folder"));
-}
-
-#[test]
-fn test_pty_empty_no_color_does_not_disable_color() {
-    let temp = TempPtyDir::new("empty_no_color");
-    temp.create_file("document.rs", b"fn main() {}\n");
-
-    let pty = PtySession::spawn(
-        &["--color=auto", temp.path.to_str().unwrap()],
-        80,
-        24,
-        &[("NO_COLOR", ""), ("LS_COLORS", "rs=32")],
-    );
-
-    let (status, stdout) = pty.read_to_string();
-    assert!(status.success());
-    assert!(
-        stdout.contains("\x1b[") || stdout.contains("\u{1b}["),
-        "Empty NO_COLOR=\"\" in interactive PTY must not disable color: {stdout:?}"
-    );
-}
-
-#[test]
-fn test_pty_non_empty_no_color_disables_color() {
-    let temp = TempPtyDir::new("non_empty_no_color");
-    temp.create_file("document.rs", b"fn main() {}\n");
-
-    let pty = PtySession::spawn(
-        &["--color=auto", temp.path.to_str().unwrap()],
-        80,
-        24,
-        &[("NO_COLOR", "1"), ("LS_COLORS", "rs=32")],
-    );
-
-    let (status, stdout) = pty.read_to_string();
-    assert!(status.success());
-    assert!(
-        !stdout.contains("\x1b[") && !stdout.contains("\u{1b}["),
-        "Non-empty NO_COLOR=\"1\" in interactive PTY must disable color: {stdout:?}"
-    );
+    assert_eq!(on_a_terminal(path, &["--color=never"], 80, &[]), plain);
 }

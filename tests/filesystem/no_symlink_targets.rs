@@ -1,484 +1,211 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-#![allow(unused_imports, dead_code)]
+//! `--no-symlink-targets` drops the `-> target` that the long view and trees
+//! print after a link's name. Other views never print targets, so it leaves
+//! them as they are, and JSON keeps its `Target` key.
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+#![cfg(unix)]
 
-struct TempTestDir {
-    path: PathBuf,
+use crate::common::{NAME_COLUMN_ONLY, TempTestDir, lez_in, success_stdout};
+
+/// A link to a file, one to a directory, a dangling one, and one whose name
+/// and target need quoting.
+fn fixture(prefix: &str) -> TempTestDir {
+    let dir = TempTestDir::new(prefix);
+    dir.create_file("real.txt", b"data");
+    dir.create_file("space file.txt", b"data");
+    dir.create_dir("folder");
+    dir.create_symlink("real.txt", "link.txt");
+    dir.create_symlink("folder", "dir_link");
+    dir.create_symlink("missing", "broken");
+    dir.create_symlink("space file.txt", "space link");
+    dir
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_test_symlink_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp dir");
-        Self { path }
-    }
-
-    fn create_file(&self, name: &str, content: &[u8]) -> PathBuf {
-        let p = self.path.join(name);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut f = StdFile::create(&p).unwrap();
-        f.write_all(content).unwrap();
-        p
-    }
-
-    fn create_dir(&self, name: &str) -> PathBuf {
-        let p = self.path.join(name);
-        fs::create_dir_all(&p).unwrap();
-        p
-    }
-
-    #[cfg(unix)]
-    fn create_symlink<P: AsRef<Path>, Q: AsRef<Path>>(&self, original: P, link: Q) -> PathBuf {
-        let link_path = self.path.join(link);
-        if let Some(parent) = link_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        std::os::unix::fs::symlink(original, &link_path).expect("Failed to create symlink");
-        link_path
-    }
+fn lez(dir: &TempTestDir, args: &[&str]) -> String {
+    success_stdout(lez_in(dir.path()).args(args))
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
-// ---------------------------------------------------------------------------
-// 1. BASIC LONG DETAILS (-l) SYMLINK TARGET SUPPRESSION
-// ---------------------------------------------------------------------------
-
-#[test]
-#[cfg(unix)]
-fn test_long_details_shows_symlink_target_by_default() {
-    let temp = TempTestDir::new("long_default");
-    temp.create_file("target_file.txt", b"hello world");
-    temp.create_symlink("target_file.txt", "link_file");
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("link_file"),
-        "Stdout must contain symlink name: {stdout}"
-    );
-    assert!(
-        stdout.contains("->"),
-        "Default long details must contain '->': {stdout}"
-    );
-    assert!(
-        stdout.contains("target_file.txt"),
-        "Default long details must contain target path: {stdout}"
-    );
+fn long(dir: &TempTestDir, args: &[&str]) -> String {
+    lez(dir, &[&NAME_COLUMN_ONLY[..], args].concat())
 }
 
 #[test]
-#[cfg(unix)]
-fn test_long_details_suppresses_symlink_target_with_flag() {
-    let temp = TempTestDir::new("long_suppressed");
-    temp.create_file("target_file.txt", b"hello world");
-    temp.create_symlink("target_file.txt", "link_file");
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains("link_file"),
-        "Stdout must contain symlink name: {stdout}"
-    );
-    assert!(
-        !stdout.contains("->"),
-        "With --no-symlink-targets, output must NOT contain '->': {stdout}"
-    );
-    // target_file.txt is also listed because it is a file in the same directory,
-    // but the link_file line itself must not have "link_file -> target_file.txt"
-    for line in stdout.lines() {
-        if line.contains("link_file") {
-            assert!(
-                !line.contains("->"),
-                "Symlink line must not contain arrow: {line}"
-            );
-            assert!(
-                !line.contains("target_file.txt"),
-                "Symlink line must not contain target: {line}"
-            );
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 2. ONE-LINE (-1) SYMLINK TARGET SUPPRESSION
-// ---------------------------------------------------------------------------
-
-#[test]
-#[cfg(unix)]
-fn test_oneline_does_not_show_symlink_target_by_default() {
-    let temp = TempTestDir::new("oneline_default");
-    temp.create_file("real.txt", b"data");
-    temp.create_symlink("real.txt", "sym.txt");
-
-    let output = Command::new(bin_path())
-        .arg("-1")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let sym_line = stdout
-        .lines()
-        .find(|l| l.contains("sym.txt"))
-        .expect("sym.txt line found");
-    assert!(
-        !sym_line.contains("->"),
-        "Default oneline mode must NOT contain arrow: {sym_line}"
-    );
-    assert!(
-        !sym_line.contains("real.txt"),
-        "Default oneline mode must NOT contain target: {sym_line}"
+fn the_long_view_and_trees_drop_the_target() {
+    let dir = fixture("long");
+    assert_eq!(
+        long(&dir, &[]),
+        "broken -> missing\n\
+         dir_link -> folder\n\
+         folder\n\
+         link.txt -> real.txt\n\
+         real.txt\n\
+         'space file.txt'\n\
+         'space link' -> 'space file.txt'\n"
     );
     assert_eq!(
-        sym_line.trim(),
-        "sym.txt",
-        "Line must contain only symlink name"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn test_piped_output_does_not_show_symlink_target() {
-    let temp = TempTestDir::new("piped_default");
-    temp.create_file("real.txt", b"data");
-    temp.create_symlink("real.txt", "sym.txt");
-
-    let output = Command::new(bin_path())
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let sym_line = stdout
-        .lines()
-        .find(|l| l.contains("sym.txt"))
-        .expect("sym.txt line found");
-    assert!(
-        !sym_line.contains("->"),
-        "Default piped mode must NOT contain arrow: {sym_line}"
+        long(&dir, &["--no-symlink-targets"]),
+        "broken\ndir_link\nfolder\nlink.txt\nreal.txt\n'space file.txt'\n'space link'\n"
     );
     assert_eq!(
-        sym_line.trim(),
-        "sym.txt",
-        "Line must contain only symlink name"
+        lez(&dir, &["-T", "--no-symlink-targets", "-L", "1"]),
+        ".\n\
+         ├── broken\n\
+         ├── dir_link\n\
+         ├── folder\n\
+         ├── link.txt\n\
+         ├── real.txt\n\
+         ├── 'space file.txt'\n\
+         └── 'space link'\n"
     );
 }
 
+/// With the target shown, `-F` classifies the target (`dir_link -> folder/`);
+/// with it hidden, the link itself is marked `@`, as in the short views.
 #[test]
-#[cfg(unix)]
-fn test_oneline_suppresses_symlink_target_with_flag() {
-    let temp = TempTestDir::new("oneline_suppressed");
-    temp.create_file("real.txt", b"data");
-    temp.create_symlink("real.txt", "sym.txt");
-
-    let output = Command::new(bin_path())
-        .arg("-1")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let sym_line = stdout
-        .lines()
-        .find(|l| l.contains("sym.txt"))
-        .expect("sym.txt line found");
-    assert!(
-        !sym_line.contains("->"),
-        "With --no-symlink-targets, oneline mode must NOT contain arrow: {sym_line}"
+fn classify_marks_the_link_once_its_target_is_hidden() {
+    let dir = fixture("classify");
+    assert_eq!(
+        long(&dir, &["-d", "-F=always", "broken", "dir_link", "link.txt"]),
+        "broken -> missing\ndir_link -> folder/\nlink.txt -> real.txt\n"
     );
-    assert!(
-        !sym_line.contains("real.txt"),
-        "With --no-symlink-targets, oneline mode must NOT contain target: {sym_line}"
+    let marked = "broken@\ndir_link@\nlink.txt@\n";
+    assert_eq!(
+        long(
+            &dir,
+            &[
+                "-d",
+                "-F=always",
+                "--no-symlink-targets",
+                "broken",
+                "dir_link",
+                "link.txt"
+            ]
+        ),
+        marked
     );
     assert_eq!(
-        sym_line.trim(),
-        "sym.txt",
-        "Line must contain only symlink name"
+        lez(
+            &dir,
+            &["-1", "-d", "-F=always", "broken", "dir_link", "link.txt"]
+        ),
+        marked
     );
 }
 
-// ---------------------------------------------------------------------------
-// 3. BROKEN SYMLINKS WITH TARGET SUPPRESSION
-// ---------------------------------------------------------------------------
-
+/// The short views, and the grid of long views, print names alone.
 #[test]
-#[cfg(unix)]
-fn test_broken_symlink_with_no_symlink_targets() {
-    let temp = TempTestDir::new("broken_symlink");
-    temp.create_symlink("nonexistent_destination_file.bin", "broken_link");
+fn views_that_never_show_targets_are_unchanged() {
+    let dir = fixture("short");
+    let names = "broken\ndir_link\nfolder\nlink.txt\nreal.txt\n'space file.txt'\n'space link'\n";
+    assert_eq!(lez(&dir, &["-1"]), names);
+    assert_eq!(lez(&dir, &["-1", "--no-symlink-targets"]), names);
 
-    // In long details mode:
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("broken_link"));
-    assert!(!stdout.contains("->"));
-    assert!(!stdout.contains("nonexistent_destination_file.bin"));
-
-    // In oneline mode:
-    let output_1 = Command::new(bin_path())
-        .arg("-1")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output_1.status.success());
-    let stdout_1 = String::from_utf8_lossy(&output_1.stdout);
-    assert!(stdout_1.contains("broken_link"));
-    assert!(!stdout_1.contains("->"));
-    assert!(!stdout_1.contains("nonexistent_destination_file.bin"));
-}
-
-// ---------------------------------------------------------------------------
-// 4. CLASSIFY FLAG (-F) COMBINED WITH --no-symlink-targets
-// ---------------------------------------------------------------------------
-
-#[test]
-#[cfg(unix)]
-fn test_classify_flag_with_no_symlink_targets() {
-    let temp = TempTestDir::new("classify_symlink");
-    temp.create_file("target.txt", b"data");
-    temp.create_symlink("target.txt", "my_symlink");
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--classify=always")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let link_line = stdout
-        .lines()
-        .find(|l| l.contains("my_symlink"))
-        .expect("my_symlink line found");
-
-    assert!(
-        link_line.contains("my_symlink@"),
-        "Classify must append '@' to symlink name: {link_line}"
+    let grid = "broken  dir_link  folder  link.txt  real.txt  'space file.txt'  'space link'\n";
+    assert_eq!(lez(&dir, &["-G", "--width=200"]), grid);
+    assert_eq!(
+        lez(&dir, &["-G", "--width=200", "--no-symlink-targets"]),
+        grid
     );
-    assert!(
-        !link_line.contains("->"),
-        "Must NOT contain arrow: {link_line}"
+    let grid_details = long(&dir, &["-G", "--width=200"]);
+    assert_eq!(
+        grid_details,
+        "broken    dir_link    folder    link.txt    real.txt    'space file.txt'    'space link'\n"
     );
-    assert!(
-        !link_line.contains("target.txt"),
-        "Must NOT contain target: {link_line}"
+    assert_eq!(
+        long(&dir, &["-G", "--width=200", "--no-symlink-targets"]),
+        grid_details
     );
 }
 
-// ---------------------------------------------------------------------------
-// 5. DIRECTORY SYMLINKS
-// ---------------------------------------------------------------------------
-
+/// Like every `--no-*` column flag, it takes its key out of long JSON.
 #[test]
-#[cfg(unix)]
-fn test_directory_symlink_with_no_symlink_targets() {
-    let temp = TempTestDir::new("dir_symlink");
-    temp.create_dir("actual_folder");
-    temp.create_symlink("actual_folder", "dir_link");
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let link_line = stdout
-        .lines()
-        .find(|l| l.contains("dir_link"))
-        .expect("dir_link line found");
-
-    assert!(
-        !link_line.contains("->"),
-        "Must NOT contain arrow: {link_line}"
+fn json_leaves_the_target_out_with_the_flag() {
+    let dir = fixture("json");
+    let args = [
+        "--json",
+        "-l",
+        "--no-permissions",
+        "--no-filesize",
+        "--no-user",
+        "--no-time",
+        "link.txt",
+    ];
+    assert_eq!(
+        lez(&dir, &args),
+        "{\"link.txt\":{\"Target\":\"real.txt\"}}\n"
     );
-    assert!(
-        !link_line.contains("actual_folder"),
-        "Must NOT contain target directory: {link_line}"
+    assert_eq!(
+        lez(&dir, &[&args[..], &["--no-symlink-targets"]].concat()),
+        "{\"link.txt\":{}}\n"
     );
 }
 
-// ---------------------------------------------------------------------------
-// 6. TREE (-T) AND RECURSIVE (-R) WITH --no-symlink-targets
-// ---------------------------------------------------------------------------
-
+/// A switch: given twice it is the same as once, and a value is refused.
 #[test]
-#[cfg(unix)]
-fn test_tree_mode_with_no_symlink_targets() {
-    let temp = TempTestDir::new("tree_symlink");
-    let sub = temp.create_dir("subdir");
-    let _ = temp.create_file("subdir/child.txt", b"child");
-    let _ = temp.create_symlink("child.txt", "subdir/child_link");
+fn the_flag_may_repeat_and_takes_no_value() {
+    let dir = fixture("parse");
+    assert_eq!(
+        long(
+            &dir,
+            &["--no-symlink-targets", "--no-symlink-targets", "link.txt"]
+        ),
+        "link.txt\n"
+    );
 
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("-T")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&sub)
+    let output = lez_in(dir.path())
+        .arg("--no-symlink-targets=yes")
         .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("child_link"));
-    for line in stdout.lines() {
-        if line.contains("child_link") {
-            assert!(
-                !line.contains("->"),
-                "Tree view must suppress symlink target arrow: {line}"
-            );
-        }
-    }
+        .expect("run lez");
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "error: unexpected value 'yes' for '--no-symlink-targets' found; no more were expected\n\n\
+         Usage: lez --no-symlink-targets [FILE]...\n\n\
+         For more information, try '--help'.\n"
+    );
 }
 
-// ---------------------------------------------------------------------------
-// 7. MULTIPLE COMPLEX SYMLINKS (Relative, Absolute, Spaces, Special Chars)
-// ---------------------------------------------------------------------------
-
+/// Icons and hyperlinks belong to the name, so they stay. The hyperlink
+/// leads where the link does.
 #[test]
-#[cfg(unix)]
-fn test_multiple_special_symlinks() {
-    let temp = TempTestDir::new("special_symlinks");
-    temp.create_file("space file.txt", b"1");
-    temp.create_symlink("space file.txt", "space link");
+fn icons_and_hyperlinks_stay_on_the_name() {
+    let dir = fixture("decorations");
+    let file_icon = '\u{f15c}';
+    let folder_icon = '\u{e5ff}';
+    assert_eq!(
+        long(&dir, &["--icons=always", "-d", "dir_link", "link.txt"]),
+        format!("{folder_icon} dir_link -> folder\n{file_icon} link.txt -> real.txt\n")
+    );
+    assert_eq!(
+        long(
+            &dir,
+            &[
+                "--icons=always",
+                "--no-symlink-targets",
+                "-d",
+                "dir_link",
+                "link.txt"
+            ]
+        ),
+        format!("{folder_icon} dir_link\n{file_icon} link.txt\n")
+    );
 
-    temp.create_file("unicode_🚀.dat", b"2");
-    temp.create_symlink("unicode_🚀.dat", "link_🚀");
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    for line in stdout.lines() {
-        if line.contains("space link") || line.contains("link_🚀") {
-            assert!(
-                !line.contains("->"),
-                "Symlink line must not have target arrow: {line}"
-            );
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 8. COMBINATION WITH --no-symlinks (Filtering vs Formatting)
-// ---------------------------------------------------------------------------
-
-#[test]
-#[cfg(unix)]
-fn test_no_symlinks_vs_no_symlink_targets() {
-    let temp = TempTestDir::new("filtering_vs_formatting");
-    temp.create_file("regular.txt", b"data");
-    temp.create_symlink("regular.txt", "symlink.txt");
-
-    // Case A: --no-symlinks filters symlink.txt completely out
-    let out_a = Command::new(bin_path())
-        .arg("-l")
-        .arg("--no-symlinks")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(out_a.status.success());
-    let stdout_a = String::from_utf8_lossy(&out_a.stdout);
-    assert!(!stdout_a.contains("symlink.txt"));
-    assert!(stdout_a.contains("regular.txt"));
-
-    // Case B: --no-symlink-targets keeps symlink.txt but hides target
-    let out_b = Command::new(bin_path())
-        .arg("-l")
-        .arg("--no-symlink-targets")
-        .arg("--color=never")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to run lez");
-
-    assert!(out_b.status.success());
-    let stdout_b = String::from_utf8_lossy(&out_b.stdout);
-    assert!(stdout_b.contains("symlink.txt"));
-    assert!(stdout_b.contains("regular.txt"));
-    assert!(!stdout_b.contains("symlink.txt -> regular.txt"));
+    let target = std::fs::canonicalize(dir.path().join("real.txt")).expect("canonicalize");
+    let name = format!(
+        "\x1b]8;;file://{}\x1b\\link.txt\x1b]8;;\x1b\\",
+        target.display()
+    );
+    assert_eq!(
+        long(&dir, &["--hyperlink=always", "link.txt"]),
+        format!("{name} -> real.txt\n")
+    );
+    assert_eq!(
+        long(
+            &dir,
+            &["--hyperlink=always", "--no-symlink-targets", "link.txt"]
+        ),
+        format!("{name}\n")
+    );
 }

@@ -116,16 +116,14 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: features-${{ matrix.label }}
-      # Library and binary only, deliberately. The integration suite builds
-      # its Git and tar fixtures with the optional crates directly, so it
-      # cannot compile with those features off -- and `cargo install
-      # --no-default-features`, which is what INSTALL.md advertises and what
-      # this job exists to protect, does not build the tests either.
+      # The tests too: a suite that builds its Git or tar fixtures with an
+      # optional crate is gated on that crate's feature, and a packager who
+      # switches a feature off still runs the rest.
       #
       # RUSTFLAGS carries --deny warnings from the workflow env, so an item
       # left behind by a switched-off feature fails here rather than rotting.
       - name: Check
-        run: cargo check --no-default-features --features "${{ matrix.features }}"
+        run: cargo check --all-targets --no-default-features --features "${{ matrix.features }}"
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
@@ -171,6 +169,11 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest@0.9.128
+      # The zsh completion files are parsed by zsh itself, which a Linux
+      # runner is not guaranteed to have.
+      - name: Install zsh
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q zsh
       - name: Run all tests
         run: cargo nextest run --profile ci --all-targets --features git,inspect-archives
       # nextest does not run doc tests; this covers them.
@@ -196,6 +199,8 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov,cargo-nextest@0.9.128
+      - name: Install zsh
+        run: sudo apt-get update -q && sudo apt-get install -y -q zsh
       - name: Generate Code Coverage Report & Summary
         run: |
           cargo llvm-cov nextest --features git,inspect-archives --workspace --lcov --output-path lcov.info

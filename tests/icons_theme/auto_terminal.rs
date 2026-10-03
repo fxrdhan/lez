@@ -1,307 +1,122 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+//! `--icons=auto`, and `LEZ_ICONS_AUTO`/`EZA_ICONS_AUTO`, show icons only on
+//! a terminal. These runs write to a pipe, so `auto` must print exactly what
+//! `never` prints, in every view, even when `COLUMNS` or `--width` gives a
+//! terminal-like width. `always` adds them regardless; the last `--icons`
+//! given wins. (On a terminal, see `output_formatting/pty_terminal.rs`.)
 
-struct TempTestDir {
-    path: PathBuf,
+use crate::common::{TempTestDir, lez_in, success_stdout};
+
+const TEXT: char = '\u{f15c}';
+const RUST: char = '\u{e68b}';
+const FOLDER: char = '\u{e5ff}';
+
+fn fixture(prefix: &str) -> TempTestDir {
+    let dir = TempTestDir::new(prefix);
+    dir.create_file("main.rs", b"fn main() {}\n");
+    dir.create_file("doc.txt", b"notes\n");
+    dir.create_file("subdir/nested.rs", b"fn nested() {}\n");
+    dir
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_test_icons_auto_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp dir");
-        Self { path }
+fn lez(dir: &TempTestDir, env: &[(&str, &str)], args: &[&str]) -> String {
+    let mut cmd = lez_in(dir.path());
+    for (name, value) in env {
+        cmd.env(name, value);
     }
+    success_stdout(cmd.args(args))
+}
 
-    fn create_file(&self, name: &str, content: &[u8]) -> PathBuf {
-        let p = self.path.join(name);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).unwrap();
+/// The views to try: the default grid with a width from `COLUMNS` or from
+/// `--width`, lines, the long view and a tree.
+/// Variables to set, and arguments.
+type View = (
+    &'static [(&'static str, &'static str)],
+    &'static [&'static str],
+);
+
+const VIEWS: [View; 5] = [
+    (&[("COLUMNS", "120")], &[]),
+    (&[], &["--width=100"]),
+    (&[], &["-1"]),
+    (
+        &[("COLUMNS", "160")],
+        &[
+            "-l",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "--no-time",
+        ],
+    ),
+    (&[("COLUMNS", "120")], &["-T"]),
+];
+
+#[test]
+fn auto_off_a_terminal_is_never() {
+    let dir = fixture("auto");
+    for (env, view) in VIEWS {
+        let never = lez(&dir, env, &[view, &["--icons=never"]].concat());
+        assert_eq!(lez(&dir, env, view), never, "{env:?} {view:?}");
+        assert_eq!(
+            lez(&dir, env, &[view, &["--icons=auto"]].concat()),
+            never,
+            "{env:?} {view:?}"
+        );
+        for variable in ["LEZ_ICONS_AUTO", "EZA_ICONS_AUTO"] {
+            let env = [env, &[(variable, "1")]].concat();
+            assert_eq!(lez(&dir, &env, view), never, "{env:?} {view:?}");
         }
-        let mut f = StdFile::create(&p).unwrap();
-        f.write_all(content).unwrap();
-        p
-    }
-
-    fn create_dir(&self, name: &str) -> PathBuf {
-        let p = self.path.join(name);
-        fs::create_dir_all(&p).unwrap();
-        p
     }
 }
 
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
-
-fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_lez")
-}
-
-const RUST_ICON: char = '\u{e68b}'; // 
-const FOLDER_ICON: char = '\u{e5ff}'; // 
-const FILE_ICON: char = '\u{f15b}'; // 
-
 #[test]
-fn test_icons_auto_in_pipe_with_columns_does_not_render_icons() {
-    let temp = TempTestDir::new("pipe_columns_auto");
-    temp.create_file("main.rs", b"fn main() {}");
-    temp.create_file("doc.txt", b"notes");
-    temp.create_dir("subdir");
-
-    let output = Command::new(bin_path())
-        .arg("--icons=auto")
-        .arg(&temp.path)
-        .env("COLUMNS", "120")
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("main.rs"));
-    assert!(stdout.contains("doc.txt"));
-    assert!(stdout.contains("subdir"));
-
-    // Ensure icon glyphs are NOT present in non-TTY pipe even with COLUMNS set
-    assert!(
-        !stdout.contains(RUST_ICON),
-        "Piped output with --icons=auto must not contain Rust icon"
+fn always_adds_icons_off_a_terminal() {
+    let dir = fixture("always");
+    assert_eq!(
+        lez(&dir, &[("COLUMNS", "120")], &["--icons=always"]),
+        format!("{TEXT} doc.txt  {RUST} main.rs  {FOLDER} subdir\n")
     );
-    assert!(
-        !stdout.contains(FOLDER_ICON),
-        "Piped output with --icons=auto must not contain folder icon"
+    assert_eq!(
+        lez(&dir, &[], &["-T", "--icons=always"]),
+        format!(
+            "{FOLDER} .\n├── {TEXT} doc.txt\n├── {RUST} main.rs\n└── {FOLDER} subdir\n    └── {RUST} nested.rs\n"
+        )
     );
-    assert!(
-        !stdout.contains(FILE_ICON),
-        "Piped output with --icons=auto must not contain file icon"
+    assert_eq!(
+        lez(
+            &dir,
+            &[],
+            &[
+                "-l",
+                "--no-permissions",
+                "--no-filesize",
+                "--no-user",
+                "--no-time",
+                "--icons=always"
+            ]
+        ),
+        format!("{TEXT} doc.txt\n{RUST} main.rs\n{FOLDER} subdir\n")
     );
 }
 
 #[test]
-fn test_icons_always_in_pipe_renders_icons() {
-    let temp = TempTestDir::new("pipe_columns_always");
-    temp.create_file("main.rs", b"fn main() {}");
-    temp.create_file("doc.txt", b"notes");
-    temp.create_dir("subdir");
-
-    let output = Command::new(bin_path())
-        .arg("--icons=always")
-        .arg(&temp.path)
-        .env("COLUMNS", "120")
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("main.rs"));
-    assert!(stdout.contains("doc.txt"));
-    assert!(stdout.contains("subdir"));
-
-    // With explicit --icons=always, icons MUST be present even in pipes
-    assert!(
-        stdout.contains(RUST_ICON) || stdout.contains(FOLDER_ICON),
-        "Piped output with --icons=always must contain icon glyphs"
+fn the_last_icons_flag_wins() {
+    let dir = fixture("precedence");
+    let with_icons = format!("{TEXT} doc.txt\n{RUST} main.rs\n{FOLDER} subdir\n");
+    let without = "doc.txt\nmain.rs\nsubdir\n";
+    assert_eq!(
+        lez(&dir, &[], &["-1", "--icons=auto", "--icons=always"]),
+        with_icons
     );
-}
-
-#[test]
-fn test_icons_never_in_pipe_does_not_render_icons() {
-    let temp = TempTestDir::new("pipe_columns_never");
-    temp.create_file("main.rs", b"fn main() {}");
-    temp.create_file("doc.txt", b"notes");
-
-    let output = Command::new(bin_path())
-        .arg("--icons=never")
-        .arg(&temp.path)
-        .env("COLUMNS", "120")
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(!stdout.contains(RUST_ICON));
-    assert!(!stdout.contains(FILE_ICON));
-}
-
-#[test]
-fn test_icons_auto_long_view_in_pipe_with_columns_does_not_render_icons() {
-    let temp = TempTestDir::new("pipe_long_auto");
-    temp.create_file("main.rs", b"fn main() {}");
-    temp.create_file("doc.txt", b"notes");
-    temp.create_dir("subdir");
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--icons=auto")
-        .arg(&temp.path)
-        .env("COLUMNS", "160")
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("main.rs"));
-    assert!(stdout.contains("doc.txt"));
-    assert!(stdout.contains("subdir"));
-
-    assert!(
-        !stdout.contains(RUST_ICON),
-        "Long view in pipe with --icons=auto must not contain Rust icon"
+    assert_eq!(
+        lez(&dir, &[], &["-1", "--icons=always", "--icons=auto"]),
+        without
     );
-    assert!(
-        !stdout.contains(FOLDER_ICON),
-        "Long view in pipe with --icons=auto must not contain folder icon"
+    assert_eq!(
+        lez(&dir, &[], &["-1", "--icons=always", "--icons=never"]),
+        without
     );
-}
-
-#[test]
-fn test_icons_always_long_view_in_pipe_renders_icons() {
-    let temp = TempTestDir::new("pipe_long_always");
-    temp.create_file("main.rs", b"fn main() {}");
-    temp.create_file("doc.txt", b"notes");
-    temp.create_dir("subdir");
-
-    let output = Command::new(bin_path())
-        .arg("-l")
-        .arg("--icons=always")
-        .arg(&temp.path)
-        .env("COLUMNS", "160")
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        stdout.contains(RUST_ICON) || stdout.contains(FOLDER_ICON),
-        "Long view in pipe with --icons=always must contain icons"
-    );
-}
-
-#[test]
-fn test_eza_icons_auto_env_in_pipe_with_columns() {
-    let temp = TempTestDir::new("pipe_env_auto");
-    temp.create_file("main.rs", b"fn main() {}");
-    temp.create_file("doc.txt", b"notes");
-    temp.create_dir("subdir");
-
-    let output = Command::new(bin_path())
-        .arg(&temp.path)
-        .env("EZA_ICONS_AUTO", "1")
-        .env("COLUMNS", "120")
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        !stdout.contains(RUST_ICON),
-        "EZA_ICONS_AUTO in pipe must not render icons"
-    );
-    assert!(
-        !stdout.contains(FOLDER_ICON),
-        "EZA_ICONS_AUTO in pipe must not render folder icon"
-    );
-}
-
-#[test]
-fn test_icons_auto_width_flag_in_pipe_does_not_render_icons() {
-    let temp = TempTestDir::new("pipe_width_auto");
-    temp.create_file("main.rs", b"fn main() {}");
-    temp.create_file("doc.txt", b"notes");
-    temp.create_dir("subdir");
-
-    let output = Command::new(bin_path())
-        .arg("--width=100")
-        .arg("--icons=auto")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(!stdout.contains(RUST_ICON));
-    assert!(!stdout.contains(FOLDER_ICON));
-}
-
-#[test]
-fn test_icons_precedence_always_overrides_auto() {
-    let temp = TempTestDir::new("precedence_always");
-    temp.create_file("main.rs", b"fn main() {}");
-
-    // --icons=auto followed by --icons=always -> always wins
-    let output = Command::new(bin_path())
-        .arg("--icons=auto")
-        .arg("--icons=always")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(RUST_ICON));
-}
-
-#[test]
-fn test_icons_precedence_auto_overrides_always() {
-    let temp = TempTestDir::new("precedence_auto");
-    temp.create_file("main.rs", b"fn main() {}");
-
-    // --icons=always followed by --icons=auto -> auto wins, in pipe icons suppressed
-    let output = Command::new(bin_path())
-        .arg("--icons=always")
-        .arg("--icons=auto")
-        .arg(&temp.path)
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains(RUST_ICON));
-}
-
-#[test]
-fn test_icons_auto_tree_mode_in_pipe_with_columns() {
-    let temp = TempTestDir::new("pipe_tree_auto");
-    temp.create_file("main.rs", b"fn main() {}");
-    temp.create_dir("subdir");
-    temp.create_file("subdir/nested.rs", b"fn nested() {}");
-
-    let output = Command::new(bin_path())
-        .arg("--tree")
-        .arg("--icons=auto")
-        .arg(&temp.path)
-        .env("COLUMNS", "120")
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(stdout.contains("main.rs"));
-    assert!(stdout.contains("nested.rs"));
-    assert!(!stdout.contains(RUST_ICON));
-    assert!(!stdout.contains(FOLDER_ICON));
 }

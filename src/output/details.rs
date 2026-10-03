@@ -302,6 +302,8 @@ impl<'a> Render<'a> {
         if let Some(hc) = &hidden_count
             && let Some(warn_line) = hc.render(self.theme.ui.hidden_warning.unwrap_or_default())
         {
+            // The tree goes out first, so the tally follows it.
+            w.flush()?;
             let _ = writeln!(io::stderr(), "{warn_line}");
         }
 
@@ -433,7 +435,7 @@ impl<'a> Render<'a> {
 
             // With --only-files, directories still get recursed into but are
             // not listed themselves; skipping before add_widths keeps the
-            // table columns and tree edges aligned.
+            // table columns aligned.
             if !(egg.file.is_directory() && self.filter.flags.contains(&OnlyFiles)) {
                 if let Some(s) = summary {
                     s.record_file(egg.file);
@@ -458,6 +460,7 @@ impl<'a> Render<'a> {
                     tree: tree_params,
                     cells: egg.table_row,
                     name: file_name,
+                    hidden: false,
                 };
 
                 rows.push(row);
@@ -470,20 +473,38 @@ impl<'a> Render<'a> {
                 {
                     // Silent-fail policy: unreadable archives are simply left
                     // as they are.
-                    if let Ok(entries) = crate::fs::archives::read_entries(&egg.file.path) {
-                        let last_index = entries.len().saturating_sub(1);
-                        for (index, entry) in entries.iter().enumerate() {
-                            // The final entry closes the branch. Passing `false`
+                    if let Ok(listing) = crate::fs::archives::read_entries(&egg.file.path) {
+                        let count = listing.entries.len() + usize::from(listing.truncated);
+                        for (index, entry) in listing.entries.iter().enumerate() {
+                            // The final row closes the branch. Passing `false`
                             // unconditionally left every row on an edge, so the
                             // listing never terminated: "├──" all the way down.
                             rows.push(self.render_archive_entry(
                                 egg.file,
                                 entry,
-                                TreeParams::new(depth.deeper(), index == last_index),
+                                TreeParams::new(depth.deeper(), index + 1 == count),
                             ));
+                        }
+                        if listing.truncated {
+                            rows.push(
+                                self.render_archive_truncation(TreeParams::new(
+                                    depth.deeper(),
+                                    true,
+                                )),
+                            );
                         }
                     }
                 }
+            } else {
+                // The hidden directory still takes its place in the tree, so
+                // what is listed under and after it gets the same edges as
+                // without `--only-files`.
+                rows.push(Row {
+                    tree: tree_params,
+                    cells: None,
+                    name: TextCell::default(),
+                    hidden: true,
+                });
             }
 
             if let Some(ref dir) = egg.dir {
@@ -563,6 +584,7 @@ impl<'a> Render<'a> {
             tree: TreeParams::new(TreeDepth::root(), false),
             cells: Some(header),
             name: TextCell::paint_str(self.theme.ui.header.unwrap_or_default(), "Name"),
+            hidden: false,
         }
     }
 
@@ -582,6 +604,7 @@ impl<'a> Render<'a> {
             cells: None,
             name,
             tree,
+            hidden: false,
         }
     }
 
@@ -627,6 +650,22 @@ impl<'a> Render<'a> {
             cells: None,
             name,
             tree,
+            hidden: false,
+        }
+    }
+
+    /// The row that closes an archive's entries when there were more than
+    /// the listing reads: a note, not an entry, so it has no path or size.
+    #[cfg(feature = "inspect-archives")]
+    fn render_archive_truncation(&self, tree: TreeParams) -> Row {
+        Row {
+            cells: None,
+            name: TextCell::paint(
+                self.theme.ui.punctuation.unwrap_or_default(),
+                format!("… (more than {} entries)", crate::fs::archives::MAX_ENTRIES),
+            ),
+            tree,
+            hidden: false,
         }
     }
 
@@ -639,6 +678,7 @@ impl<'a> Render<'a> {
             cells: None,
             name,
             tree,
+            hidden: false,
         }
     }
 
@@ -678,6 +718,11 @@ pub struct Row {
 
     /// Information used to determine which symbols to display in a tree.
     pub tree: TreeParams,
+
+    /// A directory hidden by `--only-files`. It moves the tree along like
+    /// any other row, so the rows under and after it get the edges they have
+    /// without the flag, but nothing is printed for it.
+    pub hidden: bool,
 }
 
 #[rustfmt::skip]
@@ -694,22 +739,28 @@ impl Iterator for TableIter<'_> {
     type Item = TextCell;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|row| {
-            let mut cell = if let Some(cells) = row.cells {
-                self.table.render(cells)
-            } else {
-                let mut cell = TextCell::default();
-                cell.add_spaces(self.total_width);
-                cell
-            };
-
-            for tree_part in self.tree_trunk.new_row(row.tree) {
-                cell.push(self.tree_style.paint(tree_part.ascii_art()), 4);
+        let row = loop {
+            let row = self.inner.next()?;
+            if !row.hidden {
+                break row;
             }
+            self.tree_trunk.new_row(row.tree);
+        };
 
-            cell.append(row.name);
+        let mut cell = if let Some(cells) = row.cells {
+            self.table.render(cells)
+        } else {
+            let mut cell = TextCell::default();
+            cell.add_spaces(self.total_width);
             cell
-        })
+        };
+
+        for tree_part in self.tree_trunk.new_row(row.tree) {
+            cell.push(self.tree_style.paint(tree_part.ascii_art()), 4);
+        }
+
+        cell.append(row.name);
+        Some(cell)
     }
 }
 
@@ -723,16 +774,22 @@ impl Iterator for Iter {
     type Item = TextCell;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|row| {
-            let mut cell = TextCell::default();
-
-            for tree_part in self.tree_trunk.new_row(row.tree) {
-                cell.push(self.tree_style.paint(tree_part.ascii_art()), 4);
+        let row = loop {
+            let row = self.inner.next()?;
+            if !row.hidden {
+                break row;
             }
+            self.tree_trunk.new_row(row.tree);
+        };
 
-            cell.append(row.name);
-            cell
-        })
+        let mut cell = TextCell::default();
+
+        for tree_part in self.tree_trunk.new_row(row.tree) {
+            cell.push(self.tree_style.paint(tree_part.ascii_art()), 4);
+        }
+
+        cell.append(row.name);
+        Some(cell)
     }
 }
 

@@ -1,136 +1,178 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! `--warn-hidden` / `-W`: report entries filtered out by visibility rules.
-//! Given once, the tally appears only when something was hidden; given
-//! twice, it always prints the numbers.
+//! `-W`/`--warn-hidden`: a tally of what the filters left out, on stderr so
+//! stdout stays the listing alone. Once prints it when something was left
+//! out; twice prints it always.
 
-use std::fs;
 use std::path::Path;
-use std::process::Command;
-use tempfile::TempDir;
+use std::process::Output;
 
-struct TempTestDir {
-    inner: TempDir,
-}
-
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let inner = tempfile::Builder::new()
-            .prefix(&format!("lez_warn_hidden_{prefix}_"))
-            .tempdir()
-            .expect("Failed to create temp test directory");
-        Self { inner }
-    }
-
-    fn path(&self) -> &Path {
-        self.inner.path()
-    }
-
-    fn create_file(&self, rel_path: &str) {
-        let file_path = self.path().join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(file_path, "x").unwrap();
-    }
-}
-
-fn run_lez(args: &[&str]) -> (String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_lez"))
-        .args(args)
-        .output()
-        .expect("Failed to execute lez binary");
-    assert!(output.status.success());
-    (
-        String::from_utf8_lossy(&output.stdout).into_owned(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
-    )
-}
+use crate::common::{TempGitRepo, TempTestDir, interleaved, lez_in, native};
 
 fn fixture(prefix: &str) -> TempTestDir {
     let dir = TempTestDir::new(prefix);
-    dir.create_file("visible.txt");
-    dir.create_file(".secret");
-    dir.create_file("clean/inner.txt");
+    dir.create_file("visible.txt", b"x");
+    dir.create_file(".secret", b"x");
+    dir.create_file("clean/inner.txt", b"x");
     dir
 }
 
-#[test]
-fn warn_hidden_stays_silent_when_nothing_was_filtered() {
-    let fixture = fixture("silent");
+/// Stdout and stderr of a successful run.
+fn run(dir: &Path, args: &[&str]) -> (String, String) {
+    let output: Output = lez_in(dir).args(args).output().expect("run lez");
+    assert_eq!(output.status.code(), Some(0), "{args:?}");
+    (
+        String::from_utf8(output.stdout).expect("UTF-8 stdout"),
+        String::from_utf8(output.stderr).expect("UTF-8 stderr"),
+    )
+}
 
-    let (stdout, stderr) = run_lez(&[
-        "-1",
-        "--color=never",
-        "-W",
-        fixture.path().join("clean").to_str().unwrap(),
-    ]);
-    assert!(stdout.contains("inner.txt"), "{stdout}");
-    assert!(
-        !stdout.contains("hidden"),
-        "no tally in stdout without filtered entries: {stdout}"
+#[test]
+fn once_reports_only_when_something_was_hidden() {
+    let dir = fixture("once");
+    assert_eq!(
+        run(dir.path(), &["-1", "-W", "clean"]),
+        ("inner.txt\n".into(), String::new())
     );
-    assert!(
-        !stderr.contains("hidden"),
-        "no tally in stderr without filtered entries: {stderr}"
+    assert_eq!(
+        run(dir.path(), &["-1", "-W"]),
+        (
+            "clean\nvisible.txt\n".into(),
+            "...and 1 hidden item\n".into()
+        )
+    );
+    assert_eq!(
+        run(dir.path(), &["-1", "-W", "-a"]),
+        (".secret\nclean\nvisible.txt\n".into(), String::new())
+    );
+}
+
+/// A lone count says "1 hidden item"; two counts share the noun, which
+/// follows the nearer one.
+#[test]
+fn the_tally_says_item_for_one() {
+    let dir = TempTestDir::new("plural");
+    dir.create_file("visible.txt", b"x");
+    dir.create_file(".one", b"x");
+    assert_eq!(run(dir.path(), &["-1", "-W"]).1, "...and 1 hidden item\n");
+    dir.create_file(".two", b"x");
+    assert_eq!(run(dir.path(), &["-1", "-W"]).1, "...and 2 hidden items\n");
+    assert_eq!(
+        run(dir.path(), &["-1", "-WW"]).1,
+        "2 hidden and 0 ignored items\n"
+    );
+}
+
+/// With `--git-ignore` and one ignored file the second count is one.
+#[test]
+#[cfg(feature = "git")]
+fn the_tally_says_item_for_one_ignored() {
+    let repo = TempGitRepo::new("plural_ignored");
+    repo.create_file(".gitignore", b"*.log\n");
+    repo.create_file("kept.txt", b"x");
+    repo.create_file("dropped.log", b"x");
+    assert_eq!(
+        run(repo.path(), &["-1", "-WW", "--git-ignore"]).1,
+        "2 hidden and 1 ignored item\n"
+    );
+    assert_eq!(
+        run(repo.path(), &["-1", "-W", "--git-ignore"]).1,
+        "...and 2 hidden, 1 ignored item\n"
     );
 }
 
 #[test]
-fn warn_hidden_reports_once_something_was_hidden() {
-    let fixture = fixture("auto");
-
-    let (stdout, stderr) = run_lez(&[
-        "-1",
-        "--color=never",
-        "-W",
-        fixture.path().to_str().unwrap(),
-    ]);
-    assert!(stdout.contains("visible.txt"), "{stdout}");
-    assert!(
-        !stdout.contains("hidden items"),
-        "stdout must remain pure data payload without warnings: {stdout}"
+fn twice_always_reports_both_counts() {
+    let dir = fixture("twice");
+    assert_eq!(
+        run(dir.path(), &["-1", "-WW", "clean"]),
+        (
+            "inner.txt\n".into(),
+            "0 hidden and 0 ignored items\n".into()
+        )
     );
-    assert!(
-        stderr.contains("hidden items"),
-        "stderr must contain the warning tally: {stderr}"
+    assert_eq!(
+        run(dir.path(), &["-1", "-WW"]),
+        (
+            "clean\nvisible.txt\n".into(),
+            "1 hidden and 0 ignored items\n".into()
+        )
     );
 }
 
+/// Recursing, each directory's section gets its own tally; a tree is one
+/// listing, with one tally for all of it.
 #[test]
-fn warn_hidden_twice_always_prints_the_tally() {
-    let fixture = fixture("verbose");
+fn recursion_tallies_each_directory_and_a_tree_tallies_once() {
+    let dir = fixture("recursive");
+    dir.create_file("clean/.nested_secret", b"x");
+    assert_eq!(
+        run(dir.path(), &["-1", "-R", "-WW"]),
+        (
+            native("clean\nvisible.txt\n\n./clean:\ninner.txt\n"),
+            "1 hidden and 0 ignored items\n1 hidden and 0 ignored items\n".into()
+        )
+    );
+    assert_eq!(
+        run(dir.path(), &["-T", "-WW"]),
+        (
+            ".\n├── clean\n│   └── inner.txt\n└── visible.txt\n".into(),
+            "2 hidden and 0 ignored items\n".into()
+        )
+    );
+}
 
-    // A directory whose contents are all visible still gets a tally line on stderr.
-    let (stdout, stderr) = run_lez(&[
-        "-1",
-        "--color=never",
-        "-WW",
-        fixture.path().join("clean").to_str().unwrap(),
-    ]);
-    assert!(
-        !stdout.contains("0 hidden and 0 ignored"),
-        "stdout must remain pure: {stdout}"
+/// The tally follows the listing it counts, on a terminal too: stdout is
+/// written out before it. It used to come first, above the listing it
+/// starts with "...and".
+#[test]
+fn each_tally_follows_its_listing() {
+    let dir = fixture("order");
+    dir.create_file("clean/.nested_secret", b"x");
+    assert_eq!(
+        interleaved(lez_in(dir.path()).args(["-1", "-W"])),
+        (Some(0), "clean\nvisible.txt\n...and 1 hidden item\n".into())
     );
-    assert!(
-        stderr.contains("0 hidden and 0 ignored"),
-        "double flag forces the tally to stderr: {stderr}"
+    assert_eq!(
+        interleaved(lez_in(dir.path()).args(["-1", "-R", "-W"])),
+        (
+            Some(0),
+            native(
+                "clean\nvisible.txt\n...and 1 hidden item\n\
+                 \n./clean:\ninner.txt\n...and 1 hidden item\n"
+            )
+        )
     );
+    assert_eq!(
+        interleaved(lez_in(dir.path()).args(["-T", "-W"])),
+        (
+            Some(0),
+            ".\n├── clean\n│   └── inner.txt\n└── visible.txt\n...and 2 hidden items\n".into()
+        )
+    );
+}
 
-    let (stdout, stderr) = run_lez(&[
-        "-1",
-        "--color=never",
-        "-WW",
-        fixture.path().to_str().unwrap(),
-    ]);
-    assert!(stdout.contains("visible.txt"), "{stdout}");
-    assert!(
-        !stdout.contains("1 hidden"),
-        "stdout must remain pure: {stdout}"
+/// Entries `--git-ignore` drops are counted apart from dotfiles (here
+/// `.git` and `.gitignore`), and the short form names both.
+#[test]
+#[cfg(feature = "git")]
+fn git_ignored_entries_are_counted_separately() {
+    let repo = TempGitRepo::new("warn_hidden_ignored");
+    repo.create_file(".gitignore", b"*.log\n");
+    repo.create_file("kept.txt", b"x");
+    repo.create_file("dropped.log", b"x");
+    repo.create_file("also.log", b"x");
+
+    assert_eq!(
+        run(repo.path(), &["-1", "-WW", "--git-ignore"]),
+        ("kept.txt\n".into(), "2 hidden and 2 ignored items\n".into())
     );
-    assert!(
-        stderr.contains("1 hidden"),
-        "double flag prints tally to stderr: {stderr}"
+    assert_eq!(
+        run(repo.path(), &["-1", "-W", "--git-ignore"]),
+        (
+            "kept.txt\n".into(),
+            "...and 2 hidden, 2 ignored items\n".into()
+        )
     );
 }

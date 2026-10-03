@@ -22,7 +22,7 @@ fuzz_target!(|data: &[u8]| {
 
             // Fuzz the YAML theme parser
             let config = lez::options::config::ThemeConfig::from_path(yaml_path);
-            let _ = config.to_theme();
+            let _ = config.to_theme(lez::theme::UiStyles::default());
         }
         let _ = fs::remove_dir_all(&temp_dir);
     }

@@ -1,2 +1,0 @@
-bin.name = "lez"
-args = "tests/itest --sort=extension --group-directories-first"

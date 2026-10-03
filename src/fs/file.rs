@@ -36,14 +36,51 @@ use crate::fs::recursive_size::RecursiveSize;
 use super::mounts::MountedFs;
 use super::mounts::{all_mounts, mount_point_names};
 
-// Maps a (file handle, shows_dotfiles) => (size_in_bytes, size_in_blocks)
+/// What identifies a directory in [`DIRECTORY_SIZE_CACHE`].
+///
+/// The key must not hold the directory open, as a `same_file::Handle`
+/// would: that costs one descriptor per directory ever sized. Without an
+/// open handle, though, the device and inode only name a directory while it
+/// exists; once it is removed the kernel can give its inode to a new one,
+/// and a process that lists more than once would be handed the old total.
+/// So the path it was sized under and its change time are part of the key
+/// as well: a directory that inherits the inode somewhere else, or at the
+/// same path after the clock has moved on, does not match. Elsewhere the
+/// path and the creation and modification times play the same part.
+#[derive(PartialEq, Eq, Hash)]
+struct DirIdentity {
+    path: PathBuf,
+    #[cfg(unix)]
+    inode: (u64, u64),
+    #[cfg(unix)]
+    changed: (i64, i64),
+    #[cfg(not(unix))]
+    stamps: (Option<SystemTime>, Option<SystemTime>),
+}
+
+// Maps a (directory identity, shows_dotfiles) => (size_in_bytes, size_in_blocks)
 // For windows, size_in_blocks is always 0
+type DirectorySizes = HashMap<(DirIdentity, bool), (u64, u64)>;
+
 // Mutex::new is const but HashMap::new is not const requiring us to use lazy
 // initialization.
-#[allow(clippy::type_complexity)]
-static DIRECTORY_SIZE_CACHE: LazyLock<
-    Mutex<HashMap<(Option<same_file::Handle>, bool), (u64, u64)>>,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static DIRECTORY_SIZE_CACHE: LazyLock<Mutex<DirectorySizes>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// The cache identity of the directory at `path`, following symlinks the
+/// way opening it would.
+fn directory_identity(path: &Path) -> Option<DirIdentity> {
+    let md = std::fs::metadata(path).ok()?;
+    Some(DirIdentity {
+        path: path.to_path_buf(),
+        #[cfg(unix)]
+        inode: (md.dev(), md.ino()),
+        #[cfg(unix)]
+        changed: (md.ctime(), md.ctime_nsec()),
+        #[cfg(not(unix))]
+        stamps: (md.created().ok(), md.modified().ok()),
+    })
+}
 
 /// A **File** is a wrapper around one of Rust’s `PathBuf` values, along with
 /// associated data about the file.
@@ -1135,13 +1172,16 @@ impl<'dir> File<'dir> {
 
         let dot_filter = self.dot_filter.unwrap_or(super::DotFilter::Dotfiles);
         let shows_dotfiles = dot_filter.shows_dotfiles();
-        let handle = same_file::Handle::from_path(self.fs_path()).ok();
-        let cache_key = (handle, shows_dotfiles);
+        // Without an identity the size is computed but not cached: sharing
+        // one key between every directory that could not be identified would
+        // hand one directory's total to the next.
+        let cache_key = directory_identity(self.fs_path()).map(|id| (id, shows_dotfiles));
 
-        if let Some(size) = DIRECTORY_SIZE_CACHE
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&cache_key)
+        if let Some(key) = &cache_key
+            && let Some(size) = DIRECTORY_SIZE_CACHE
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(key)
         {
             return RecursiveSize::Some(size.0, size.1);
         }
@@ -1163,10 +1203,12 @@ impl<'dir> File<'dir> {
         let (size, blocks) =
             dir.calculate_recursive_size(&mut visited, dot_filter, self.mime_read_contents);
 
-        DIRECTORY_SIZE_CACHE
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(cache_key, (size, blocks));
+        if let Some(key) = cache_key {
+            DIRECTORY_SIZE_CACHE
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(key, (size, blocks));
+        }
         RecursiveSize::Some(size, blocks)
     }
 
@@ -1438,7 +1480,7 @@ impl<'dir> File<'dir> {
     }
 
     /// This file’s security context field.
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     pub fn security_context(&self) -> f::SecurityContext<'_> {
         use std::borrow::Cow;
 
@@ -1452,19 +1494,11 @@ impl<'dir> File<'dir> {
                 Some(value) => match str::from_utf8(value) {
                     Ok(v) => {
                         let raw = v.trim_end_matches(char::from(0));
-                        #[cfg(target_os = "linux")]
+                        if let Some(trans) =
+                            crate::fs::feature::xattr::translate_selinux_context(raw)
                         {
-                            if let Some(trans) =
-                                crate::fs::feature::xattr::translate_selinux_context(raw)
-                            {
-                                SecurityContextType::SELinux(Cow::Owned(trans))
-                            } else {
-                                SecurityContextType::SELinux(Cow::Borrowed(raw))
-                            }
-                        }
-
-                        #[cfg(not(target_os = "linux"))]
-                        {
+                            SecurityContextType::SELinux(Cow::Owned(trans))
+                        } else {
                             SecurityContextType::SELinux(Cow::Borrowed(raw))
                         }
                     }
@@ -1477,7 +1511,9 @@ impl<'dir> File<'dir> {
         f::SecurityContext { context }
     }
 
-    #[cfg(windows)]
+    /// SELinux is Linux's alone, so elsewhere a file has no context, and
+    /// nothing is read to find that out.
+    #[cfg(not(target_os = "linux"))]
     pub fn security_context(&self) -> f::SecurityContext<'_> {
         f::SecurityContext {
             context: SecurityContextType::None,
@@ -1861,7 +1897,11 @@ mod broken_symlink_test {
     /// A symlink with an empty target should be treated as broken, not as
     /// pointing to a directory. Regression test for
     /// https://github.com/eza-community/eza/issues/1715
+    ///
+    /// Linux refuses to create such a link (`ENOENT`), so the case only
+    /// exists, and is only tested, on macOS.
     #[test]
+    #[cfg(target_os = "macos")]
     fn empty_target_symlink_is_not_directory() {
         let temp_dir = tempfile::Builder::new()
             .prefix("lez_test_empty_symlink_")
@@ -1869,11 +1909,7 @@ mod broken_symlink_test {
             .unwrap();
 
         let link_path = temp_dir.path().join("empty-link");
-        // Some environments (e.g. Nix sandbox) don't allow creating
-        // symlinks with empty targets, so skip if that's the case.
-        if unix_fs::symlink("", &link_path).is_err() {
-            return;
-        }
+        unix_fs::symlink("", &link_path).expect("macOS allows a symlink with an empty target");
 
         let file = make_file(link_path);
 
@@ -1992,12 +2028,34 @@ mod recursive_size_test {
         fs::write(dir.join("two.bin"), vec![0u8; 1024]).unwrap();
 
         let file = File::from_args(dir.clone(), None, None, false, true, false, None);
-        let first = file.length();
-        assert!(first >= 5120, "recursive size {first} below file bytes");
+        assert_eq!(file.length(), 5120);
 
         // Second construction must hit DIRECTORY_SIZE_CACHE and agree.
         let file2 = File::from_args(dir.clone(), None, None, false, true, false, None);
-        assert_eq!(first, file2.length());
+        assert_eq!(file2.length(), 5120);
+    }
+
+    /// ext4 and tmpfs hand a freed inode to the next directory created, so
+    /// a cache keyed by inode alone gives the second directory the first
+    /// one's total. Where inodes are not reused this checks less, but what
+    /// it asserts is still true.
+    #[test]
+    fn a_new_directory_does_not_inherit_a_removed_ones_total() {
+        let parent = temp_dir("reuse");
+        for round in 0..20_usize {
+            let removed = parent.path().join(format!("removed_{round}"));
+            fs::create_dir(&removed).unwrap();
+            fs::write(removed.join("data"), vec![0u8; 100]).unwrap();
+            let file = File::from_args(removed.clone(), None, None, false, true, false, None);
+            assert_eq!(file.length(), 100);
+            fs::remove_dir_all(&removed).unwrap();
+
+            let created = parent.path().join(format!("created_{round}"));
+            fs::create_dir(&created).unwrap();
+            fs::write(created.join("data"), vec![0u8; 7]).unwrap();
+            let file = File::from_args(created.clone(), None, None, false, true, false, None);
+            assert_eq!(file.length(), 7, "round {round}");
+        }
     }
 
     #[test]
