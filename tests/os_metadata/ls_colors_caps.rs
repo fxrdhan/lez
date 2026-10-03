@@ -3,7 +3,8 @@
 
 //! `LS_COLORS` has a `ca` entry for files carrying Linux capabilities. As in
 //! GNU `ls`, such a file takes it ahead of the executable colour; without
-//! the entry it is coloured like any other file.
+//! the entry, or with `ca=00` as `dircolors` writes it, it is coloured like
+//! any other file.
 
 #![cfg(target_os = "linux")]
 
@@ -43,8 +44,12 @@ fn a_file_with_capabilities_takes_the_ca_colour() {
          plain\n\
          \x1b[32mrun\x1b[0m\n"
     );
-    assert_eq!(
-        listing("ex=32"),
-        "granted\n\x1b[32mgranted_exec\x1b[0m\nplain\n\x1b[32mrun\x1b[0m\n"
-    );
+    // `ca=00` used to paint them plain, the executable one included.
+    for ls_colors in ["ex=32", "ca=00:ex=32", "ca=0:ex=32", "ca=:ex=32"] {
+        assert_eq!(
+            listing(ls_colors),
+            "granted\n\x1b[32mgranted_exec\x1b[0m\nplain\n\x1b[32mrun\x1b[0m\n",
+            "{ls_colors}"
+        );
+    }
 }

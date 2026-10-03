@@ -87,7 +87,7 @@ LIST OF CODES
 `mh`
 : regular files with more than one hard link
 
-Note: `ca` is unset by default, and only when it is set does lez ask the filesystem whether a file has capabilities — one extra syscall per file. GNU `ls` stopped colouring these by default in coreutils 8.31 for the same reason. The attribute is Linux's alone; the code is accepted and ignored elsewhere.
+Note: `ca` is unset by default, and only when it is set does lez ask the filesystem whether a file has capabilities — one extra syscall per file. As in GNU `ls`, an empty, `0` or `00` value for `ca`, `mh` or `mi` leaves it unset, so `ca=00`, which `dircolors` writes by default, costs nothing and a missing path under `mi=00` keeps the `or` colour. GNU `ls` stopped colouring these by default in coreutils 8.31 for the same reason. The attribute is Linux's alone; the code is accepted and ignored elsewhere.
 
 Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are coloured like any other file until it is given a style. It applies to regular files only — directories are linked from each of their subdirectories, so colouring those would light up almost everything. Unix only.
 

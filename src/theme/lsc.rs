@@ -120,6 +120,16 @@ impl Pair<'_> {
     /// let style = p.to_style();
     /// assert!(style.is_bold);
     /// ```
+    /// The style for a kind of file that is coloured only when asked for,
+    /// such as `ca` or `mh`: none for an empty, `0` or `00` value, which
+    /// GNU `ls` reads as no colour at all, so the file falls through to the
+    /// next kind it is. `dircolors` writes `ca=00`, `mh=00` and `mi=00` by
+    /// default, the first to skip a lookup it calls very expensive.
+    #[must_use]
+    pub fn to_optional_style(&self) -> Option<Style> {
+        (!matches!(self.value, "" | "0" | "00")).then(|| self.to_style())
+    }
+
     pub fn to_style(&self) -> Style {
         let mut style = Style::default();
         let mut iter = self.value.split(';').peekable();

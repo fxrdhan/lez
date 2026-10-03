@@ -768,9 +768,9 @@ impl UiStyles {
                 } // LINK
             }
             "or" => self.broken_symlink         = Some(pair.to_style()),  // ORPHAN
-            "mi" => self.missing_target         = Some(pair.to_style()),  // MISSING
-            "ca" => self.capability             = Some(pair.to_style()),  // CAPABILITY
-            "mh" => self.multi_hardlink         = Some(pair.to_style()),  // MULTIHARDLINK
+            "mi" => self.missing_target         = pair.to_optional_style(),  // MISSING
+            "ca" => self.capability             = pair.to_optional_style(),  // CAPABILITY
+            "mh" => self.multi_hardlink         = pair.to_optional_style(),  // MULTIHARDLINK
              _   => return false,
              // Codes we don’t do anything with:
              // DOOR, SETUID, SETGID,

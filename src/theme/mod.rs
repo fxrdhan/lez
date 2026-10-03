@@ -901,6 +901,13 @@ mod customs_test {
     test!(ls_ca:   ls "ca=33", exa ""  =>  colours c -> { c.capability             = Some(Yellow.normal()); });
     test!(ls_mh:   ls "mh=33", exa ""  =>  colours c -> { c.multi_hardlink         = Some(Yellow.normal()); });
 
+    // An empty, `0` or `00` value colours nothing, as in GNU `ls`, so the
+    // file falls through to the next kind; in `LEZ_COLORS` it takes back
+    // what `LS_COLORS` set.
+    test!(ls_ca_00: ls "ca=00:mh=0:mi=", exa ""  =>  colours c -> { c.capability = None; c.multi_hardlink = None; c.missing_target = None; });
+    test!(exa_ca_00: ls "ca=33:mh=33:mi=33", exa "ca=00:mh=00:mi=0"  =>  colours c -> { c.capability = None; c.multi_hardlink = None; c.missing_target = None; });
+    test!(ls_ca_000: ls "ca=000", exa ""  =>  colours c -> { c.capability = Some(Style::default()); });
+
     // EZA_COLORS can affect all those colours too:
     test!(exa_di:  ls "", exa "di=32"  =>  colours c -> { c.filekinds().directory    = Some(Green.normal());  });
     test!(exa_ex:  ls "", exa "ex=33"  =>  colours c -> { c.filekinds().executable   = Some(Yellow.normal()); });

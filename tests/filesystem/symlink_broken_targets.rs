@@ -83,6 +83,29 @@ fn missing_path_falls_back_to_the_orphan_colour() {
     );
 }
 
+/// `mi=00`, which `dircolors` writes by default, colours nothing, as in GNU
+/// `ls`, so the missing path falls back to `or` here too. It used to be
+/// painted plain.
+#[test]
+fn an_uncoloured_mi_falls_back_to_the_orphan_colour() {
+    let tmp = TempTestDir::new("broken_mi_00");
+    tmp.create_symlink("missing", "link");
+
+    for mi in ["mi=00", "mi=0", "mi="] {
+        let (code, stdout) = exit_and_stdout(
+            lez_in(tmp.path())
+                .args(NAME_COLUMN_ONLY)
+                .args(["-d", "--color=always", "link"])
+                .env("LS_COLORS", format!("or=32:{mi}")),
+        );
+        assert_eq!(code, Some(0));
+        assert_eq!(
+            stdout, "\x1b[36mlink\x1b[0m \x1b[32m->\x1b[0m \x1b[4;32mmissing\x1b[0m\n",
+            "{mi}"
+        );
+    }
+}
+
 #[test]
 fn broken_link_in_working_directory_gets_an_absolute_path() {
     let tmp = TempTestDir::new("broken_cwd_abs");
