@@ -463,7 +463,7 @@ impl TableOptions {
         spaces: usize,
         config: &FileConfig,
     ) -> Result<Self, OptionsError> {
-        let time_format = TimeFormat::deduce(matches, vars, config);
+        let time_format = TimeFormat::deduce(matches, vars, config)?;
         let flags_format = FlagsFormat::deduce(vars);
         let allocated_size_mode = AllocatedSizeMode::deduce(matches, &config.display);
         let size_format = SizeFormat::deduce(matches);
@@ -800,17 +800,57 @@ fn validate_custom_format(fmt: &str) -> Result<(), String> {
 
 impl TimeFormat {
     /// Determine how time should be formatted in timestamp columns.
-    fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
+    fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
         if let Some(arg) = matches.get_one::<TimeFormat>("time-style") {
-            arg.clone()
+            Ok(arg.clone())
         } else if let Some(t) = vars.get(vars::TIME_STYLE).filter(|t| !t.is_empty()) {
-            TimeFormat::try_from_str(t.to_str().unwrap_or("")).unwrap_or(TimeFormat::DefaultFormat)
+            Self::from_time_style_variable(&t, vars)
         } else if let Some(t) = &config.display.time_style {
-            TimeFormat::try_from_str(t).unwrap_or(TimeFormat::DefaultFormat)
+            Ok(TimeFormat::try_from_str(t).unwrap_or(TimeFormat::DefaultFormat))
         } else {
-            Self::DefaultFormat
+            Ok(Self::DefaultFormat)
         }
     }
+
+    /// `TIME_STYLE`, read as GNU `ls` reads it, which shares it: `locale` is
+    /// the default format, and `posix-STYLE` is STYLE except under the POSIX
+    /// time locale, where it is the default format too. Anything that is not
+    /// a time style is an option error, as it is for `ls`.
+    fn from_time_style_variable<V: Vars>(
+        value: &std::ffi::OsStr,
+        vars: &V,
+    ) -> Result<Self, OptionsError> {
+        let text = value.to_string_lossy();
+        let style = match text.strip_prefix("posix-") {
+            Some(_) if time_locale_is_posix(vars) => return Ok(Self::DefaultFormat),
+            Some(style) => style,
+            None => &text,
+        };
+        if style == "locale" {
+            return Ok(Self::DefaultFormat);
+        }
+        TimeFormat::try_from_str(style).map_err(|_| {
+            OptionsError::Unsupported(format!(
+                "Value {text:?} not valid for environment variable {}: expected default, iso, \
+                 long-iso, full-iso, relative, relative-recent[:DAYS], locale, posix-STYLE or \
+                 +FORMAT",
+                vars::TIME_STYLE
+            ))
+        })
+    }
+}
+
+/// Whether times are formatted for the POSIX locale: `LC_ALL`, else
+/// `LC_TIME`, else `LANG`, names `C` or `POSIX`, or none is set.
+fn time_locale_is_posix<V: Vars>(vars: &V) -> bool {
+    [vars::LC_ALL, vars::LC_TIME, vars::LANG]
+        .into_iter()
+        .find_map(|name| vars.get(name).filter(|value| !value.is_empty()))
+        .is_none_or(|locale| locale == "C" || locale == "POSIX")
 }
 
 impl UserFormat {
@@ -1462,7 +1502,7 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("iso"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::ISOFormat
+            Ok(TimeFormat::ISOFormat)
         );
     }
 
@@ -1475,7 +1515,7 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::ISOFormat
+            Ok(TimeFormat::ISOFormat)
         );
     }
 
@@ -1485,7 +1525,7 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("long-iso"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::LongISO
+            Ok(TimeFormat::LongISO)
         );
     }
 
@@ -1498,7 +1538,7 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::LongISO
+            Ok(TimeFormat::LongISO)
         );
     }
 
@@ -1508,7 +1548,7 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("full-iso"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::FullISO
+            Ok(TimeFormat::FullISO)
         );
     }
 
@@ -1521,7 +1561,7 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::FullISO
+            Ok(TimeFormat::FullISO)
         );
     }
 
@@ -1531,7 +1571,7 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("relative"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::Relative
+            Ok(TimeFormat::Relative)
         );
     }
 
@@ -1544,7 +1584,7 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::Relative
+            Ok(TimeFormat::Relative)
         );
     }
 
@@ -1554,9 +1594,9 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("relative-recent"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::RelativeRecent {
+            Ok(TimeFormat::RelativeRecent {
                 recent_window_days: None
-            }
+            })
         );
     }
 
@@ -1569,9 +1609,9 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::RelativeRecent {
+            Ok(TimeFormat::RelativeRecent {
                 recent_window_days: None
-            }
+            })
         );
     }
 
@@ -1581,9 +1621,9 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("relative-recent:14"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::RelativeRecent {
+            Ok(TimeFormat::RelativeRecent {
                 recent_window_days: Some(14)
-            }
+            })
         );
     }
 
@@ -1596,9 +1636,9 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            TimeFormat::RelativeRecent {
+            Ok(TimeFormat::RelativeRecent {
                 recent_window_days: Some(3)
-            }
+            })
         );
     }
 
@@ -1657,10 +1697,10 @@ mod tests {
         vars.set(vars::TIME_STYLE, &OsString::from("+%Y-%b-%d"));
         assert_eq!(
             TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
-            TimeFormat::Custom {
+            Ok(TimeFormat::Custom {
                 non_recent: String::from("%Y-%b-%d"),
                 recent: None
-            }
+            })
         );
     }
 
@@ -1672,10 +1712,10 @@ mod tests {
                 &MockVars::default(),
                 &FileConfig::default()
             ),
-            TimeFormat::Custom {
+            Ok(TimeFormat::Custom {
                 non_recent: String::from("%Y-%b-%d"),
                 recent: None
-            }
+            })
         );
     }
 
@@ -1687,10 +1727,10 @@ mod tests {
                 &MockVars::default(),
                 &FileConfig::default()
             ),
-            TimeFormat::Custom {
+            Ok(TimeFormat::Custom {
                 non_recent: String::from("%Y-%m-%d %H"),
                 recent: Some(String::from("--%m-%d %H:%M"))
-            }
+            })
         );
     }
 
@@ -2854,6 +2894,72 @@ mod tests {
         );
         assert!(view.file_style.is_a_tty);
         assert!(view.file_style.are_icons_enabled());
+    }
+
+    /// `TIME_STYLE` is GNU `ls`'s too: `locale` is the default format, and
+    /// `posix-STYLE` is STYLE unless times are formatted for the POSIX
+    /// locale, which is the case with no locale set at all.
+    #[test]
+    fn deduce_time_style_reads_gnu_forms() {
+        let time_style = |value: &str, locale: &[(&'static str, &str)]| {
+            let mut vars = MockVars::default();
+            vars.set(vars::TIME_STYLE, &OsString::from(value));
+            for (name, value) in locale {
+                vars.set(name, &OsString::from(value));
+            }
+            TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default())
+        };
+        assert_eq!(time_style("locale", &[]), Ok(TimeFormat::DefaultFormat));
+        assert_eq!(time_style("posix-iso", &[]), Ok(TimeFormat::DefaultFormat));
+        for posix in ["C", "POSIX"] {
+            assert_eq!(
+                time_style("posix-long-iso", &[(vars::LANG, posix)]),
+                Ok(TimeFormat::DefaultFormat),
+                "{posix}"
+            );
+        }
+        assert_eq!(
+            time_style("posix-long-iso", &[(vars::LANG, "en_US.UTF-8")]),
+            Ok(TimeFormat::LongISO)
+        );
+        // `LC_ALL` outranks `LC_TIME`, which outranks `LANG`.
+        assert_eq!(
+            time_style(
+                "posix-full-iso",
+                &[(vars::LC_TIME, "C"), (vars::LANG, "de_DE.UTF-8")]
+            ),
+            Ok(TimeFormat::DefaultFormat)
+        );
+        assert_eq!(
+            time_style(
+                "posix-full-iso",
+                &[(vars::LC_ALL, "de_DE.UTF-8"), (vars::LC_TIME, "C")]
+            ),
+            Ok(TimeFormat::FullISO)
+        );
+        assert_eq!(
+            time_style("posix-locale", &[(vars::LANG, "de_DE.UTF-8")]),
+            Ok(TimeFormat::DefaultFormat)
+        );
+    }
+
+    /// A value that is no time style is an option error naming the
+    /// variable, as `ls` refuses it too; it used to be passed over.
+    #[test]
+    fn deduce_time_style_refuses_what_is_not_one() {
+        for value in ["invalid_env_style", "posix-bogus", "relative-recent:x"] {
+            let mut vars = MockVars::default();
+            vars.set(vars::TIME_STYLE, &OsString::from(value));
+            vars.set(vars::LANG, &OsString::from("en_US.UTF-8"));
+            assert_eq!(
+                TimeFormat::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
+                Err(OptionsError::Unsupported(format!(
+                    "Value {value:?} not valid for environment variable TIME_STYLE: expected \
+                     default, iso, long-iso, full-iso, relative, relative-recent[:DAYS], locale, \
+                     posix-STYLE or +FORMAT"
+                )))
+            );
+        }
     }
 
     #[test]

@@ -391,7 +391,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 | `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin`; ignored by `--stdin0` (default: newline `\n`). Supports escape sequences (e.g. `\0`, `\n`, `\t`, `\x00`) and `null`/`nul`. |
 | `LEZ_SIZE_DIGITS` / `EZA_SIZE_DIGITS` | Default number of digits (1..=8) to display for formatted file sizes, the decimal point counting as one (default: `3`). |
 | `LEZ_OVERRIDE_AUTO_COLOR` | Force automatic color detection behavior. |
-| `TIME_STYLE` | Default timestamp format style (`default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or `+<FORMAT>`). |
+| `TIME_STYLE` | Default timestamp format style (`default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or `+<FORMAT>`), also read in GNU `ls`'s `locale` and `posix-<STYLE>` forms; any other value is an error. |
 | `NO_COLOR` / `CLICOLOR` / `CLICOLOR_FORCE` | Standard terminal color control flags. |
 
 </details>

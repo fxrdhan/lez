@@ -25,9 +25,10 @@ pub static TIME_STYLE: &str = "TIME_STYLE";
 /// See: <https://no-color.org/>
 pub static NO_COLOR: &str = "NO_COLOR";
 
-/// Environment variables for POSIX locale collation.
+/// Environment variables for POSIX locale collation and time formats.
 pub static LC_ALL: &str = "LC_ALL";
 pub static LC_COLLATE: &str = "LC_COLLATE";
+pub static LC_TIME: &str = "LC_TIME";
 pub static LANG: &str = "LANG";
 
 // lez-specific variables
@@ -262,6 +263,7 @@ pub mod test {
         pub percent_digits: OsString,
         pub lc_all: OsString,
         pub lc_collate: OsString,
+        pub lc_time: OsString,
         pub lang: OsString,
         pub lez_flags_format: OsString,
         pub eza_flags_format: OsString,
@@ -431,6 +433,7 @@ pub mod test {
                 }
                 "LC_ALL" if !self.lc_all.is_empty() => Some(self.lc_all.clone()),
                 "LC_COLLATE" if !self.lc_collate.is_empty() => Some(self.lc_collate.clone()),
+                "LC_TIME" if !self.lc_time.is_empty() => Some(self.lc_time.clone()),
                 "LANG" if !self.lang.is_empty() => Some(self.lang.clone()),
                 _ => None,
             }
@@ -486,6 +489,7 @@ pub mod test {
                 "EZA_WINDOWS_ATTRIBUTES" => self.eza_windows_attributes = value.clone(),
                 "LC_ALL" => self.lc_all = value.clone(),
                 "LC_COLLATE" => self.lc_collate = value.clone(),
+                "LC_TIME" => self.lc_time = value.clone(),
                 "LANG" => self.lang = value.clone(),
                 "LEZ_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON" => {
                     self.no_empty_dir_icon = value.clone();

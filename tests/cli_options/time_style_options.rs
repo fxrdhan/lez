@@ -297,16 +297,69 @@ fn test_time_style_cli_process_exit_code() {
     );
 }
 
+/// `TIME_STYLE` is read as GNU `ls` reads it: `locale` is the default
+/// format, and `posix-STYLE` is STYLE unless the time locale is POSIX's
+/// (the harness sets `LANG=C`). A value that is no time style is an option
+/// error for the long view, which reads it; it used to be passed over.
 #[test]
-fn test_time_style_env_var_fallback() {
-    let vars_invalid = MockVars::new().with_var("TIME_STYLE", "invalid_env_style");
-    let matches = parse_cli_args(&["-l"]);
-    let opts = Options::deduce(&matches, &vars_invalid).unwrap();
-    match opts.view.mode {
-        Mode::Details(details_opts) => {
-            let table = details_opts.table.expect("Table options present for -l");
-            assert_eq!(table.time_format, TimeFormat::DefaultFormat);
+fn test_time_style_env_var_is_read_as_ls_reads_it() {
+    let dir = crate::common::TempTestDir::new("time_style_env");
+    let file = dir.create_file("f.txt", b"x");
+    // 2001-10-02 21:43 UTC.
+    std::fs::File::options()
+        .write(true)
+        .open(&file)
+        .and_then(|f| f.set_modified(UNIX_EPOCH + Duration::from_secs(1_002_058_980)))
+        .expect("set the modified time");
+    let row = |envs: &[(&str, &str)]| {
+        let mut cmd = crate::common::lez_in(dir.path());
+        cmd.env("TZ", "UTC");
+        for (key, value) in envs {
+            cmd.env(key, value);
         }
-        other => panic!("Expected Details mode for -l, got: {other:?}"),
+        cmd.args([
+            "-l",
+            "--no-permissions",
+            "--no-filesize",
+            "--no-user",
+            "f.txt",
+        ])
+        .output()
+        .expect("run lez")
+    };
+    let text = |bytes: Vec<u8>| String::from_utf8(bytes).expect("UTF-8");
+
+    for (envs, date) in [
+        (&[][..], " 2 Oct  2001"),
+        (&[("TIME_STYLE", "locale")], " 2 Oct  2001"),
+        (&[("TIME_STYLE", "posix-long-iso")], " 2 Oct  2001"),
+        (
+            &[("TIME_STYLE", "posix-long-iso"), ("LANG", "en_US.UTF-8")],
+            "2001-10-02 21:43",
+        ),
+        (&[("TIME_STYLE", "long-iso")], "2001-10-02 21:43"),
+    ] {
+        let output = row(envs);
+        assert_eq!(output.status.code(), Some(0), "{envs:?}");
+        assert_eq!(text(output.stdout), format!("{date} f.txt\n"), "{envs:?}");
     }
+
+    let output = row(&[("TIME_STYLE", "invalid_env_style")]);
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        text(output.stderr),
+        "lez: Value \"invalid_env_style\" not valid for environment variable TIME_STYLE: \
+         expected default, iso, long-iso, full-iso, relative, relative-recent[:DAYS], locale, \
+         posix-STYLE or +FORMAT\n"
+    );
+    // A view without times does not read it.
+    assert_eq!(
+        crate::common::success_stdout(
+            crate::common::lez_in(dir.path())
+                .env("TIME_STYLE", "invalid_env_style")
+                .arg("-1")
+        ),
+        "f.txt\n"
+    );
 }

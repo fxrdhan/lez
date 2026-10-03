@@ -442,6 +442,10 @@ For example, ‘`COLUMNS=80 lez`’ will show a grid view with a maximum width o
 
 This option won’t do anything when lez’s output doesn’t wrap, such as when using the `--long` view.
 
+## `TIME_STYLE`
+
+The time style for the long view when `--time-style` is not given, read as GNU `ls` reads it, which shares it: any value `--time-style` accepts, `locale` for the default format, or `posix-STYLE`, which is STYLE unless times are formatted for the POSIX locale (`LC_ALL`, else `LC_TIME`, else `LANG`, is `C` or `POSIX`, or none is set), where it is the default format. Any other value is an error. The `time_style` key of the config file comes after it.
+
 ## `LEZ_STRICT`, `EZA_STRICT`
 
 Enables _strict mode_, which will make lez error when two command-line options are incompatible.
