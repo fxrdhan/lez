@@ -1,154 +1,121 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Explicit exit code verification suite:
-//! - Exit 0: Success
-//! - Exit 3: Options error / invalid flag combinations in strict mode (via LEZ_STRICT / EZA_STRICT)
-//! - Exit 13 / 1: Permission denied / runtime I/O error
-//! - Exit 1: Missing input paths / non-existent directory error
+//! Exit codes, each with what is printed beside it:
+//! - 0: success
+//! - 2: a path named on the command line does not exist
+//! - 3: an unknown option, or options strict mode refuses
+//!
+//! A denied path (13) is covered in `os_metadata/permissions_exit.rs` and
+//! `adversarial/io_error_isolation.rs`.
 
-use std::fs::{self, File as StdFile};
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::Output;
 
-struct TempTestDir {
-    path: PathBuf,
+use crate::common::{TempTestDir, lez_cmd, lez_in, success_stdout};
+
+fn text(bytes: &[u8]) -> &str {
+    std::str::from_utf8(bytes).expect("UTF-8 output")
 }
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_exit_code_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            // Restore permissions so cleanup succeeds
-            let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(0o755));
-        }
-        let _ = fs::remove_dir_all(&self.path);
-    }
+/// The exit code, standard output and standard error of a run.
+fn outcome(output: &Output) -> (Option<i32>, &str, &str) {
+    (
+        output.status.code(),
+        text(&output.stdout),
+        text(&output.stderr),
+    )
 }
 
 #[test]
 fn test_exit_code_0_on_success() {
-    let temp = TempTestDir::new("success");
-    fs::write(temp.path.join("file.txt"), b"test").unwrap();
-
-    let output = crate::common::lez_cmd()
-        .arg("-1")
-        .arg(&temp.path)
-        .output()
-        .expect("run lez");
+    let dir = TempTestDir::new("success");
+    dir.create_file("file.txt", b"test");
 
     assert_eq!(
-        output.status.code(),
-        Some(0),
-        "Expected exit code 0 on success"
+        success_stdout(lez_cmd().arg("-1").arg(dir.path())),
+        "file.txt\n"
     );
 }
 
 #[test]
 fn test_exit_code_3_on_strict_mode_long_only_options() {
-    let temp = TempTestDir::new("strict_opt_err");
-    let temp_str = temp.path.to_str().unwrap();
-
-    // In strict mode (LEZ_STRICT=1), passing long-only flags like --binary without -l triggers OptionsError (Exit 3)
-    let output = crate::common::lez_cmd()
-        .args(["--binary", temp_str])
+    let dir = TempTestDir::new("strict_opt_err");
+    let output = lez_cmd()
+        .args(["--binary"])
+        .arg(dir.path())
         .env("LEZ_STRICT", "1")
         .output()
-        .expect("run lez in strict mode with long-only option");
+        .expect("run lez");
 
     assert_eq!(
-        output.status.code(),
-        Some(3),
-        "Expected exit code 3 (OPTIONS_ERROR) on strict option failure, got: {:?}",
-        output.status.code()
+        outcome(&output),
+        (
+            Some(3),
+            "",
+            "lez: Option binary is useless without option long\n"
+        )
     );
 }
 
 #[test]
 fn test_exit_code_3_on_strict_mode_conflicting_options() {
-    let temp = TempTestDir::new("strict_conflict_err");
-    let temp_str = temp.path.to_str().unwrap();
-
-    // In strict mode (EZA_STRICT=1), passing -l with --across triggers OptionsError::Useless (Exit 3)
-    let output = crate::common::lez_cmd()
-        .args(["-l", "-x", temp_str])
+    let dir = TempTestDir::new("strict_conflict_err");
+    let output = lez_cmd()
+        .args(["-l", "-x"])
+        .arg(dir.path())
         .env("EZA_STRICT", "1")
         .output()
-        .expect("run lez with conflicting options in strict mode");
+        .expect("run lez");
 
     assert_eq!(
-        output.status.code(),
-        Some(3),
-        "Expected exit code 3 on conflicting options in strict mode"
+        outcome(&output),
+        (
+            Some(3),
+            "",
+            "lez: Option across is useless given option long\n"
+        )
     );
 }
 
 #[test]
 fn test_exit_code_3_on_invalid_cli_arguments() {
-    let output = crate::common::lez_cmd()
+    let output = lez_cmd()
         .arg("--completely-invalid-nonexistent-flag-xyz")
         .output()
-        .expect("run lez with invalid option");
+        .expect("run lez");
 
     assert_eq!(
-        output.status.code(),
-        Some(3),
-        "Expected exit code 3 (OPTIONS_ERROR) on invalid CLI arguments"
+        outcome(&output),
+        (
+            Some(3),
+            "",
+            "error: unexpected argument '--completely-invalid-nonexistent-flag-xyz' found\n\n  \
+             tip: to pass '--completely-invalid-nonexistent-flag-xyz' as a value, use \
+             '-- --completely-invalid-nonexistent-flag-xyz'\n\n\
+             Usage: lez [OPTIONS] [FILE]...\n\n\
+             For more information, try '--help'.\n"
+        )
     );
 }
 
 #[test]
 fn test_exit_code_on_missing_input_path() {
-    let temp = TempTestDir::new("missing_path");
-    let non_existent = temp.path.join("definitely_missing_subdir_12345");
+    let dir = TempTestDir::new("missing_path");
+    let missing = dir.path().join("definitely_missing_subdir_12345");
+    let not_found = std::fs::metadata(&missing).expect_err("missing");
 
-    let output = crate::common::lez_cmd()
-        .arg(&non_existent)
-        .output()
-        .expect("run lez on missing path");
-
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "Expected exit code 2 (MISSING_INPUT_PATH) on missing path"
-    );
-}
-
-#[test]
-fn test_exit_code_on_code_mode_missing_input_path() {
-    let temp = TempTestDir::new("code_missing_path");
-    let non_existent = temp.path.join("definitely_missing_code_subdir_12345");
-
-    let output = crate::common::lez_cmd()
-        .arg("--code")
-        .arg(&non_existent)
-        .output()
-        .expect("run lez --code on missing path");
-
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "Expected exit code 2 (MISSING_INPUT_PATH) on missing path in --code mode"
-    );
+    for view in [&[][..], &["--code"]] {
+        let output = lez_cmd()
+            .args(view)
+            .arg(&missing)
+            .output()
+            .expect("run lez");
+        assert_eq!(
+            outcome(&output),
+            (Some(2), "", format!("{missing:?}: {not_found}\n").as_str()),
+            "{view:?}"
+        );
+    }
 }
 
 /// After `--` everything is a path, so a file whose name starts with a dash
@@ -156,29 +123,37 @@ fn test_exit_code_on_code_mode_missing_input_path() {
 /// `-dash.txt` ends in `-s h.txt`, an unknown sort field.
 #[test]
 fn a_double_dash_ends_option_parsing() {
-    let dir = crate::common::TempTestDir::new("double_dash");
+    let dir = TempTestDir::new("double_dash");
     dir.create_file("-dash.txt", b"x");
 
     assert_eq!(
-        crate::common::success_stdout(crate::common::lez_in(dir.path()).args([
-            "-1",
-            "--",
-            "-dash.txt"
-        ])),
+        success_stdout(lez_in(dir.path()).args(["-1", "--", "-dash.txt"])),
         "-dash.txt\n"
     );
 
-    let output = crate::common::lez_in(dir.path())
+    let fields = if cfg!(unix) {
+        "name, Name, .name, .Name, lexicographic, Lexicographic, path, Path, size, blocks, \
+         ext, Ext, date, age, changed, accessed, created, inode, type, none"
+    } else {
+        "name, Name, .name, .Name, lexicographic, Lexicographic, path, Path, size, \
+         ext, Ext, date, age, changed, accessed, created, type, none"
+    };
+    let output = lez_in(dir.path())
         .args(["-1", "-dash.txt"])
         .output()
         .expect("run lez");
-    assert_eq!(output.status.code(), Some(3));
-    assert!(output.stdout.is_empty());
-    assert!(
-        String::from_utf8_lossy(&output.stderr)
-            .starts_with("error: invalid value 'h.txt' for '--sort <FIELD>'\n"),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+    assert_eq!(
+        outcome(&output),
+        (
+            Some(3),
+            "",
+            format!(
+                "error: invalid value 'h.txt' for '--sort <FIELD>'\n  \
+                 [possible values: {fields}]\n\n\
+                 For more information, try '--help'.\n"
+            )
+            .as_str()
+        )
     );
 }
 
@@ -187,10 +162,10 @@ fn a_double_dash_ends_option_parsing() {
 /// The ends of each range are accepted.
 #[test]
 fn a_variable_out_of_range_says_so() {
-    let dir = crate::common::TempTestDir::new("range_variable");
+    let dir = TempTestDir::new("range_variable");
     dir.create_file("file.rs", b"fn main() {}\n");
     let run = |name: &str, value: &str, view: &[&str]| {
-        crate::common::lez_in(dir.path())
+        lez_in(dir.path())
             .env(name, value)
             .args(view)
             .output()
@@ -248,7 +223,7 @@ fn a_variable_out_of_range_says_so() {
 /// blamed on the `LEZ_*` one, which was not even set.
 #[test]
 fn an_unparseable_variable_is_named_in_the_error() {
-    let dir = crate::common::TempTestDir::new("bad_variable");
+    let dir = TempTestDir::new("bad_variable");
     dir.create_file("file.rs", b"fn main() {}\n");
 
     for (prefixes, family, view) in [
@@ -267,7 +242,7 @@ fn an_unparseable_variable_is_named_in_the_error() {
                 ("", "cannot parse integer from empty string"),
                 ("x", "invalid digit found in string"),
             ] {
-                let output = crate::common::lez_in(dir.path())
+                let output = lez_in(dir.path())
                     .env(&name, value)
                     .args(view)
                     .output()

@@ -7,36 +7,8 @@
 //! listing at all -- a silent wrong answer rather than an error.
 
 use std::fs;
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-struct TempTestDir {
-    path: PathBuf,
-}
-
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_v_flag_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("failed to create temp test directory");
-        Self { path }
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
+use crate::common::TempTestDir;
 
 /// Names whose numbers only sort correctly when compared by value: byte order
 /// puts `file10` second, numeric order puts it fourth.
@@ -49,17 +21,7 @@ fn numbered_dir() -> TempTestDir {
 }
 
 fn run(args: &[&str]) -> String {
-    let out = crate::common::lez_cmd()
-        .args(args)
-        .output()
-        .expect("failed to run lez");
-    assert!(
-        out.status.success(),
-        "lez {args:?} exited with {:?}: {}",
-        out.status.code(),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    String::from_utf8_lossy(&out.stdout).into_owned()
+    crate::common::success_stdout(crate::common::lez_cmd().args(args))
 }
 
 fn lines(output: &str) -> Vec<&str> {
