@@ -25,5 +25,7 @@ mod permissions_special_bits;
 mod security_context;
 #[path = "os_metadata/special_device_nodes.rs"]
 mod special_device_nodes;
+#[path = "os_metadata/time_columns.rs"]
+mod time_columns;
 #[path = "os_metadata/xattr_display.rs"]
 mod xattr_display;
