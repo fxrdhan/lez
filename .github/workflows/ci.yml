@@ -28,7 +28,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Classify changed files
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
         id: filter
         with:
           filters: |
@@ -80,11 +80,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
+          toolchain: stable
           components: clippy, rustfmt
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
@@ -122,9 +123,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: features-${{ matrix.label }}
       # The tests too: a suite that builds its Git or tar fixtures with an
@@ -163,7 +166,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: ${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}
           components: clippy
@@ -174,7 +177,7 @@ jobs:
         shell: bash
         run: echo "RUSTUP_TOOLCHAIN=${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}" >> "$GITHUB_ENV"
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
       # nextest runs every test binary in one pool. `cargo test` runs them
@@ -184,7 +187,7 @@ jobs:
       # Pinned: nextest 0.9.129 and later require rustc 1.91, above this
       # crate's MSRV.
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
           tool: cargo-nextest@0.9.128
       # The zsh completion files are parsed by zsh itself, which a Linux
@@ -212,15 +215,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
+          toolchain: stable
           components: llvm-tools-preview
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: llvm-cov
       - name: Install cargo-llvm-cov & cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
           tool: cargo-llvm-cov,cargo-nextest@0.9.128
       - name: Install zsh
@@ -254,13 +258,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
       - name: Add target to active toolchain
         run: rustup target add ${{ matrix.target }}
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: release-${{ matrix.target }}
       - name: Build release binary
@@ -274,7 +279,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v22
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           extra-conf: |
             sandbox = false
@@ -290,7 +295,7 @@ jobs:
       # that. The action both pulls from and pushes to the cache.
       - name: Restore and push Nix store cache (Cachix)
         if: vars.CACHIX_CACHE != ''
-        uses: cachix/cachix-action@v17
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: ${{ vars.CACHIX_CACHE }}
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
