@@ -874,10 +874,32 @@ fn custom_value_display(value: &[u8]) -> Option<String> {
     }
 }
 
-// Convert a binary plist to a XML plist.
+/// Writes each newline inside the plist's strings and keys as `\n`, the way
+/// names are escaped, so the only newlines left in its XML are the ones the
+/// writer puts between elements, and those can go.
+fn escape_plist_newlines(value: &mut plist::Value) {
+    match value {
+        plist::Value::String(text) => *text = text.replace('\n', "\\n"),
+        plist::Value::Array(items) => items.iter_mut().for_each(escape_plist_newlines),
+        plist::Value::Dictionary(dict) => {
+            let entries: Vec<(String, plist::Value)> = std::mem::take(dict)
+                .into_iter()
+                .map(|(key, mut item)| {
+                    escape_plist_newlines(&mut item);
+                    (key.replace('\n', "\\n"), item)
+                })
+                .collect();
+            dict.extend(entries);
+        }
+        _ => {}
+    }
+}
+
+// Convert a binary plist to a XML plist on one line.
 fn plist_value_display(value: &[u8]) -> Option<String> {
     let reader = io::Cursor::new(value);
-    plist::Value::from_reader(reader).ok().and_then(|v| {
+    plist::Value::from_reader(reader).ok().and_then(|mut v| {
+        escape_plist_newlines(&mut v);
         let mut buffer = Vec::new();
         v.to_writer_xml_with_options(
             BorrowedWriter {
@@ -1035,6 +1057,34 @@ mod test {
             value: Some(b"hello world\0".to_vec()),
         };
         assert_eq!(format!("{attr}"), "user.comment: \"hello world\"");
+    }
+
+    /// A binary plist is shown as XML on one line. The newlines its writer
+    /// puts between elements go; one inside a string or a key is data, and
+    /// is shown as `\n`. A Finder tag is stored as `name\ncolour`.
+    #[test]
+    fn a_binary_plist_keeps_the_newlines_in_its_strings() {
+        let mut dict = plist::Dictionary::new();
+        dict.insert(
+            "tags\nkey".to_owned(),
+            plist::Value::Array(vec![
+                plist::Value::String("Red\n6".to_owned()),
+                plist::Value::String("plain".to_owned()),
+            ]),
+        );
+        let mut binary = Vec::new();
+        plist::Value::Dictionary(dict)
+            .to_writer_binary(&mut binary)
+            .expect("write a binary plist");
+        let attr = Attribute {
+            name: "user.plist".to_string(),
+            value: Some(binary),
+        };
+        assert_eq!(
+            format!("{attr}"),
+            "user.plist: <<plist version=\"1.0\"><dict><key>tags\\nkey</key><array>\
+             <string>Red\\n6</string><string>plain</string></array></dict></plist>>"
+        );
     }
 
     #[test]
