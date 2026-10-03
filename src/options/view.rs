@@ -103,6 +103,20 @@ impl Mode {
         };
 
         if let Some(content) = code_from_cli.or(code_from_config) {
+            // A layout flag beside `--code` changes nothing, so strict mode
+            // refuses it, `--json` included: there is no JSON summary.
+            if strict && code_from_cli.is_some() {
+                let layouts = [
+                    ("json", "json"),
+                    ("long", "long"),
+                    ("tree", "tree"),
+                    ("grid", "grid"),
+                    ("oneline", "one-line"),
+                ];
+                if let Some((_, name)) = layouts.iter().find(|(id, _)| matches.get_flag(id)) {
+                    return Err(OptionsError::Useless(name, true, "code"));
+                }
+            }
             let sub_files = match config.loc.sub_files.as_deref() {
                 Some("count" | "files" | "number") => code::SubFilesMode::Count,
                 Some("blank" | "empty" | "none") => code::SubFilesMode::Blank,

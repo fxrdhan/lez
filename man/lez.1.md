@@ -106,6 +106,8 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 
 : The given paths (or the current directory) are walked recursively, honouring a git repository’s `.gitignore` when one is present, and each recognised language (including Odin, Rust, C/C++, Python, Go, and 100+ others) is reported with its file, line, code, comment, and blank counts, plus a bar visualising its share of the code. Valid modes are ‘`lines`’, ‘`percent`’, and ‘`both`’ (the default).
 
+: It takes the place of every layout: `--long`, `--tree`, `--grid`, `--oneline` and `--json` given beside it change nothing, and strict mode refuses them. There is no JSON summary.
+
 `--json`
 : Output file listing and metadata as structured JSON for easy parsing and scripting.
 

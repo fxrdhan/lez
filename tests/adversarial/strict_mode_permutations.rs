@@ -454,6 +454,31 @@ fn test_strict_mode_conflicting_options() {
         Options::deduce(&m, &vars),
         Err(OptionsError::Useless2("level", "recurse", "tree"))
     ));
+
+    // 8. A layout beside --code, which takes the place of every layout; it
+    // used to pass in silence, --json too, which has no summary to write.
+    for (flag, name) in [
+        ("--json", "json"),
+        ("-l", "long"),
+        ("-T", "tree"),
+        ("-G", "grid"),
+        ("-1", "one-line"),
+    ] {
+        let m = parse_cli_args(&["--code", flag]);
+        match Options::deduce(&m, &vars) {
+            Err(OptionsError::Useless(useless, true, "code")) => assert_eq!(useless, name),
+            other => panic!("{flag}: {other:?}"),
+        }
+        accepted_unchanged(&["--code"]);
+        let lenient = Options::deduce(&m, &MockVars::new(false)).expect("lenient deduction");
+        let alone = Options::deduce(&parse_cli_args(&["--code"]), &MockVars::new(false))
+            .expect("--code alone");
+        assert_eq!(
+            format!("{:?}", lenient.view.mode),
+            format!("{:?}", alone.view.mode),
+            "{flag}"
+        );
+    }
 }
 
 /// The binary reads strict mode from `LEZ_STRICT`, `EZA_STRICT` or
