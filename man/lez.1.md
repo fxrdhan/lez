@@ -519,7 +519,7 @@ Specifies the separator to use when file names are piped from stdin with `--stdi
 
 ## `LEZ_CONFIG_FILE`, `EZA_CONFIG_FILE`
 
-Explicitly specifies the path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). Overrides standard discovery.
+Explicitly specifies the path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). Overrides standard discovery. An empty value names no file and is passed over, as if it were unset.
 
 ## `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR`
 

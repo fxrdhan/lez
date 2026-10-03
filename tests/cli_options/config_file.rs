@@ -160,6 +160,19 @@ fn which_config_file_wins() {
             HEADED,
             "{first} before {second}"
         );
+        // An empty variable names no file: the next one is read, and with
+        // none the files are discovered as usual, without a word.
+        let empty = Path::new("");
+        assert_eq!(
+            listing(&work, &global, &[], &[(first, empty), (second, &headed)]),
+            HEADED,
+            "{first} empty"
+        );
+        assert_eq!(
+            listing(&work, &global, &[], &[(first, empty)]),
+            "b.md\na.txt\n",
+            "{first} empty"
+        );
     }
 
     // The command line beats every file.

@@ -256,10 +256,15 @@ impl FileConfig {
             return Self::parse_explicit_file(custom).unwrap_or_default();
         }
 
-        if let Some(env_file) = vars
-            .get(vars::LEZ_CONFIG_FILE)
-            .or_else(|| vars.get(vars::EZA_CONFIG_FILE))
-            .or_else(|| vars.get(vars::EXA_CONFIG_FILE))
+        // An empty variable names no file, as an unset one does, so it
+        // neither shadows the next name nor turns discovery off.
+        if let Some(env_file) = [
+            vars::LEZ_CONFIG_FILE,
+            vars::EZA_CONFIG_FILE,
+            vars::EXA_CONFIG_FILE,
+        ]
+        .into_iter()
+        .find_map(|name| vars.get(name).filter(|value| !value.is_empty()))
         {
             let path = PathBuf::from(env_file);
             return Self::parse_explicit_file(&path).unwrap_or_default();
