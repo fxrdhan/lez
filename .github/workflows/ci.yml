@@ -88,13 +88,15 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
-        run: cargo clippy --all-targets --features git,inspect-archives -- -D warnings
+        run: cargo clippy --locked --all-targets --features git,inspect-archives -- -D warnings
       # The fuzz targets are a crate of their own, outside the workspace, so
       # nothing above compiles them, and the Fuzz Canary runs only on pull
       # requests and pushes to main and dev. A change to an API they call
       # would show only there, after everything else had gone green. With
       # the workspace's lockfile and target directory they build against
       # the same versions, reusing what Clippy built.
+      # Not `--locked`: the copied lockfile lacks the fuzz crate and
+      # libfuzzer-sys, which cargo adds to it.
       - name: Check fuzz targets
         run: |
           cp Cargo.lock fuzz/Cargo.lock
@@ -132,7 +134,7 @@ jobs:
       # RUSTFLAGS carries --deny warnings from the workflow env, so an item
       # left behind by a switched-off feature fails here rather than rotting.
       - name: Check
-        run: cargo check --all-targets --no-default-features --features "${{ matrix.features }}"
+        run: cargo check --locked --all-targets --no-default-features --features "${{ matrix.features }}"
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
@@ -195,12 +197,12 @@ jobs:
       # that way. The MSRV rows run the same Clippy as that job.
       - name: Run Clippy
         if: runner.os != 'Linux' && matrix.rust == 'msrv'
-        run: cargo clippy --all-targets --features git,inspect-archives -- -D warnings
+        run: cargo clippy --locked --all-targets --features git,inspect-archives -- -D warnings
       - name: Run all tests
-        run: cargo nextest run --profile ci --all-targets --features git,inspect-archives
+        run: cargo nextest run --locked --profile ci --all-targets --features git,inspect-archives
       # nextest does not run doc tests; this covers them.
       - name: Run doc tests
-        run: cargo test --doc --features git,inspect-archives
+        run: cargo test --locked --doc --features git,inspect-archives
   code-coverage:
     name: Code Coverage (LLVM-Cov)
     needs: changes
@@ -225,7 +227,7 @@ jobs:
         run: sudo apt-get update -q && sudo apt-get install -y -q zsh
       - name: Generate Code Coverage Report & Summary
         run: |
-          cargo llvm-cov nextest --features git,inspect-archives --workspace --lcov --output-path lcov.info
+          cargo llvm-cov nextest --locked --features git,inspect-archives --workspace --lcov --output-path lcov.info
           bash devtools/coverage.sh summary
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
@@ -262,7 +264,7 @@ jobs:
         with:
           key: release-${{ matrix.target }}
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} --features git,inspect-archives
+        run: cargo build --release --locked --target ${{ matrix.target }} --features git,inspect-archives
   nix-flake-check:
     name: Nix Flake Validation
     needs: changes
