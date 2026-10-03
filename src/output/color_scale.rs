@@ -233,14 +233,15 @@ fn update_information_recursively(
             }
         }
 
-        // We don't want to recurse into . and .., but still want to list them, therefore bypass
-        // the dot_filter. Also check if directory is ignored by ignore patterns.
+        // Not into the `.` and `..` entries `-aa` adds, which are listed but
+        // not walked; a tree's root, `.` itself when lez is run without a
+        // path, is walked like any other directory. Nor into a directory the
+        // ignore patterns leave out.
         if file.is_directory()
             && !filter.ignore_patterns.is_ignored(&file.name)
             && !filter.ignore_patterns_caseins.is_ignored(&file.name)
             && r.is_some_and(|x| !x.is_too_deep(depth.0))
-            && file.name != "."
-            && file.name != ".."
+            && !file.is_all_all
         {
             match file.read_dir() {
                 Ok(dir) => {

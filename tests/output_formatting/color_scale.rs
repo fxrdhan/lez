@@ -142,3 +142,41 @@ fn only_the_files_listed_set_the_ends_of_the_scale() {
     let unfiltered = success_stdout(lez_in(with.path()).args(&SCALED[..6]));
     assert_ne!(large(unfiltered), large(scaled(&without, &[], &[])));
 }
+
+/// A tree is shaded over all of it, as a flat listing of the same files is,
+/// whatever its root is called. Run without a path, or given `.` or `..`,
+/// the root used to be taken for the `.` or `..` entry `-aa` adds and not
+/// walked, so nothing was shaded at all.
+#[test]
+fn a_tree_is_scaled_over_all_of_it_whatever_its_root_is_called() {
+    // The shades a flat listing gives the two sizes.
+    let flat = scaled(&fixture("flat"), &[], &[]);
+    let shade = |name: &str| {
+        flat.lines()
+            .find(|line| line.ends_with(&format!("{name}\x1b[0m")))
+            .and_then(|line| line.split_once(' '))
+            .map(|(size, _)| size.to_owned())
+            .expect("a shaded size")
+    };
+    let (small, large) = (shade("small.txt"), shade("large.txt"));
+
+    let dir = TempTestDir::new("tree");
+    dir.create_file("root/small.txt", &[0; 100]);
+    dir.create_file("root/sub/large.txt", &[0; 50_000]);
+    let tree = |root: &str| {
+        format!(
+            "  \x1b[1;90m-\x1b[0m \x1b[1;34m{root}\x1b[0m\n\
+             {small} \x1b[1;90m├── \x1b[0m\x1b[32msmall.txt\x1b[0m\n\
+             \x20 \x1b[1;90m-\x1b[0m \x1b[1;90m└── \x1b[34msub\x1b[0m\n\
+             {large} \x1b[1;90m    └── \x1b[0m\x1b[32mlarge.txt\x1b[0m\n"
+        )
+    };
+    let run = |cwd: &std::path::Path, root: &[&str]| {
+        success_stdout(lez_in(cwd).args(SCALED).arg("*.iso").arg("-T").args(root))
+    };
+    let root = dir.path().join("root");
+    assert_eq!(run(dir.path(), &["root"]), tree("root"));
+    assert_eq!(run(&root, &[]), tree("."));
+    assert_eq!(run(&root, &["."]), tree("."));
+    assert_eq!(run(&root.join("sub"), &[".."]), tree(".."));
+}
