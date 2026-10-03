@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 fxrdhan
+# SPDX-License-Identifier: EUPL-1.2
+name: Dependency Advisories
+# Checks Cargo.lock against the RustSec advisory database: crates with a
+# known vulnerability, and crates marked unmaintained or unsound.
+#
+# Not part of `CI result`: an advisory published today would otherwise turn
+# every pull request red, whatever it changes. It runs when the dependencies
+# change, on every push to main and dev, and weekly, for advisories published
+# against what is already locked.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/advisories.yml
+  schedule:
+    # Tuesdays 06:00 UTC, after the Thursday dependency bump and the
+    # Monday Nix canary.
+    - cron: "0 6 * * 2"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  advisories:
+    name: RustSec advisories
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: Check advisories
+        run: cargo deny check advisories
