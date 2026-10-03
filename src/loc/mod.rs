@@ -840,6 +840,24 @@ pub fn count_roots_filtered(
 const C_LINE: &[&str] = &["//"];
 const C_BLOCK: &[(&str, &str)] = &[("/*", "*/")];
 const HASH_LINE: &[&str] = &["#"];
+/// Perl's documentation: any command paragraph opens a block of it, which
+/// runs to `=cut`.
+const POD: &[(&str, &str)] = &[
+    ("=pod", "=cut"),
+    ("=head1", "=cut"),
+    ("=head2", "=cut"),
+    ("=head3", "=cut"),
+    ("=head4", "=cut"),
+    ("=head5", "=cut"),
+    ("=head6", "=cut"),
+    ("=over", "=cut"),
+    ("=item", "=cut"),
+    ("=back", "=cut"),
+    ("=begin", "=cut"),
+    ("=end", "=cut"),
+    ("=for", "=cut"),
+    ("=encoding", "=cut"),
+];
 const NO_BLOCK: &[(&str, &str)] = &[];
 
 macro_rules! languages {
@@ -878,7 +896,7 @@ languages! {
     GLSL       = ("GLSL",             "main.glsl",    Some("glsl"),    C_LINE,               C_BLOCK);
     PYTHON     = ("Python",           "main.py",      Some("py"),      HASH_LINE,            &[("\"\"\"", "\"\"\""), ("'''", "'''")]);
     RUBY       = ("Ruby",             "main.rb",      Some("rb"),      HASH_LINE,            &[("=begin", "=end")]);
-    PERL       = ("Perl",             "main.pl",      Some("pl"),      HASH_LINE,            &[("=pod", "=cut")]);
+    PERL       = ("Perl",             "main.pl",      Some("pl"),      HASH_LINE,            POD);
     SHELL      = ("Shell",            "main.sh",      Some("sh"),      HASH_LINE,            NO_BLOCK);
     FISH       = ("Fish",             "main.fish",    Some("fish"),    HASH_LINE,            NO_BLOCK);
     POWERSHELL = ("PowerShell",       "main.ps1",     Some("ps1"),     HASH_LINE,            &[("<#", "#>")]);
@@ -1231,6 +1249,32 @@ mod test {
 
     fn count(source: &str, lang: &Language) -> LocCounts {
         LocCounts::from_source(source, lang)
+    }
+
+    /// Any POD command paragraph opens documentation, which runs to `=cut`;
+    /// only `=pod` used to, so a module documented with `=head1` counted
+    /// its documentation as code.
+    #[test]
+    fn perl_pod_opens_with_any_command() {
+        for command in [
+            "=pod",
+            "=head1 NAME",
+            "=head2 Usage",
+            "=over 4",
+            "=item foo",
+            "=begin html",
+            "=for comment",
+            "=encoding utf8",
+        ] {
+            let source =
+                format!("my $x = 1;\n{command}\n\nSome C<< text >> here\n=cut\nprint $x;\n");
+            let c = count(&source, &PERL);
+            assert_eq!(
+                (c.lines, c.code, c.comments, c.blanks),
+                (6, 2, 4, 0),
+                "{command}"
+            );
+        }
     }
 
     #[test]
