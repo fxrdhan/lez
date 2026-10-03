@@ -155,54 +155,92 @@ fn test_pre_epoch_leap_year_dates() {
 // TIME STYLE ERROR & NON-UTF-8 VALIDATION
 // =========================================================================
 
+/// A value that is not UTF-8 is refused like any other invalid value, and
+/// the message ends its line. It used to stop short of a newline, so the
+/// shell's prompt followed it on the same line.
 #[cfg(unix)]
 #[test]
 fn test_non_utf8_time_style_returns_invalid_utf8_error() {
     use std::os::unix::ffi::OsStringExt;
 
+    let value = OsString::from_vec(b"\xff\xfe".to_vec());
     let args = vec![
         OsString::from("lez"),
         OsString::from("--time-style"),
-        OsString::from_vec(b"\xff\xfe".to_vec()),
+        value.clone(),
     ];
+    let error = get_command()
+        .try_get_matches_from(args)
+        .expect_err("not UTF-8");
+    assert_eq!(error.kind(), clap::error::ErrorKind::InvalidUtf8);
 
-    let result = get_command().try_get_matches_from(args);
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert_eq!(err.kind(), clap::error::ErrorKind::InvalidUtf8);
-    let err_str = err.to_string();
-    assert!(
-        err_str.contains("not valid UTF-8"),
-        "Error message should mention UTF-8: {err_str}"
+    let output = crate::common::lez_cmd()
+        .arg("--time-style")
+        .arg(value)
+        .output()
+        .expect("run lez");
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "error: invalid value '\u{fffd}\u{fffd}' for '--time-style <STYLE>': not valid UTF-8\n\n\
+         For more information, try '--help'.\n"
     );
 }
 
 #[test]
 fn test_invalid_time_style_string_returns_invalid_value_error() {
+    const NEEDS_A_PLUS: &str = "Please start the format with a plus sign (+) to indicate a \
+                                custom format.\nFor example: \"+%Y-%m-%d %H:%M:%S\"";
+    let bad_days = |days: &str| {
+        format!(
+            "Invalid days duration for relative-recent: '{days}'. Please specify a valid \
+             integer for days (e.g. 'relative-recent:7')."
+        )
+    };
     let invalid_styles = [
-        "not_a_valid_style",
-        "FULL-ISO",
-        "iso-long",
-        "%Y-%m-%d", // Missing leading '+'
-        "+",        // Empty custom format
-        "relative-recent:abc",
-        "relative-recent:-5",
-        "relative-recent:",
+        ("not_a_valid_style", NEEDS_A_PLUS.to_owned()),
+        ("FULL-ISO", NEEDS_A_PLUS.to_owned()),
+        ("iso-long", NEEDS_A_PLUS.to_owned()),
+        // Missing leading '+'
+        ("%Y-%m-%d", NEEDS_A_PLUS.to_owned()),
+        (
+            "+",
+            "Custom timestamp format is empty, please supply a chrono format string after \
+             the +."
+                .to_owned(),
+        ),
+        ("relative-recent:abc", bad_days("abc")),
+        ("relative-recent:-5", bad_days("-5")),
+        ("relative-recent:", bad_days("")),
     ];
 
-    for style in invalid_styles {
-        let args = ["lez", "--time-style", style];
-        let result = get_command().try_get_matches_from(args);
-        assert!(
-            result.is_err(),
-            "Expected --time-style '{style}' to be rejected"
-        );
-        let err = result.unwrap_err();
+    for (style, reason) in invalid_styles {
+        let error = get_command()
+            .try_get_matches_from(["lez", "--time-style", style])
+            .expect_err(style);
         assert_eq!(
-            err.kind(),
+            error.kind(),
             clap::error::ErrorKind::InvalidValue,
-            "Expected InvalidValue for '{style}', got: {:?}",
-            err.kind()
+            "{style}"
+        );
+
+        let output = crate::common::lez_cmd()
+            .args(["--time-style", style])
+            .output()
+            .expect("run lez");
+        assert_eq!(output.status.code(), Some(3), "{style}");
+        assert!(output.stdout.is_empty(), "{style}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stderr),
+            format!(
+                "error: invalid value '{style}' for '--time-style <STYLE>'\n  \
+                 [possible values: default, iso, long-iso, full-iso, relative, \
+                 relative-recent, +<CUSTOM_FORMAT>]\n\n\
+                 {reason}\n\n\
+                 For more information, try '--help'.\n"
+            ),
+            "{style}"
         );
     }
 }
