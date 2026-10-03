@@ -501,11 +501,11 @@ Overrides any `--git` or `--git-repos` argument.
 
 ## `LEZ_MIN_LUMINANCE`, `EZA_MIN_LUMINANCE`
 
-Specifies the minimum luminance to use when color-scale is active. Its value can be between -100 to 100.
+Specifies the minimum luminance to use when color-scale is active. Its value can be between -100 to 100; anything else is an error.
 
 ## `LEZ_MAX_LUMINANCE`, `EZA_MAX_LUMINANCE`
 
-Specifies the maximum luminance to use when color-scale is active. Its value can be between -100 to 100.
+Specifies the maximum luminance to use when color-scale is active. Its value can be between -100 to 100; anything else is an error.
 
 ## `LEZ_ICONS_AUTO`, `EZA_ICONS_AUTO`
 

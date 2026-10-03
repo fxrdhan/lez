@@ -214,7 +214,7 @@ impl Options {
             }
             view.total_size = false;
         }
-        let theme = ThemeOptions::deduce(matches, vars, config);
+        let theme = ThemeOptions::deduce(matches, vars, config)?;
         let stdin = FilesInput::deduce(matches, vars);
         let no_git = matches.get_flag("no-git")
             || vars

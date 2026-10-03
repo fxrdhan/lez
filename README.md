@@ -384,7 +384,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 | `LEZ_CONFIG_FILE` / `EZA_CONFIG_FILE` | Explicit path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). |
 | `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS, `%APPDATA%\lez` on Windows). |
 | `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. |
-| `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (0..=100) for color scaling on dates and sizes. |
+| `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (-100..=100) for color scaling on dates and sizes. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
 | `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
 | `LEZ_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |

@@ -39,7 +39,7 @@ pub enum OptionsError {
     FailedParse(String, NumberSource, ParseIntError),
 
     /// A numeric option was given a number outside the range it accepts.
-    OutOfRange(String, NumberSource, RangeInclusive<u8>),
+    OutOfRange(String, NumberSource, RangeInclusive<i64>),
 
     /// A glob ignore was given that failed to be parsed as a pattern.
     FailedGlobPattern(String),

@@ -198,7 +198,7 @@ impl Mode {
         }
 
         if tree {
-            let details = details::Options::deduce_tree(matches, vars, config);
+            let details = details::Options::deduce_tree(matches, vars, config)?;
             return Ok(Self::Details(details));
         }
 
@@ -326,8 +326,12 @@ impl json::Options {
 }
 
 impl details::Options {
-    fn deduce_tree<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
-        details::Options {
+    fn deduce_tree<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
+        Ok(details::Options {
             table: None,
             header: matches.get_flag("header") || config.display.header.unwrap_or(false),
             xattr: xattr::ENABLED
@@ -339,9 +343,9 @@ impl details::Options {
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
             mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
-            color_scale: ColorScaleOptions::deduce(matches, vars, config),
+            color_scale: ColorScaleOptions::deduce(matches, vars, config)?,
             follow_links: matches.get_flag("follow-symlinks"),
-        }
+        })
     }
 
     fn deduce_json<V: Vars>(
@@ -394,7 +398,7 @@ impl details::Options {
             indicate_xattr: xattr::ENABLED && !matches.get_flag("no-extended"),
             inspect_archives: matches.get_flag("inspect-archives"),
             mounts: matches.get_flag("mounts") || config.display.mounts.unwrap_or(false),
-            color_scale: ColorScaleOptions::deduce(matches, vars, config),
+            color_scale: ColorScaleOptions::deduce(matches, vars, config)?,
             follow_links: matches.get_flag("follow-symlinks"),
         })
     }
@@ -890,29 +894,11 @@ impl TimeTypes {
 }
 
 impl ColorScaleOptions {
-    pub fn deduce<V: Vars>(matches: &ArgMatches, vars: &V, config: &FileConfig) -> Self {
-        let min_luminance = match vars
-            .get(vars::LEZ_MIN_LUMINANCE)
-            .or_else(|| vars.get_with_fallback(vars::EZA_MIN_LUMINANCE, vars::EXA_MIN_LUMINANCE))
-        {
-            Some(var) => match var.to_string_lossy().parse() {
-                Ok(luminance) if (-100..=100).contains(&luminance) => luminance,
-                _ => 40,
-            },
-            None => 40,
-        };
-
-        let max_luminance = match vars
-            .get(vars::LEZ_MAX_LUMINANCE)
-            .or_else(|| vars.get_with_fallback(vars::EZA_MAX_LUMINANCE, vars::EXA_MAX_LUMINANCE))
-        {
-            Some(var) => match var.to_string_lossy().parse() {
-                Ok(luminance) if (-100..=100).contains(&luminance) => luminance,
-                _ => 100,
-            },
-            None => 100,
-        };
-
+    pub fn deduce<V: Vars>(
+        matches: &ArgMatches,
+        vars: &V,
+        config: &FileConfig,
+    ) -> Result<Self, OptionsError> {
         let mode = if matches.value_source("color-scale-mode")
             == Some(clap::parser::ValueSource::CommandLine)
         {
@@ -931,8 +917,8 @@ impl ColorScaleOptions {
 
         let mut options = ColorScaleOptions {
             mode,
-            min_luminance,
-            max_luminance,
+            min_luminance: 40,
+            max_luminance: 100,
             size: false,
             age: false,
         };
@@ -970,7 +956,50 @@ impl ColorScaleOptions {
             }
         }
 
-        options
+        // The luminance variables are read only when there is a scale to
+        // shade, and like the other numeric variables are an option error
+        // when they do not hold a number in range.
+        if options.size || options.age {
+            options.min_luminance = luminance(
+                vars,
+                &[
+                    vars::LEZ_MIN_LUMINANCE,
+                    vars::EZA_MIN_LUMINANCE,
+                    vars::EXA_MIN_LUMINANCE,
+                ],
+                options.min_luminance,
+            )?;
+            options.max_luminance = luminance(
+                vars,
+                &[
+                    vars::LEZ_MAX_LUMINANCE,
+                    vars::EZA_MAX_LUMINANCE,
+                    vars::EXA_MAX_LUMINANCE,
+                ],
+                options.max_luminance,
+            )?;
+        }
+
+        Ok(options)
+    }
+}
+
+/// The luminance the first of `names` that is set gives, from -100 to 100,
+/// or `default` when none is.
+fn luminance<V: Vars>(
+    vars: &V,
+    names: &[&'static str],
+    default: isize,
+) -> Result<isize, OptionsError> {
+    let Some((name, value)) = vars.first_set(names) else {
+        return Ok(default);
+    };
+    let val = value.to_string_lossy().to_string();
+    let source = NumberSource::Env(name);
+    match val.parse::<i64>() {
+        Ok(n) if (-100..=100).contains(&n) => Ok(n as isize),
+        Ok(_) => Err(OptionsError::OutOfRange(val, source, -100..=100)),
+        Err(e) => Err(OptionsError::FailedParse(val, source, e)),
     }
 }
 
@@ -1673,13 +1702,13 @@ mod tests {
                 &MockVars::default(),
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
                 max_luminance: 100,
                 size: true,
                 age: true,
-            }
+            })
         );
     }
 
@@ -1693,13 +1722,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 60,
                 max_luminance: 100,
                 size: true,
                 age: false,
-            }
+            })
         );
     }
 
@@ -1713,13 +1742,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
                 min_luminance: 60,
                 max_luminance: 100,
                 size: false,
                 age: true,
-            }
+            })
         );
     }
 
@@ -1738,13 +1767,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
                 min_luminance: 99,
                 max_luminance: 100,
                 size: true,
                 age: true,
-            }
+            })
         );
     }
 
@@ -1758,13 +1787,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
                 max_luminance: 80,
                 size: true,
                 age: false,
-            }
+            })
         );
     }
 
@@ -1779,13 +1808,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 40,
                 max_luminance: 75,
                 size: true,
                 age: false,
-            }
+            })
         );
     }
 
@@ -1800,13 +1829,13 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 35,
                 max_luminance: 100,
                 size: true,
                 age: false,
-            }
+            })
         );
     }
 
@@ -1821,66 +1850,57 @@ mod tests {
                 &vars,
                 &FileConfig::default()
             ),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Gradient,
                 min_luminance: 30,
                 max_luminance: 70,
                 size: true,
                 age: true,
-            }
+            })
         );
     }
 
+    /// Like the other numeric variables, a luminance that is not a number
+    /// or is out of range is an option error, naming the variable.
     #[test]
-    fn deduce_color_scale_max_luminance_invalid_fallback() {
-        let mut vars = MockVars::default();
-        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("invalid_number"));
-        assert_eq!(
-            ColorScaleOptions::deduce(
-                &mock_cli(vec!["--color-scale=size"]),
-                &vars,
-                &FileConfig::default()
+    fn deduce_color_scale_refuses_a_bad_luminance() {
+        for (value, expected) in [
+            (
+                "invalid_number",
+                OptionsError::FailedParse(
+                    "invalid_number".into(),
+                    NumberSource::Env(vars::LEZ_MAX_LUMINANCE),
+                    "x".parse::<u8>().unwrap_err(),
+                ),
             ),
-            ColorScaleOptions {
-                mode: ColorScaleMode::Gradient,
-                min_luminance: 40,
-                max_luminance: 100,
-                size: true,
-                age: false,
-            }
-        );
-
-        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("150")); // out of range
-        assert_eq!(
-            ColorScaleOptions::deduce(
-                &mock_cli(vec!["--color-scale=size"]),
-                &vars,
-                &FileConfig::default()
+            (
+                "101",
+                OptionsError::OutOfRange(
+                    "101".into(),
+                    NumberSource::Env(vars::LEZ_MAX_LUMINANCE),
+                    -100..=100,
+                ),
             ),
-            ColorScaleOptions {
-                mode: ColorScaleMode::Gradient,
-                min_luminance: 40,
-                max_luminance: 100,
-                size: true,
-                age: false,
-            }
-        );
-
-        vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from("-150")); // out of range
-        assert_eq!(
-            ColorScaleOptions::deduce(
-                &mock_cli(vec!["--color-scale=size"]),
-                &vars,
-                &FileConfig::default()
-            ),
-            ColorScaleOptions {
-                mode: ColorScaleMode::Gradient,
-                min_luminance: 40,
-                max_luminance: 100,
-                size: true,
-                age: false,
-            }
-        );
+        ] {
+            let mut vars = MockVars::default();
+            vars.set(vars::LEZ_MAX_LUMINANCE, &OsString::from(value));
+            assert_eq!(
+                ColorScaleOptions::deduce(
+                    &mock_cli(vec!["--color-scale=size"]),
+                    &vars,
+                    &FileConfig::default()
+                ),
+                Err(expected),
+                "{value}"
+            );
+            // Without a scale the variable is not read.
+            assert_eq!(
+                ColorScaleOptions::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default())
+                    .map(|options| (options.min_luminance, options.max_luminance)),
+                Ok((40, 100)),
+                "{value}"
+            );
+        }
     }
 
     #[test]
@@ -1890,13 +1910,13 @@ mod tests {
         config.theme.color_scale_mode = Some("fixed".to_string());
         assert_eq!(
             ColorScaleOptions::deduce(&mock_cli(vec![""]), &MockVars::default(), &config),
-            ColorScaleOptions {
+            Ok(ColorScaleOptions {
                 mode: ColorScaleMode::Fixed,
                 min_luminance: 40,
                 max_luminance: 100,
                 size: true,
                 age: true,
-            }
+            })
         );
     }
 
@@ -1937,7 +1957,8 @@ mod tests {
     fn deduce_details_options_tree() {
         let cli = mock_cli(vec!["--tree"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -1951,7 +1972,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -1961,7 +1983,8 @@ mod tests {
     fn deduce_details_options_tree_mounts() {
         let cli = mock_cli(vec!["--tree", "--mounts"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -1975,7 +1998,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -1985,7 +2009,8 @@ mod tests {
     fn deduce_details_options_tree_xattr() {
         let cli = mock_cli(vec!["--tree", "--extended"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -1999,7 +2024,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -2009,7 +2035,8 @@ mod tests {
     fn deduce_details_options_tree_tags() {
         let cli = mock_cli(vec!["--tree", "--tags"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -2023,7 +2050,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );
@@ -2033,7 +2061,8 @@ mod tests {
     fn deduce_details_options_tree_secattr() {
         let cli = mock_cli(vec!["--tree", "--context"]);
         assert_eq!(
-            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default()),
+            details::Options::deduce_tree(&cli, &MockVars::default(), &FileConfig::default())
+                .expect("tree options"),
             details::Options {
                 table: None,
                 header: false,
@@ -2047,7 +2076,8 @@ mod tests {
                     &cli,
                     &MockVars::default(),
                     &FileConfig::default()
-                ),
+                )
+                .expect("colour scale"),
                 follow_links: false,
             }
         );

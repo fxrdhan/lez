@@ -71,27 +71,37 @@ fn the_luminance_variables_reach_the_scale() {
     }
 }
 
-/// Unlike the other numeric variables, which are option errors when they
-/// do not parse, a luminance that is not a number or is outside -100..=100
-/// is passed over without a word.
+/// Like the other numeric variables, a luminance that is not a number or
+/// is outside -100..=100 is an option error naming the variable. It used to
+/// be passed over without a word. Without a scale it is not read.
 #[test]
-fn a_luminance_out_of_range_leaves_the_default() {
+fn a_luminance_out_of_range_is_an_option_error() {
     let dir = fixture("bad_luminance");
-    let default = scaled(&dir, &[], &[]);
     for var in ["LEZ_MAX_LUMINANCE", "LEZ_MIN_LUMINANCE"] {
-        for value in ["not_a_number", "200", "-300", ""] {
+        for (value, reason) in [
+            ("not_a_number", "invalid digit found in string".to_owned()),
+            ("200", "200 is not in -100..=100".to_owned()),
+            ("-300", "-300 is not in -100..=100".to_owned()),
+            ("", "cannot parse integer from empty string".to_owned()),
+        ] {
             let output = lez_in(dir.path())
                 .env(var, value)
                 .args(SCALED)
                 .arg("*.iso")
                 .output()
                 .expect("run lez");
-            assert_eq!(output.status.code(), Some(0), "{var}={value:?}");
-            assert!(output.stderr.is_empty(), "{var}={value:?}");
+            assert_eq!(output.status.code(), Some(3), "{var}={value:?}");
+            assert!(output.stdout.is_empty(), "{var}={value:?}");
             assert_eq!(
-                String::from_utf8(output.stdout).expect("UTF-8"),
-                default,
-                "{var}={value:?}"
+                String::from_utf8(output.stderr).expect("UTF-8"),
+                format!(
+                    "lez: Value {value:?} not valid for environment variable {var}: {reason}\n"
+                ),
+            );
+            assert_eq!(
+                success_stdout(lez_in(dir.path()).env(var, value).arg("-1")),
+                "large.txt\nsmall.txt\n",
+                "{var}={value:?} without a scale"
             );
         }
     }
