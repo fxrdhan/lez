@@ -40,14 +40,23 @@ pub fn format_size(size: u64) -> String {
     }
 }
 
+/// The entries read from an archive, and whether there were more.
+#[derive(Debug, Clone)]
+pub struct ArchiveListing {
+    pub entries: Vec<ArchiveEntry>,
+    /// The archive holds more than [`MAX_ENTRIES`]; the rest are not read.
+    pub truncated: bool,
+}
+
 /// Safety valve so a pathological archive cannot flood the listing.
-const MAX_ENTRIES: usize = 500;
+pub const MAX_ENTRIES: usize = 500;
 
 /// Reads the entries of a tar archive at `path`.
 ///
-/// Directories are skipped; the result is capped at [`MAX_ENTRIES`] with the
-/// remaining count folded into the final synthetic entry when truncated.
-pub fn read_entries(path: &Path) -> io::Result<Vec<ArchiveEntry>> {
+/// Directories are skipped. Reading stops at [`MAX_ENTRIES`], marking the
+/// listing truncated; what is left is not counted, which would mean reading
+/// on through an archive of any size.
+pub fn read_entries(path: &Path) -> io::Result<ArchiveListing> {
     use std::fs::File;
 
     let file = File::open(path)?;
@@ -87,13 +96,10 @@ pub fn read_entries(path: &Path) -> io::Result<Vec<ArchiveEntry>> {
         out.push(ArchiveEntry { path: name, size });
     }
 
-    if truncated {
-        out.push(ArchiveEntry {
-            path: "… (truncated)".to_owned(),
-            size: 0,
-        });
-    }
-    Ok(out)
+    Ok(ArchiveListing {
+        entries: out,
+        truncated,
+    })
 }
 
 #[cfg(test)]

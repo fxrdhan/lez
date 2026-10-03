@@ -84,6 +84,29 @@ fn entries_keep_the_archive_order_and_binary_sizes() {
     );
 }
 
+/// An archive of more entries than the listing reads ends with a note
+/// saying so, which closes the branch; it is not an entry, so it has no
+/// path inside the archive and no size.
+#[test]
+fn a_long_archive_is_cut_short_with_a_note() {
+    let dir = TempTestDir::new("inspect_long");
+    let names_inside: Vec<String> = (0..501).map(|i| format!("f{i:03}")).collect();
+    let entries: Vec<(&str, &[u8])> = names_inside
+        .iter()
+        .map(|name| (name.as_str(), &b"x"[..]))
+        .collect();
+    write_tar(&dir.path().join("long.tar"), &entries);
+
+    let listed: String = names_inside[..500]
+        .iter()
+        .map(|name| format!("├── long.tar/{name} (1 B)\n"))
+        .collect();
+    assert_eq!(
+        names(&dir, &["--inspect-archives"]),
+        format!("long.tar\n{listed}└── … (more than 500 entries)\n")
+    );
+}
+
 /// In a tree the entries hang one level below the archive, under the
 /// branch of the directory that holds it.
 #[test]

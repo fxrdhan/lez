@@ -16,9 +16,12 @@ use lez::fs::archives;
 
 use crate::common::TempTestDir;
 
+/// The entries of an archive small enough to be read whole.
 fn entries(path: &Path) -> Vec<(String, u64)> {
-    archives::read_entries(path)
-        .expect("an existing archive is always readable")
+    let listing = archives::read_entries(path).expect("an existing archive is always readable");
+    assert!(!listing.truncated, "{path:?} was cut short");
+    listing
+        .entries
         .into_iter()
         .map(|entry| (entry.path, entry.size))
         .collect()
@@ -96,7 +99,7 @@ fn a_declared_size_without_payload_is_reported_as_declared() {
 }
 
 #[test]
-fn more_than_five_hundred_entries_are_truncated_with_a_marker() {
+fn more_than_five_hundred_entries_are_cut_short_and_marked() {
     let dir = TempTestDir::new("arc_trunc");
     let names: Vec<String> = (0..800).map(|i| format!("file_{i:04}.txt")).collect();
     let files: Vec<(&str, &[u8])> = names
@@ -105,12 +108,27 @@ fn more_than_five_hundred_entries_are_truncated_with_a_marker() {
         .collect();
     let path = write(&dir, "massive.tar", &tar_bytes(&files));
 
-    let expected: Vec<(String, u64)> = names[..500]
-        .iter()
-        .map(|name| (name.clone(), 10))
-        .chain([("… (truncated)".to_owned(), 0)])
-        .collect();
-    assert_eq!(entries(&path), expected);
+    let listing = archives::read_entries(&path).expect("readable");
+    assert!(listing.truncated);
+    assert_eq!(
+        listing
+            .entries
+            .into_iter()
+            .map(|entry| (entry.path, entry.size))
+            .collect::<Vec<_>>(),
+        names[..archives::MAX_ENTRIES]
+            .iter()
+            .map(|name| (name.clone(), 10))
+            .collect::<Vec<_>>()
+    );
+
+    // Exactly the limit is not cut short.
+    let path = write(
+        &dir,
+        "exact.tar",
+        &tar_bytes(&files[..archives::MAX_ENTRIES]),
+    );
+    assert_eq!(entries(&path).len(), archives::MAX_ENTRIES);
 }
 
 #[test]

@@ -471,17 +471,25 @@ impl<'a> Render<'a> {
                 {
                     // Silent-fail policy: unreadable archives are simply left
                     // as they are.
-                    if let Ok(entries) = crate::fs::archives::read_entries(&egg.file.path) {
-                        let last_index = entries.len().saturating_sub(1);
-                        for (index, entry) in entries.iter().enumerate() {
-                            // The final entry closes the branch. Passing `false`
+                    if let Ok(listing) = crate::fs::archives::read_entries(&egg.file.path) {
+                        let count = listing.entries.len() + usize::from(listing.truncated);
+                        for (index, entry) in listing.entries.iter().enumerate() {
+                            // The final row closes the branch. Passing `false`
                             // unconditionally left every row on an edge, so the
                             // listing never terminated: "├──" all the way down.
                             rows.push(self.render_archive_entry(
                                 egg.file,
                                 entry,
-                                TreeParams::new(depth.deeper(), index == last_index),
+                                TreeParams::new(depth.deeper(), index + 1 == count),
                             ));
+                        }
+                        if listing.truncated {
+                            rows.push(
+                                self.render_archive_truncation(TreeParams::new(
+                                    depth.deeper(),
+                                    true,
+                                )),
+                            );
                         }
                     }
                 }
@@ -639,6 +647,21 @@ impl<'a> Render<'a> {
         Row {
             cells: None,
             name,
+            tree,
+            hidden: false,
+        }
+    }
+
+    /// The row that closes an archive's entries when there were more than
+    /// the listing reads: a note, not an entry, so it has no path or size.
+    #[cfg(feature = "inspect-archives")]
+    fn render_archive_truncation(&self, tree: TreeParams) -> Row {
+        Row {
+            cells: None,
+            name: TextCell::paint(
+                self.theme.ui.punctuation.unwrap_or_default(),
+                format!("… (more than {} entries)", crate::fs::archives::MAX_ENTRIES),
+            ),
             tree,
             hidden: false,
         }
