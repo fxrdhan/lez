@@ -271,22 +271,20 @@ fn a_bare_repository_work_tree_from_the_environment_shows_status() {
     let bare = dir.create_dir("bare.git");
     let work = dir.create_dir("work");
     let git = |args: &[&str]| {
-        let status = crate::common::git_command(&work)
+        let output = crate::common::git_command(&work)
             .env("GIT_DIR", &bare)
             .env("GIT_WORK_TREE", &work)
             .args(args)
-            .status()
+            .output()
             .expect("failed to run git");
-        assert!(status.success(), "git {args:?}");
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     };
 
-    crate::common::git_command(&bare)
-        .args(["init", "--bare", "-q"])
-        .status()
-        .expect("git init --bare")
-        .success()
-        .then_some(())
-        .expect("git init --bare failed");
+    crate::common::git_in(&bare, &["init", "--bare", "-q"]);
     fs::write(work.join("test.txt"), b"hello\n").unwrap();
     git(&["add", "test.txt"]);
     git(&["commit", "-q", "-m", "init"]);

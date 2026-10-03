@@ -479,7 +479,9 @@ pub fn git_in(dir: &Path, args: &[&str]) {
 }
 
 /// A git command for `dir` that ignores the global and system configuration
-/// and carries a fixed identity.
+/// and carries a fixed identity. Automatic maintenance is off: newer git
+/// runs it in the background after a commit, where it can outlive the test
+/// and hold its output open, which nextest reports as a leak.
 pub fn git_command(dir: &Path) -> Command {
     let mut cmd = Command::new("git");
     cmd.args([
@@ -487,6 +489,10 @@ pub fn git_command(dir: &Path) -> Command {
         "user.name=Test User",
         "-c",
         "user.email=test@example.com",
+        "-c",
+        "gc.auto=0",
+        "-c",
+        "maintenance.auto=false",
         "-c",
         "commit.gpgsign=false",
         "-c",
