@@ -45,23 +45,32 @@ fn undecodable_bytes_in_names_are_shown_as_replacement_characters() {
         std::fs::write(dir.path().join(OsStr::from_bytes(raw)), b"x").expect("create raw name");
     }
 
-    let expected = [
+    let [base, high, mixed, raw] = [
         "baseline.txt",
         "high_ascii_\u{fffd}\u{fffd}\u{fffd}.txt",
         "mixed_\u{fffd}_test.bin",
         "raw_byte_\u{fffd}\u{fffd}.dat",
     ];
-    assert_eq!(run(&dir, &["-1"]).lines().collect::<Vec<_>>(), expected);
-
-    let json: serde_json::Value = serde_json::from_str(&run(&dir, &["--json"])).expect("JSON");
-    assert_eq!(json, serde_json::json!(expected));
-
-    for view in [&["-l"][..], &["-T"][..], &["-G", "--width=200"][..]] {
-        let stdout = run(&dir, view);
-        for name in expected {
-            assert!(stdout.contains(name), "{view:?} lists {name}:\n{stdout}");
-        }
-    }
+    assert_eq!(
+        run(&dir, &["-1"]),
+        format!("{base}\n{high}\n{mixed}\n{raw}\n")
+    );
+    assert_eq!(
+        run(&dir, &["--json"]),
+        format!("[\"{base}\",\"{high}\",\"{mixed}\",\"{raw}\"]\n")
+    );
+    assert_eq!(
+        run(&dir, &["-l", "--no-permissions", "--no-user", "--no-time"]),
+        format!("1 {base}\n1 {high}\n1 {mixed}\n1 {raw}\n")
+    );
+    assert_eq!(
+        run(&dir, &["-T"]),
+        format!(".\n├── {base}\n├── {high}\n├── {mixed}\n└── {raw}\n")
+    );
+    assert_eq!(
+        run(&dir, &["-G", "--width=200"]),
+        format!("{base}  {high}  {mixed}  {raw}\n")
+    );
 }
 
 /// Spaces, quotes and the other characters a shell reads earn quoting by
@@ -110,20 +119,12 @@ fn shell_and_control_characters_are_quoted_and_escaped() {
          'trailing_space.txt '\n"
     );
 
-    let json: serde_json::Value = serde_json::from_str(&run(&dir, &["--json"])).expect("JSON");
+    // JSON escapes what its strings cannot hold raw: quotes, newlines, tabs.
     assert_eq!(
-        json,
-        serde_json::json!([
-            "apos'trophe.txt",
-            " leading_space.txt",
-            "multiple   spaces.txt",
-            "new\nline.txt",
-            "quote\"d.txt",
-            "semi;pipe|amp&.txt",
-            "tab_\t_tab.txt",
-            "tick`dollar$paren().txt",
-            "trailing_space.txt "
-        ])
+        run(&dir, &["--json"]),
+        r#"["apos'trophe.txt"," leading_space.txt","multiple   spaces.txt","new\nline.txt","quote\"d.txt","semi;pipe|amp&.txt","tab_\t_tab.txt","tick`dollar$paren().txt","trailing_space.txt "]"#
+            .to_owned()
+            + "\n"
     );
 }
 
@@ -150,13 +151,12 @@ fn combining_marks_joiners_and_right_to_left_names_are_listed_intact() {
         dir.create_file(name, b"x");
     }
 
-    let expected = [decomposed, precomposed, family, hebrew, arabic];
-    assert_eq!(run(&dir, &["-1"]).lines().collect::<Vec<_>>(), expected);
     assert_eq!(
-        run(&dir, &["-G", "--width=200"])
-            .split("  ")
-            .map(str::trim)
-            .collect::<Vec<_>>(),
-        expected
+        run(&dir, &["-1"]),
+        format!("{decomposed}\n{precomposed}\n{family}\n{hebrew}\n{arabic}\n")
+    );
+    assert_eq!(
+        run(&dir, &["-G", "--width=200"]),
+        format!("{decomposed}  {precomposed}  {family}  {hebrew}  {arabic}\n")
     );
 }

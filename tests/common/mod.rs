@@ -172,6 +172,35 @@ pub fn symlink_permissions(path: &Path) -> String {
     std::iter::once('l').chain(bits).collect()
 }
 
+/// An entry of a directory tree, with the entries under it, for [`draw_tree`].
+pub struct TreeNode(pub String, pub Vec<TreeNode>);
+
+impl TreeNode {
+    pub fn leaf(name: impl Into<String>) -> Self {
+        Self(name.into(), Vec::new())
+    }
+}
+
+/// A directory tree as `lez -T .` draws it with colours off: `.`, then each
+/// entry on its own line behind `├── ` or, for the last of its siblings,
+/// `└── `, and the entries under it behind `│   ` or four spaces.
+pub fn draw_tree(root: &[TreeNode]) -> String {
+    fn walk(nodes: &[TreeNode], indent: &str, out: &mut String) {
+        for (i, TreeNode(name, children)) in nodes.iter().enumerate() {
+            let last = i + 1 == nodes.len();
+            out.push_str(indent);
+            out.push_str(if last { "└── " } else { "├── " });
+            out.push_str(name);
+            out.push('\n');
+            let below = format!("{indent}{}", if last { "    " } else { "│   " });
+            walk(children, &below, out);
+        }
+    }
+    let mut out = String::from(".\n");
+    walk(root, "", &mut out);
+    out
+}
+
 /// A managed temporary directory that automatically cleans up on `Drop`.
 pub struct TempTestDir {
     _temp_dir: tempfile::TempDir,

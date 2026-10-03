@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! A directory of well over a thousand entries of mixed kinds, checked by
-//! exact counts: a large listing is where an entry quietly going missing
-//! would hide.
+//! A directory of well over a thousand entries of mixed kinds, compared
+//! whole: a large listing is where an entry quietly going missing would
+//! hide.
 
 use std::process::Output;
 
@@ -46,6 +46,45 @@ fn corpus() -> TempTestDir {
 const SPECIAL: usize = if cfg!(unix) { 3 } else { 0 };
 const TOTAL: usize = DATA_FILES + EMPTY_FILES + 1 + SUBFOLDERS + SPECIAL;
 
+/// The corpus's names in the order lez lists them, each with what the long
+/// view's name column adds to it: a link's target.
+fn names() -> Vec<(String, &'static str)> {
+    let mut names: Vec<(String, &str)> = Vec::new();
+    names.extend((0..DATA_FILES).map(|i| (format!("data_{i:04}.dat"), "")));
+    names.extend((0..EMPTY_FILES).map(|i| (format!("empty_{i}.zero"), "")));
+    if cfg!(unix) {
+        names.push((
+            "link_dangling.lnk".into(),
+            " -> non_existent_target.missing",
+        ));
+        names.push(("link_valid.lnk".into(), " -> data_0000.dat"));
+    }
+    names.push(("sparse_large.bin".into(), ""));
+    names.extend((0..SUBFOLDERS).map(|d| (format!("subfolder_{d}"), "")));
+    if cfg!(unix) {
+        names.push(("test_pipe.fifo".into(), ""));
+    }
+    assert_eq!(names.len(), TOTAL);
+    names
+}
+
+/// One name per line, as the lines view prints them.
+fn lines() -> String {
+    names()
+        .iter()
+        .map(|(name, _)| format!("{name}\n"))
+        .collect()
+}
+
+/// One name per line with link targets, as the long view's name column
+/// prints them.
+fn rows() -> String {
+    names()
+        .iter()
+        .map(|(name, target)| format!("{name}{target}\n"))
+        .collect()
+}
+
 fn run(dir: &TempTestDir, args: &[&str]) -> String {
     let output: Output = lez_in(dir.path())
         .args(args)
@@ -65,12 +104,10 @@ fn every_entry_is_listed_exactly_once_in_lines_and_grid() {
     let dir = corpus();
 
     let lines = run(&dir, &["-1"]);
-    assert_eq!(lines.lines().count(), TOTAL);
-    let mut sorted: Vec<&str> = lines.lines().collect();
-    sorted.sort_unstable();
-    sorted.dedup();
-    assert_eq!(sorted.len(), TOTAL, "no entry may repeat");
+    assert_eq!(lines, self::lines());
 
+    // Laying out a grid of this size is the grid's own tests' business;
+    // here every name has to be in it exactly once.
     let grid = run(&dir, &["-G", "--width=120"]);
     let mut cells: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     for cell in grid.split_whitespace() {
@@ -86,11 +123,13 @@ fn every_entry_is_listed_exactly_once_in_lines_and_grid() {
 fn the_long_view_and_json_hold_one_record_per_entry() {
     let dir = corpus();
 
-    assert_eq!(run(&dir, &["-l"]).lines().count(), TOTAL);
+    assert_eq!(run(&dir, &NAME_COLUMN_ONLY), rows());
 
-    let json: serde_json::Value =
-        serde_json::from_str(&run(&dir, &["--json"])).expect("valid JSON");
-    assert_eq!(json.as_array().expect("JSON array").len(), TOTAL);
+    let quoted: Vec<String> = names()
+        .iter()
+        .map(|(name, _)| format!("\"{name}\""))
+        .collect();
+    assert_eq!(run(&dir, &["--json"]), format!("[{}]\n", quoted.join(",")));
 }
 
 #[test]
@@ -99,19 +138,16 @@ fn summary_and_print_total_count_every_entry() {
     let files = DATA_FILES + EMPTY_FILES + 1 + usize::from(cfg!(unix));
     let symlinks = if cfg!(unix) { 2 } else { 0 };
 
-    let summary = run(&dir, &["-l", "--summary"]);
     assert_eq!(
-        summary.lines().last(),
-        Some(
-            format!("{SUBFOLDERS} directories, {files} files, {symlinks} symlinks ({TOTAL} total)")
-                .as_str()
+        run(&dir, &[&NAME_COLUMN_ONLY[..], &["--summary"]].concat()),
+        format!(
+            "{}{SUBFOLDERS} directories, {files} files, {symlinks} symlinks ({TOTAL} total)\n",
+            rows()
         )
     );
-
-    let total = run(&dir, &["-l", "--print-total"]);
     assert_eq!(
-        total.lines().last(),
-        Some(format!("total: {TOTAL}").as_str())
+        run(&dir, &[&NAME_COLUMN_ONLY[..], &["--print-total"]].concat()),
+        format!("{}total: {TOTAL}\n", rows())
     );
 }
 

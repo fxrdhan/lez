@@ -105,11 +105,12 @@ fn more_than_five_hundred_entries_are_truncated_with_a_marker() {
         .collect();
     let path = write(&dir, "massive.tar", &tar_bytes(&files));
 
-    let listed = entries(&path);
-    assert_eq!(listed.len(), 501);
-    assert_eq!(listed[0], ("file_0000.txt".to_owned(), 10));
-    assert_eq!(listed[499], ("file_0499.txt".to_owned(), 10));
-    assert_eq!(listed[500], ("… (truncated)".to_owned(), 0));
+    let expected: Vec<(String, u64)> = names[..500]
+        .iter()
+        .map(|name| (name.clone(), 10))
+        .chain([("… (truncated)".to_owned(), 0)])
+        .collect();
+    assert_eq!(entries(&path), expected);
 }
 
 #[test]

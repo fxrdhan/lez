@@ -145,10 +145,12 @@ fn an_unreadable_file_still_has_its_metadata_listed() {
 
     let output = run(&dir, &["--json", "-l", "--no-user", "--no-time"]);
     assert_eq!(output.status.code(), Some(0));
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
-    assert_eq!(json["unreadable.bin"]["Permissions"], ".---------");
-    assert_eq!(json["unreadable.bin"]["Size"], "19");
-    assert_eq!(json["normal.txt"]["Permissions"], ".rw-r--r--");
+    assert_eq!(
+        text(&output.stdout),
+        "{\"normal.txt\":{\"Permissions\": \".rw-r--r--\",\"Size\": \"11\"},\
+         \"unreadable.bin\":{\"Permissions\": \".---------\",\"Size\": \"19\"}}\n"
+    );
+    assert_eq!(text(&output.stderr), "");
 }
 
 /// `--code` cannot count a file it cannot read; it leaves the file out of
@@ -165,13 +167,15 @@ fn code_counts_the_readable_files_around_an_unreadable_one() {
 
     let output = run(&dir, &["--code"]);
     assert_eq!(output.status.code(), Some(0));
-    let stdout = text(&output.stdout);
-    let total = stdout
-        .lines()
-        .find(|line| line.trim_start().starts_with("Total"))
-        .unwrap_or_else(|| panic!("no total row:\n{stdout}"));
     assert_eq!(
-        total.split_whitespace().collect::<Vec<_>>(),
-        ["Total", "1", "3", "3", "0", "0", "100.0%"]
+        text(&output.stdout),
+        format!(
+            " Language  Files  Lines  Code  Comments  Blanks  Code %\n\
+             \x20Rust          1      3     3         0       0  100.0%  ████████████████\n\
+             {}\n\
+             \x20Total         1      3     3         0       0  100.0%\n",
+            "─".repeat(73)
+        )
     );
+    assert_eq!(text(&output.stderr), "");
 }

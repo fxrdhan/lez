@@ -46,6 +46,18 @@ fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
         .expect("Failed to parse CLI args in mock")
 }
 
+/// Strict mode only refuses; whatever it accepts must come out exactly as it
+/// would without it. `Options` has no `PartialEq`, so the two are compared
+/// through their `Debug` form, which spells out every field.
+#[track_caller]
+fn accepted_unchanged(args: &[&str]) {
+    let matches = parse_cli_args(args);
+    let strict = Options::deduce(&matches, &MockVars::new(true))
+        .unwrap_or_else(|error| panic!("strict mode refused {args:?}: {error:?}"));
+    let lenient = Options::deduce(&matches, &MockVars::new(false)).expect("lenient deduction");
+    assert_eq!(format!("{strict:?}"), format!("{lenient:?}"), "{args:?}");
+}
+
 /// A status with nothing staged and `status` in the working tree.
 fn unstaged(status: f::GitStatus) -> f::Git {
     both(f::GitStatus::NotModified, status)
@@ -171,8 +183,6 @@ impl Drop for TempGitRepo {
 
 #[test]
 fn test_strict_mode_default_options_pass_without_false_positives() {
-    let vars = MockVars::new(true);
-
     // Standard default flags that should never trigger strict mode errors
     let default_flag_sets: Vec<Vec<&str>> = vec![
         vec![],
@@ -206,14 +216,7 @@ fn test_strict_mode_default_options_pass_without_false_positives() {
     ];
 
     for args in default_flag_sets {
-        let matches = parse_cli_args(&args);
-        let result = Options::deduce(&matches, &vars);
-        assert!(
-            result.is_ok(),
-            "Strict mode unexpectedly rejected default/valid flags {:?}: {:?}",
-            args,
-            result.err()
-        );
+        accepted_unchanged(&args);
     }
 }
 
@@ -277,8 +280,12 @@ fn test_strict_mode_long_only_flags_fail_without_long() {
         ("-U", "created"),
         ("--utc", "utc"),
         ("--inspect-archives", "inspect-archives"),
+        ("--color-scale", "color-scale"),
+        ("--color-scale-mode=fixed", "color-scale-mode"),
+        ("--no-symlink-targets", "no-symlink-targets"),
     ];
 
+    let bare = Options::deduce(&parse_cli_args(&[]), &vars_non_strict).expect("no flags");
     for (flag, expected_name) in long_only_flags {
         let matches = parse_cli_args(&[flag]);
 
@@ -295,19 +302,26 @@ fn test_strict_mode_long_only_flags_fail_without_long() {
             err => panic!("Unexpected error for {flag} in strict mode: {err:?}"),
         }
 
-        // In non-strict mode, should succeed (flag is simply ignored)
-        let non_strict_res = Options::deduce(&matches, &vars_non_strict);
-        assert!(
-            non_strict_res.is_ok(),
-            "Expected flag {flag} without --long to be ignored in non-strict mode"
-        );
+        // In non-strict mode the flag is ignored: the options are those of
+        // no flag at all, but for the one setting the flag makes for the
+        // views that read it: the theme's size and date styles, which only
+        // the long view's columns use, and link targets, which a tree shows
+        // too.
+        let mut ignored = Options::deduce(&matches, &vars_non_strict)
+            .unwrap_or_else(|error| panic!("{flag} without --long: {error:?}"));
+        if flag.starts_with("--color-scale") {
+            ignored.theme.colour_scale = bare.theme.colour_scale;
+        }
+        if flag == "--no-symlink-targets" {
+            ignored.view.file_style.show_symlink_targets =
+                bare.view.file_style.show_symlink_targets;
+        }
+        assert_eq!(format!("{ignored:?}"), format!("{bare:?}"), "{flag}");
     }
 }
 
 #[test]
 fn test_strict_mode_long_only_flags_succeed_with_long() {
-    let vars = MockVars::new(true);
-
     let long_only_flags = [
         "--binary",
         "-b",
@@ -363,17 +377,14 @@ fn test_strict_mode_long_only_flags_succeed_with_long() {
         "-U",
         "--utc",
         "--inspect-archives",
+        "--color-scale",
+        "--color-scale-mode=fixed",
+        "--no-symlink-targets",
         "--print-total",
     ];
 
     for flag in long_only_flags {
-        let matches = parse_cli_args(&["-l", flag]);
-        let result = Options::deduce(&matches, &vars);
-        assert!(
-            result.is_ok(),
-            "Expected flag {flag} WITH -l to succeed in strict mode, got: {:?}",
-            result.err()
-        );
+        accepted_unchanged(&["-l", flag]);
     }
 }
 
@@ -752,8 +763,7 @@ fn test_strict_mode_time_and_git_options_permutations() {
     ));
 
     // --time=created WITH -l -> succeeds
-    let m = parse_cli_args(&["-l", "--time=created"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["-l", "--time=created"]);
 
     // --git without -l -> fails in strict mode
     let m = parse_cli_args(&["--git"]);
@@ -763,12 +773,10 @@ fn test_strict_mode_time_and_git_options_permutations() {
     ));
 
     // --git with --no-git without -l -> no error because no-git suppresses git flag
-    let m = parse_cli_args(&["--git", "--no-git"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["--git", "--no-git"]);
 
     // --no-git alone without -l -> succeeds
-    let m = parse_cli_args(&["--no-git"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["--no-git"]);
 }
 
 #[test]
@@ -776,12 +784,10 @@ fn test_strict_mode_almost_all_and_all_counts() {
     let vars = MockVars::new(true);
 
     // -a alone -> ok
-    let m = parse_cli_args(&["-a"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["-a"]);
 
     // -a -a (2 all flags) without tree -> ok
-    let m = parse_cli_args(&["-a", "-a"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["-a", "-a"]);
 
     // -a -a -a (3 all flags) in strict mode -> Conflict
     let m = parse_cli_args(&["-a", "-a", "-a"]);
@@ -798,8 +804,7 @@ fn test_strict_mode_almost_all_and_all_counts() {
     ));
 
     // --almost-all with --tree -> ok
-    let m = parse_cli_args(&["--almost-all", "--tree"]);
-    assert!(Options::deduce(&m, &vars).is_ok());
+    accepted_unchanged(&["--almost-all", "--tree"]);
 }
 
 #[test]

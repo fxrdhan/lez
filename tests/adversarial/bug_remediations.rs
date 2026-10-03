@@ -118,12 +118,13 @@ fn an_explicit_config_that_cannot_be_used_is_reported() {
     let output = run(&dir, &["--config", "bad.toml", "f.txt"]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(text(&output.stdout), "f.txt\n");
-    assert!(
-        text(&output.stderr).starts_with(
-            "lez: Failed to parse config file \"bad.toml\": TOML parse error at line 1, column 3\n"
-        ),
-        "{}",
-        text(&output.stderr)
+    assert_eq!(
+        text(&output.stderr),
+        "lez: Failed to parse config file \"bad.toml\": TOML parse error at line 1, column 3\n  \
+         |\n\
+         1 | [[[ syntax\n  \
+         |   ^\n\
+         unquoted keys cannot be empty, expected letters, numbers, `-`, `_`\n\n"
     );
 
     // A YAML config is a supported format, not a parse failure.
@@ -351,14 +352,15 @@ fn code_summary_counts_a_repeated_path_once() {
 
     let output = run(&dir, &["--code", "main.rs", "main.rs", "./main.rs"]);
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
-    let stdout = text(&output.stdout);
-    let total = stdout
-        .lines()
-        .find(|line| line.trim_start().starts_with("Total"))
-        .unwrap_or_else(|| panic!("no total row:\n{stdout}"));
     assert_eq!(
-        total.split_whitespace().collect::<Vec<_>>(),
-        ["Total", "1", "1", "1", "0", "0", "100.0%"]
+        text(&output.stdout),
+        format!(
+            " Language  Files  Lines  Code  Comments  Blanks  Code %\n\
+             \x20Rust          1      1     1         0       0  100.0%  ████████████████\n\
+             {}\n\
+             \x20Total         1      1     1         0       0  100.0%\n",
+            "─".repeat(73)
+        )
     );
 }
 
@@ -401,8 +403,10 @@ fn an_escaped_percent_z_in_a_time_style_prints_literally() {
         .output()
         .expect("failed to run lez");
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
-    assert_eq!(json["f.txt"]["Date Modified"], "2023-%Z");
+    assert_eq!(
+        text(&output.stdout),
+        "{\"f.txt\":{\"Size\": \"1\",\"Date Modified\": \"2023-%Z\"}}\n"
+    );
 }
 
 /// Bug 12: C1 control characters reached the terminal raw, so U+009B could
@@ -444,10 +448,10 @@ fn json_reports_permission_errors_and_nothing_else_as_code_13() {
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
 
     assert_eq!(output.status.code(), Some(13));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("Permission denied: ") && stderr.contains("code: 13"),
-        "{stderr}"
+    assert_eq!(text(&output.stdout), "[]\n");
+    assert_eq!(
+        text(&output.stderr),
+        "Permission denied: locked_dir - code: 13\n"
     );
 }
 
@@ -455,23 +459,51 @@ fn json_reports_permission_errors_and_nothing_else_as_code_13() {
 #[test]
 #[cfg(unix)]
 fn json_permissions_mark_mount_points_with_an_upper_case_d() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // The nine `rwx` letters `stat` gives the directory at `path`.
+    let letters = |path: &std::path::Path| -> String {
+        let mode = fs::metadata(path).expect("stat").permissions().mode();
+        (0..9)
+            .map(|i| {
+                if mode & (0o400 >> i) == 0 {
+                    '-'
+                } else {
+                    ['r', 'w', 'x'][i % 3]
+                }
+            })
+            .collect()
+    };
     let dir = TempTestDir::new("json_mount");
-    dir.create_dir("plain");
+    let plain = dir.create_dir("plain");
+    // `--no-extended` keeps an `@` for the root's attributes, which macOS
+    // may give it, off the end of the string.
+    let args = [
+        "--json",
+        "-l",
+        "-d",
+        "--no-user",
+        "--no-time",
+        "--no-extended",
+    ];
 
-    let output = run(&dir, &["--json", "-l", "-d", "--no-user", "--no-time", "/"]);
+    let output = run(&dir, &[&args[..], &["/"]].concat());
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
-    let root = json["/"]["Permissions"].as_str().expect("root permissions");
-    assert!(root.starts_with('D'), "{root}");
-
-    let output = run(
-        &dir,
-        &["--json", "-l", "-d", "--no-user", "--no-time", "plain"],
+    assert_eq!(
+        text(&output.stdout),
+        format!(
+            "{{\"/\":{{\"Permissions\": \"D{}\"}}}}\n",
+            letters(std::path::Path::new("/"))
+        )
     );
+
+    let output = run(&dir, &[&args[..], &["plain"]].concat());
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
-    let plain = json["plain"]["Permissions"]
-        .as_str()
-        .expect("plain permissions");
-    assert!(plain.starts_with('d'), "{plain}");
+    assert_eq!(
+        text(&output.stdout),
+        format!(
+            "{{\"plain\":{{\"Permissions\": \"d{}\"}}}}\n",
+            letters(&plain)
+        )
+    );
 }

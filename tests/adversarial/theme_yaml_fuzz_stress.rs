@@ -99,13 +99,13 @@ fn a_theme_with_wrongly_typed_values_is_reported_and_ignored() {
     fixture.write_theme("filekinds: 12345\nextensions:\n  rs: {filename: {foreground: Red}}\n");
 
     let themed = fixture.with_theme();
-    let stderr = String::from_utf8_lossy(&themed.stderr);
-    assert!(
-        stderr.starts_with(&format!(
-            "lez: Failed to parse theme file {:?}: filekinds: invalid type: integer `12345`",
+    assert_eq!(
+        String::from_utf8_lossy(&themed.stderr),
+        format!(
+            "lez: Failed to parse theme file {:?}: filekinds: invalid type: integer `12345`, \
+             expected struct FileKindsOverride at line 1 column 12\n",
             fixture.theme_path()
-        )),
-        "{stderr}"
+        )
     );
     assert_eq!(stdout(&themed), stdout(&fixture.without_theme()));
 }
@@ -133,14 +133,22 @@ fn an_unparseable_colour_leaves_the_matching_files_unstyled() {
     );
     // Without the theme the same files are coloured, which is what makes
     // the comparison above meaningful.
-    assert!(stdout(&fixture.without_theme()).contains("\u{1b}[1;33mnormal.rs"));
+    assert_eq!(
+        stdout(&fixture.without_theme()),
+        "a.ext_0007\n\u{1b}[32mdoc.md\u{1b}[0m\n\u{1b}[1;33mnormal.rs\u{1b}[0m\n\
+         \u{1b}[1;90m'\u{1b}[33mspace in name.rs\u{1b}[90m'\u{1b}[0m\n"
+    );
 }
 
-/// Hundreds of rules are read in full: rules near the end of each table
-/// still apply, including a file-name key containing spaces.
+/// Hundreds of rules are read in full: the first and last rule of each
+/// table apply, and a file-name key containing spaces after them.
 #[test]
 fn a_theme_with_hundreds_of_rules_applies_every_one() {
     let fixture = Fixture::new("theme_massive");
+    fixture.dir.create_file("samples/a.ext_0249", b"x");
+    fixture
+        .dir
+        .create_file("samples/custom_file_0249.dat", b"x");
     let mut yaml = String::from("extensions:\n");
     for i in 0..250 {
         let rgb = (i * 0x0a0b0c) % 0xff_ffff;
@@ -163,16 +171,17 @@ fn a_theme_with_hundreds_of_rules_applies_every_one() {
         "{}",
         String::from_utf8_lossy(&themed.stderr)
     );
-    let out = stdout(&themed);
-    // ext_0007 is rule 7: 7 * 0x0a0b0c = 0x464d54.
-    assert!(
-        out.contains("\u{1b}[38;2;70;77;84ma.ext_0007\u{1b}[0m"),
-        "{out:?}"
+    // Rule i of the extensions is i * 0x0a0b0c modulo 0xffffff: ext_0007 is
+    // #464d54 and ext_0249 is #c4beb5. The last file name rule is red, the
+    // spaced one cyan; `doc.md` and `normal.rs` match no rule and keep their
+    // default styling.
+    assert_eq!(
+        stdout(&themed),
+        "\u{1b}[38;2;70;77;84ma.ext_0007\u{1b}[0m\n\
+         \u{1b}[38;2;196;190;181ma.ext_0249\u{1b}[0m\n\
+         \u{1b}[31mcustom_file_0249.dat\u{1b}[0m\n\
+         \u{1b}[32mdoc.md\u{1b}[0m\n\
+         \u{1b}[1;33mnormal.rs\u{1b}[0m\n\
+         \u{1b}[1;90m'\u{1b}[0m\u{1b}[36mspace in name.rs\u{1b}[1;90m'\u{1b}[0m\n"
     );
-    assert!(
-        out.contains("\u{1b}[1;90m'\u{1b}[0m\u{1b}[36mspace in name.rs\u{1b}[1;90m'"),
-        "{out:?}"
-    );
-    // Files no rule mentions keep their default styling.
-    assert!(out.contains("\u{1b}[1;33mnormal.rs\u{1b}[0m"), "{out:?}");
 }

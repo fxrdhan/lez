@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 use std::process::Output;
 
-use crate::common::{TempTestDir, lez_in};
+use crate::common::{TempTestDir, TreeNode as Node, draw_tree as draw, lez_in, native};
 
 const LEAF: &[u8] = b"deep leaf content of 24 bytes\n";
 
@@ -32,22 +32,28 @@ fn run(dir: &TempTestDir, args: &[&str]) -> String {
     String::from_utf8(output.stdout).expect("UTF-8 stdout")
 }
 
+/// The chain from `d_{from}` down, `levels` directories deep, ending in the
+/// leaf when `leaf` is set.
+fn chain_nodes(from: usize, levels: usize, leaf: bool) -> Vec<Node> {
+    if levels == 0 {
+        return if leaf {
+            vec![Node::leaf("deep_leaf.txt")]
+        } else {
+            vec![]
+        };
+    }
+    vec![Node(
+        format!("d_{from:03}"),
+        chain_nodes(from + 1, levels - 1, leaf),
+    )]
+}
+
 #[test]
 fn a_tree_reaches_the_leaf_of_a_120_level_chain() {
     let dir = TempTestDir::new("deep_tree");
     chain(&dir, 120);
 
-    let stdout = run(&dir, &["-T"]);
-    let names: Vec<&str> = stdout
-        .lines()
-        .skip(1)
-        .map(|line| line.rsplit(' ').next().expect("tree row"))
-        .collect();
-    let expected: Vec<String> = (0..120)
-        .map(|i| format!("d_{i:03}"))
-        .chain(["deep_leaf.txt".to_owned()])
-        .collect();
-    assert_eq!(names, expected);
+    assert_eq!(run(&dir, &["-T"]), draw(&chain_nodes(0, 120, true)));
 }
 
 #[test]
@@ -55,10 +61,19 @@ fn recursing_lists_every_level_of_a_100_level_chain() {
     let dir = TempTestDir::new("deep_recurse");
     chain(&dir, 100);
 
-    let stdout = run(&dir, &["-R", "-1"]);
-    let headers = stdout.lines().filter(|line| line.ends_with(':')).count();
-    assert_eq!(headers, 100, "one header per nested directory");
-    assert!(stdout.ends_with("deep_leaf.txt\n"), "{stdout}");
+    // The top listing, then one header per nested directory, by its path.
+    let mut expected = String::from("d_000\n");
+    let mut path = String::from(".");
+    for i in 0..100 {
+        path.push_str(&format!("/d_{i:03}"));
+        let content = if i == 99 {
+            "deep_leaf.txt".to_owned()
+        } else {
+            format!("d_{:03}", i + 1)
+        };
+        expected.push_str(&format!("\n{}:\n{content}\n", native(&path)));
+    }
+    assert_eq!(run(&dir, &["-R", "-1"]), expected);
 }
 
 #[test]
@@ -66,20 +81,18 @@ fn the_level_limit_cuts_at_exactly_that_depth() {
     let dir = TempTestDir::new("level_limit");
     chain(&dir, 80);
 
-    for level in [1, 5, 79] {
-        let stdout = run(&dir, &["-T", "-L", &level.to_string()]);
-        let names: Vec<&str> = stdout
-            .lines()
-            .skip(1)
-            .map(|line| line.rsplit(' ').next().expect("tree row"))
-            .collect();
-        let expected: Vec<String> = (0..level).map(|i| format!("d_{i:03}")).collect();
-        assert_eq!(names, expected, "-L {level}");
+    for level in [1, 5, 79, 80] {
+        assert_eq!(
+            run(&dir, &["-T", "-L", &level.to_string()]),
+            draw(&chain_nodes(0, level, false)),
+            "-L {level}"
+        );
     }
-
     // The leaf sits one level below the deepest directory.
-    let stdout = run(&dir, &["-T", "-L", "81"]);
-    assert!(stdout.ends_with("deep_leaf.txt\n"), "{stdout}");
+    assert_eq!(
+        run(&dir, &["-T", "-L", "81"]),
+        draw(&chain_nodes(0, 80, true))
+    );
 }
 
 #[test]
@@ -117,17 +130,17 @@ fn a_wide_and_deep_tree_lists_every_branch_to_the_bottom() {
         }
     }
 
-    let stdout = run(&dir, &["-T"]);
-    for b in 0..8 {
-        for d in 0..25 {
-            let name = format!("file_b{b}_d{d}.txt");
-            assert_eq!(
-                stdout.lines().filter(|line| line.ends_with(&name)).count(),
-                1,
-                "{name}"
-            );
+    // Each step holds its file and, but for the last, the next step; `f`
+    // sorts before `s`.
+    fn steps(b: usize, d: usize) -> Vec<Node> {
+        let mut children = vec![Node::leaf(format!("file_b{b}_d{d}.txt"))];
+        if d + 1 < 25 {
+            children.extend(steps(b, d + 1));
         }
+        vec![Node(format!("step_{d:02}"), children)]
     }
-    // Root, eight branches, twenty-five steps and one file per step each.
-    assert_eq!(stdout.lines().count(), 1 + 8 * (1 + 25 * 2));
+    let branches: Vec<Node> = (0..8)
+        .map(|b| Node(format!("branch_{b:02}"), steps(b, 0)))
+        .collect();
+    assert_eq!(run(&dir, &["-T"]), draw(&branches));
 }
