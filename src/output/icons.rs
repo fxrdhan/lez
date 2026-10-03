@@ -114,6 +114,7 @@ impl Icons {
     const LANG_LUA: char        = '\u{e620}';  // 
     const LANG_NIM: char        = '\u{e677}';  // 
     const LANG_OCAML: char      = '\u{e67a}';  // 
+    const LANG_ODIN: char       = '\u{f0afc}'; // 󰫼
     const LANG_PERL: char       = '\u{e67e}';  // 
     const LANG_PHP: char        = '\u{e73d}';  // 
     const LANG_PYTHON: char     = '\u{e606}';  // 
@@ -912,6 +913,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "odb"            => Icons::DATABASE,         // 
     "odf"            => '\u{f37b}',              // 
     "odg"            => '\u{f379}',              // 
+    "odin"           => Icons::LANG_ODIN,        // 󰫼
     "odp"            => '\u{f37a}',              // 
     "ods"            => '\u{f378}',              // 
     "odt"            => '\u{f37c}',              // 
@@ -1408,6 +1410,16 @@ mod test {
         assert_eq!(
             icon_for_name_ext("project.jdn", Some("jdn")),
             Icons::LANG_JANET
+        );
+    }
+
+    /// Odin has no logo among the Nerd Font glyphs, so it takes a letter, as
+    /// Janet does.
+    #[test]
+    fn test_odin_icon_mapping() {
+        assert_eq!(
+            icon_for_name_ext("main.odin", Some("odin")),
+            Icons::LANG_ODIN
         );
     }
 

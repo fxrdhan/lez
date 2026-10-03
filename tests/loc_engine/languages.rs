@@ -42,14 +42,14 @@ fn fixture() -> TempTestDir {
     dir
 }
 
-/// Ada and Janet have icons of their own; Odin has none, and gets the
-/// plain file's.
+/// Ada has an icon of its own; Janet and Odin, which have no logo among
+/// the Nerd Font glyphs, take their initial.
 #[test]
 fn each_extension_is_listed_with_its_languages_icon() {
     let dir = fixture();
     assert_eq!(
         success_stdout(lez_in(dir.path()).args(["-1", "--icons=always"])),
-        "\u{f15b} app.odin\n\u{e6b5} build.gpr\n\u{f0af7} data.jdn\n\u{e6b5} legacy.ada\n\
+        "\u{f0afc} app.odin\n\u{e6b5} build.gpr\n\u{f0af7} data.jdn\n\u{e6b5} legacy.ada\n\
          \u{e6b5} main.adb\n\u{f0af7} main.janet\n\u{e6b5} spec.ads\n"
     );
 }
@@ -79,7 +79,7 @@ fn code_counts_each_language_across_its_extensions() {
             "   Language  Files  Lines  Code  Comments  Blanks  Code %\n\
              \x20\u{e6b5} Ada           4     12     9         2       1   64.3%  ████████████████\n\
              \x20\u{f0af7} Janet         2      6     3         2       1   21.4%  █████▍\n\
-             \x20\u{f15b} Odin          1      5     2         3       0   14.3%  ███▌\n\
+             \x20\u{f0afc} Odin          1      5     2         3       0   14.3%  ███▌\n\
              {rule}\n\
              \x20  Total         7     23    14         7       2  100.0%\n"
         )
