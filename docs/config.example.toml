@@ -3,12 +3,16 @@
 
 # Example Configuration File for `lez`
 #
-# Global configuration discovery order:
-#   1. $LEZ_CONFIG_FILE or --config <PATH>
-#   2. $LEZ_CONFIG_DIR/{config,lez}.{toml,yaml,yml}
-#   3. $EZA_CONFIG_DIR/{config,eza}.{toml,yaml,yml}
-#   4. $XDG_CONFIG_HOME/lez/{config,lez}.{toml,yaml,yml}
-#   5. ~/.config/lez/{config,lez}.{toml,yaml,yml}
+# An explicit file is the only one read:
+#   --config <PATH>, else $LEZ_CONFIG_FILE, $EZA_CONFIG_FILE or $EXA_CONFIG_FILE
+#
+# Otherwise the first of config.toml, lez.toml, config.yaml and config.yml in
+# the configuration directory is read, which is the first of:
+#   1. $LEZ_CONFIG_DIR, else $EZA_CONFIG_DIR
+#   2. $XDG_CONFIG_HOME/lez (or .../eza if only that exists), when set
+#   3. the platform's: ~/.config/lez on Linux,
+#      ~/Library/Application Support/lez on macOS, %APPDATA%\lez on Windows
+#      (or .../eza if only that exists)
 #
 # Local (per-directory) configuration:
 #   .lez.toml, .lez.yaml, .lez.yml, .eza.toml, .eza.yaml in current working directory.

@@ -50,7 +50,7 @@ in the same directory as one of its source files: styles.css will count as compi
 Now you can specify these options and more in a `theme.yml` file with convenient syntax for defining your styles.
 
 Set `LEZ_CONFIG_DIR` or `EZA_CONFIG_DIR` to specify which directory you would like lez to look for your `theme.yml` file,
-otherwise lez will look for `$XDG_CONFIG_HOME/lez/theme.yml` or `$XDG_CONFIG_HOME/eza/theme.yml`.
+otherwise lez will look for `theme.yml` in `$XDG_CONFIG_HOME/lez` when `XDG_CONFIG_HOME` is set to an absolute path, otherwise the platform's configuration directory: `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows. In either place an existing `eza` directory is used when there is no `lez` one.
 
 
 These are the available options:

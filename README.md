@@ -347,7 +347,7 @@ These options work with every view:
 1. **CLI Flag**: `--config <PATH>` or `--no-config`
 2. **Environment Variable**: `LEZ_CONFIG_FILE`
 3. **Local (per-directory) Config**: `.lez.toml`, `.lez.yaml`, `.lez.yml`, `.eza.toml`, `.eza.yaml` in the current working directory
-4. **Global Config**: `config.toml`, `lez.toml`, `config.yaml` in `$LEZ_CONFIG_DIR` (or `$XDG_CONFIG_HOME/lez`, `~/.config/lez`)
+4. **Global Config**: `config.toml`, `lez.toml`, `config.yaml`, `config.yml` in `$LEZ_CONFIG_DIR` (or `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS, `%APPDATA%\lez` on Windows)
 5. **Built-in Defaults**
 
 ### Example `config.toml`
@@ -382,7 +382,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 | Variable | Description |
 |---|---|
 | `LEZ_CONFIG_FILE` / `EZA_CONFIG_FILE` | Explicit path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). |
-| `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez` or `~/.config/lez`). |
+| `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS, `%APPDATA%\lez` on Windows). |
 | `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. |
 | `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (0..=100) for color scaling on dates and sizes. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
@@ -404,7 +404,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 **`lez`** supports a `theme.yml` file, where you can customize theme options available for the `LS_COLORS`, `EZA_COLORS`, and `LEZ_COLORS` environment variables, as well as specify custom icons for different file types and extensions.
 
 An example theme file is available in [`docs/theme.yml`](docs/theme.yml), and can be placed in a directory specified by 
-`$LEZ_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in `$XDG_CONFIG_HOME/lez` or `$XDG_CONFIG_HOME/eza`.
+`$LEZ_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in the configuration directory: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows (an existing `eza` directory there is used when there is no `lez` one).
 
 ### Schema Validation in IDEs
 

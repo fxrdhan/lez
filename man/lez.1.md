@@ -523,7 +523,7 @@ Explicitly specifies the path to a configuration file to load (`.toml`, `.yaml`,
 
 ## `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR`
 
-Specifies the directory where lez will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lez`, `$XDG_CONFIG_HOME/eza`, `$HOME/.config/lez`, or `$HOME/.config/eza` if `XDG_CONFIG_HOME` is not set.
+Specifies the directory where lez will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lez` when `XDG_CONFIG_HOME` is set to an absolute path, otherwise the platform's configuration directory: `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows. In either place an existing `eza` directory is used when there is no `lez` one.
 
 ## `LEZ_QUOTING_STYLE`, `EZA_QUOTING_STYLE`
 
