@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::process::Output;
 
-use crate::common::{TempGitRepo, TempTestDir, lez_in, native};
+use crate::common::{TempGitRepo, TempTestDir, interleaved, lez_in, native};
 
 fn fixture(prefix: &str) -> TempTestDir {
     let dir = TempTestDir::new(prefix);
@@ -85,6 +85,39 @@ fn recursion_tallies_each_directory_and_a_tree_tallies_once() {
         (
             ".\n├── clean\n│   └── inner.txt\n└── visible.txt\n".into(),
             "2 hidden and 0 ignored items\n".into()
+        )
+    );
+}
+
+/// The tally follows the listing it counts, on a terminal too: stdout is
+/// written out before it. It used to come first, above the listing it
+/// starts with "...and".
+#[test]
+fn each_tally_follows_its_listing() {
+    let dir = fixture("order");
+    dir.create_file("clean/.nested_secret", b"x");
+    assert_eq!(
+        interleaved(lez_in(dir.path()).args(["-1", "-W"])),
+        (
+            Some(0),
+            "clean\nvisible.txt\n...and 1 hidden items\n".into()
+        )
+    );
+    assert_eq!(
+        interleaved(lez_in(dir.path()).args(["-1", "-R", "-W"])),
+        (
+            Some(0),
+            native(
+                "clean\nvisible.txt\n...and 1 hidden items\n\
+                 \n./clean:\ninner.txt\n...and 1 hidden items\n"
+            )
+        )
+    );
+    assert_eq!(
+        interleaved(lez_in(dir.path()).args(["-T", "-W"])),
+        (
+            Some(0),
+            ".\n├── clean\n│   └── inner.txt\n└── visible.txt\n...and 2 hidden items\n".into()
         )
     );
 }

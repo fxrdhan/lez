@@ -122,6 +122,21 @@ fn recursing_lists_every_readable_directory_and_names_the_skipped_one() {
         "Permission denied: ./locked_branch - code: 13\n\n\
          Skipped 1 directories due to permission denied: \n  ./locked_branch\n"
     );
+
+    // On a terminal the message comes where the directory would have been
+    // listed, after what was listed before it.
+    assert_eq!(
+        crate::common::interleaved(lez_in(dir.path()).args(["-R", "-1"])),
+        (
+            Some(13),
+            "accessible_1\naccessible_2\nlocked_branch\n\n\
+             ./accessible_1:\nfile1.txt\n\n\
+             ./accessible_2:\nfile2.txt\n\
+             Permission denied: ./locked_branch - code: 13\n\n\
+             Skipped 1 directories due to permission denied: \n  ./locked_branch\n"
+                .to_owned()
+        )
+    );
 }
 
 /// The long and JSON views only need `stat`, which an unreadable file does

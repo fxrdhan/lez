@@ -600,6 +600,9 @@ impl Lez<'_> {
             let dir = match dir.read() {
                 Ok(dir) => dir,
                 Err(e) => {
+                    // What was listed so far goes out first, so the message
+                    // lands where it happened, as `ls` has it.
+                    self.writer.flush()?;
                     if e.kind() == ErrorKind::PermissionDenied {
                         let _ = writeln!(
                             io::stderr(),
@@ -712,6 +715,7 @@ impl Lez<'_> {
                         .as_ref()
                         .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
                     {
+                        self.writer.flush()?;
                         let _ = writeln!(io::stderr(), "{warn_line}");
                     }
                     let status = self.print_dirs(
@@ -735,11 +739,13 @@ impl Lez<'_> {
                 .as_ref()
                 .and_then(|hc| hc.render(self.theme.ui.hidden_warning.unwrap_or_default()))
             {
+                self.writer.flush()?;
                 let _ = writeln!(io::stderr(), "{warn_line}");
             }
         }
 
         if !denied_dirs.is_empty() {
+            self.writer.flush()?;
             denied_anywhere = true;
             let _ = writeln!(
                 io::stderr(),

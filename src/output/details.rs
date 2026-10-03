@@ -302,6 +302,8 @@ impl<'a> Render<'a> {
         if let Some(hc) = &hidden_count
             && let Some(warn_line) = hc.render(self.theme.ui.hidden_warning.unwrap_or_default())
         {
+            // The tree goes out first, so the tally follows it.
+            w.flush()?;
             let _ = writeln!(io::stderr(), "{warn_line}");
         }
 

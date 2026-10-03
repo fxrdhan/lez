@@ -526,6 +526,27 @@ pub fn success_stdout(cmd: &mut Command) -> String {
     String::from_utf8(output.stdout).expect("lez printed non-UTF-8 output")
 }
 
+/// Runs `cmd` with stdout and stderr on one pipe, as a terminal shows them,
+/// and returns its exit code and what came through, in the order written.
+pub fn interleaved(cmd: &mut Command) -> (Option<i32>, String) {
+    use std::io::Read;
+
+    let (mut reader, writer) = std::io::pipe().expect("create a pipe");
+    let mut child = cmd
+        .stdout(writer.try_clone().expect("clone the pipe"))
+        .stderr(writer)
+        .spawn()
+        .expect("failed to run lez");
+    // The command keeps its copies of the write end until it is set up
+    // again; without this the read below would wait for them forever.
+    cmd.stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    let mut output = String::new();
+    reader.read_to_string(&mut output).expect("read the pipe");
+    let status = child.wait().expect("wait for lez");
+    (status.code(), output)
+}
+
 /// Linux keeps unprivileged attributes in the `user.` namespace; macOS has
 /// no namespaces.
 #[cfg(target_os = "linux")]
