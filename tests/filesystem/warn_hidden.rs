@@ -39,12 +39,45 @@ fn once_reports_only_when_something_was_hidden() {
         run(dir.path(), &["-1", "-W"]),
         (
             "clean\nvisible.txt\n".into(),
-            "...and 1 hidden items\n".into()
+            "...and 1 hidden item\n".into()
         )
     );
     assert_eq!(
         run(dir.path(), &["-1", "-W", "-a"]),
         (".secret\nclean\nvisible.txt\n".into(), String::new())
+    );
+}
+
+/// A lone count says "1 hidden item"; two counts share the noun, which
+/// follows the nearer one.
+#[test]
+fn the_tally_says_item_for_one() {
+    let dir = TempTestDir::new("plural");
+    dir.create_file("visible.txt", b"x");
+    dir.create_file(".one", b"x");
+    assert_eq!(run(dir.path(), &["-1", "-W"]).1, "...and 1 hidden item\n");
+    dir.create_file(".two", b"x");
+    assert_eq!(run(dir.path(), &["-1", "-W"]).1, "...and 2 hidden items\n");
+    assert_eq!(
+        run(dir.path(), &["-1", "-WW"]).1,
+        "2 hidden and 0 ignored items\n"
+    );
+}
+
+/// With `--git-ignore` and one ignored file the second count is one.
+#[test]
+fn the_tally_says_item_for_one_ignored() {
+    let repo = TempGitRepo::new("plural_ignored");
+    repo.create_file(".gitignore", b"*.log\n");
+    repo.create_file("kept.txt", b"x");
+    repo.create_file("dropped.log", b"x");
+    assert_eq!(
+        run(repo.path(), &["-1", "-WW", "--git-ignore"]).1,
+        "2 hidden and 1 ignored item\n"
+    );
+    assert_eq!(
+        run(repo.path(), &["-1", "-W", "--git-ignore"]).1,
+        "...and 2 hidden, 1 ignored item\n"
     );
 }
 
@@ -98,18 +131,15 @@ fn each_tally_follows_its_listing() {
     dir.create_file("clean/.nested_secret", b"x");
     assert_eq!(
         interleaved(lez_in(dir.path()).args(["-1", "-W"])),
-        (
-            Some(0),
-            "clean\nvisible.txt\n...and 1 hidden items\n".into()
-        )
+        (Some(0), "clean\nvisible.txt\n...and 1 hidden item\n".into())
     );
     assert_eq!(
         interleaved(lez_in(dir.path()).args(["-1", "-R", "-W"])),
         (
             Some(0),
             native(
-                "clean\nvisible.txt\n...and 1 hidden items\n\
-                 \n./clean:\ninner.txt\n...and 1 hidden items\n"
+                "clean\nvisible.txt\n...and 1 hidden item\n\
+                 \n./clean:\ninner.txt\n...and 1 hidden item\n"
             )
         )
     );
