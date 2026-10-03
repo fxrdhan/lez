@@ -229,6 +229,6 @@ fn stdin0_keeps_a_newline_inside_a_name() {
     dir.create_file("a\nb", b"x");
     assert_eq!(
         listed(with_stdin(&dir, &[], &["--stdin0", "-1"], b"a\nb\0")),
-        "a\\nb\n"
+        "$'a\\nb'\n"
     );
 }

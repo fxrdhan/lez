@@ -28,6 +28,14 @@ pub enum Quoting {
     /// it in either kind leaves the other one bare, and the shell then reads
     /// the name as something else entirely.
     SingleEscaped,
+
+    /// Wrap in ANSI-C quotes, `$'…'`, for a name holding a control
+    /// character: inside them `\n`, `\t` and `\033` are the characters they
+    /// name, which no other quoting can say, and `\'` and `\\` are an
+    /// apostrophe and a backslash. `new<newline>line` prints as
+    /// `$'new\nline'`, which bash, zsh and ksh read back as the name, as
+    /// GNU `ls` prints it.
+    Ansi,
 }
 
 /// Whether a shell gives `c` a meaning of its own anywhere in a word, so a
@@ -56,11 +64,17 @@ impl Quoting {
     #[must_use]
     pub fn for_string(string: &str, quote_style: QuoteStyle) -> Self {
         let has_apostrophe = string.contains('\'');
+        // Windows shells have no quotes that can hold a control character,
+        // so there it keeps its visible escape, as without quotes.
+        let has_control = cfg!(not(windows)) && string.chars().any(char::is_control);
         // A comment and a home directory start only at the start of a word.
-        let needs_quotes = string.starts_with(['#', '~']) || string.chars().any(is_shell_special);
+        let needs_quotes =
+            has_control || string.starts_with(['#', '~']) || string.chars().any(is_shell_special);
 
         if quote_style.quotes_needed(needs_quotes) {
-            if !has_apostrophe {
+            if has_control {
+                Self::Ansi
+            } else if !has_apostrophe {
                 Self::Single
             } else if string.chars().any(is_read_inside_double_quotes) {
                 Self::SingleEscaped
@@ -72,15 +86,51 @@ impl Quoting {
         }
     }
 
-    /// Returns the ANSI quote token for this quoting mode, styled with `quote_style`.
+    /// The token that opens a name in this quoting, styled with
+    /// `quote_style`.
     #[must_use]
-    pub fn quote_bit<'a>(self, quote_style: Style) -> Option<ANSIString<'a>> {
+    pub fn opening_bit<'a>(self, quote_style: Style) -> Option<ANSIString<'a>> {
+        match self {
+            Self::Ansi => Some(quote_style.paint("$'")),
+            _ => self.closing_bit(quote_style),
+        }
+    }
+
+    /// The token that closes a name in this quoting, styled with
+    /// `quote_style`.
+    #[must_use]
+    pub fn closing_bit<'a>(self, quote_style: Style) -> Option<ANSIString<'a>> {
         match self {
             Self::None => None,
             Self::Double => Some(quote_style.paint("\"")),
-            Self::Single | Self::SingleEscaped => Some(quote_style.paint("'")),
+            Self::Single | Self::SingleEscaped | Self::Ansi => Some(quote_style.paint("'")),
         }
     }
+}
+
+/// How `c` is written inside ANSI-C quotes, if it has to be escaped there.
+/// Control characters other than the seven with a letter of their own are
+/// written as the octal bytes of their UTF-8, as GNU `ls` does: unlike
+/// `\e`, `\xHH` or `\uHHHH`, every shell with these quotes reads three
+/// octal digits the same way, whatever its version or locale.
+fn ansi_c_escape(c: char) -> Option<String> {
+    Some(match c {
+        '\'' => r"\'".to_owned(),
+        '\\' => r"\\".to_owned(),
+        '\u{7}' => r"\a".to_owned(),
+        '\u{8}' => r"\b".to_owned(),
+        '\t' => r"\t".to_owned(),
+        '\n' => r"\n".to_owned(),
+        '\u{b}' => r"\v".to_owned(),
+        '\u{c}' => r"\f".to_owned(),
+        '\r' => r"\r".to_owned(),
+        c if c.is_control() => c
+            .encode_utf8(&mut [0; 4])
+            .bytes()
+            .map(|byte| format!("\\{byte:03o}"))
+            .collect(),
+        _ => return None,
+    })
 }
 
 pub fn is_printable(c: char) -> bool {
@@ -95,7 +145,15 @@ pub fn escape_inner_chars(
     bad: Style,
     quoting: Quoting,
 ) {
-    if quoting != Quoting::SingleEscaped && string.chars().all(is_printable) {
+    if quoting == Quoting::Ansi {
+        for c in string.chars() {
+            match ansi_c_escape(c) {
+                Some(escape) if is_printable(c) => bits.push(good.paint(escape)),
+                Some(escape) => bits.push(bad.paint(escape)),
+                None => bits.push(good.paint(c.to_string())),
+            }
+        }
+    } else if quoting != Quoting::SingleEscaped && string.chars().all(is_printable) {
         bits.push(good.paint(string.to_string()));
     } else {
         for c in string.chars() {
@@ -125,9 +183,11 @@ pub fn escape_with_quote_style(
 
     escape_inner_chars(&string, bits, good, bad, quoting);
 
-    if let Some(quote_bit) = quoting.quote_bit(quote_colour) {
-        bits.insert(bits_starting_length, quote_bit.clone());
-        bits.push(quote_bit);
+    if let Some(opening) = quoting.opening_bit(quote_colour) {
+        bits.insert(bits_starting_length, opening);
+    }
+    if let Some(closing) = quoting.closing_bit(quote_colour) {
+        bits.push(closing);
     }
 }
 
@@ -406,12 +466,69 @@ mod test {
         assert_eq!(quoted("it's \\x", QuoteStyle::Auto), expected);
     }
 
-    /// Control characters keep their visible escape and their own style; the
-    /// quoting change must not disturb that.
+    /// A control character is written the way ANSI-C quotes read it back:
+    /// the seven with a letter of their own by that letter, the rest as the
+    /// octal bytes of their UTF-8. An apostrophe and a backslash are escaped
+    /// inside those quotes, and nothing else is.
     #[test]
-    fn control_characters_keep_their_rendering() {
-        assert_eq!(quoted("with\ttab", QuoteStyle::Auto), r"with\ttab");
-        assert_eq!(quoted("it's\ttab", QuoteStyle::Auto), r#""it's\ttab""#);
+    #[cfg(not(windows))]
+    fn control_characters_are_ansi_c_quoted() {
+        for (name, expected) in [
+            ("with\ttab", r"$'with\ttab'"),
+            ("new\nline", r"$'new\nline'"),
+            ("\u{7}\u{8}\u{b}\u{c}\r", r"$'\a\b\v\f\r'"),
+            ("esc\u{1b}[31m", r"$'esc\033[31m'"),
+            ("del\u{7f}", r"$'del\177'"),
+            ("nel\u{85}csi\u{9b}", r"$'nel\302\205csi\302\233'"),
+            ("it's\tback\\slash", r"$'it\'s\tback\\slash'"),
+            ("space $\"`!\tcafé", "$'space $\"`!\\tcafé'"),
+        ] {
+            assert_eq!(quoted(name, QuoteStyle::Auto), expected, "{name:?}");
+            assert_eq!(quoted(name, QuoteStyle::Always), expected, "{name:?}");
+        }
+    }
+
+    /// Without quotes, and on Windows, whose shells have no quotes that can
+    /// hold one, a control character keeps its visible escape.
+    #[test]
+    fn control_characters_are_escaped_without_ansi_c_quotes() {
+        assert_eq!(quoted("with\ttab", QuoteStyle::Never), r"with\ttab");
+        assert_eq!(quoted("it's\ttab", QuoteStyle::Never), r"it's\ttab");
+        if cfg!(windows) {
+            assert_eq!(quoted("with\ttab", QuoteStyle::Auto), r"with\ttab");
+            assert_eq!(quoted("it's\ttab", QuoteStyle::Auto), r#""it's\ttab""#);
+        }
+    }
+
+    /// The escapes stay in the style for what cannot be printed, and the
+    /// rest of the name, escaped apostrophe included, in the name's own.
+    #[test]
+    #[cfg(not(windows))]
+    fn ansi_c_escapes_keep_their_style() {
+        let (good, bad, quote) = (
+            Style::new().bold(),
+            Style::new().underline(),
+            Style::new().italic(),
+        );
+        let mut bits = Vec::new();
+        escape_with_quote_style(
+            "a'\n".to_owned(),
+            &mut bits,
+            good,
+            bad,
+            quote,
+            QuoteStyle::Auto,
+        );
+        assert_eq!(
+            bits,
+            vec![
+                quote.paint("$'"),
+                good.paint("a"),
+                good.paint(r"\'"),
+                bad.paint(r"\n"),
+                quote.paint("'"),
+            ]
+        );
     }
 
     #[test]

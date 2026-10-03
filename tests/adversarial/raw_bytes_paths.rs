@@ -7,7 +7,7 @@
 //! Every fixture name must be created; a filesystem that refuses one would
 //! otherwise leave the test checking nothing.
 
-use std::process::Output;
+use std::process::{Command, Output};
 
 use crate::common::{TempTestDir, lez_in};
 
@@ -73,9 +73,65 @@ fn undecodable_bytes_in_names_are_shown_as_replacement_characters() {
     );
 }
 
+/// Each name as printed is read back by bash as that name and nothing else,
+/// whatever it holds: control characters, C1 ones among them, an
+/// apostrophe beside what double quotes still read, a leading `#` or `~`.
+/// A control character used to print as `\n` or `\u{85}`, which a shell
+/// reads as other characters, quoted or not.
+#[test]
+#[cfg(unix)]
+fn printed_names_are_read_back_by_the_shell() {
+    let mut names = [
+        "new\nline",
+        "tab\tand space",
+        "esc\u{1b}[31m",
+        "del\u{7f}",
+        "nel\u{85}csi\u{9b}31m",
+        "bell\u{7}\u{8}\u{b}\u{c}\r",
+        "it's\nback\\slash",
+        "it's \"$HOME\" `x` !",
+        "#comment",
+        "~home",
+        "glob*?[a]",
+        "plain.txt",
+    ];
+    let dir = TempTestDir::new("shell_round_trip");
+    for name in names {
+        dir.create_file(name, b"x");
+    }
+    names.sort_unstable();
+
+    for quotes in ["--quotes=auto", "--quotes=always"] {
+        let script: String = run(&dir, &["-1", quotes])
+            .lines()
+            .map(|word| format!("printf '%s\\0' {word}\n"))
+            .collect();
+        let output = match Command::new("bash").arg("-c").arg(&script).output() {
+            Ok(output) => output,
+            Err(error) => {
+                assert!(std::env::var_os("CI").is_none(), "run bash: {error}");
+                eprintln!("skipped: there is no bash to read the names back");
+                return;
+            }
+        };
+        assert!(
+            output.status.success(),
+            "{quotes}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let mut read_back: Vec<String> = String::from_utf8(output.stdout)
+            .expect("bash prints the UTF-8 names back")
+            .split_terminator('\0')
+            .map(str::to_owned)
+            .collect();
+        read_back.sort_unstable();
+        assert_eq!(read_back, names, "{quotes}:\n{script}");
+    }
+}
+
 /// Spaces, quotes and the other characters a shell reads earn quoting by
-/// default; control characters are escaped; `--quotes=always` quotes
-/// everything. JSON keeps names verbatim.
+/// default; control characters are escaped inside ANSI-C quotes;
+/// `--quotes=always` quotes everything. JSON keeps names verbatim.
 #[test]
 #[cfg(unix)]
 fn shell_and_control_characters_are_quoted_and_escaped() {
@@ -99,10 +155,10 @@ fn shell_and_control_characters_are_quoted_and_escaped() {
         "\"apos'trophe.txt\"\n\
          ' leading_space.txt'\n\
          'multiple   spaces.txt'\n\
-         new\\nline.txt\n\
+         $'new\\nline.txt'\n\
          'quote\"d.txt'\n\
          'semi;pipe|amp&.txt'\n\
-         tab_\\t_tab.txt\n\
+         $'tab_\\t_tab.txt'\n\
          'tick`dollar$paren().txt'\n\
          'trailing_space.txt '\n"
     );
@@ -111,10 +167,10 @@ fn shell_and_control_characters_are_quoted_and_escaped() {
         "\"apos'trophe.txt\"\n\
          ' leading_space.txt'\n\
          'multiple   spaces.txt'\n\
-         'new\\nline.txt'\n\
+         $'new\\nline.txt'\n\
          'quote\"d.txt'\n\
          'semi;pipe|amp&.txt'\n\
-         'tab_\\t_tab.txt'\n\
+         $'tab_\\t_tab.txt'\n\
          'tick`dollar$paren().txt'\n\
          'trailing_space.txt '\n"
     );

@@ -561,8 +561,8 @@ impl<C: Colours> FileName<'_, '_, C> {
 
         let quoting = escape::Quoting::for_string(&full_path_for_quoting, quote_style);
 
-        if let Some(quote_bit) = quoting.quote_bit(self.colours.quote()) {
-            bits.push(quote_bit);
+        if let Some(opening) = quoting.opening_bit(self.colours.quote()) {
+            bits.push(opening);
         }
 
         if let Some((parent_str, is_root)) = parent_info {
@@ -611,8 +611,8 @@ impl<C: Colours> FileName<'_, '_, C> {
             }
         }
 
-        if let Some(quote_bit) = quoting.quote_bit(self.colours.quote()) {
-            bits.push(quote_bit);
+        if let Some(closing) = quoting.closing_bit(self.colours.quote()) {
+            bits.push(closing);
         }
     }
 

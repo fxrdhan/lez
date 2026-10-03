@@ -410,7 +410,8 @@ fn an_escaped_percent_z_in_a_time_style_prints_literally() {
 }
 
 /// Bug 12: C1 control characters reached the terminal raw, so U+009B could
-/// start an escape sequence. They are printed as `\u{..}` escapes.
+/// start an escape sequence. They are printed as the octal escapes of their
+/// UTF-8 bytes, inside the ANSI-C quotes that read them back.
 #[test]
 #[cfg(unix)]
 fn c1_control_characters_in_names_are_escaped() {
@@ -419,7 +420,10 @@ fn c1_control_characters_in_names_are_escaped() {
 
     let output = run(&dir, &["--color=never", "-1"]);
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
-    assert_eq!(text(&output.stdout), "test\\u{85}nel\\u{9b}31mcsi.txt\n");
+    assert_eq!(
+        text(&output.stdout),
+        "$'test\\302\\205nel\\302\\23331mcsi.txt'\n"
+    );
 }
 
 /// Bug 13: JSON reported every directory error as a permission failure.
