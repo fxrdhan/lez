@@ -9,15 +9,31 @@
 # not currently have, and it runs containers on the maintainer's machine. This
 # does neither.
 #
-# The release is created as a draft. Nothing reaches anyone until it is
-# published by hand.
+# The release is published as soon as every binary is built.
+#
+# Run any other way, by hand or by a pull request that changes this file, it
+# is a dry run: everything is built and packaged, under a stand-in version,
+# and nothing is published. Run it by hand on the release branch before
+# tagging, since the packaging steps run nowhere else.
 name: Release
 on:
   push:
     tags:
       - "v*"
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - .github/workflows/release.yml
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
-  contents: write
+  contents: read
+env:
+  # The pushed tag; on a dry run, a stand-in that is safe in a file name and
+  # in the sed below, unlike a pull request's ref name, `150/merge`.
+  VERSION: ${{ github.event_name == 'push' && github.ref_name || 'v0.0.0-dry-run' }}
 jobs:
   binaries:
     name: Build ${{ matrix.target }}
@@ -66,7 +82,7 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq pandoc
           for page in lez.1 lez_colors.5 lez_colors-explanation.5; do
-            sed "s/\$version/${GITHUB_REF_NAME}/g" "man/${page}.md" \
+            sed "s/\$version/${VERSION}/g" "man/${page}.md" \
               | pandoc --standalone -f markdown -t man > "man/${page}"
           done
           cargo install cargo-deb --locked
@@ -93,7 +109,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq pandoc
       - name: Build the tarballs
         run: |
-          version="${GITHUB_REF_NAME}"
+          version="${VERSION}"
           mkdir -p "man-${version}" "completions-${version}" dist
           for page in lez.1 lez_colors.5 lez_colors-explanation.5; do
             sed "s/\$version/${version}/g" "man/${page}.md" \
@@ -109,9 +125,13 @@ jobs:
           path: dist/*
           if-no-files-found: error
   publish:
-    name: Draft the release
+    name: Publish the release
     needs: [binaries, docs]
+    # Only a pushed tag publishes; run by hand, even on a tag, it is a dry run.
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
