@@ -162,7 +162,7 @@ impl Mode {
         }
 
         if !long && strict {
-            Self::strict_check_long_flags(matches)?;
+            Self::strict_check_long_flags(matches, tree)?;
         }
 
         if !(long || oneline || grid || tree) {
@@ -211,7 +211,18 @@ impl Mode {
     }
 
     // TODO: handle that with Clap
-    fn strict_check_long_flags(matches: &ArgMatches) -> Result<(), OptionsError> {
+    fn strict_check_long_flags(matches: &ArgMatches, tree: bool) -> Result<(), OptionsError> {
+        // A tree draws these without `--long` too: attributes and archive
+        // contents under each file, and mount details, tags and link targets
+        // beside its name.
+        const TREE_DRAWS: [&str; 5] = [
+            "extended",
+            "tags",
+            "inspect-archives",
+            "mounts",
+            "no-symlink-targets",
+        ];
+
         // If --long hasn’t been passed, then check if we need to warn the
         // user about flags that won’t have any effect.
         for flag in &[
@@ -248,11 +259,13 @@ impl Mode {
             "created",
             "utc",
             "inspect-archives",
-            "print-total",
             "color-scale",
             "color-scale-mode",
             "no-symlink-targets",
         ] {
+            if tree && TREE_DRAWS.contains(flag) {
+                continue;
+            }
             if matches.value_source(flag) == Some(ValueSource::CommandLine) {
                 return Err(OptionsError::Useless(flag, false, "long"));
             }
@@ -2336,7 +2349,10 @@ mod tests {
 
     #[test]
     fn strict_check_long_flags_default_is_ok() {
-        assert_eq!(Mode::strict_check_long_flags(&mock_cli(vec![""])), Ok(()));
+        assert_eq!(
+            Mode::strict_check_long_flags(&mock_cli(vec![""]), false),
+            Ok(())
+        );
         assert!(
             Mode::deduce(
                 &mock_cli(vec![""]),
@@ -2367,7 +2383,7 @@ mod tests {
             let arg = format!("--{flag}");
             let matches = mock_cli(vec![&arg]);
             assert_eq!(
-                Mode::strict_check_long_flags(&matches),
+                Mode::strict_check_long_flags(&matches, false),
                 Err(OptionsError::Useless(flag, false, "long")),
                 "Expected --{flag} to trigger OptionsError::Useless without --long"
             );
@@ -2394,7 +2410,7 @@ mod tests {
         ] {
             let matches = mock_cli(vec![arg]);
             assert_eq!(
-                Mode::strict_check_long_flags(&matches),
+                Mode::strict_check_long_flags(&matches, false),
                 Err(OptionsError::Useless(flag, false, "long")),
                 "Expected {arg} to trigger OptionsError::Useless without --long"
             );
@@ -2408,6 +2424,61 @@ mod tests {
                 ),
                 Err(OptionsError::Useless(flag, false, "long")),
                 "Expected Mode::deduce with {arg} to fail in strict mode"
+            );
+        }
+    }
+
+    /// A tree draws attributes, archive contents, mount details, tags and
+    /// link targets without `--long`, so strict mode takes those beside
+    /// `--tree`, and only there.
+    #[test]
+    fn strict_mode_takes_what_a_tree_draws() {
+        for arg in [
+            "--extended",
+            "--tags",
+            "--inspect-archives",
+            "--mounts",
+            "--no-symlink-targets",
+        ] {
+            let flag = &arg[2..];
+            let deduce = |args: Vec<&str>| {
+                Mode::deduce(
+                    &mock_cli(args),
+                    &MockVars::default(),
+                    false,
+                    true,
+                    &FileConfig::default(),
+                )
+                .map(|_| ())
+            };
+            assert_eq!(deduce(vec!["--tree", arg]), Ok(()), "{arg}");
+            assert_eq!(
+                deduce(vec!["--oneline", arg]),
+                Err(OptionsError::Useless(flag, false, "long")),
+                "{arg}"
+            );
+        }
+        // Everything else stays refused in a tree.
+        assert_eq!(
+            Mode::strict_check_long_flags(&mock_cli(vec!["--tree", "--binary"]), true),
+            Err(OptionsError::Useless("binary", false, "long"))
+        );
+    }
+
+    /// `--print-total` prints its line under every view.
+    #[test]
+    fn strict_mode_takes_print_total_in_every_view() {
+        for view in ["--oneline", "--grid", "--tree", "--long"] {
+            assert!(
+                Mode::deduce(
+                    &mock_cli(vec![view, "--print-total"]),
+                    &MockVars::default(),
+                    false,
+                    true,
+                    &FileConfig::default()
+                )
+                .is_ok(),
+                "{view}"
             );
         }
     }
@@ -2459,7 +2530,7 @@ mod tests {
         for (short_flag, expected_name) in cases {
             let matches = mock_cli(vec![short_flag]);
             assert_eq!(
-                Mode::strict_check_long_flags(&matches),
+                Mode::strict_check_long_flags(&matches, false),
                 Err(OptionsError::Useless(expected_name, false, "long")),
                 "Expected {short_flag} to trigger OptionsError::Useless for {expected_name}"
             );
@@ -2481,7 +2552,7 @@ mod tests {
     fn strict_and_non_strict_blocks_flag_without_long() {
         let matches = mock_cli(vec!["--blocks"]);
         assert_eq!(
-            Mode::strict_check_long_flags(&matches),
+            Mode::strict_check_long_flags(&matches, false),
             Err(OptionsError::Useless("blocks", false, "long")),
         );
         assert_eq!(

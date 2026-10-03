@@ -201,6 +201,65 @@ fn strict_mode_rejects_long_view_columns_without_long() {
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
 }
 
+/// Strict mode refused options that change what a view prints without
+/// `--long`: `--print-total` in every view, and in a tree the link targets,
+/// attributes and archive contents it draws (and mount details, which need a
+/// mount point and are left to the unit tests). It now takes them, and
+/// prints what the same command prints without it.
+#[test]
+#[cfg(unix)]
+fn strict_mode_takes_options_that_change_what_is_printed() {
+    let dir = TempTestDir::new("strict_takes");
+    dir.create_file("f.txt", b"x");
+    dir.create_symlink("f.txt", "link");
+
+    let mut cases = vec![
+        vec!["-1", "--print-total"],
+        vec!["--grid", "--print-total"],
+        vec!["-T", "--print-total"],
+        vec!["-T", "--no-symlink-targets"],
+    ];
+    #[cfg(feature = "inspect-archives")]
+    {
+        let mut builder = tar::Builder::new(
+            fs::File::create(dir.path().join("a.tar")).expect("create the archive"),
+        );
+        let mut header = tar::Header::new_gnu();
+        header.set_size(1);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "inner.txt", &b"x"[..])
+            .expect("append an entry");
+        builder.into_inner().expect("finish the archive");
+        cases.push(vec!["-T", "--inspect-archives"]);
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if crate::common::set_xattr(&dir.path().join("f.txt"), b"v") {
+        cases.push(vec!["-T", "--extended"]);
+    }
+
+    for args in cases {
+        let lenient = run(&dir, &args);
+        let output = lez_in(dir.path())
+            .env("LEZ_STRICT", "1")
+            .args(&args)
+            .output()
+            .expect("failed to run lez");
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{args:?}: {}",
+            text(&output.stderr)
+        );
+        assert_eq!(text(&output.stderr), "", "{args:?}");
+        assert_eq!(text(&output.stdout), text(&lenient.stdout), "{args:?}");
+        // The option did something, so strict mode had something to take.
+        let without = run(&dir, &args[..1]);
+        assert_ne!(text(&output.stdout), text(&without.stdout), "{args:?}");
+    }
+}
+
 /// Bug 8: a work tree described by `GIT_DIR`/`GIT_WORK_TREE` (a bare-repo
 /// dotfiles setup) lost its git column.
 #[test]

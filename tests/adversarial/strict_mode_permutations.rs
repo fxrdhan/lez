@@ -277,7 +277,6 @@ fn test_strict_mode_long_only_flags_fail_without_long() {
         ("-U", "created"),
         ("--utc", "utc"),
         ("--inspect-archives", "inspect-archives"),
-        ("--print-total", "print-total"),
     ];
 
     for (flag, expected_name) in long_only_flags {

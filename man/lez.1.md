@@ -159,10 +159,13 @@ A quoted name is written so a shell reads back the name on disk. Single quotes a
 : A path component beginning with a Nix store hash — exactly 32 characters of Nix’s base32 alphabet followed by a dash, like `vlkia5wk0svsikwv50554mh06iayg2m2-source.drv` — is displayed with the hash shortened to its first 8 characters and an ellipsis, painted dim so the name stands out: `vlkia5wk…-source.drv`. This applies to listed names, symbolic link targets, and absolute paths.
 
 `--no-symlink-targets`
-: Do not show symlink targets (the `-> ...`) in long details and lines view modes.
+: Do not show symlink targets (the `-> ...`) in the long and tree views, the two that show them.
 
 `--summary`
 : Display total summary statistics of entries (directories count, files count, symlinks count, and total count).
+
+`--print-total`
+: Print the total number of files and directories listed at the bottom of the output, in any view.
 
 `--hyperlink[=WHEN]`
 : Display entries as hyperlinks.
@@ -389,9 +392,6 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 
 `--stdin0`
 : Like `--stdin`, but paths are separated by NUL (`\0`) characters, as produced by `find -print0` or `fd -0`. Always uses NUL, ignoring `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR`. Overrides `--stdin` and vice versa; the last one given wins.
-
-`--print-total`
-: Print the total number of files and directories listed at the bottom of the output.
 
 `-@`, `--extended`
 : List each file’s extended attributes and sizes.
