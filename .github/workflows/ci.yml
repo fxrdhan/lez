@@ -164,6 +164,13 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}
+          components: clippy
+      # rust-toolchain.toml pins the MSRV for every cargo command in the
+      # checkout, so the stable rows used to run it as well and stable was
+      # never tested. RUSTUP_TOOLCHAIN outranks that file.
+      - name: Use the row's toolchain
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}" >> "$GITHUB_ENV"
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
