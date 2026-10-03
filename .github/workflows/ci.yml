@@ -285,3 +285,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
           SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+  # The one check to require before merging. The jobs above are skipped when
+  # a pull request does not touch what they test, and a skipped matrix job
+  # never reports under its expanded name, so requiring them one by one would
+  # leave such a pull request waiting for checks that never come. This job
+  # runs unless the whole run is cancelled, and fails if any job it needs
+  # failed or was cancelled; a skipped one counts as passed.
+  ci-result:
+    name: CI result
+    needs:
+      - changes
+      - lint-and-format
+      - feature-combinations
+      - reuse-compliance
+      - unit-and-integration-tests
+      - code-coverage
+      - build-release
+      - nix-flake-check
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the jobs it needs
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in
+            *" failure "* | *" cancelled "*) exit 1 ;;
+          esac
