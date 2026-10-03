@@ -124,7 +124,7 @@ fn an_explicit_config_that_cannot_be_used_is_reported() {
          |\n\
          1 | [[[ syntax\n  \
          |   ^\n\
-         unquoted keys cannot be empty, expected letters, numbers, `-`, `_`\n\n"
+         unquoted keys cannot be empty, expected letters, numbers, `-`, `_`\n"
     );
 
     // A YAML config is a supported format, not a parse failure.

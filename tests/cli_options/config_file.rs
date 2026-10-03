@@ -205,9 +205,16 @@ fn an_explicit_config_that_cannot_be_used_is_reported() {
         assert_eq!(String::from_utf8_lossy(&output.stdout), PLAIN);
         String::from_utf8(output.stderr).expect("UTF-8 stderr")
     };
-    assert!(run(&broken).starts_with(&format!(
-        "lez: Failed to parse config file {broken:?}: TOML parse error at line 1, column 16\n"
-    )));
+    assert_eq!(
+        run(&broken),
+        format!(
+            "lez: Failed to parse config file {broken:?}: TOML parse error at line 1, column 16\n  \
+             |\n\
+             1 | invalid = toml [ broken syntax\n  \
+             |                ^\n\
+             unexpected key or value, expected newline, `#`\n"
+        )
+    );
     assert_eq!(
         run(&missing),
         format!("lez: Failed to read config file {missing:?}: {missing_error}\n")
@@ -268,11 +275,16 @@ fn a_discovered_config_that_does_not_parse_is_reported() {
             "{cwd}"
         );
         assert_eq!(stdout, "1 file.txt\n", "{cwd}");
-        assert!(
-            stderr.starts_with(&format!(
-                "lez: Failed to parse config file {path:?}: TOML parse error at line 3"
-            )),
-            "{stderr}"
+        assert_eq!(
+            stderr,
+            format!(
+                "lez: Failed to parse config file {path:?}: TOML parse error at line 3, column 15\n  \
+                 |\n\
+                 3 | size_digits = 300\n  \
+                 |               ^^^\n\
+                 invalid value: integer `300`, expected u8\n"
+            ),
+            "{cwd}"
         );
     }
 

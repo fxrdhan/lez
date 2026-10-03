@@ -233,6 +233,8 @@ impl FileConfig {
         } else {
             toml_err.to_string()
         };
+        // A TOML error ends its own last line, under the snippet it quotes.
+        let err_msg = err_msg.trim_end();
         eprintln!("lez: Failed to parse config file {:?}: {err_msg}", path);
         None
     }
