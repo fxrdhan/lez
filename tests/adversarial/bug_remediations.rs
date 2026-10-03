@@ -405,7 +405,7 @@ fn an_escaped_percent_z_in_a_time_style_prints_literally() {
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
     assert_eq!(
         text(&output.stdout),
-        "{\"f.txt\":{\"Size\": \"1\",\"Date Modified\": \"2023-%Z\"}}\n"
+        "{\"f.txt\":{\"Size\":\"1\",\"Date Modified\":\"2023-%Z\"}}\n"
     );
 }
 
@@ -496,7 +496,7 @@ fn json_permissions_mark_mount_points_with_an_upper_case_d() {
     assert_eq!(
         text(&output.stdout),
         format!(
-            "{{\"/\":{{\"Permissions\": \"D{}\"}}}}\n",
+            "{{\"/\":{{\"Permissions\":\"D{}\"}}}}\n",
             letters(std::path::Path::new("/"))
         )
     );
@@ -506,7 +506,7 @@ fn json_permissions_mark_mount_points_with_an_upper_case_d() {
     assert_eq!(
         text(&output.stdout),
         format!(
-            "{{\"plain\":{{\"Permissions\": \"d{}\"}}}}\n",
+            "{{\"plain\":{{\"Permissions\":\"d{}\"}}}}\n",
             letters(&plain)
         )
     );

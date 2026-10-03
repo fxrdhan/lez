@@ -158,7 +158,7 @@ mod empty_target {
                 dir.path(),
                 &[&["--json"][..], &NAME_COLUMN_ONLY[..]].concat()
             ),
-            "{\"empty_link\":{\"Target\": \"\"}}\n"
+            "{\"empty_link\":{\"Target\":\"\"}}\n"
         );
     }
 }

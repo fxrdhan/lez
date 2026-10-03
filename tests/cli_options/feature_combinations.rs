@@ -326,7 +326,7 @@ fn json_reports_git_letters_even_with_glyphs() {
     let dir = repo_with_ignore("json_glyphs", "", &["f.txt"]);
     let mut args = vec!["--json", "--git-glyphs"];
     args.extend(GIT_COLUMN_ONLY);
-    assert_eq!(lez(dir.path(), &args), "{\"f.txt\":{\"Git\": \"-N\"}}\n");
+    assert_eq!(lez(dir.path(), &args), "{\"f.txt\":{\"Git\":\"-N\"}}\n");
 }
 
 #[test]

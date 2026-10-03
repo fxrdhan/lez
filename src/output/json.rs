@@ -299,7 +299,7 @@ impl<'a> Render<'a> {
                             exit_status = crate::exits::RUNTIME_ERROR;
                         }
                     }
-                    write!(w, "\"files\":[], \"directories\":{{}}}}")?;
+                    write!(w, "\"files\":[],\"directories\":{{}}}}")?;
                     continue;
                 }
             };
@@ -364,7 +364,7 @@ impl<'a> Render<'a> {
 
                     write!(w, "\"files\":")?;
                     self.render_files_under(leaf_files, std::slice::from_ref(&loc_root), w)?;
-                    write!(w, ", \"directories\":")?;
+                    write!(w, ",\"directories\":")?;
                     let child_status = self.render_recursive_directories(
                         &mut child_dirs,
                         false,
@@ -385,7 +385,7 @@ impl<'a> Render<'a> {
                     }
                     self.render_files_under(cutoff_files, std::slice::from_ref(&loc_root), w)?;
                     if recurse_opts.tree {
-                        write!(w, ", \"directories\":{{}}")?;
+                        write!(w, ",\"directories\":{{}}")?;
                     }
                 }
             } else {
@@ -434,7 +434,7 @@ impl<'a> Render<'a> {
     ) -> io::Result<i32> {
         write!(w, "{{\"files\":")?;
         self.render_files(files, w)?;
-        write!(w, ", \"directories\":")?;
+        write!(w, ",\"directories\":")?;
         let status = if recurse {
             let mut visited = std::collections::HashSet::new();
             for d in &dirs {
@@ -521,13 +521,13 @@ impl<'a> JsonFileObject<'a> {
             .map(|(c, v)| {
                 let header = serde_json::to_string(c.header())
                     .unwrap_or_else(|_| format!("\"{}\"", c.header()));
-                format!("{header}: {v}")
+                format!("{header}:{v}")
             })
             .collect();
         if let Some(target) = self.target {
             let escaped =
                 serde_json::to_string(&target).unwrap_or_else(|_| format!("\"{target}\""));
-            entries.push(format!("\"Target\": {escaped}"));
+            entries.push(format!("\"Target\":{escaped}"));
         }
         entries.join(",")
     }

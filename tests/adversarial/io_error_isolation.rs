@@ -162,8 +162,8 @@ fn an_unreadable_file_still_has_its_metadata_listed() {
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         text(&output.stdout),
-        "{\"normal.txt\":{\"Permissions\": \".rw-r--r--\",\"Size\": \"11\"},\
-         \"unreadable.bin\":{\"Permissions\": \".---------\",\"Size\": \"19\"}}\n"
+        "{\"normal.txt\":{\"Permissions\":\".rw-r--r--\",\"Size\":\"11\"},\
+         \"unreadable.bin\":{\"Permissions\":\".---------\",\"Size\":\"19\"}}\n"
     );
     assert_eq!(text(&output.stderr), "");
 }

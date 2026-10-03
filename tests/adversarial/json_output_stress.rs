@@ -74,7 +74,7 @@ fn several_arguments_are_keyed_by_path() {
     );
     assert_eq!(
         json(&dir, &["top.txt", "parent1/common"]),
-        "{\"files\":[\"top.txt\"], \"directories\":{\"parent1/common\":[\"a.txt\"]}}\n"
+        "{\"files\":[\"top.txt\"],\"directories\":{\"parent1/common\":[\"a.txt\"]}}\n"
     );
     assert_eq!(
         json(&dir, &[&BARE[..], &["x/other.txt", "y/same.txt"]].concat()),
@@ -124,7 +124,7 @@ fn the_long_view_is_an_object_of_columns() {
                     "test.txt"
                 ]
             ),
-            "{\"test.txt\":{\"Octal\": \"0644\",\"Permissions\": \".rw-r--r--\",\"Size\": \"20\"}}\n"
+            "{\"test.txt\":{\"Octal\":\"0644\",\"Permissions\":\".rw-r--r--\",\"Size\":\"20\"}}\n"
         );
     }
     let size = |flag: &str| {
@@ -143,11 +143,11 @@ fn the_long_view_is_an_object_of_columns() {
     assert_eq!(
         size("--bytes"),
         format!(
-            "{{\"large.bin\":{{\"Size\": \"{}\"}}}}\n",
+            "{{\"large.bin\":{{\"Size\":\"{}\"}}}}\n",
             grouped(1_048_576)
         )
     );
-    assert_eq!(size("--binary"), "{\"large.bin\":{\"Size\": \"1.0Mi\"}}\n");
+    assert_eq!(size("--binary"), "{\"large.bin\":{\"Size\":\"1.0Mi\"}}\n");
     assert_eq!(
         json(
             &dir,
@@ -160,7 +160,7 @@ fn the_long_view_is_an_object_of_columns() {
                 "test.txt"
             ]
         ),
-        "{\"test.txt\":{\"Date Modified\": \"2023-11-14\"}}\n"
+        "{\"test.txt\":{\"Date Modified\":\"2023-11-14\"}}\n"
     );
     // The default format pads a single-digit day and the gap before an old
     // year for the table's columns; JSON leaves the padding out.
@@ -181,7 +181,7 @@ fn the_long_view_is_an_object_of_columns() {
                 "early.txt"
             ]
         ),
-        "{\"early.txt\":{\"Date Modified\": \"2 Oct 2001\"}}\n"
+        "{\"early.txt\":{\"Date Modified\":\"2 Oct 2001\"}}\n"
     );
     assert_eq!(json(&dir, &["-l", "empty"]), "{}\n");
 }
@@ -207,8 +207,8 @@ fn a_link_carries_its_target() {
             ]
         ),
         format!(
-            "{{\"absolute.txt\":{{\"Permissions\": \"{}\",\"Target\": \"{}\"}},\
-             \"relative.txt\":{{\"Permissions\": \"{}\",\"Target\": \"target.txt\"}}}}\n",
+            "{{\"absolute.txt\":{{\"Permissions\":\"{}\",\"Target\":\"{}\"}},\
+             \"relative.txt\":{{\"Permissions\":\"{}\",\"Target\":\"target.txt\"}}}}\n",
             symlink_permissions(&dir.path().join("absolute.txt")),
             target.display(),
             symlink_permissions(&dir.path().join("relative.txt")),
@@ -224,8 +224,8 @@ fn recursion_nests_files_and_directories() {
     dir.create_file("top/root_file.txt", b"");
     dir.create_file("top/sub/nested_file.txt", b"");
 
-    let tree = "{\"top\":{\"files\":[\"root_file.txt\"], \"directories\":\
-                {\"sub\":{\"files\":[\"nested_file.txt\"], \"directories\":{}}}}}\n";
+    let tree = "{\"top\":{\"files\":[\"root_file.txt\"],\"directories\":\
+                {\"sub\":{\"files\":[\"nested_file.txt\"],\"directories\":{}}}}}\n";
     assert_eq!(json(&dir, &["-R", "top"]), tree);
     assert_eq!(
         json(
@@ -246,8 +246,8 @@ fn recursion_nests_files_and_directories() {
                 "top"
             ]
         ),
-        "{\"top\":{\"files\":{\"root_file.txt\":{\"Size\": \"0\"}}, \"directories\":\
-         {\"sub\":{\"files\":{\"nested_file.txt\":{\"Size\": \"0\"}}, \"directories\":{}}}}}\n"
+        "{\"top\":{\"files\":{\"root_file.txt\":{\"Size\":\"0\"}},\"directories\":\
+         {\"sub\":{\"files\":{\"nested_file.txt\":{\"Size\":\"0\"}},\"directories\":{}}}}}\n"
     );
 
     #[cfg(unix)]
@@ -257,7 +257,7 @@ fn recursion_nests_files_and_directories() {
         std::os::unix::fs::symlink(&cycle, cycle.join("loop")).expect("symlink");
         assert_eq!(
             json(&dir, &["-R", "cycle"]),
-            "{\"cycle\":{\"files\":[\"hello.txt\",\"loop\"], \"directories\":{}}}\n"
+            "{\"cycle\":{\"files\":[\"hello.txt\",\"loop\"],\"directories\":{}}}\n"
         );
     }
 }
@@ -307,7 +307,7 @@ fn git_status_is_a_column_like_any_other() {
 
     assert_eq!(
         success_stdout(lez_in(repo.path()).args(BARE).args(["--git", "--json"])),
-        "{\"tracked.txt\":{\"Git\": \"NM\"},\"untracked\":{\"Git\": \"-N\"}}\n"
+        "{\"tracked.txt\":{\"Git\":\"NM\"},\"untracked\":{\"Git\":\"-N\"}}\n"
     );
 }
 

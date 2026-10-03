@@ -134,7 +134,7 @@ fn json_leaves_the_target_out_with_the_flag() {
     ];
     assert_eq!(
         lez(&dir, &args),
-        "{\"link.txt\":{\"Target\": \"real.txt\"}}\n"
+        "{\"link.txt\":{\"Target\":\"real.txt\"}}\n"
     );
     assert_eq!(
         lez(&dir, &[&args[..], &["--no-symlink-targets"]].concat()),
