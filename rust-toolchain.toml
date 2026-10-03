@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2024 Christina Sørensen
 # SPDX-License-Identifier: EUPL-1.2
 [toolchain]
-# NOTE: don't forget to also update Cargo.toml and .github/workflows/unit-tests.yml
+# The MSRV. Update it together with `rust-version` in Cargo.toml and `MSRV`
+# in .github/workflows/ci.yml, whose stable rows override this pin.
 # At the time of writing, 1.90 is the latest version supported by OpenBSD
 channel = "1.90"
 components = [
