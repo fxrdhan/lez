@@ -162,6 +162,27 @@ fn the_long_view_is_an_object_of_columns() {
         ),
         "{\"test.txt\":{\"Date Modified\": \"2023-11-14\"}}\n"
     );
+    // The default format pads a single-digit day and the gap before an old
+    // year for the table's columns; JSON leaves the padding out.
+    let early = dir.create_file("early.txt", b"x");
+    fs::File::options()
+        .write(true)
+        .open(&early)
+        .and_then(|f| f.set_modified(UNIX_EPOCH + Duration::from_secs(1_002_058_980)))
+        .expect("set the modified time");
+    assert_eq!(
+        json(
+            &dir,
+            &[
+                "-l",
+                "--no-permissions",
+                "--no-filesize",
+                "--no-user",
+                "early.txt"
+            ]
+        ),
+        "{\"early.txt\":{\"Date Modified\": \"2 Oct 2001\"}}\n"
+    );
     assert_eq!(json(&dir, &["-l", "empty"]), "{}\n");
 }
 
