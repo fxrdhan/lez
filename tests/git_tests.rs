@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
+//! Git status, ignore rules and repositories: all of it needs the `git`
+//! feature.
+
+#![cfg(feature = "git")]
 #![allow(unused_imports, dead_code)]
 
 mod common;

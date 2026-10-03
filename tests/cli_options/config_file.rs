@@ -313,8 +313,9 @@ fn a_discovered_config_that_does_not_parse_is_reported() {
 /// `absolute` was such a key: `--absolute` has a default of its own, which
 /// stood in front of the config file's. `icons.spacing` has no flag and is
 /// compared with `LEZ_ICON_SPACING`, and `loc.sub_files` with its other
-/// values. Unix only: several keys need a link, a mode or a group.
-#[cfg(unix)]
+/// values. Unix only: several keys need a link, a mode or a group; and the
+/// `git` feature, for the git keys and the repository they need.
+#[cfg(all(unix, feature = "git"))]
 #[test]
 fn every_config_key_does_what_its_flag_does() {
     crate::common::require_git();

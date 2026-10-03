@@ -240,6 +240,7 @@ fn a_path_glob_matches_a_directory_with_a_space_in_its_name() {
 /// Git never reads rules inside an ignored directory, so `build/.gitignore`
 /// does not hide `cache.dat` either. Ignore globs still apply.
 #[test]
+#[cfg(feature = "git")]
 fn a_named_ignored_directory_is_listed_whole_except_for_ignore_globs() {
     let dir = repo_with_ignore(
         "named_ignored",
@@ -280,6 +281,7 @@ fn a_named_ignored_directory_is_listed_whole_except_for_ignore_globs() {
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn a_monorepos_patterns_hide_build_output_in_every_package() {
     let dir = repo_with_ignore(
         "monorepo",
@@ -319,6 +321,7 @@ fn a_monorepos_patterns_hide_build_output_in_every_package() {
 
 /// The glyphs live in the Git column; JSON always reports the letters.
 #[test]
+#[cfg(feature = "git")]
 fn json_reports_git_letters_even_with_glyphs() {
     let dir = repo_with_ignore("json_glyphs", "", &["f.txt"]);
     let mut args = vec!["--json", "--git-glyphs"];
@@ -327,6 +330,7 @@ fn json_reports_git_letters_even_with_glyphs() {
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn every_git_column_at_once() {
     let dir = repo_with_ignore(
         "all_git",
@@ -361,6 +365,7 @@ fn every_git_column_at_once() {
 
 /// `--no-git` and `--git-repos` override each other; the last one wins.
 #[test]
+#[cfg(feature = "git")]
 fn the_last_of_no_git_and_git_repos_wins() {
     let dir = repo_with_ignore("repos_no_git", "", &["file.txt"]);
     let run = |flags: &[&'static str]| lez(dir.path(), &with(&NAME_COLUMN_ONLY, flags));
@@ -371,6 +376,7 @@ fn the_last_of_no_git_and_git_repos_wins() {
 // Repositories, worktrees and nested repositories under one directory
 
 #[test]
+#[cfg(feature = "git")]
 fn a_dot_git_directory_outside_a_repository_is_plain() {
     let dir = TempTestDir::new("orphan_dot_git");
     dir.create_dir(".git");
@@ -383,6 +389,7 @@ fn a_dot_git_directory_outside_a_repository_is_plain() {
 /// A detached worktree has no branch, so it reads `HEAD`; glyphs do not
 /// touch the repository column.
 #[test]
+#[cfg(feature = "git")]
 fn a_detached_worktree_shows_head() {
     let dir = TempTestDir::new("detached_wt");
     let main = committed_repo(&dir, "main");
@@ -405,6 +412,7 @@ fn a_detached_worktree_shows_head() {
 /// A worktree's `.git` is a file, and the worktree is found whether it is
 /// listed itself or from a directory above it.
 #[test]
+#[cfg(feature = "git")]
 fn a_worktree_deep_in_the_tree_is_found_from_above_and_inside() {
     let dir = TempTestDir::new("deep_wt");
     let main = committed_repo(&dir, "main");
@@ -452,6 +460,7 @@ fn a_worktree_deep_in_the_tree_is_found_from_above_and_inside() {
 }
 
 #[test]
+#[cfg(feature = "git")]
 #[cfg(unix)]
 fn a_symlink_in_a_worktree_has_a_status_of_its_own() {
     let dir = TempTestDir::new("wt_symlink");
@@ -470,6 +479,7 @@ fn a_symlink_in_a_worktree_has_a_status_of_its_own() {
 /// names its own branch, and the parent repository is dirty because the
 /// nested one is untracked in it.
 #[test]
+#[cfg(feature = "git")]
 fn nested_repositories_and_worktrees_each_show_their_own_branch() {
     let dir = TempTestDir::new("nested_and_wt");
     let project = dir.create_dir("main_project");

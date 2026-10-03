@@ -46,11 +46,20 @@ fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
         .expect("Failed to parse CLI args in mock")
 }
 
+/// `--git` and `--git-ignore` are refused outright by a build without the
+/// `git` feature, before strict mode is asked.
+fn unsupported_here(args: &[&str]) -> bool {
+    cfg!(not(feature = "git")) && args.iter().any(|a| *a == "--git" || *a == "--git-ignore")
+}
+
 /// Strict mode only refuses; whatever it accepts must come out exactly as it
 /// would without it. `Options` has no `PartialEq`, so the two are compared
 /// through their `Debug` form, which spells out every field.
 #[track_caller]
 fn accepted_unchanged(args: &[&str]) {
+    if unsupported_here(args) {
+        return;
+    }
     let matches = parse_cli_args(args);
     let strict = Options::deduce(&matches, &MockVars::new(true))
         .unwrap_or_else(|error| panic!("strict mode refused {args:?}: {error:?}"));
@@ -111,10 +120,12 @@ impl Drop for TempTestDir {
 }
 
 // Git repository helper
+#[cfg(feature = "git")]
 struct TempGitRepo {
     path: PathBuf,
 }
 
+#[cfg(feature = "git")]
 impl TempGitRepo {
     fn new(prefix: &str) -> Self {
         let nanos = SystemTime::now()
@@ -171,6 +182,7 @@ impl TempGitRepo {
     }
 }
 
+#[cfg(feature = "git")]
 impl Drop for TempGitRepo {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.path);
@@ -287,6 +299,9 @@ fn test_strict_mode_long_only_flags_fail_without_long() {
 
     let bare = Options::deduce(&parse_cli_args(&[]), &vars_non_strict).expect("no flags");
     for (flag, expected_name) in long_only_flags {
+        if unsupported_here(&[flag]) {
+            continue;
+        }
         let matches = parse_cli_args(&[flag]);
 
         // In strict mode, should fail with OptionsError::Useless
@@ -624,6 +639,7 @@ fn test_sibling_lookup_concurrent_multithreaded_access() {
 // =========================================================================
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_nested_structure() {
     let repo = TempGitRepo::new("scoped_nested");
 
@@ -710,6 +726,7 @@ fn test_git_scoped_queries_nested_structure() {
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_staged_and_ignored() {
     let repo = TempGitRepo::new("staged_ignored");
     repo.create_file(".gitignore", b"*.ignored\n");
@@ -767,10 +784,16 @@ fn test_strict_mode_time_and_git_options_permutations() {
 
     // --git without -l -> fails in strict mode
     let m = parse_cli_args(&["--git"]);
-    assert!(matches!(
-        Options::deduce(&m, &vars),
+    let expected = if unsupported_here(&["--git"]) {
+        Err(OptionsError::Unsupported(
+            "Options --git and --git-ignore can't be used because `git` feature was disabled \
+             in this build of lez"
+                .to_owned(),
+        ))
+    } else {
         Err(OptionsError::Useless("git", false, "long"))
-    ));
+    };
+    assert_eq!(Options::deduce(&m, &vars).map(|_| ()), expected);
 
     // --git with --no-git without -l -> no error because no-git suppresses git flag
     accepted_unchanged(&["--git", "--no-git"]);
@@ -862,6 +885,7 @@ fn test_sibling_lookup_compiled_file_detection_all_languages() {
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_rename_and_deletion() {
     let repo = TempGitRepo::new("rename_del");
     let file1 = repo.create_file("sub_a/file1.txt", b"v1\n");
@@ -899,6 +923,7 @@ fn test_git_scoped_queries_rename_and_deletion() {
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_deep_pathspec() {
     let repo = TempGitRepo::new("deep_pathspec");
     let deep_file = repo.create_file("d1/d2/d3/d4/d5/d6/d7/deep.txt", b"initial\n");
@@ -931,6 +956,7 @@ fn test_git_scoped_queries_deep_pathspec() {
 }
 
 #[test]
+#[cfg(feature = "git")]
 fn test_git_scoped_queries_relative_and_dot_dot_paths() {
     let repo = TempGitRepo::new("relative_dot_dot");
     let file_a = repo.create_file("sub_a/file.txt", b"initial\n");

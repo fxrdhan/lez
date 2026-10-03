@@ -5,6 +5,7 @@
 
 mod common;
 
+#[cfg(feature = "inspect-archives")]
 #[path = "adversarial/archive_fuzz_stress.rs"]
 mod archive_fuzz_stress;
 #[path = "adversarial/broken_pipe_resilience.rs"]

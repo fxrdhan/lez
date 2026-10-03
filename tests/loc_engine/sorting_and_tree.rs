@@ -140,6 +140,7 @@ fn since_counts_only_what_changed_recently() {
 /// In a repository, what `.gitignore` ignores is not counted, unless
 /// `--no-git` says not to look.
 #[test]
+#[cfg(feature = "git")]
 fn ignored_files_count_only_with_no_git() {
     crate::common::require_git();
     let repo = crate::common::TempGitRepo::new("code_git");

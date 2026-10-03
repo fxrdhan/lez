@@ -66,6 +66,7 @@ fn the_tally_says_item_for_one() {
 
 /// With `--git-ignore` and one ignored file the second count is one.
 #[test]
+#[cfg(feature = "git")]
 fn the_tally_says_item_for_one_ignored() {
     let repo = TempGitRepo::new("plural_ignored");
     repo.create_file(".gitignore", b"*.log\n");
@@ -155,6 +156,7 @@ fn each_tally_follows_its_listing() {
 /// Entries `--git-ignore` drops are counted apart from dotfiles (here
 /// `.git` and `.gitignore`), and the short form names both.
 #[test]
+#[cfg(feature = "git")]
 fn git_ignored_entries_are_counted_separately() {
     let repo = TempGitRepo::new("warn_hidden_ignored");
     repo.create_file(".gitignore", b"*.log\n");

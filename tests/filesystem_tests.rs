@@ -13,6 +13,7 @@ mod broken_symlinks;
 mod cachedir;
 #[path = "filesystem/ignore_globs.rs"]
 mod ignore_globs;
+#[cfg(feature = "inspect-archives")]
 #[path = "filesystem/inspect_archives.rs"]
 mod inspect_archives;
 #[path = "filesystem/no_symlink_targets.rs"]
