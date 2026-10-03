@@ -1,89 +1,36 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fs::{self, File as StdFile};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+//! A size sort orders files by their length and, with `--dereference`,
+//! links by their target's.
 
-struct TempTestDir {
-    path: PathBuf,
-}
+use std::path::Path;
 
-impl TempTestDir {
-    fn new(prefix: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "lez_size_sort_test_{prefix}_{}_{}",
-            std::process::id(),
-            nanos
-        ));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("Failed to create temp test directory");
-        Self { path }
-    }
-
-    fn create_file(&self, rel_path: &str, size_bytes: usize) -> PathBuf {
-        let file_path = self.path.join(rel_path);
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        let mut file = StdFile::create(&file_path).unwrap();
-        file.write_all(&vec![b'A'; size_bytes]).unwrap();
-        file_path
-    }
-
-    #[cfg(unix)]
-    fn create_symlink(&self, target_rel: &str, link_rel: &str) -> PathBuf {
-        let link_path = self.path.join(link_rel);
-        if let Some(parent) = link_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        std::os::unix::fs::symlink(target_rel, &link_path).unwrap();
-        link_path
-    }
-}
-
-impl Drop for TempTestDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
-}
+use crate::common::{TempTestDir, lez_in, success_stdout};
 
 fn run_lez(args: &[&str], dir: &Path) -> Vec<String> {
-    let output = crate::common::lez_cmd()
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .expect("Failed to execute lez");
-
-    assert!(
-        output.status.success(),
-        "lez failed with stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(output.stderr.is_empty());
-    String::from_utf8_lossy(&output.stdout)
+    success_stdout(lez_in(dir).args(args))
         .lines()
         .map(str::to_owned)
         .collect()
 }
 
+/// `size` bytes of `A`.
+fn sized(size: usize) -> Vec<u8> {
+    vec![b'A'; size]
+}
+
 #[test]
 fn test_sort_size_regular_files_ascending_and_descending() {
     let temp = TempTestDir::new("regular");
-    temp.create_file("small.txt", 10);
-    temp.create_file("medium.txt", 100);
-    temp.create_file("large.txt", 1000);
+    temp.create_file("small.txt", &sized(10));
+    temp.create_file("medium.txt", &sized(100));
+    temp.create_file("large.txt", &sized(1000));
 
-    let lines_asc = run_lez(&["-1", "-s", "size"], &temp.path);
+    let lines_asc = run_lez(&["-1", "-s", "size"], temp.path());
     assert_eq!(lines_asc, vec!["small.txt", "medium.txt", "large.txt"]);
 
-    let lines_desc = run_lez(&["-1", "-s", "size", "-r"], &temp.path);
+    let lines_desc = run_lez(&["-1", "-s", "size", "-r"], temp.path());
     assert_eq!(lines_desc, vec!["large.txt", "medium.txt", "small.txt"]);
 }
 
@@ -91,13 +38,13 @@ fn test_sort_size_regular_files_ascending_and_descending() {
 #[cfg(unix)]
 fn test_sort_size_dereference_symlinks() {
     let temp = TempTestDir::new("deref");
-    temp.create_file("huge_target.bin", 50000);
-    temp.create_file("tiny_file.txt", 5);
+    temp.create_file("huge_target.bin", &sized(50000));
+    temp.create_file("tiny_file.txt", &sized(5));
     // Link to huge file
     temp.create_symlink("huge_target.bin", "link_to_huge.bin");
 
     // Without dereference, link_to_huge size is its symlink path length (~15 bytes)
-    let lines_no_deref = run_lez(&["-1", "-s", "size"], &temp.path);
+    let lines_no_deref = run_lez(&["-1", "-s", "size"], temp.path());
     assert_eq!(
         lines_no_deref,
         vec!["tiny_file.txt", "link_to_huge.bin", "huge_target.bin"]
@@ -106,11 +53,11 @@ fn test_sort_size_dereference_symlinks() {
     // With dereference the link weighs its target's 50000 bytes; the tie
     // goes to the name.
     assert_eq!(
-        run_lez(&["-1", "-s", "size", "--dereference"], &temp.path),
+        run_lez(&["-1", "-s", "size", "--dereference"], temp.path()),
         vec!["tiny_file.txt", "huge_target.bin", "link_to_huge.bin"]
     );
     assert_eq!(
-        run_lez(&["-1", "-s", "size", "--dereference", "-r"], &temp.path),
+        run_lez(&["-1", "-s", "size", "--dereference", "-r"], temp.path()),
         vec!["link_to_huge.bin", "huge_target.bin", "tiny_file.txt"]
     );
 }
@@ -119,13 +66,13 @@ fn test_sort_size_dereference_symlinks() {
 #[cfg(unix)]
 fn test_sort_size_broken_symlink_with_dereference() {
     let temp = TempTestDir::new("broken_deref");
-    temp.create_file("regular.txt", 100);
+    temp.create_file("regular.txt", &sized(100));
     temp.create_symlink("nonexistent_file", "broken_link");
 
     // Should not panic or error out
     // A broken link has nothing to weigh, so it counts as 0 bytes.
     assert_eq!(
-        run_lez(&["-1", "-s", "size", "--dereference"], &temp.path),
+        run_lez(&["-1", "-s", "size", "--dereference"], temp.path()),
         vec!["broken_link", "regular.txt"]
     );
 }

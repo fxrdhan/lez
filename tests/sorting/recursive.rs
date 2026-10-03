@@ -1,127 +1,61 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Integration tests verifying sort order and output correctness for recursive
-//! listings across grid and lines views without redundant render sorting.
+//! Recursive listings keep each directory's entries in sort order, in the
+//! lines and grid views, forwards and reversed.
 
-use std::fs::{self, File as StdFile};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
-
-struct TempEnv {
-    dir: PathBuf,
-}
-
-impl TempEnv {
-    fn new(name: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let dir = std::env::temp_dir().join(format!(
-            "lez_test_rec_sort_{name}_{}_{nanos}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("failed to create temp dir");
-        Self { dir }
-    }
-
-    fn path(&self) -> &Path {
-        &self.dir
-    }
-
-    fn create_file(&self, rel: &str) -> PathBuf {
-        let p = self.dir.join(rel);
-        if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).expect("failed to create parent dir");
-        }
-        StdFile::create(&p).expect("failed to create file");
-        p
-    }
-}
-
-impl Drop for TempEnv {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.dir);
-    }
-}
+use crate::common::{TempTestDir, lez_in, native, success_stdout};
 
 #[test]
 fn recursive_lines_maintains_correct_sort_order() {
-    let temp = TempEnv::new("lines_sort");
-    temp.create_file("dir_b/sub_2/file_20.txt");
-    temp.create_file("dir_b/sub_2/file_2.txt");
-    temp.create_file("dir_b/sub_1/file_1.txt");
-    temp.create_file("dir_a/sub/file_b.txt");
-    temp.create_file("dir_a/sub/file_a.txt");
+    let dir = TempTestDir::new("lines_sort");
+    for file in [
+        "dir_b/sub_2/file_20.txt",
+        "dir_b/sub_2/file_2.txt",
+        "dir_b/sub_1/file_1.txt",
+        "dir_a/sub/file_b.txt",
+        "dir_a/sub/file_a.txt",
+    ] {
+        dir.create_empty_file(file);
+    }
 
-    let output = crate::common::lez_cmd()
-        .arg("-R")
-        .arg("-1")
-        .arg("--color=never")
-        .arg(temp.path())
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Natural sorting should place file_2 before file_20
-    let pos_2 = stdout.find("file_2.txt").expect("file_2.txt missing");
-    let pos_20 = stdout.find("file_20.txt").expect("file_20.txt missing");
-    assert!(pos_2 < pos_20, "file_2.txt should precede file_20.txt");
-
-    let pos_a = stdout.find("file_a.txt").expect("file_a.txt missing");
-    let pos_b = stdout.find("file_b.txt").expect("file_b.txt missing");
-    assert!(pos_a < pos_b, "file_a.txt should precede file_b.txt");
+    // Depth first; `file_2` before `file_20`, as natural sorting has it.
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(["-R", "-1"])),
+        native(
+            "dir_a\ndir_b\n\
+             \n./dir_a:\nsub\n\
+             \n./dir_a/sub:\nfile_a.txt\nfile_b.txt\n\
+             \n./dir_b:\nsub_1\nsub_2\n\
+             \n./dir_b/sub_1:\nfile_1.txt\n\
+             \n./dir_b/sub_2:\nfile_2.txt\nfile_20.txt\n"
+        )
+    );
 }
 
 #[test]
 fn recursive_grid_maintains_correct_sort_order() {
-    let temp = TempEnv::new("grid_sort");
-    temp.create_file("sub/file_c.txt");
-    temp.create_file("sub/file_a.txt");
-    temp.create_file("sub/file_b.txt");
+    let dir = TempTestDir::new("grid_sort");
+    for file in ["sub/file_c.txt", "sub/file_a.txt", "sub/file_b.txt"] {
+        dir.create_empty_file(file);
+    }
 
-    let output = crate::common::lez_cmd()
-        .arg("-R")
-        .arg("--color=never")
-        .arg(temp.path())
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("file_a.txt"));
-    assert!(stdout.contains("file_b.txt"));
-    assert!(stdout.contains("file_c.txt"));
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(["-R", "--grid", "--width=80"])),
+        native("sub\n\n./sub:\nfile_a.txt  file_b.txt  file_c.txt\n")
+    );
 }
 
 #[test]
 fn recursive_reverse_sort_order() {
-    let temp = TempEnv::new("reverse_sort");
-    temp.create_file("sub/file_1.txt");
-    temp.create_file("sub/file_2.txt");
-    temp.create_file("sub/file_3.txt");
+    let dir = TempTestDir::new("reverse_sort");
+    for file in ["sub/file_1.txt", "sub/file_2.txt", "sub/file_3.txt"] {
+        dir.create_empty_file(file);
+    }
 
-    let output = crate::common::lez_cmd()
-        .arg("-R")
-        .arg("-1")
-        .arg("-r")
-        .arg("--color=never")
-        .arg(temp.path().join("sub"))
-        .output()
-        .expect("failed to run lez");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let pos_1 = stdout.find("file_1.txt").expect("file_1.txt missing");
-    let pos_3 = stdout.find("file_3.txt").expect("file_3.txt missing");
-    assert!(
-        pos_3 < pos_1,
-        "file_3.txt should precede file_1.txt when reversed"
+    assert_eq!(
+        success_stdout(lez_in(dir.path()).args(["-R", "-1", "-r", "sub"])),
+        "file_3.txt\nfile_2.txt\nfile_1.txt\n"
     );
 }
 
@@ -130,7 +64,7 @@ fn recursive_reverse_sort_order() {
 /// pool because lez never builds one of its own.
 #[test]
 fn recursive_listings_do_not_depend_on_the_thread_count() {
-    let dir = crate::common::TempTestDir::new("rayon_threads");
+    let dir = TempTestDir::new("rayon_threads");
     for a in 0..3 {
         for b in 0..3 {
             for f in 0..4 {
@@ -143,8 +77,8 @@ fn recursive_listings_do_not_depend_on_the_thread_count() {
     }
 
     let listing = |args: &[&str], threads: usize| {
-        crate::common::success_stdout(
-            crate::common::lez_in(dir.path())
+        success_stdout(
+            lez_in(dir.path())
                 .env("RAYON_NUM_THREADS", threads.to_string())
                 .args(args),
         )
@@ -161,7 +95,7 @@ fn recursive_listings_do_not_depend_on_the_thread_count() {
             }
         }
     }
-    assert_eq!(listing(&["-1", "-R"], 1), crate::common::native(&expected));
+    assert_eq!(listing(&["-1", "-R"], 1), native(&expected));
 
     for args in [
         &["-1", "-R"][..],
