@@ -90,6 +90,61 @@ echo $VAR # trailing comment
     );
 }
 
+/// A here-document's lines are the text it holds, so a `#` at the start of
+/// one is not a comment; the run of the binary counts the same, and so does
+/// a fenced block in Markdown.
+#[test]
+fn test_heredoc_lines_are_text_not_comments() {
+    let shell = "#!/bin/sh\n\
+                 cat <<EOF\n\
+                 # usage: run [options]\n\
+                 \n\
+                 EOF\n\
+                 # a real comment\n";
+    let lang = loc::language_for("run.sh", Some("sh")).expect("Shell language");
+    // The shebang and the last line are comments; the opener, the two lines
+    // of text (the empty one too) and the closing word are code.
+    assert_eq!(
+        LocCounts::from_source(shell, lang),
+        LocCounts {
+            lines: 6,
+            code: 4,
+            comments: 2,
+            blanks: 0,
+        }
+    );
+
+    let ruby = "query = <<~SQL\n  -- not Ruby\n  # nor this\n  SQL\n# comment\n";
+    let lang = loc::language_for("db.rb", Some("rb")).expect("Ruby language");
+    assert_eq!(
+        LocCounts::from_source(ruby, lang),
+        LocCounts {
+            lines: 5,
+            code: 4,
+            comments: 1,
+            blanks: 0,
+        }
+    );
+
+    let dir = crate::common::TempTestDir::new("loc_heredoc");
+    dir.create_file("run.sh", shell.as_bytes());
+    dir.create_file("README.md", format!("```sh\n{shell}```\n").as_bytes());
+    assert_eq!(
+        crate::common::success_stdout(crate::common::lez_in(dir.path()).arg("--code=lines")),
+        // The fences are Markdown's own lines, under its row.
+        format!(
+            " Language           Files  Lines  Code  Comments  Blanks\n\
+             \x20Markdown               1      8     6         2       0\n\
+             \x20├── Shell              *      6     4         2       0\n\
+             \x20└── Text / Markup      *      2     2         0       0\n\
+             \x20Shell                  1      6     4         2       0\n\
+             {}\n\
+             \x20Total                  2     14    10         4       0\n",
+            "─".repeat(56)
+        )
+    );
+}
+
 #[test]
 fn test_c_and_cpp_raw_strings_and_comments() {
     let lang = loc::language_for("main.cpp", Some("cpp")).expect("C++ language");
@@ -201,15 +256,14 @@ def render_doc
     puts heredoc # trailing comment
 end
 "##;
-    // A known limit: heredocs are not recognised, so the `#` line inside
-    // one counts as a comment, though Ruby reads it as text (6 code, 1
-    // comment would be right).
+    // The heredoc's lines, the `#` one among them, are text, and so code,
+    // up to its closing word; the header is the only comment.
     assert_eq!(
         LocCounts::from_source(rb_source, rb),
         LocCounts {
             lines: 9,
-            code: 6,
-            comments: 2,
+            code: 7,
+            comments: 1,
             blanks: 1,
         }
     );
@@ -223,14 +277,14 @@ my $text = <<'END';
 END
 print $text;
 "##;
-    // The same limit for Perl: the `#` line in the heredoc counts as a
-    // comment beside the shebang and the real one.
+    // The same for Perl: the shebang and the real comment are comments,
+    // the heredoc's `#` line is text.
     assert_eq!(
         LocCounts::from_source(pl_source, pl),
         LocCounts {
             lines: 7,
-            code: 3,
-            comments: 3,
+            code: 4,
+            comments: 2,
             blanks: 1,
         }
     );

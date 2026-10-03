@@ -104,10 +104,16 @@ impl LocCounts {
         // multi-line block comments work.
         let mut block = BlockComment::default();
         let mut quote: Option<char> = None;
+        let mut heredocs = Heredocs::default();
 
         for line in source.lines() {
             counts.lines += 1;
-            let (has_code, has_comment) = classify_line(line, lang, &mut block, &mut quote);
+            if heredocs.take_line(line, lang) {
+                counts.code += 1;
+                continue;
+            }
+            let (has_code, has_comment) =
+                classify_line(line, lang, &mut block, &mut quote, &mut heredocs);
             if has_code {
                 counts.code += 1;
             } else if has_comment {
@@ -169,6 +175,7 @@ fn classify_line(
     lang: &Language,
     block: &mut BlockComment,
     quote: &mut Option<char>,
+    heredocs: &mut Heredocs,
 ) -> (bool, bool) {
     let mut has_code = false;
     let mut has_comment = false;
@@ -298,6 +305,20 @@ fn classify_line(
             } else {
                 rest = rem;
             }
+        } else if c == '<'
+            && let Some(style) = heredoc_style(lang)
+        {
+            if let Some((doc, len)) = heredoc_opener(rest, style) {
+                // The document's lines start on the next one; the rest of
+                // this line is read as usual.
+                heredocs.pending.push_back(doc);
+                rest = &rest[len..];
+            } else {
+                // A run of `<` that opens nothing goes whole: the `<<` at
+                // the end of a `<<<` here-string is not an opener.
+                let run = rest.bytes().take_while(|&b| b == b'<').count();
+                rest = &rest[run..];
+            }
         } else if c == '"' || c == '\'' || c == '`' {
             let (after, closed) = consume_string(&rest[c.len_utf8()..], c);
             if !closed && (c == '`' || c == '"') {
@@ -310,6 +331,149 @@ fn classify_line(
     }
 
     (has_code, has_comment)
+}
+
+/// How a language writes here-documents: text that runs from the line after
+/// `<<WORD` to a line holding WORD, however much of it looks like a comment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeredocStyle {
+    /// `<<WORD`, `<< WORD`, `<<'WORD'`, `<<"WORD"`, `<<\WORD`; `<<-` lets the
+    /// closing line start with tabs. `<<<` is a here-string.
+    Shell,
+    /// `<<WORD`, `<<~WORD`, `<<-WORD`, quoted or not, with nothing between
+    /// `<<` and the word; `~` and `-` let the closing line be indented.
+    Ruby,
+    /// `<<WORD`, `<<"WORD"`, `<<'WORD'`, `<< "WORD"`; `<<~` lets the closing
+    /// line be indented.
+    Perl,
+    /// `<<<WORD`, `<<<"WORD"`, `<<<'WORD'`; the closing line may be indented
+    /// and go on after the word, as in `WORD;`.
+    Php,
+}
+
+fn heredoc_style(lang: &Language) -> Option<HeredocStyle> {
+    [
+        (&SHELL, HeredocStyle::Shell),
+        (&RUBY, HeredocStyle::Ruby),
+        (&PERL, HeredocStyle::Perl),
+        (&PHP, HeredocStyle::Php),
+    ]
+    .into_iter()
+    .find(|(language, _)| std::ptr::eq(*language, lang))
+    .map(|(_, style)| style)
+}
+
+/// A here-document whose closing line has not come yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Heredoc {
+    terminator: String,
+    /// The closing line may be indented.
+    indented: bool,
+}
+
+/// The here-documents opened and not yet closed, in the order their bodies
+/// come: a line may open several, one after another.
+#[derive(Debug, Default, Clone)]
+struct Heredocs {
+    pending: std::collections::VecDeque<Heredoc>,
+}
+
+impl Heredocs {
+    /// Counts `line` as a line of the open here-document, if there is one,
+    /// closing it on its terminator. A document's lines are text, so they
+    /// are code, the closing one included.
+    fn take_line(&mut self, line: &str, lang: &Language) -> bool {
+        let Some(doc) = self.pending.front() else {
+            return false;
+        };
+        let Some(style) = heredoc_style(lang) else {
+            return false;
+        };
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        let closes = match style {
+            HeredocStyle::Shell if doc.indented => line.trim_start_matches('\t') == doc.terminator,
+            HeredocStyle::Php => line
+                .trim_start()
+                .strip_prefix(&*doc.terminator)
+                .is_some_and(|after| !after.starts_with(|c: char| c.is_alphanumeric() || c == '_')),
+            _ if doc.indented => line.trim_start() == doc.terminator,
+            _ => line == doc.terminator,
+        };
+        if closes {
+            self.pending.pop_front();
+        }
+        true
+    }
+}
+
+/// The here-document `s` opens, if it starts with an opener in `style`, and
+/// how many bytes the opener takes.
+fn heredoc_opener(s: &str, style: HeredocStyle) -> Option<(Heredoc, usize)> {
+    let is_word_start = |c: char| c.is_ascii_alphabetic() || c == '_';
+    let is_word = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    // A word, quoted by one of `quotes` or bare, at the start of `s`, and the
+    // bytes it takes.
+    let word = |s: &str, quotes: &[char]| -> Option<(String, usize)> {
+        let first = s.chars().next()?;
+        if quotes.contains(&first) {
+            let end = s[1..].find(first)?;
+            let word = &s[1..=end];
+            (!word.is_empty()).then(|| (word.to_owned(), end + 2))
+        } else if is_word_start(first) {
+            let len = s.find(|c: char| !is_word(c)).unwrap_or(s.len());
+            Some((s[..len].to_owned(), len))
+        } else {
+            None
+        }
+    };
+
+    let (body, indented, spaced, quotes): (&str, bool, bool, &[char]) = match style {
+        HeredocStyle::Php => (s.strip_prefix("<<<")?, true, true, &['"', '\'']),
+        HeredocStyle::Shell => {
+            let rest = s.strip_prefix("<<").filter(|rest| !rest.starts_with('<'))?;
+            match rest.strip_prefix('-') {
+                Some(rest) => (rest, true, true, &['"', '\'']),
+                None => (rest, false, true, &['"', '\'']),
+            }
+        }
+        HeredocStyle::Ruby => {
+            let rest = s.strip_prefix("<<")?;
+            match rest.strip_prefix(['~', '-']) {
+                Some(rest) => (rest, true, false, &['"', '\'', '`']),
+                None => (rest, false, false, &['"', '\'', '`']),
+            }
+        }
+        HeredocStyle::Perl => {
+            let rest = s.strip_prefix("<<").filter(|rest| !rest.starts_with('<'))?;
+            match rest.strip_prefix('~') {
+                Some(rest) => (rest, true, false, &['"', '\'']),
+                None => (rest, false, false, &['"', '\'']),
+            }
+        }
+    };
+    let opener_len = s.len() - body.len();
+    // Shell and PHP allow blanks before the word; Perl allows them before a
+    // quoted one only.
+    let trimmed = body.trim_start_matches([' ', '\t']);
+    let gap = body.len() - trimmed.len();
+    let quoted_only = gap > 0 && style == HeredocStyle::Perl;
+    if gap > 0 && !spaced && !quoted_only {
+        return None;
+    }
+    let (terminator, len) = match trimmed.strip_prefix('\\') {
+        Some(rest) if style == HeredocStyle::Shell => word(rest, &[]).map(|(w, l)| (w, l + 1))?,
+        _ => word(trimmed, quotes)?,
+    };
+    if quoted_only && !trimmed.starts_with(quotes) {
+        return None;
+    }
+    Some((
+        Heredoc {
+            terminator,
+            indented,
+        },
+        opener_len + gap + len,
+    ))
 }
 
 /// Consume a string literal body, returning the slice after the closing
@@ -1132,6 +1296,7 @@ struct CodeFenceState {
     lang: &'static Language,
     block_comment: BlockComment,
     quote: Option<char>,
+    heredocs: Heredocs,
 }
 
 /// Count lines across Markdown prose and embedded fenced code blocks.
@@ -1183,11 +1348,18 @@ pub fn count_markdown_source(source: &str) -> Vec<(&'static Language, LocCounts)
                 continue;
             }
 
-            if line.trim().is_empty() {
+            if fence.heredocs.take_line(line, fence.lang) {
+                add_line(&mut counts_by_lang, fence.lang, true, false, false);
+            } else if line.trim().is_empty() {
                 add_line(&mut counts_by_lang, fence.lang, false, false, true);
             } else {
-                let (has_code, has_comment) =
-                    classify_line(line, fence.lang, &mut fence.block_comment, &mut fence.quote);
+                let (has_code, has_comment) = classify_line(
+                    line,
+                    fence.lang,
+                    &mut fence.block_comment,
+                    &mut fence.quote,
+                    &mut fence.heredocs,
+                );
                 if has_code {
                     add_line(&mut counts_by_lang, fence.lang, true, false, false);
                 } else if has_comment {
@@ -1219,12 +1391,18 @@ pub fn count_markdown_source(source: &str) -> Vec<(&'static Language, LocCounts)
                     lang,
                     block_comment: BlockComment::default(),
                     quote: None,
+                    heredocs: Heredocs::default(),
                 });
             } else if line.trim().is_empty() {
                 add_line(&mut counts_by_lang, &MARKDOWN, false, false, true);
             } else {
-                let (has_code, has_comment) =
-                    classify_line(line, &MARKDOWN, &mut md_html_block, &mut None);
+                let (has_code, has_comment) = classify_line(
+                    line,
+                    &MARKDOWN,
+                    &mut md_html_block,
+                    &mut None,
+                    &mut Heredocs::default(),
+                );
                 if has_code {
                     add_line(&mut counts_by_lang, &MARKDOWN, true, false, false);
                 } else if has_comment {
@@ -1249,6 +1427,107 @@ mod test {
 
     fn count(source: &str, lang: &Language) -> LocCounts {
         LocCounts::from_source(source, lang)
+    }
+
+    /// `(lines, code, comments, blanks)` of `source` in `lang`.
+    fn tally(source: &str, lang: &Language) -> (usize, usize, usize, usize) {
+        let c = count(source, lang);
+        (c.lines, c.code, c.comments, c.blanks)
+    }
+
+    /// A here-document's lines are text, a `#` at their start included, up
+    /// to and including the line that closes it.
+    #[test]
+    fn shell_heredocs_are_text() {
+        let doc = "cat <<EOF\n# text\n\nEOF\n# comment\n";
+        assert_eq!(tally(doc, &SHELL), (5, 4, 1, 0));
+        for opener in ["<< EOF", "<<'EOF'", "<<\"EOF\"", "<<\\EOF", "<< 'EOF'"] {
+            let doc = format!("cat {opener}\n# text\nEOF\n# comment\n");
+            assert_eq!(tally(&doc, &SHELL), (4, 3, 1, 0), "{opener}");
+        }
+        // `<<-` lets the closing line start with tabs, and only `<<-` does.
+        assert_eq!(
+            tally("\tcat <<-END\n\t# text\n\tEND\n# comment\n", &SHELL),
+            (4, 3, 1, 0)
+        );
+        assert_eq!(
+            tally("cat <<END\n# text\n\tEND\n# text\n", &SHELL),
+            (4, 4, 0, 0)
+        );
+        // Two documents on one line come one after the other.
+        assert_eq!(
+            tally("paste <<A <<B\n# a\nA\n# b\nB\n# comment\n", &SHELL),
+            (6, 5, 1, 0)
+        );
+        // `<<<` is a here-string, and a number after `<<` a shift.
+        assert_eq!(tally("cat <<<\"x\"\n# comment\n", &SHELL), (2, 1, 1, 0));
+        assert_eq!(tally("echo $((1 << 2))\n# comment\n", &SHELL), (2, 1, 1, 0));
+        // An opener inside a comment or a string opens nothing.
+        assert_eq!(
+            tally("# cat <<EOF\necho '<<EOF'\n# comment\n", &SHELL),
+            (3, 1, 2, 0)
+        );
+    }
+
+    #[test]
+    fn ruby_heredocs_are_text() {
+        assert_eq!(
+            tally("x = <<~EOS\n  # text\n  EOS\n# comment\n", &RUBY),
+            (4, 3, 1, 0)
+        );
+        assert_eq!(
+            tally("x = <<-'EOS'\n# text\n  EOS\n# comment\n", &RUBY),
+            (4, 3, 1, 0)
+        );
+        // Without `~` or `-` the closing line is the word alone.
+        assert_eq!(
+            tally("x = <<EOS\n# text\n  EOS\nEOS\n# comment\n", &RUBY),
+            (5, 4, 1, 0)
+        );
+        // `<<` with a space after it appends.
+        assert_eq!(
+            tally("class << self\n# comment\nend\n", &RUBY),
+            (3, 2, 1, 0)
+        );
+    }
+
+    #[test]
+    fn perl_heredocs_are_text() {
+        for opener in ["<<EOF", "<<\"EOF\"", "<<'EOF'", "<< \"EOF\""] {
+            let doc = format!("print {opener};\n# text\nEOF\n# comment\n");
+            assert_eq!(tally(&doc, &PERL), (4, 3, 1, 0), "{opener}");
+        }
+        assert_eq!(
+            tally("print <<~EOT;\n  # text\n  EOT\n# comment\n", &PERL),
+            (4, 3, 1, 0)
+        );
+        // A shift, a bare word after a space, and `<<>>` open nothing.
+        for code in ["$x << 2;", "$x << EOF;", "while (<<>>) {}"] {
+            let doc = format!("{code}\n# comment\n");
+            assert_eq!(tally(&doc, &PERL), (2, 1, 1, 0), "{code}");
+        }
+    }
+
+    #[test]
+    fn php_heredocs_and_nowdocs_are_text() {
+        for opener in ["<<<EOT", "<<<\"EOT\"", "<<<'EOT'"] {
+            let doc = format!("<?php\n$s = {opener}\n# text\n    EOT;\n# comment\n");
+            assert_eq!(tally(&doc, &PHP), (5, 4, 1, 0), "{opener}");
+        }
+        // The word must end where the closing line's word does.
+        assert_eq!(
+            tally("<?php\n$s = <<<EOT\nEOTX\n# text\nEOT\n", &PHP),
+            (5, 5, 0, 0)
+        );
+    }
+
+    /// A language without here-documents reads `<<` as code.
+    #[test]
+    fn other_languages_have_no_heredocs() {
+        assert_eq!(
+            tally("x = 1 <<EOF;\n// comment\nEOF\n", &RUST),
+            (3, 2, 1, 0)
+        );
     }
 
     /// Any POD command paragraph opens documentation, which runs to `=cut`;
