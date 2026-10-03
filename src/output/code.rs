@@ -128,8 +128,7 @@ impl Render<'_> {
             return writeln!(w, "{}", style.paint("No recognised source code found."));
         }
 
-        let numerics =
-            locale::Numeric::load_user_locale().unwrap_or_else(|_| locale::Numeric::english());
+        let numerics = crate::output::numbers::user_numeric();
 
         // The eza-flavoured palette: quantities take the size colour, the
         // language names the date colour, and structure stays dim.

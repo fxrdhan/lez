@@ -127,22 +127,53 @@ pub fn lez_cmd() -> Command {
     cmd
 }
 
-/// A whole number as lez prints it with no locale configured. The `locale`
-/// crate then finds no numeric settings: on Linux it falls back to the C
-/// locale's plain digits, everywhere else to English grouping (`12,288`).
+/// A whole number as lez prints it in the tests' locale. On Unix that is
+/// `LANG=C`, which groups no digits. Windows has no such variable: lez
+/// takes the user's regional format, so its separator is read here from
+/// the registry, where Windows keeps it.
 pub fn grouped(n: u64) -> String {
     let digits = n.to_string();
-    if cfg!(target_os = "linux") {
+    let Some(separator) = thousands_separator() else {
         return digits;
-    }
+    };
     let mut out = String::new();
     for (i, digit) in digits.chars().enumerate() {
         if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(',');
+            out.push_str(separator);
         }
         out.push(digit);
     }
     out
+}
+
+#[cfg(not(windows))]
+fn thousands_separator() -> Option<&'static str> {
+    None
+}
+
+/// `sThousand` under `HKCU\Control Panel\International`, from a line
+/// `reg` prints as `    sThousand    REG_SZ    ,`.
+#[cfg(windows)]
+fn thousands_separator() -> Option<&'static str> {
+    static SEPARATOR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    let separator = SEPARATOR.get_or_init(|| {
+        let output = Command::new("reg")
+            .args([
+                "query",
+                r"HKCU\Control Panel\International",
+                "/v",
+                "sThousand",
+            ])
+            .output()
+            .expect("run reg");
+        let text = String::from_utf8_lossy(&output.stdout).into_owned();
+        text.lines()
+            .find_map(|line| line.split_once("REG_SZ"))
+            .map(|(_, value)| value.trim_start_matches(' ').trim_end_matches(['\r', '\n']))
+            .unwrap_or_else(|| panic!("no sThousand in:\n{text}"))
+            .to_owned()
+    });
+    Some(separator)
 }
 
 /// `path`, written with `/`, in the host's separator. lez builds the paths

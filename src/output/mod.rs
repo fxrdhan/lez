@@ -18,6 +18,7 @@ pub mod hidden_count;
 pub mod icons;
 pub mod json;
 pub mod lines;
+pub mod numbers;
 pub mod render;
 pub mod summary;
 pub mod table;

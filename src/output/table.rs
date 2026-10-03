@@ -439,8 +439,7 @@ impl Environment {
     }
 
     fn load_all() -> Self {
-        let numeric =
-            locale::Numeric::load_user_locale().unwrap_or_else(|_| locale::Numeric::english());
+        let numeric = crate::output::numbers::user_numeric();
 
         #[cfg(unix)]
         let users = Mutex::new(UsersCache::new());

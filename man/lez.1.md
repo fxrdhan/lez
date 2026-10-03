@@ -446,6 +446,10 @@ This option won’t do anything when lez’s output doesn’t wrap, such as when
 
 The time style for the long view when `--time-style` is not given, read as GNU `ls` reads it, which shares it: any value `--time-style` accepts, `locale` for the default format, or `posix-STYLE`, which is STYLE unless times are formatted for the POSIX locale (`LC_ALL`, else `LC_TIME`, else `LANG`, is `C` or `POSIX`, or none is set), where it is the default format. Any other value is an error. The `time_style` key of the config file comes after it.
 
+## `LC_ALL`, `LC_NUMERIC`, `LANG`
+
+The locale sizes and counts are written in on Unix, the first of them set: its separator between groups of digits, and the one before a fraction. `C` and `POSIX`, or none set, group no digits, so 15003 bytes read `15003` and 1500 read `1.5k`; under `de_DE.UTF-8` they read `15.003` and `1,5k`. A locale the system does not have falls back to English grouping. On Windows the user's regional format is used instead.
+
 ## `LEZ_STRICT`, `EZA_STRICT`
 
 Enables _strict mode_, which will make lez error when two command-line options are incompatible.
