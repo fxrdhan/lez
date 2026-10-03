@@ -307,6 +307,39 @@ fn a_discovered_config_that_does_not_parse_is_reported() {
     );
 }
 
+/// A config file lez finds on its own but cannot read is reported with the
+/// reason the system gives, and the listing goes on without it, as for one
+/// that does not parse.
+#[cfg(unix)]
+#[test]
+fn a_discovered_config_that_cannot_be_read_is_reported() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if !crate::common::permission_checks_apply() {
+        return;
+    }
+    let dir = crate::common::TempTestDir::new("unreadable_discovered");
+    let config = dir.create_file(".lez.toml", b"[display]\nheader = true\n");
+    dir.create_file("file.txt", b"x");
+    std::fs::set_permissions(&config, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+    let denied = std::fs::read(&config).expect_err("an unreadable file");
+
+    let output = crate::common::lez_in(dir.path())
+        .args(["-1", "file.txt"])
+        .output()
+        .expect("run lez");
+    std::fs::set_permissions(&config, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "file.txt\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        format!(
+            "lez: Failed to read config file {:?}: {denied}\n",
+            Path::new(".").join(".lez.toml")
+        )
+    );
+}
+
 /// Each key of the config file does what its flag does: the listing with
 /// the key set is the listing with the flag given, and differs from the
 /// one with neither, so a key that is read but goes nowhere is caught.
