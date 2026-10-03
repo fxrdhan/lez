@@ -610,7 +610,6 @@ impl<'a> JsonFileObject<'a> {
                 .permissions()
                 .map(|p| f::OctalPermissions { permissions: p })
                 .render_json(),
-            #[cfg(unix)]
             Column::SecurityContext => f.security_context().render_json(),
 
             Column::Language => f.language().render_json(),

@@ -155,7 +155,6 @@ impl Columns {
             columns.push(Column::FileFlags);
         }
 
-        #[cfg(target_os = "linux")]
         if self.security_context {
             columns.push(Column::SecurityContext);
         }
@@ -216,7 +215,6 @@ pub enum Column {
     SubdirGitRepo(bool),
     #[cfg(unix)]
     Octal,
-    #[cfg(unix)]
     SecurityContext,
     FileFlags,
 }
@@ -285,7 +283,6 @@ impl Column {
             Self::SubdirGitRepo(_) => "Git Repo",
             #[cfg(unix)]
             Self::Octal => "Octal",
-            #[cfg(unix)]
             Self::SecurityContext => "Security Context",
             Self::FileFlags => "Flags",
         }
@@ -665,7 +662,6 @@ impl<'a> Table<'a> {
                     file.user(),
                 )
             }
-            #[cfg(unix)]
             Column::SecurityContext => file.security_context().render(self.theme),
             Column::FileFlags => file
                 .flags()

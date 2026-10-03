@@ -406,7 +406,7 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 : In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files. Each entry's own file name is coloured by type as a normal listing would colour it, while the archive path and the entry size stay in the punctuation style; names the theme has no rule for stay punctuation too.
 
 `-Z`, `--context`
-: List each file's security context.
+: List each file's security context: its SELinux label, or `?` where it has none, as on every system but Linux.
 
 `--git` [if lez was built with git support]
 : List each file’s Git status, if tracked.

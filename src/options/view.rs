@@ -615,9 +615,10 @@ impl Columns {
         let links = matches.get_flag("links") || config.display.links.unwrap_or(false);
         let octal = matches.get_flag("octal-permissions")
             || config.display.octal_permissions.unwrap_or(false);
-        let security_context = xattr::ENABLED
-            && (matches.get_flag("security-context")
-                || config.display.security_context.unwrap_or(false));
+        // Shown everywhere, as `?` where there is no SELinux, as `ls -Z`
+        // prints it on a system without.
+        let security_context = matches.get_flag("security-context")
+            || config.display.security_context.unwrap_or(false);
 
         let permissions = !matches.get_flag("no-permissions");
         let filesize = !matches.get_flag("no-filesize");

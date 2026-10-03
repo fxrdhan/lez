@@ -1480,7 +1480,7 @@ impl<'dir> File<'dir> {
     }
 
     /// This file’s security context field.
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     pub fn security_context(&self) -> f::SecurityContext<'_> {
         use std::borrow::Cow;
 
@@ -1494,19 +1494,11 @@ impl<'dir> File<'dir> {
                 Some(value) => match str::from_utf8(value) {
                     Ok(v) => {
                         let raw = v.trim_end_matches(char::from(0));
-                        #[cfg(target_os = "linux")]
+                        if let Some(trans) =
+                            crate::fs::feature::xattr::translate_selinux_context(raw)
                         {
-                            if let Some(trans) =
-                                crate::fs::feature::xattr::translate_selinux_context(raw)
-                            {
-                                SecurityContextType::SELinux(Cow::Owned(trans))
-                            } else {
-                                SecurityContextType::SELinux(Cow::Borrowed(raw))
-                            }
-                        }
-
-                        #[cfg(not(target_os = "linux"))]
-                        {
+                            SecurityContextType::SELinux(Cow::Owned(trans))
+                        } else {
                             SecurityContextType::SELinux(Cow::Borrowed(raw))
                         }
                     }
@@ -1519,7 +1511,9 @@ impl<'dir> File<'dir> {
         f::SecurityContext { context }
     }
 
-    #[cfg(windows)]
+    /// SELinux is Linux's alone, so elsewhere a file has no context, and
+    /// nothing is read to find that out.
+    #[cfg(not(target_os = "linux"))]
     pub fn security_context(&self) -> f::SecurityContext<'_> {
         f::SecurityContext {
             context: SecurityContextType::None,

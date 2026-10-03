@@ -3,16 +3,16 @@
 
 //! `-Z` adds a security-context column: on Linux the file's SELinux label,
 //! read from `security.selinux`, and `?` where there is none or the system
-//! has no SELinux, as `ls -Z` prints. How a label is split and coloured is
-//! unit tested in `src/output/render/securityctx.rs`. JSON leaves an
-//! unknown context out. Other systems have no such column.
-
-#![cfg(target_os = "linux")]
+//! has no SELinux, as `ls -Z` prints. Other systems have no SELinux, so the
+//! column shows `?` there; it used to be left out without a word. How a
+//! label is split and coloured is unit tested in
+//! `src/output/render/securityctx.rs`. JSON leaves an unknown context out.
 
 use crate::common::{TempTestDir, lez_in, success_stdout};
 
 /// The label lez should show for `file`: its `security.selinux`, without
 /// the NUL the kernel keeps at the end, or `?`.
+#[cfg(target_os = "linux")]
 fn expected_context(file: &std::path::Path) -> String {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(file.as_os_str().as_bytes()).expect("no NUL");
@@ -31,6 +31,11 @@ fn expected_context(file: &std::path::Path) -> String {
         let label = String::from_utf8_lossy(&buffer);
         return label.trim_end_matches('\0').to_owned();
     }
+    "?".to_owned()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn expected_context(_file: &std::path::Path) -> String {
     "?".to_owned()
 }
 
