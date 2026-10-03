@@ -119,10 +119,9 @@ fn views_that_never_show_targets_are_unchanged() {
     );
 }
 
-/// The flag hides the arrow in the listing; JSON is data, and keeps the
-/// target either way.
+/// Like every `--no-*` column flag, it takes its key out of long JSON.
 #[test]
-fn json_keeps_the_target() {
+fn json_leaves_the_target_out_with_the_flag() {
     let dir = fixture("json");
     let args = [
         "--json",
@@ -133,11 +132,13 @@ fn json_keeps_the_target() {
         "--no-time",
         "link.txt",
     ];
-    let expected = "{\"link.txt\":{\"Target\": \"real.txt\"}}\n";
-    assert_eq!(lez(&dir, &args), expected);
+    assert_eq!(
+        lez(&dir, &args),
+        "{\"link.txt\":{\"Target\": \"real.txt\"}}\n"
+    );
     assert_eq!(
         lez(&dir, &[&args[..], &["--no-symlink-targets"]].concat()),
-        expected
+        "{\"link.txt\":{}}\n"
     );
 }
 

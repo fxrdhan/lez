@@ -470,7 +470,7 @@ impl<'a> Render<'a> {
                 table_opts.allocated_size_mode,
             );
 
-            let fobj = JsonFileObject::create_for_file(
+            let mut fobj = JsonFileObject::create_for_file(
                 f,
                 table_opts,
                 columns,
@@ -483,6 +483,15 @@ impl<'a> Render<'a> {
                 self.git,
                 code_loc,
             );
+            // Read only when it is shown, like every other column.
+            if self.view.file_style.show_symlink_targets
+                == crate::output::file_name::ShowSymlinkTargets::ShowSymlinkTargets
+                && f.is_link()
+            {
+                fobj.target = std::fs::read_link(&f.path)
+                    .ok()
+                    .map(|p| p.display().to_string());
+            }
             fobj.render()
         } else {
             String::new()
@@ -532,20 +541,12 @@ impl<'a> JsonFileObject<'a> {
         git: Option<&'a GitCache>,
         code_loc: Option<usize>,
     ) -> Self {
-        let target = if f.is_link() {
-            std::fs::read_link(&f.path)
-                .ok()
-                .map(|p| p.display().to_string())
-        } else {
-            None
-        };
-
         let mut res = Self {
             internal: vec![],
             options,
             git,
             code_loc,
-            target,
+            target: None,
         };
 
         columns
