@@ -190,6 +190,12 @@ jobs:
       - name: Install zsh
         if: runner.os == 'Linux'
         run: sudo apt-get update -q && sudo apt-get install -y -q zsh
+      # The lint job runs on Linux alone, so code behind `cfg(windows)` or a
+      # macOS `cfg` was never linted; a Windows-only `cmp_null` went unseen
+      # that way. The MSRV rows run the same Clippy as that job.
+      - name: Run Clippy
+        if: runner.os != 'Linux' && matrix.rust == 'msrv'
+        run: cargo clippy --all-targets --features git,inspect-archives -- -D warnings
       - name: Run all tests
         run: cargo nextest run --profile ci --all-targets --features git,inspect-archives
       # nextest does not run doc tests; this covers them.
