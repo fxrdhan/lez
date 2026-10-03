@@ -230,7 +230,6 @@ impl Mode {
             "git-repos-no-status",
             "git-glyphs",
             "octal-permissions",
-            "total-size",
             "smart-group",
             "extended",
             "no-extended",

@@ -44,7 +44,8 @@
 # Show the number of allocated filesystem blocks (`--blocks`)
 # blocks = false
 
-# Calculate and show recursive directory total size (can be slow on large trees)
+# Calculate and show recursive directory total size (can be slow on large trees);
+# only the long view and size sorts use it, so other views skip the walk
 # total_size = false
 
 # Characters in a file size's number, the decimal point included, from 1 to 8

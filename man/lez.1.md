@@ -355,7 +355,7 @@ These options are available when running with `--long` (`-l`):
 Alternatively, `<FORMAT>` can be a two line string, the first line will be used for non-recent files and the second for recent files. E.g., if `<FORMAT>` is "`%Y-%m-%d %H<newline>--%m-%d %H:%M`", non-recent files => "`2022-12-30 13`", recent files => "`--09-30 13:34`".
 
 `--total-size`
-: Show recursive directory size (unix only).
+: Show recursive directory size (unix only). The sizes are worked out only where they are used: in the long view's size and block columns, and when sorting by size or block size, which then orders directories by their contents in any view.
 
 `-u`, `--accessed`
 : Use the accessed timestamp field.

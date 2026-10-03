@@ -23,6 +23,8 @@ mod recurse_level;
 mod recursive;
 #[path = "sorting/size_deref_lazy.rs"]
 mod size_deref_lazy;
+#[path = "sorting/total_size.rs"]
+mod total_size;
 #[path = "sorting/tree_dotfiles.rs"]
 mod tree_dotfiles;
 #[path = "sorting/unsorted.rs"]

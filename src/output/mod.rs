@@ -55,6 +55,23 @@ pub enum Mode {
     Json(json::Options),
 }
 
+impl Mode {
+    /// Whether the view has a size column, which a directory's total size
+    /// fills: the long view (as a grid too) and long JSON.
+    #[must_use]
+    pub fn shows_sizes(&self) -> bool {
+        match self {
+            Self::Details(details) => details.table.is_some(),
+            Self::GridDetails(grid) => grid.details.table.is_some(),
+            Self::Json(json) => json
+                .details
+                .as_ref()
+                .is_some_and(|details| details.table.is_some()),
+            Self::Grid(_) | Self::Lines | Self::Code(_) => false,
+        }
+    }
+}
+
 /// The width of the terminal requested by the user.
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum TerminalWidth {
