@@ -24,6 +24,8 @@ You can use the `dircolors` program to generate a script that sets the variable 
 
 The key half of the pair can either be a two-letter code or a file glob, and anything that’s not a valid code will be treated as a glob, including keys that happen to be two letters long.
 
+A regular file matching a glob takes the glob’s colour ahead of `ca`, `ex` and `mh`, so lez never has to ask the filesystem for its mode or capabilities. GNU `ls` puts those three first: there `*.sh=33:ex=32` paints an executable script green, here yellow. To colour executables by permission, leave their extensions out of the globs.
+
 For backwards compatibility `EZA_COLORS` and `EXA_COLORS` environment variables are checked if `LEZ_COLORS` is unset.
 
 
