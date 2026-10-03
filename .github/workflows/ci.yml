@@ -90,6 +90,16 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Run Clippy
         run: cargo clippy --all-targets --features git,inspect-archives -- -D warnings
+      # The fuzz targets are a crate of their own, outside the workspace, so
+      # nothing above compiles them, and the Fuzz Canary runs only on pull
+      # requests and pushes to main and dev. A change to an API they call
+      # would show only there, after everything else had gone green. With
+      # the workspace's lockfile and target directory they build against
+      # the same versions, reusing what Clippy built.
+      - name: Check fuzz targets
+        run: |
+          cp Cargo.lock fuzz/Cargo.lock
+          cargo check --manifest-path fuzz/Cargo.toml --bins --target-dir target
   feature-combinations:
     name: Feature Combinations (${{ matrix.label }})
     needs: changes
