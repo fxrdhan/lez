@@ -1,15 +1,14 @@
 # SPDX-FileCopyrightText: 2026 fxrdhan
 # SPDX-License-Identifier: EUPL-1.2
 name: CI
+# No paths-ignore for Markdown: the suite reads README.md and the man pages,
+# and REUSE checks every file, so a change to them alone has to run too. The
+# changes job below decides which jobs a pull request needs.
 on:
   push:
     branches: [main, dev]
-    paths-ignore:
-      - '**.md'
   pull_request:
     branches: [main, dev]
-    paths-ignore:
-      - '**.md'
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
