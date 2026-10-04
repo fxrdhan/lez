@@ -34,8 +34,8 @@ files in addition to any styles in `LS_COLORS`; setting `LEZ_COLORS="reset"` wil
 - Build (Makefile, Cargo.toml, package.json) are yellow and underlined.
 - Images (png, jpeg, gif) are purple.
 - Videos (mp4, ogv, m2ts) are a slightly purpler purple.
-- Music (mp3, m4a, ogg) is a faint blue.
-- Lossless music (flac, alac, wav) is a less faint blue.
+- Music (mp3, m4a, ogg) is cyan.
+- Lossless music (flac, alac, wav) is bold cyan.
 - Cryptographic files (asc, enc, p12) are bright green.
 - Documents (pdf, doc, dvi) are a fainter green.
 - Compressed files (zip, tgz, Z) are red.
@@ -43,6 +43,7 @@ files in addition to any styles in `LS_COLORS`; setting `LEZ_COLORS="reset"` wil
 - Compiled files (class, o, pyc) are yellow. A file is also counted as compiled if it uses a common extension and is
 in the same directory as one of its source files: styles.css will count as compiled when next to styles.less or styles.sass, and scripts.js when next to scripts.ts or scripts.coffee.
 - Source files (cpp, js, java) are bright yellow.
+- Data files (csv, parquet, sqlite) are green.
 
 
 ## Theme Configuration file
@@ -70,6 +71,7 @@ filekinds:
   special
   executable
   mount_point
+  btrfs_subvol
 
 perms:
   user_read
@@ -143,6 +145,7 @@ file_type:
   image
   video
   music
+  lossless
   crypto
   document
   compressed
@@ -150,6 +153,7 @@ file_type:
   compiled
   build
   source
+  data
 
 punctuation:
 
@@ -173,7 +177,27 @@ broken_symlink:
 
 broken_path_overlay:
 
+symlink_path:
+
+hidden_warning:
+
+capability:
+
+multi_hardlink:
+
+tags:
+  none
+  grey
+  green
+  purple
+  blue
+  yellow
+  red
+  orange
+
 ```
+
+`colourful` takes `true` or `false` rather than a style: whether the totals of `--summary` and `--code` are drawn in bold. It is `true` when left out.
 
 Each of those fields/sub fields can have the following styling properties defined beneath it:
 
@@ -252,7 +276,7 @@ Not all glyphs support changing colors.
 If your theme is not working properly, double check the syntax in the config file, as
 a syntax issue can cause multiple properties to not be applied.
 
-You must name the file `theme.yml`, no matter the directory you specify.
+Name the file `theme.yml`, or `theme.yaml`, whatever the directory; when both are there, `theme.yml` is read.
 
 
 ## See also
