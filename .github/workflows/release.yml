@@ -5,10 +5,8 @@
 # binaries, then the crate on crates.io and the Homebrew formula.
 #
 # The binaries are built on GitHub runners, one target per runner, natively.
-# The justfile's `cross` recipe builds seven targets through Docker instead;
-# that path needs a working `--no-default-features` build, which the tree does
-# not currently have, and it runs containers on the maintainer's machine. This
-# does neither.
+# The justfile's `cross` recipe builds seven targets through Docker instead,
+# in containers on the maintainer's machine. This does not.
 #
 # The release is published as soon as every binary is built. Its notes are
 # the version's section of CHANGELOG.md, the one written by hand: the commit
