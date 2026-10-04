@@ -8,6 +8,54 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.28.5] - 2026-10-04
+
+### Features & Enhancements
+
+- **NUL-Separated Stdin**: Add `--stdin0`, which reads paths separated by NUL as written by `find -print0` or `fd -0`, whatever `LEZ_STDIN_SEPARATOR` says. The last of `--stdin` and `--stdin0` wins ([#143](https://github.com/fxrdhan/lez/pull/143)).
+- **Styled Link Targets**: Combine `ln=target` with style attributes, both in `LS_COLORS`/`LEZ_COLORS` (`ln=target;3`) and in `theme.yml` (`foreground: target` with `is_italic: true`). Broken links (`or=`) are unaffected ([#135](https://github.com/fxrdhan/lez/issues/135), [#136](https://github.com/fxrdhan/lez/pull/136)).
+- **Odin Icon**: Give Odin source files an icon ([#149](https://github.com/fxrdhan/lez/pull/149)).
+
+### Behaviour Changes
+
+- **Shell-Safe Quoting**: `--quotes=auto` quotes every name a shell would read differently, as GNU `ls` does, and writes a name holding a control character in ANSI-C quotes (`$'new\nline'`), which a shell reads back as the same name. `--quotes=never` and Windows keep the old escapes ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **JSON Output**: `--json` writes every separator without a space, leaves the table's padding out of dates, ends the document with a newline, and leaves a link's target out under `--no-symlink-targets` ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Environment Values Are Checked**: `TIME_STYLE` is read as GNU `ls` reads it, `locale` and `posix-STYLE` included. An invalid `TIME_STYLE` or `LEZ_MIN_LUMINANCE` is now an error (exit 3) instead of a silent fallback ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Strict Mode**: Accept the flags a view prints without `--long` (`--total-size`, `--print-total`, and the tree's `--extended` and `--mounts`), and refuse a layout flag beside `--code`, which replaces every layout ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Security Context on Every Platform**: `-Z` shows a `?` column on macOS and Windows instead of being dropped silently ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Locale-Aware Numbers**: macOS and Windows group digits the way the locale does, so macOS under `LANG=C` prints `15003` rather than `15,003` ([#149](https://github.com/fxrdhan/lez/pull/149)).
+
+### Bug Fixes & Hardening
+
+- **Multi-Hop Symlink Chains**: Resolve each hop from its own link's directory, so `a -> b -> file.pdf` is followed to the end. A revisited link or a chain longer than 32 links counts as broken, and `ln=target` colours a link by the end of its chain ([#138](https://github.com/fxrdhan/lez/issues/138), [#147](https://github.com/fxrdhan/lez/pull/147)).
+- **Classify Indicators on Targets**: A link to `/` no longer prints `-> //`, a target keeps the trailing slash it was written with, and `-XF` classifies a link by the end of its chain (`dir/`, `run*`) ([#140](https://github.com/fxrdhan/lez/issues/140), [#147](https://github.com/fxrdhan/lez/pull/147)).
+- **Absolute Paths of Links**: `--absolute=follow` keeps a link's own name in the long view instead of printing its target on both sides of the arrow, and gives a broken link in the working directory an absolute path, as `--hyperlink` now does too ([#141](https://github.com/fxrdhan/lez/issues/141), [#142](https://github.com/fxrdhan/lez/issues/142), [#145](https://github.com/fxrdhan/lez/pull/145), [#147](https://github.com/fxrdhan/lez/pull/147)).
+- **Link Target Colours**: Paint the path after `->` in its file-kind colour, so directories, executables, pipes, sockets and devices keep theirs ([#137](https://github.com/fxrdhan/lez/issues/137), [#144](https://github.com/fxrdhan/lez/pull/144)).
+- **Dereference (`-X`)**: Every column that describes the target (type, permissions, size, blocks, owner, links, inode and timestamps) reads the same file, a broken link falls back to its own permissions, `--only-dirs -X` keeps links to directories, and `--only-files -X` keeps links that end at a regular file ([#139](https://github.com/fxrdhan/lez/issues/139), [#146](https://github.com/fxrdhan/lez/pull/146)).
+- **Missing Targets (`mi=`)**: `mi=` in `LS_COLORS` now colours the missing path a broken link points to, falling back to `or` when unset. An empty, `0` or `00` value of `mi`, `ca` or `mh`, as `dircolors` writes them, reads as unset ([#141](https://github.com/fxrdhan/lez/issues/141), [#145](https://github.com/fxrdhan/lez/pull/145), [#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Themes and Icons**: The `l` in the permissions column keeps only the link's attributes under `ln=target`. Built-in icons are kept when a theme sets default ones, totals stay bold when a theme leaves `colourful` out, an icon is painted in its name's colour, and the user's folders get their icons from a relative path ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Tree, Grid and Colour Scale**: `lez -lT --color-scale` without a path shades the whole tree, `-T -f` draws the edges of the whole tree, and the grid-details view spaces its columns and headers like the long view ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Archives**: Entry sizes come from the archive, PAX records included, and a listing cut short ends with `… (more than 500 entries)` instead of a made-up entry ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Lines of Code**: A followed link's language is named after its target, nested block comments stay whole, Perl POD that opens with any command is counted, and here-documents in shell, Ruby, Perl and PHP count as text ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Options and Configuration**: Error messages name the variable a bad value came from, `--total-size` costs no recursive I/O in a view that never prints sizes, a discovered config file that does not parse is reported, the `absolute` key takes effect, and an empty `LEZ_CONFIG_FILE` is passed over ([#149](https://github.com/fxrdhan/lez/pull/149)).
+- **Output**: The listing is flushed before a message on stderr, `--warn-hidden` says "1 hidden item", a plist keeps its newlines, and a directory no longer holds its descriptor open after it is read ([#149](https://github.com/fxrdhan/lez/pull/149)).
+
+### Documentation
+
+- **Docs Checked Against the Binary**: The README and the man pages stop documenting what lez does not read (a `recent` time style, `CLICOLOR`, `LEZ_OVERRIDE_AUTO_COLOR`, the `ic` colour key) and start documenting what it does (`relative-recent:DAYS`, `LEZ_DEBUG`, exit status 2, the `hw` and Finder-tag colour keys, every accepted ANSI code). `--spacing` gets its real range, the theme outline its missing keys, the theme schema accepts styled symlinks, and `-O`'s help names Linux ([#152](https://github.com/fxrdhan/lez/pull/152)).
+
+### Testing & Quality Assurance
+
+- **Test Audit Against Independent Oracles**: Every test that compared a fragment of the output now compares the whole of it against an independent source (`read_dir` order, `stat`, `GetFileAttributesW`, `locale -k`, and GNU `ls` where it is the reference), and each fix fails its test against the old code. Line coverage rises from 91.98% to 93.35% ([#149](https://github.com/fxrdhan/lez/pull/149)).
+
+### Distribution & CI Automation
+
+- **CI Gates**: A single `CI result` check stands for the whole run, the stable rows build with stable Rust, Clippy runs on macOS and Windows, every cargo command uses `--locked`, the fuzz targets are compiled in the lint job, RustSec advisories are scanned weekly, and actions are pinned to commits with read-only tokens ([#150](https://github.com/fxrdhan/lez/pull/150), [#151](https://github.com/fxrdhan/lez/pull/151)).
+- **Release Dry Run**: Run by hand or by a pull request that changes it, the release workflow builds and packages every target without publishing ([#151](https://github.com/fxrdhan/lez/pull/151)).
+- **crates.io Publishing**: The release workflow publishes the crate to crates.io once the GitHub release is out, by Trusted Publishing, so no registry token is stored; a dry run checks the package ([#152](https://github.com/fxrdhan/lez/pull/152)).
+- **Release Notes from the Changelog**: The GitHub release notes are this file's section for the version, and a tag that does not match `Cargo.toml` stops the release before anything is published. The Homebrew bump runs in a job of its own, so a tap token that cannot write no longer marks the release failed ([#152](https://github.com/fxrdhan/lez/pull/152)).
+- **Dependency Bumps**: The weekly bump now pushes its branch and opens its pull request with a CI run, the Nix canary substitutes from cache.nixos.org, and the flake inputs are current ([#148](https://github.com/fxrdhan/lez/pull/148)).
+
 ## [0.28.4] - 2026-09-14
 
 ### Features & Enhancements
