@@ -126,6 +126,7 @@ Work an unread upstream report in this order:
 | [#1002](https://github.com/eza-community/eza/issues/1002), [#745](https://github.com/eza-community/eza/issues/745) | High stat overhead on empty directory glyph probing over FUSE/NFS. `LEZ_NO_EMPTY_DIR_ICON` avoids probing. |
 | [#1732](https://github.com/eza-community/eza/issues/1732) | `--size-digits=<NUM>` (alias `--digits`) and `LEZ_SIZE_DIGITS` added to customize size column precision/digit count. |
 | [#728](https://github.com/eza-community/eza/issues/728), [#730](https://github.com/eza-community/eza/pull/730), [#1791](https://github.com/eza-community/eza/pull/1791) | Cohesive full-path quoting (`'/path/with spaces/file.txt'`) and configurable quote styling via `qu` code in `LEZ_COLORS` & `theme.yml`. |
+| [#1940](https://github.com/eza-community/eza/issues/1940), [#1943](https://github.com/eza-community/eza/pull/1943) | Four `FILENAME_ICONS` entries (`.atom`, `.idea`, `.rvm`, `.zsh_sessions`) unreachable because names are directories. Moved to `DIRECTORY_ICONS`. |
 
 ### Reproduced but Still Open / By Design
 
