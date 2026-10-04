@@ -189,14 +189,18 @@ impl Icons {
 /// Mapping from full filenames to directory icon. This mapping should contain
 /// all the directories that have a custom icon.
 const DIRECTORY_ICONS: Map<&'static str, char> = phf_map! {
+    ".atom"               => '\u{e764}',              // 
     ".config"             => Icons::FOLDER_CONFIG,    // 
     ".exercism"           => Icons::FOLDER_EXERCISM,  // 
     ".git"                => Icons::FOLDER_GIT,       // 
     ".github"             => Icons::FOLDER_GITHUB,    // 
+    ".idea"               => Icons::INTELLIJ,         // 
     ".npm"                => Icons::FOLDER_NPM,       // 
     ".opam"               => Icons::FOLDER_OCAML,     // 
+    ".rvm"                => Icons::LANG_RUBY,        // 
     ".ssh"                => Icons::FOLDER_KEY,       // 󰢬
     ".Trash"              => Icons::FOLDER_TRASH,     // 
+    ".zsh_sessions"       => Icons::SHELL,            // 󱆃
     "build"               => Icons::FOLDER_BUILD,     // 󱧼
     "config"              => Icons::FOLDER_CONFIG,    // 
     "Contacts"            => Icons::FOLDER_CONTACTS,  // 󰉌
@@ -236,7 +240,6 @@ const DIRECTORY_ICONS: Map<&'static str, char> = phf_map! {
 /// all the "dot" files that have a custom icon.
 const FILENAME_ICONS: Map<&'static str, char> = phf_map! {
     ".aliases"            => Icons::SHELL,          // 󱆃
-    ".atom"               => '\u{e764}',            // 
     ".bashrc"             => Icons::SHELL,          // 󱆃
     ".bash_aliases"       => Icons::SHELL,          // 󱆃
     ".bash_history"       => Icons::SHELL,          // 󱆃
@@ -271,7 +274,6 @@ const FILENAME_ICONS: Map<&'static str, char> = phf_map! {
     ".gvimrc"             => Icons::VIM,            // 
     ".htaccess"           => Icons::CONFIG,         // 󱁻
     ".htpasswd"           => Icons::CONFIG,         // 󱁻
-    ".idea"               => Icons::INTELLIJ,       // 
     ".ideavimrc"          => Icons::VIM,            // 
     ".inputrc"            => Icons::CONFIG,         // 󱁻
     ".kshrc"              => Icons::SHELL,          // 󱆃
@@ -299,7 +301,6 @@ const FILENAME_ICONS: Map<&'static str, char> = phf_map! {
     ".pylintrc"           => Icons::CONFIG,         // 󱁻
     ".python_history"     => Icons::LANG_PYTHON,    // 
     ".rustfmt.toml"       => Icons::LANG_RUST,      // 
-    ".rvm"                => Icons::LANG_RUBY,      // 
     ".rvmrc"              => Icons::LANG_RUBY,      // 
     ".SRCINFO"            => '\u{f303}',            // 
     ".stowrc"             => '\u{eef1}',            // 
@@ -317,7 +318,6 @@ const FILENAME_ICONS: Map<&'static str, char> = phf_map! {
     ".zshenv"             => Icons::SHELL,          // 󱆃
     ".zshrc"              => Icons::SHELL,          // 󱆃
     ".zsh_history"        => Icons::SHELL,          // 󱆃
-    ".zsh_sessions"       => Icons::SHELL,          // 󱆃
     "._DS_Store"          => Icons::OS_APPLE,       // 
     "_gvimrc"             => Icons::VIM,            // 
     "_vimrc"              => Icons::VIM,            // 
@@ -1488,6 +1488,20 @@ mod test {
         // Upstream #1074: .astro extension icon
         assert_eq!(icon_for_name_ext("App.astro", Some("astro")), '\u{e6b3}');
         assert_eq!(icon_for_name_ext("Layout.astro", Some("astro")), '\u{e6b3}');
+    }
+
+    #[test]
+    fn test_dot_directory_icons_upstream_1940() {
+        // Upstream #1940 / #1943: .atom, .idea, .rvm, .zsh_sessions are directories
+        assert_eq!(DIRECTORY_ICONS.get(".atom"), Some(&'\u{e764}'));
+        assert_eq!(DIRECTORY_ICONS.get(".idea"), Some(&Icons::INTELLIJ));
+        assert_eq!(DIRECTORY_ICONS.get(".rvm"), Some(&Icons::LANG_RUBY));
+        assert_eq!(DIRECTORY_ICONS.get(".zsh_sessions"), Some(&Icons::SHELL));
+
+        assert_eq!(FILENAME_ICONS.get(".atom"), None);
+        assert_eq!(FILENAME_ICONS.get(".idea"), None);
+        assert_eq!(FILENAME_ICONS.get(".rvm"), None);
+        assert_eq!(FILENAME_ICONS.get(".zsh_sessions"), None);
     }
 
     #[test]

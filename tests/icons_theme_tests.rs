@@ -15,6 +15,8 @@ mod data_files;
 mod default_overrides;
 #[path = "icons_theme/dev_eclass_astro.rs"]
 mod dev_eclass_astro;
+#[path = "icons_theme/dot_directory_icons.rs"]
+mod dot_directory_icons;
 #[path = "icons_theme/empty_dirs.rs"]
 mod empty_dirs;
 #[path = "icons_theme/glob_precedence.rs"]
