@@ -12,7 +12,7 @@ filekinds:
   # Colour for Btrfs subvolume directories (Linux)
   btrfs_subvol:
     foreground: Blue
-    underline: true
+    is_underline: true
   executable:
     foreground: Green
 perms:

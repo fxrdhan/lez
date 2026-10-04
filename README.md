@@ -414,7 +414,7 @@ You can enable autocomplete and schema validation in VSCode, Neovim, or Zed by r
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fxrdhan/lez/main/docs/theme-schema.json
 
 filekinds:
-  directory: { foreground: Blue, bold: true }
+  directory: { foreground: Blue, is_bold: true }
   symlink: { foreground: Cyan }
 ```
 

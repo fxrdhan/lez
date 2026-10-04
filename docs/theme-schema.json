@@ -222,7 +222,7 @@
                 },
                 "symlink": {
                     "description": "A style, or the literal \"target\" (optionally with ANSI codes) to borrow the pointed-to file's colour",
-                    "oneOf": [
+                    "anyOf": [
                         {
                             "$ref": "#/$defs/symlink_style"
                         },
