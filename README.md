@@ -27,7 +27,7 @@ SPDX-License-Identifier: EUPL-1.2
 **`lez`** is a fast, modern file-listing command-line tool with smart defaults, enhanced file icons, Git integration, and continuous performance improvements.
 
 - **Fast & Lightweight:** Written in modern Rust (2024 Edition) with multithreaded directory scanning via Rayon.
-- **Rich Visuals:** Syntax highlighting, colored CLI help output, Nerd Font icons, and automatic luminance color scaling.
+- **Rich Visuals:** Colors by file type, colored CLI help output, Nerd Font icons, and automatic luminance color scaling.
 - **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
 - **Built-in Tree View:** Hierarchical directory tree out of the box (`lez --tree`).
 - **Structured Data Export:** Full metadata serialization via `--json` in complete parity with the long view.
@@ -85,7 +85,7 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 | **Nerd Font Icons & Color Themes** | ✅ | ✅ | ✅ |
 | **Directory Tree View** (`--tree`) | ✅ | ✅ | ✅ |
 | **Hyperlink Support** (`--hyperlink` OSC 8) | ✅ | ✅ | ✅ |
-| **Custom Column Order** (`--blocks`) | ❌ | ❌ | ✅ |
+| **Custom Column Order** (`lsd --blocks`) | ❌ | ❌ | ✅ |
 | **Classic GNU `ls` Mode** (`--classic`) | ❌ | ❌ | ✅ |
 | **Unicode Emoji Fallback** (`--icon-theme unicode`) | ❌ | ❌ | ✅ |
 | **Multithreaded Traversal** (Rayon Engine) | ✅ | ⚠️ Limited | ❌ |
@@ -107,6 +107,8 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 <a id="try-it">
 <h1>Installation</h1>
 </a>
+
+`lez` is available for macOS, Linux, and Windows. [INSTALL.md](INSTALL.md) covers every channel, plus shell completions and the man pages.
 
 ### Homebrew (macOS & Linux)
 
@@ -185,12 +187,6 @@ nix run github:fxrdhan/lez
 
 ---
 
-# Installation
-
-`lez` is available for macOS, Linux, and Windows. Detailed platform-specific installation instructions can be found in [INSTALL.md](INSTALL.md).
-
----
-
 <a id="options">
 <h1>Command-line options</h1>
 </a>
@@ -216,7 +212,7 @@ nix run github:fxrdhan/lez
 - **--colo[u]r-scale=(fields)**: highlight levels of `fields` distinctly (all, age, size)
 - **--color-scale-mode=(mode)**: use gradient or fixed colors in `--color-scale` (`fixed` or `gradient`)
 - **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
-- **--spacing=(spaces)**: number of spaces between columns in grid views (default: 2, range: 0..=255)
+- **--spacing=(spaces)**: number of spaces between columns (default: 2 in the grid views, 1 in the long view; at most 1000)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
 - **--quotes=(when)**: when to quote file names (always, auto, never; requires '=' if value provided)
 - **--summary**: display total summary statistics of entries (directories, files, symlinks, and total)
@@ -314,7 +310,7 @@ Some of the options accept parameters:
 - Valid **--colo\[u\]r** options are **always**, **automatic** (or **auto** for short), and **never**.
 - Valid sort fields are **accessed**, **changed**, **created**, **extension**, **Extension**, **inode**, **lexicographic**, **Lexicographic**, **modified**, **name**, **Name**, **path**, **Path**, **size**, **block**, **type**, and **none**. Fields starting with a capital letter sort uppercase before lowercase. The modified field has the aliases **date**, **time**, **mod**, **old**, and **oldest**, while its reverse has the aliases **age**, **new**, and **newest**. The **block** field has the aliases **blocks** and **blocksize**. The **lexicographic** field has the aliases **lex** and **lg**, and compares names code point by code point — no natural ordering of digit runs, no locale collation — so **Lexicographic** matches `ls` under the C locale.
 - Valid time fields are **modified**, **changed**, **accessed**, and **created**.
-- Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, **relative**, and **relative-recent** (or **recent**).
+- Valid time styles are **default**, **iso**, **long-iso**, **full-iso**, **relative**, **relative-recent** (relative times for the last 7 days, the default style before that; **relative-recent:DAYS** sets the window), and a custom **+FORMAT**.
 
 See the `man` pages for further documentation of usage. They are available:
 - online [in the repo](https://github.com/fxrdhan/lez/tree/main/man)
@@ -390,9 +386,8 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 | `LEZ_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |
 | `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin`; ignored by `--stdin0` (default: newline `\n`). Supports escape sequences (e.g. `\0`, `\n`, `\t`, `\x00`) and `null`/`nul`. |
 | `LEZ_SIZE_DIGITS` / `EZA_SIZE_DIGITS` | Default number of digits (1..=8) to display for formatted file sizes, the decimal point counting as one (default: `3`). |
-| `LEZ_OVERRIDE_AUTO_COLOR` | Force automatic color detection behavior. |
 | `TIME_STYLE` | Default timestamp format style (`default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or `+<FORMAT>`), also read in GNU `ls`'s `locale` and `posix-<STYLE>` forms; any other value is an error. |
-| `NO_COLOR` / `CLICOLOR` / `CLICOLOR_FORCE` | Standard terminal color control flags. |
+| `NO_COLOR` | Turns colors off when set to anything but an empty string; `--color=always` still turns them on. |
 
 </details>
 
