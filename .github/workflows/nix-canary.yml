@@ -17,6 +17,8 @@ on:
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
+permissions:
+  contents: read
 jobs:
   cold-build:
     name: Cold build without project cache
@@ -25,7 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v22
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           extra-conf: |
             sandbox = false

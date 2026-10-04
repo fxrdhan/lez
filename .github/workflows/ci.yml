@@ -1,19 +1,20 @@
 # SPDX-FileCopyrightText: 2026 fxrdhan
 # SPDX-License-Identifier: EUPL-1.2
 name: CI
+# No paths-ignore for Markdown: the suite reads README.md and the man pages,
+# and REUSE checks every file, so a change to them alone has to run too. The
+# changes job below decides which jobs a pull request needs.
 on:
   push:
     branches: [main, dev]
-    paths-ignore:
-      - '**.md'
   pull_request:
     branches: [main, dev]
-    paths-ignore:
-      - '**.md'
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
   cancel-in-progress: true
+permissions:
+  contents: read
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: --deny warnings
@@ -22,6 +23,10 @@ jobs:
   changes:
     name: Detect changed paths
     runs-on: ubuntu-latest
+    # paths-filter lists a pull request's files through the API.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
       nix: ${{ steps.filter.outputs.nix }}
@@ -29,7 +34,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Classify changed files
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
         id: filter
         with:
           filters: |
@@ -81,21 +86,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
+          toolchain: stable
           components: clippy, rustfmt
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
-        run: cargo clippy --all-targets --features git,inspect-archives -- -D warnings
+        run: cargo clippy --locked --all-targets --features git,inspect-archives -- -D warnings
       # The fuzz targets are a crate of their own, outside the workspace, so
       # nothing above compiles them, and the Fuzz Canary runs only on pull
       # requests and pushes to main and dev. A change to an API they call
       # would show only there, after everything else had gone green. With
       # the workspace's lockfile and target directory they build against
       # the same versions, reusing what Clippy built.
+      # Not `--locked`: the copied lockfile lacks the fuzz crate and
+      # libfuzzer-sys, which cargo adds to it.
       - name: Check fuzz targets
         run: |
           cp Cargo.lock fuzz/Cargo.lock
@@ -121,9 +129,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: features-${{ matrix.label }}
       # The tests too: a suite that builds its Git or tar fixtures with an
@@ -133,7 +143,7 @@ jobs:
       # RUSTFLAGS carries --deny warnings from the workflow env, so an item
       # left behind by a switched-off feature fails here rather than rotting.
       - name: Check
-        run: cargo check --all-targets --no-default-features --features "${{ matrix.features }}"
+        run: cargo check --locked --all-targets --no-default-features --features "${{ matrix.features }}"
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
@@ -162,11 +172,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: ${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}
+          components: clippy
+      # rust-toolchain.toml pins the MSRV for every cargo command in the
+      # checkout, so the stable rows used to run it as well and stable was
+      # never tested. RUSTUP_TOOLCHAIN outranks that file.
+      - name: Use the row's toolchain
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}" >> "$GITHUB_ENV"
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
       # nextest runs every test binary in one pool. `cargo test` runs them
@@ -176,7 +193,7 @@ jobs:
       # Pinned: nextest 0.9.129 and later require rustc 1.91, above this
       # crate's MSRV.
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
           tool: cargo-nextest@0.9.128
       # The zsh completion files are parsed by zsh itself, which a Linux
@@ -184,11 +201,17 @@ jobs:
       - name: Install zsh
         if: runner.os == 'Linux'
         run: sudo apt-get update -q && sudo apt-get install -y -q zsh
+      # The lint job runs on Linux alone, so code behind `cfg(windows)` or a
+      # macOS `cfg` was never linted; a Windows-only `cmp_null` went unseen
+      # that way. The MSRV rows run the same Clippy as that job.
+      - name: Run Clippy
+        if: runner.os != 'Linux' && matrix.rust == 'msrv'
+        run: cargo clippy --locked --all-targets --features git,inspect-archives -- -D warnings
       - name: Run all tests
-        run: cargo nextest run --profile ci --all-targets --features git,inspect-archives
+        run: cargo nextest run --locked --profile ci --all-targets --features git,inspect-archives
       # nextest does not run doc tests; this covers them.
       - name: Run doc tests
-        run: cargo test --doc --features git,inspect-archives
+        run: cargo test --locked --doc --features git,inspect-archives
   code-coverage:
     name: Code Coverage (LLVM-Cov)
     needs: changes
@@ -198,22 +221,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
+          toolchain: stable
           components: llvm-tools-preview
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: llvm-cov
       - name: Install cargo-llvm-cov & cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
           tool: cargo-llvm-cov,cargo-nextest@0.9.128
       - name: Install zsh
         run: sudo apt-get update -q && sudo apt-get install -y -q zsh
       - name: Generate Code Coverage Report & Summary
         run: |
-          cargo llvm-cov nextest --features git,inspect-archives --workspace --lcov --output-path lcov.info
+          cargo llvm-cov nextest --locked --features git,inspect-archives --workspace --lcov --output-path lcov.info
           bash devtools/coverage.sh summary
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
@@ -240,17 +264,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
       - name: Add target to active toolchain
         run: rustup target add ${{ matrix.target }}
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: release-${{ matrix.target }}
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} --features git,inspect-archives
+        run: cargo build --release --locked --target ${{ matrix.target }} --features git,inspect-archives
   nix-flake-check:
     name: Nix Flake Validation
     needs: changes
@@ -260,7 +285,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v22
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           extra-conf: |
             sandbox = false
@@ -276,7 +301,7 @@ jobs:
       # that. The action both pulls from and pushes to the cache.
       - name: Restore and push Nix store cache (Cachix)
         if: vars.CACHIX_CACHE != ''
-        uses: cachix/cachix-action@v17
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: ${{ vars.CACHIX_CACHE }}
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -286,3 +311,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
           SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+  # The one check to require before merging. The jobs above are skipped when
+  # a pull request does not touch what they test, and a skipped matrix job
+  # never reports under its expanded name, so requiring them one by one would
+  # leave such a pull request waiting for checks that never come. This job
+  # runs unless the whole run is cancelled, and fails if any job it needs
+  # failed or was cancelled; a skipped one counts as passed.
+  ci-result:
+    name: CI result
+    needs:
+      - changes
+      - lint-and-format
+      - feature-combinations
+      - reuse-compliance
+      - unit-and-integration-tests
+      - code-coverage
+      - build-release
+      - nix-flake-check
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the jobs it needs
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in
+            *" failure "* | *" cancelled "*) exit 1 ;;
+          esac

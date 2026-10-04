@@ -126,10 +126,21 @@ fn test_systemtime_to_naivedatetime_far_past_dates() {
     let dt_1799 = File::systemtime_to_naivedatetime(st_1799).expect("1799 date");
     assert_eq!(dt_1799.to_string(), "1799-12-30 12:00:00");
 
-    // 135140 days before the epoch, across the 1600 leap year.
-    let st_1600 = UNIX_EPOCH - Duration::from_secs(11_676_096_000);
-    let dt_1600 = File::systemtime_to_naivedatetime(st_1600).expect("1600 date");
-    assert_eq!(dt_1600.to_string(), "1600-01-01 00:00:00");
+    // 135140 days before the epoch, across the 1600 leap year. Windows keeps
+    // time from the start of 1601 and cannot hold an earlier instant, so
+    // there that start, the earliest it can, stands in for it.
+    #[cfg(not(windows))]
+    {
+        let st_1600 = UNIX_EPOCH - Duration::from_secs(11_676_096_000);
+        let dt_1600 = File::systemtime_to_naivedatetime(st_1600).expect("1600 date");
+        assert_eq!(dt_1600.to_string(), "1600-01-01 00:00:00");
+    }
+    #[cfg(windows)]
+    {
+        let st_1601 = UNIX_EPOCH - Duration::from_secs(11_644_473_600);
+        let dt_1601 = File::systemtime_to_naivedatetime(st_1601).expect("1601 date");
+        assert_eq!(dt_1601.to_string(), "1601-01-01 00:00:00");
+    }
 }
 
 #[test]
