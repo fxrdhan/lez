@@ -51,7 +51,7 @@ EXAMPLES
 LIST OF CODES
 =============
 
-`LS_COLORS` can use these eleven codes:
+`LS_COLORS` can use these twelve codes:
 
 `di`
 : directories
@@ -312,9 +312,6 @@ Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are 
 `dt`
 : a regular file that is data (ex: CSV, Parquet, HDF5, SQLite, or NumPy array)
 
-`ic`
-: the icon (this is optional, if not set the icon color matches the file name's)
-
 `Sn`
 : No security context on a file
 
@@ -331,7 +328,13 @@ Note: `mh` is unset by default, matching GNU `ls`, so multiply-linked files are 
 : SELinux level
 
 `ff`
-: BSD file flags
+: file flags and attributes, as shown by `--flags`
+
+`hw`
+: the tally of hidden and ignored entries that `--warn-hidden` prints
+
+`Tn`, `Tg`, `Te`, `Tp`, `Tb`, `Ty`, `Tr`, `To`
+: a macOS Finder tag, as shown by `--tags`: one with no colour, then grey, green, purple, blue, yellow, red and orange
 
 Values in `LEZ_COLORS` or `EZA_COLORS` override those given in `LS_COLORS`, so you don’t need to re-write an existing `LS_COLORS` variable with proprietary extensions.
 
@@ -354,6 +357,21 @@ The codes accepted by lez are:
 
 `4`
 : for underline
+
+`5`
+: for blink
+
+`7`
+: for reverse video
+
+`8`
+: for hidden text
+
+`9`
+: for strikethrough
+
+`30`
+: for black text
 
 `31`
 : for red text
@@ -402,6 +420,12 @@ The codes accepted by lez are:
 
 `38;5;nnn`
 : for a colour from 0 to 255 (replace the `nnn` part)
+
+`38;2;r;g;b`
+: for a 24-bit colour, each of `r`, `g` and `b` from 0 to 255
+
+`40` to `47`, `100` to `107`, `48;5;nnn`, `48;2;r;g;b`
+: for the same colours as the background, in the order of `30` to `37`, `90` to `97`, `38;5;nnn` and `38;2;r;g;b`
 
 Many terminals will treat bolded text as a different colour, or at least provide the option to.
 
