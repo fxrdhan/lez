@@ -62,6 +62,12 @@ META OPTIONS
 `--no-config`
 : Do not load any global or per-directory configuration files.
 
+`--stdin`
+: When you wish to pipe directories to lez/read from stdin. Separate one per line or define custom separation char in `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
+
+`--stdin0`
+: Like `--stdin`, but paths are separated by NUL (`\0`) characters, as produced by `find -print0` or `fd -0`. Always uses NUL, ignoring `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR`. Overrides `--stdin` and vice versa; the last one given wins.
+
 
 DISPLAY OPTIONS
 ===============
@@ -87,7 +93,7 @@ When used without a value, defaults to '`on`'. Note: when providing an explicit 
 Valid settings are ‘`always`’, ‘`automatic`’ (or ‘`auto`’ for short), and ‘`never`’.
 When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--classify=WHEN`).
 
-`automatic` or `auto` will display file kind indicators only when the standard output is connected to a real terminal. If `lez` is run while in a `tty`, or the output of `lez` is either redirected to a file or piped into another program, file kind indicators will not be used. Setting this option to ‘`always`’ causes `lez` to always display file kind indicators, while ‘`never`’ disables the use of file kind indicators.
+`automatic` or `auto` will display file kind indicators only when the standard output is connected to a real terminal; when it is redirected to a file or piped into another program, they are not used. Setting this option to ‘`always`’ causes `lez` to always display file kind indicators, while ‘`never`’ disables the use of file kind indicators.
 
 `-G`, `--grid`
 : Display entries as a grid (default).
@@ -145,7 +151,7 @@ The size gradient runs over orders of magnitude rather than bytes, so a single l
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
 When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--icons=WHEN`).
 
-`automatic` or `auto` will display icons only when the standard output is connected to a real terminal. If `lez` is run while in a `tty`, or the output of `lez` is either redirected to a file or piped into another program, icons will not be used. Setting this option to ‘`always`’ causes `lez` to always display icons, while ‘`never`’ disables the use of icons.
+`automatic` or `auto` will display icons only when the standard output is connected to a real terminal; when it is redirected to a file or piped into another program, they are not used. Setting this option to ‘`always`’ causes `lez` to always display icons, while ‘`never`’ disables the use of icons.
 
 `--quotes=WHEN`
 : When to quote file names. The default, `auto`, quotes names holding anything a shell gives a meaning to, the same characters `ls` quotes for: a space, `` ! " $ & ' ( ) * ; < = > ? [ \ ^ ` | ``, a control character, or a leading `#` or `~` (on Windows, where `\` separates paths, `\` and `[` are left bare, as are `?` and `*`, which a name there cannot hold and which appear only in a `\\?\` path prefix); `always` quotes every name; `never` quotes nothing (like `ls -N`).
@@ -153,7 +159,7 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe and nothing double quotes would still expand (`` " $ ` \ ! ``), and otherwise the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`. A name holding a control character, such as a newline, is written in ANSI-C quotes, which bash, zsh and ksh read: the character as `\n`, `\t`, `\r`, `\a`, `\b`, `\v` or `\f`, or else as the octal escapes of its bytes, with `\'` and `\\` for an apostrophe and a backslash, so `new<newline>line` prints as `$'new\nline'`. With `never`, and on Windows, whose shells have no such quotes, a control character is shown as an escape such as `\n` or `\u{85}` that is not read back.
 
 `--spacing=SPACES`
-: Number of spaces to print between columns in the grid views. Accepts `0` to `255`; the default is `2`.
+: Number of spaces to print between columns. The default is `2` in the grid views and `1` in the long view; a value above `1000` is taken as `1000`.
 
 `--short-nix`
 : Abbreviate Nix store hashes in file names and paths.
@@ -353,7 +359,9 @@ These options are available when running with `--long` (`-l`):
 `--time-style=STYLE`
 : How to format timestamps.
 
-: Valid timestamp styles are ‘`default`’, ‘`iso`’, ‘`long-iso`’, ‘`full-iso`’, ‘`relative`’, or a custom style ‘`+<FORMAT>`’ (e.g., ‘`+%Y-%m-%d %H:%M`’ => ‘`2023-09-30 13:00`’).
+: Valid timestamp styles are ‘`default`’, ‘`iso`’, ‘`long-iso`’, ‘`full-iso`’, ‘`relative`’, ‘`relative-recent`’, or a custom style ‘`+<FORMAT>`’ (e.g., ‘`+%Y-%m-%d %H:%M`’ => ‘`2023-09-30 13:00`’).
+
+‘`relative-recent`’ writes a time from the last 7 days as ‘`relative`’ does (‘`3 hours`’) and an older one in the default style. ‘`relative-recent:DAYS`’ sets the window, as in ‘`relative-recent:30`’.
 
 `<FORMAT>` should be a chrono format string. For details on the chrono format syntax, please read: https://docs.rs/chrono/latest/chrono/format/strftime/index.html .
 
@@ -389,12 +397,6 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 `--no-language`
 : Suppress the programming language field when `--loc` is enabled.
 
-`--stdin`
-: When you wish to pipe directories to lez/read from stdin. Separate one per line or define custom separation char in `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
-
-`--stdin0`
-: Like `--stdin`, but paths are separated by NUL (`\0`) characters, as produced by `find -print0` or `fd -0`. Always uses NUL, ignoring `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR`. Overrides `--stdin` and vice versa; the last one given wins.
-
 `-@`, `--extended`
 : List each file’s extended attributes and sizes.
 
@@ -419,14 +421,14 @@ This adds a two-character column indicating the staged and unstaged statuses res
 
 `--git-repos` [if lez was built with git support]
 : List each directory’s Git status, if tracked.
-Symbols shown are `|`= clean, `+`= dirty, and `~`= for unknown.
+Symbols shown are `|` for clean and `+` for dirty; a directory that is not a repository shows `-`.
 
 `--git-repos-no-status` [if lez was built with git support]
 : List if a directory is a Git repository, but not its status.
 All Git repository directories will be shown as (themed) `-` without status indicated.
 
 `--no-git`
-: Don't show Git status (always overrides `--git`, `--git-repos`, `--git-repos-no-status`).
+: Don't show Git status or filter by `.gitignore` (always overrides `--git`, `--git-repos`, `--git-repos-no-status`, and `--git-ignore`).
 
 
 ENVIRONMENT VARIABLES
@@ -495,7 +497,7 @@ For example, setting `LEZ_PERCENT_DIGITS=0` yields integer percentages (`68%`), 
 
 ## `NO_COLOR`
 
-Disables colours in the output (regardless of its value). Can be overridden by `--color` option.
+Disables colours in the output when set to anything but an empty string. `--color=always` overrides it.
 
 See `https://no-color.org/` for details.
 
@@ -507,7 +509,7 @@ For more information on the format of these environment variables, see the **lez
 
 ## `LEZ_OVERRIDE_GIT`, `EZA_OVERRIDE_GIT`
 
-Overrides any `--git` or `--git-repos` argument.
+Acts as `--no-git` whenever it is set: Git status and `.gitignore` filtering stay off, whatever `--git`, `--git-repos` or `--git-ignore` say.
 
 ## `LEZ_MIN_LUMINANCE`, `EZA_MIN_LUMINANCE`
 
@@ -539,6 +541,10 @@ Specifies the directory where lez will look for its configuration and theme file
 
 Specifies when file names are quoted, as if `--quotes` had been given. Valid values are `always`, `auto`, and `never`; invalid or unset values fall back to `auto`. `--quotes=never` is equivalent to `ls -N`, and the command-line option overrides this variable.
 
+## `LEZ_DEBUG`, `EZA_DEBUG`
+
+Set to anything but an empty string to log what lez is doing to standard error, or to `trace` to log more.
+
 
 CONFIGURATION FILES
 ===================
@@ -551,10 +557,10 @@ Configuration is evaluated in the following precedence order:
 1. Command-line arguments
 2. Environment variables (`LEZ_*`, `EZA_*`, `LS_COLORS`, etc.)
 3. Local (per-directory) configuration file (`.lez.toml`, `.lez.yaml`, `.lez.yml`, `.eza.toml`, `.eza.yaml` in the current working directory)
-4. Global configuration file (`$LEZ_CONFIG_FILE`, or `config.toml` / `lez.toml` in `$LEZ_CONFIG_DIR` or `~/.config/lez/`)
+4. Global configuration file: the first of `config.toml`, `lez.toml`, `config.yaml` and `config.yml` in the configuration directory (see `LEZ_CONFIG_DIR`)
 5. Built-in defaults
 
-Passing `--no-config` disables loading both global and per-directory configuration files.
+A file named by `--config` or `LEZ_CONFIG_FILE` is loaded instead of both discovered files. Passing `--no-config` disables loading both global and per-directory configuration files.
 
 For full schema and example configuration options, refer to `docs/config.example.toml`.
 
@@ -567,6 +573,9 @@ EXIT STATUSES
 
 1
 : If there was an I/O error during operation.
+
+2
+: If a path given on the command line does not exist.
 
 3
 : If there was a problem with the command-line arguments.
