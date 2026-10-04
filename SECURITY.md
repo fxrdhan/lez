@@ -10,8 +10,9 @@ SPDX-License-Identifier: EUPL-1.2
 
 ## Supported Versions
 
-`lez` is pre-1.0 and is developed on `main`. Only the most recent release
-receives security updates; there are no maintained older branches.
+`lez` is pre-1.0 and is developed on `dev`, which `main` follows at each
+release. Only the most recent release receives security updates; there are
+no maintained older branches.
 
 | Version | Supported          |
 | ------- | ------------------ |

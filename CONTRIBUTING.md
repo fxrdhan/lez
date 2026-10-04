@@ -80,7 +80,8 @@ If you want more information on the tests please read [TESTING.md](TESTING.md).
 
 ## Creating a PR
 
-First, use the pull request template.
+Branch off `dev` and open the pull request against `dev`; `main` only
+receives releases. Use the pull request template.
 
 Please make sure that the thing you worked on... actually works. Make sure to
 also add how you ensured this in the PR description. Further, it's expected
@@ -97,6 +98,10 @@ issues are addressed. For formatting issues, `nix fmt` will format the code for
 you. Most clippy issues can be resolved with `cargo clippy --fix` (although it
 might be educational to fix them yourself). If you have reuse issues, you can
 run the following command to annotate your code:
+
+```sh
+reuse annotate --copyright "Your Name" --license EUPL-1.2 path/to/file
+```
 
 Here are the absolute basics:
 - your commit summary MUST follow conventional commits.

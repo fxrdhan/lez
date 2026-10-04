@@ -32,7 +32,7 @@ Add it to `powertest.yaml`, then run `just regen` to regenerate powertesting.
 Look into `tests/gen` or `tests/cmd` for any tests not passing.
 
 Two things about `powertest.yaml` are worth knowing before you edit it, both
-guarded by `tests/powertest_config_tests.rs`:
+guarded by `tests/cli_options/powertest_config.rs`:
 
 - The generator renders a key and its value as `<flag> <value>`, with a space,
   and there is no way to ask it for an equals sign. Flags declared with
