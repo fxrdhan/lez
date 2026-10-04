@@ -84,11 +84,15 @@ fn the_schema_is_draft_7_with_shared_definitions() {
 }
 
 /// A link's style may be a style, `target`, or `target` with ANSI codes.
+/// `anyOf`, not `oneOf`: a plain style such as `{ foreground: Cyan }` is both
+/// a link style and a style, and `oneOf` rejects a value two branches accept.
 #[test]
 fn filekinds_symlink_allows_the_target_keyword() {
     let schema = schema();
+    let symlink = &schema["properties"]["filekinds"]["properties"]["symlink"];
+    assert_eq!(symlink.get("oneOf"), None);
     assert_eq!(
-        schema["properties"]["filekinds"]["properties"]["symlink"]["oneOf"],
+        symlink["anyOf"],
         json!([
             {"$ref": "#/$defs/symlink_style"},
             {"$ref": "#/$defs/style"},
