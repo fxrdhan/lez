@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2026 fxrdhan
 # SPDX-License-Identifier: EUPL-1.2
 #
-# Publishes a release when a v* tag is pushed.
+# Publishes a release when a v* tag is pushed: the GitHub release with its
+# binaries, then the crate on crates.io and the Homebrew formula.
 #
 # The binaries are built on GitHub runners, one target per runner, natively.
 # The justfile's `cross` recipe builds seven targets through Docker instead;
@@ -218,3 +219,35 @@ jobs:
           commit-message: "bump lez to ${{ github.ref_name }}"
         env:
           COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+  crates-io:
+    name: Publish to crates.io
+    # After the GitHub release, because `cargo binstall` takes the version
+    # from crates.io and the binaries from that release. A dry run, which
+    # releases nothing, packages and builds the crate without uploading it.
+    needs: publish
+    if: ${{ !cancelled() && (needs.publish.result == 'success' || github.event_name != 'push') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Trusted Publishing: crates.io trusts this workflow, so no token is
+      # stored. Configured under the crate's Settings > Trusted Publishing.
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
+      - name: Check the package
+        if: github.event_name != 'push'
+        run: cargo publish --dry-run --locked
+      - name: Authenticate with crates.io
+        id: auth
+        if: github.event_name == 'push'
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+      - name: Publish
+        if: github.event_name == 'push'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --locked
