@@ -236,7 +236,7 @@ pub fn get_command() -> clap::Command {
             .help(format!("how to format timestamps {FORMAT_STYLE_FIELDS_HELP}"))
             .value_parser(TimeFormatParser)
             .hide_possible_values(false))
-        .arg(arg!(-O --flags "list file flags (Mac, BSD, and Windows only)").id("file-flags"))
+        .arg(arg!(-O --flags "list file flags (Linux, macOS, BSD, and Windows)").id("file-flags"))
         .arg(arg!(-Z --context "list each file's security context").id("security-context"))
         .arg(arg!(--git "list each file's Git status, if tracked or ignored")
             .overrides_with("no-git"))

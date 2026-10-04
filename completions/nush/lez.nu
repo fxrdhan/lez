@@ -90,7 +90,7 @@ export extern "lez" [
     --git-repos-no-status      # List each git-repos branch name (much faster)
     --extended(-@)             # List each file's extended attributes and sizes
     --context(-Z)              # List each file's security context
-    --flags(-O)                # List file flags (Mac, BSD, and Windows only)
+    --flags(-O)                # List file flags (Linux, macOS, BSD, and Windows)
     --tags(-e)                 # List each file's color tags stored in extended attributes
     --smart-group              # Only show group if it has a different name from owner
     --stdin                    # When piping to lez. Read file paths from stdin
