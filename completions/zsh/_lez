@@ -100,7 +100,7 @@ __lez() {
         \*{-@,--extended}"[List each file's extended attributes and sizes]" \
         \*--no-extended"[Don't show the '@' marker that a file has extended attributes]" \
         \*{-Z,--context}"[List each file's security context]" \
-        \*{-O,--flags}"[List file flags (Mac, BSD, and Windows only)]" \
+        \*{-O,--flags}"[List file flags (Linux, macOS, BSD, and Windows)]" \
         \*{-e,--tags}"[List each file's color tags stored in extended attributes]" \
         \*{-M,--mounts}"[Show mount details (long mode only)]" \
         '*:filename:_files' \
