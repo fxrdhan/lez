@@ -9,7 +9,9 @@
 # not currently have, and it runs containers on the maintainer's machine. This
 # does neither.
 #
-# The release is published as soon as every binary is built.
+# The release is published as soon as every binary is built. Its notes are
+# the version's section of CHANGELOG.md, the one written by hand: the commit
+# titles git-cliff would list say little once a pull request is squashed.
 #
 # Run any other way, by hand or by a pull request that changes this file, it
 # is a dry run: everything is built and packaged, under a stand-in version,
@@ -100,6 +102,37 @@ jobs:
           name: binary-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
+  notes:
+    name: Release notes
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Take the version's section of CHANGELOG.md
+        id: notes
+        run: |
+          # The first `version =` in Cargo.toml is the package's.
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          if [ "${GITHUB_EVENT_NAME}" = push ] && [ "${VERSION}" != "v${version}" ]; then
+            echo "::error file=Cargo.toml::The tag is ${VERSION}, but Cargo.toml says ${version}."
+            exit 1
+          fi
+          awk -v head="## [${version}]" '
+            index($0, "## [") == 1 { if (on) exit; on = index($0, head) == 1; next }
+            on
+          ' CHANGELOG.md > NOTES.md
+          if ! grep -q '[^[:space:]]' NOTES.md; then
+            echo "::error file=CHANGELOG.md::CHANGELOG.md has no section for ${version}."
+            exit 1
+          fi
+          cat NOTES.md
+          {
+            echo "notes<<EOF_NOTES"
+            cat NOTES.md
+            echo "EOF_NOTES"
+          } >> "$GITHUB_OUTPUT"
   docs:
     name: Man pages and completions
     runs-on: ubuntu-latest
@@ -127,7 +160,7 @@ jobs:
           if-no-files-found: error
   publish:
     name: Publish the release
-    needs: [binaries, docs]
+    needs: [binaries, docs, notes]
     # Only a pushed tag publishes; run by hand, even on a tag, it is a dry run.
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
@@ -136,8 +169,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - name: Collect the artifacts
         uses: actions/download-artifact@v4
         with:
@@ -148,10 +179,10 @@ jobs:
           find artifacts -type f -exec mv {} dist/ \;
           ls -l dist
       - name: Write the release notes
+        env:
+          NOTES: ${{ needs.notes.outputs.notes }}
         run: |
-          version="${GITHUB_REF_NAME}"
-          cargo install git-cliff --locked --version 2.13.1
-          git cliff -c .config/cliff.toml -t "${version}" --current > NOTES.md
+          printf '%s\n' "${NOTES}" > NOTES.md
           {
             echo
             echo "## Checksums"
