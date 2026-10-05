@@ -92,8 +92,13 @@ jobs:
         with:
           toolchain: stable
           components: clippy, rustfmt
+      # Every Rust cache is saved from dev alone. A pull request restores
+      # dev's, and one it saved under its own merge ref would serve that pull
+      # request only, while pushing dev's out of the repository's 10 GB.
       - name: Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
@@ -138,6 +143,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: features-${{ matrix.label }}
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       # The tests too: a suite that builds its Git or tar fixtures with an
       # optional crate is gated on that crate's feature, and a packager who
       # switches a feature off still runs the rest.
@@ -188,6 +194,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       # nextest runs every test binary in one pool. `cargo test` runs them
       # one at a time, and this suite is ninety-one binaries with a median of
       # five tests each, so most of a run is spent with the runner idle.
@@ -231,6 +238,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: llvm-cov
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Install cargo-llvm-cov & cargo-nextest
         uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
@@ -276,6 +284,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: release-${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Build release binary
         run: cargo build --release --locked --target ${{ matrix.target }} --features git,inspect-archives
   nix-flake-check:
