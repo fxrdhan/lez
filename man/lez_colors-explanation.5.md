@@ -53,6 +53,8 @@ Now you can specify these options and more in a `theme.yml` file with convenient
 Set `LEZ_CONFIG_DIR` or `EZA_CONFIG_DIR` to specify which directory you would like lez to look for your `theme.yml` file,
 otherwise lez will look for `theme.yml` in `$XDG_CONFIG_HOME/lez` when `XDG_CONFIG_HOME` is set to an absolute path, otherwise the platform's configuration directory: `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows. In either place an existing `eza` directory is used when there is no `lez` one.
 
+A theme file takes the place of `LS_COLORS`, which the system's `dircolors` often sets for every program: when lez reads a theme, it leaves `LS_COLORS` unread. `LEZ_COLORS` and `EZA_COLORS` are still laid over the theme. `LEZ_COLORS="di=36"` turns a theme's directories cyan, and a glob there colours a name ahead of the theme's `filenames`, `extensions` and `mimetypes` entries for it, though the theme's icon stays. To keep a colour from `LS_COLORS`, give it in the theme or in `LEZ_COLORS`. Under `--no-config`, or when the theme file cannot be read, lez uses `LS_COLORS` as if there were no theme.
+
 
 These are the available options:
 

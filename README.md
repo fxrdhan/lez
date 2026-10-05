@@ -379,7 +379,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 |---|---|
 | `LEZ_CONFIG_FILE` / `EZA_CONFIG_FILE` | Explicit path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). |
 | `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS, `%APPDATA%\lez` on Windows). |
-| `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. |
+| `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. `LS_COLORS` is not read when a `theme.yml` is. |
 | `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (-100..=100) for color scaling on dates and sizes. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
 | `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
@@ -400,6 +400,8 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 
 An example theme file is available in [`docs/theme.yml`](docs/theme.yml), and can be placed in a directory specified by 
 `$LEZ_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in the configuration directory: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows (an existing `eza` directory there is used when there is no `lez` one).
+
+A theme file takes the place of `LS_COLORS`, which the system's `dircolors` often sets for every program, so `LS_COLORS` is not read beside one. `LEZ_COLORS` and `EZA_COLORS` are still laid over the theme.
 
 ### Schema Validation in IDEs
 

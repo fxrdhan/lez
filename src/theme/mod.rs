@@ -130,7 +130,12 @@ impl Options {
                             plain: true,
                         };
                     }
-                    let (exts, use_default_filetypes) = self.definitions.parse_color_vars(&mut ui);
+                    // The theme file takes the place of `LS_COLORS`, which is
+                    // often set for every program by the system's `dircolors`
+                    // rather than chosen for this one. `LEZ_COLORS` is still
+                    // laid over the theme.
+                    let (exts, use_default_filetypes) =
+                        self.definitions.parse_color_vars(&mut ui, false);
                     let exts: Box<dyn FileStyle> =
                         match (exts.is_non_empty(), use_default_filetypes) {
                             (false, false) => Box::new(NoFileStyle),
@@ -165,7 +170,7 @@ impl Options {
                 plain: true,
             };
         }
-        let (exts, use_default_filetypes) = self.definitions.parse_color_vars(&mut ui);
+        let (exts, use_default_filetypes) = self.definitions.parse_color_vars(&mut ui, true);
         let exts: Box<dyn FileStyle> = match (exts.is_non_empty(), use_default_filetypes) {
             (false, false) => Box::new(NoFileStyle),
             (false, true) => Box::new(FileTypes),
@@ -191,13 +196,19 @@ impl Definitions {
     ///
     /// Also returns if the `EZA_COLORS` variable should reset the existing file
     /// type mappings or not. The `reset` code needs to be the first one.
-    fn parse_color_vars(&self, colours: &mut UiStyles) -> (ExtensionMappings, bool) {
+    ///
+    /// `LS_COLORS` is read only when `with_ls_colors` is set.
+    fn parse_color_vars(
+        &self,
+        colours: &mut UiStyles,
+        with_ls_colors: bool,
+    ) -> (ExtensionMappings, bool) {
         // The globs are gathered before any is added, because whether one
         // ignores case depends on the globs after it. Those from `EZA_COLORS`
         // follow those from `LS_COLORS`, as if both were one list.
         let mut globs = Vec::new();
 
-        if let Some(lsc) = &self.ls {
+        if with_ls_colors && let Some(lsc) = &self.ls {
             LSColors(lsc).each_pair(|pair| {
                 if !colours.set_ls(&pair) && !is_builtin_ls_colors_key(pair.key) {
                     globs.push(pair);
@@ -272,6 +283,12 @@ pub trait FileStyle: Sync {
     fn get_style_for_name(&self, _name: &str, _theme: &Theme) -> Option<Style> {
         None
     }
+
+    /// Return the style a glob in the colour variables gives `file`, leaving
+    /// out the built-in file type colours.
+    fn glob_style(&self, _file: &File<'_>, _theme: &Theme) -> Option<Style> {
+        None
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -302,6 +319,12 @@ where
         self.0
             .get_precedence_style(file, theme)
             .or_else(|| self.1.get_precedence_style(file, theme))
+    }
+
+    fn glob_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
+        self.0
+            .glob_style(file, theme)
+            .or_else(|| self.1.glob_style(file, theme))
     }
 
     fn get_style_for_name(&self, name: &str, theme: &Theme) -> Option<Style> {
@@ -504,6 +527,10 @@ fn is_simple_pattern(pattern: glob::Pattern) -> Result<String, glob::Pattern> {
 
 impl FileStyle for ExtensionMappings {
     fn get_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
+        self.get_style_for_name(&file.name, theme)
+    }
+
+    fn glob_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
         self.get_style_for_name(&file.name, theme)
     }
 
@@ -832,43 +859,57 @@ impl FileNameColours for Theme {
                     return Some(file_override.clone());
                 }
             }
-        } else {
-            if let Some(ref name_overrides) = self.ui.filenames
-                && let Some(file_override) = name_overrides.get(&file.name)
+        } else if let Some(file_override) = self.file_override(file) {
+            let mut file_override = file_override.clone();
+            // `LEZ_COLORS` is laid over the theme file, so a glob there
+            // colours the name ahead of the theme's entry for it, on the
+            // regular files globs colour. The theme's icon stays.
+            if file_override.filename.is_some()
+                && file.is_file()
+                && let Some(style) = self.exts.glob_style(file, self)
             {
-                return Some(file_override.clone());
+                file_override.filename = Some(style);
             }
+            return Some(file_override);
+        }
 
-            if let Some(ref ext_overrides) = self.ui.extensions
-                && let Some(ext) = file.ext.as_deref()
-                && let Some(file_override) = ext_overrides.get(ext)
-            {
-                return Some(file_override.clone());
-            }
+        None
+    }
+}
 
-            if let Some(ref mime_overrides) = self.ui.mimetypes
-                && let Some(mimetype) = file.mimetype()
-                && let Some(file_override) = mime_overrides.get(mimetype)
-            {
-                return Some(file_override.clone());
-            }
+impl Theme {
+    /// The theme file's entry for a file that is not a directory: by name,
+    /// then by extension, then by MIME type, then the defaults.
+    fn file_override(&self, file: &File<'_>) -> Option<&FileNameStyle> {
+        if let Some(ref name_overrides) = self.ui.filenames
+            && let Some(file_override) = name_overrides.get(&file.name)
+        {
+            return Some(file_override);
+        }
 
-            if let Some(ref ext_overrides) = self.ui.extensions
-                && !crate::output::icons::has_specific_icon(file)
-            {
-                if file.ext.is_some() {
-                    if let Some(file_override) = ext_overrides.get(FileDefaults::FILE) {
-                        return Some(file_override.clone());
-                    }
-                } else {
-                    if let Some(file_override) = ext_overrides.get(FileDefaults::FILE_UNKNOWN) {
-                        return Some(file_override.clone());
-                    }
-                    if let Some(file_override) = ext_overrides.get(FileDefaults::FILE) {
-                        return Some(file_override.clone());
-                    }
-                }
+        if let Some(ref ext_overrides) = self.ui.extensions
+            && let Some(ext) = file.ext.as_deref()
+            && let Some(file_override) = ext_overrides.get(ext)
+        {
+            return Some(file_override);
+        }
+
+        if let Some(ref mime_overrides) = self.ui.mimetypes
+            && let Some(mimetype) = file.mimetype()
+            && let Some(file_override) = mime_overrides.get(mimetype)
+        {
+            return Some(file_override);
+        }
+
+        if let Some(ref ext_overrides) = self.ui.extensions
+            && !crate::output::icons::has_specific_icon(file)
+        {
+            if file.ext.is_some() {
+                return ext_overrides.get(FileDefaults::FILE);
             }
+            return ext_overrides
+                .get(FileDefaults::FILE_UNKNOWN)
+                .or_else(|| ext_overrides.get(FileDefaults::FILE));
         }
 
         None
@@ -962,7 +1003,7 @@ mod customs_test {
                 };
 
                 let mut result = UiStyles::default();
-                let (_, _) = definitions.parse_color_vars(&mut result);
+                let (_, _) = definitions.parse_color_vars(&mut result, true);
                 assert_eq!($expected, result);
             }
         };
@@ -979,7 +1020,7 @@ mod customs_test {
                     exa: Some($exa.into()),
                 };
 
-                let (result, _) = definitions.parse_color_vars(&mut UiStyles::default());
+                let (result, _) = definitions.parse_color_vars(&mut UiStyles::default(), true);
                 assert_eq!(mappings, result.to_vec_pat_style());
             }
         };
@@ -1000,7 +1041,7 @@ mod customs_test {
                 };
 
                 let mut result = UiStyles::default();
-                let (exts, _) = definitions.parse_color_vars(&mut result);
+                let (exts, _) = definitions.parse_color_vars(&mut result, true);
 
                 assert_eq!(mappings, exts.to_vec_pat_style());
                 assert_eq!($expected, result);
@@ -1537,6 +1578,103 @@ mod customs_test {
         let entry = theme.ui.filenames.as_ref().unwrap()["notes.txt"].clone();
         assert_eq!(entry.filename, Some(Red.normal()));
         assert_eq!(entry.icon.and_then(|i| i.glyph), Some("x".to_string()));
+    }
+
+    /// The theme of a run with the given theme file and colour variables.
+    fn themed(theme: &str, ls: Option<&str>, exa: Option<&str>) -> Theme {
+        let temp_dir = tempfile::Builder::new()
+            .prefix("lez_theme_precedence_")
+            .tempdir()
+            .unwrap();
+        let path = temp_dir.path().join("theme.yml");
+        std::fs::write(&path, theme).unwrap();
+        Options {
+            use_colours: UseColours::Always,
+            colour_scale: ColorScaleOptions::default(),
+            definitions: Definitions {
+                ls: ls.map(Into::into),
+                exa: exa.map(Into::into),
+            },
+            theme_config: Some(ThemeConfig::from_path(path)),
+        }
+        .to_theme(true)
+    }
+
+    #[test]
+    fn a_theme_file_takes_the_place_of_ls_colors() {
+        let theme = themed(
+            "filekinds:\n  directory: {foreground: Red}\n",
+            Some("di=32:*.qux=35"),
+            None,
+        );
+        assert_eq!(
+            theme.ui.filekinds.unwrap().directory.unwrap().foreground,
+            Some(Red)
+        );
+        assert_eq!(theme.exts.get_style_for_name("a.qux", &theme), None);
+    }
+
+    #[test]
+    fn lez_colors_is_laid_over_the_theme_file() {
+        let theme = themed(
+            "filekinds:\n  directory: {foreground: Red}\n",
+            Some("di=32"),
+            Some("di=36:*.qux=35"),
+        );
+        assert_eq!(theme.ui.filekinds.unwrap().directory, Some(Cyan.normal()));
+        assert_eq!(
+            theme.exts.get_style_for_name("a.qux", &theme),
+            Some(Purple.normal())
+        );
+    }
+
+    #[test]
+    fn a_lez_colors_glob_colours_a_name_ahead_of_the_theme_file() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_theme_glob_")
+            .tempdir()
+            .unwrap();
+        let path = dir.path().join("main.rs");
+        std::fs::write(&path, "").unwrap();
+        let file = File::from_args(path, None, None, false, false, false, None);
+        let rs = "extensions:\n  rs: {filename: {foreground: Blue}, icon: {glyph: R}}\n";
+
+        let theme = themed(rs, None, None);
+        let style = theme.style_override(&file).unwrap();
+        assert_eq!(style.filename, Some(Blue.normal()));
+
+        let theme = themed(rs, None, Some("*.rs=36"));
+        let style = theme.style_override(&file).unwrap();
+        assert_eq!(style.filename, Some(Cyan.normal()));
+        assert_eq!(style.icon.unwrap().glyph.as_deref(), Some("R"));
+
+        // A built-in file type colour is not a glob, so the theme keeps the
+        // name.
+        let theme = themed(rs, None, Some("sc=36"));
+        let style = theme.style_override(&file).unwrap();
+        assert_eq!(style.filename, Some(Blue.normal()));
+    }
+
+    /// Globs colour regular files only, so a link keeps the theme's colour
+    /// for its name, as it keeps `ln` when there is no theme.
+    #[cfg(unix)]
+    #[test]
+    fn a_lez_colors_glob_leaves_a_link_to_the_theme_file() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_theme_glob_link_")
+            .tempdir()
+            .unwrap();
+        let path = dir.path().join("link.rs");
+        std::os::unix::fs::symlink("missing", &path).unwrap();
+        let link = File::from_args(path, None, None, false, false, false, None);
+
+        let theme = themed(
+            "extensions:\n  rs: {filename: {foreground: Blue}}\n",
+            None,
+            Some("*.rs=36"),
+        );
+        let style = theme.style_override(&link).unwrap();
+        assert_eq!(style.filename, Some(Blue.normal()));
     }
 
     #[test]
