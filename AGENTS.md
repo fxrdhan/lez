@@ -15,6 +15,7 @@ Guide for agents and contributors working on `lez`, a replacement for `ls` writt
 - Run tests with `cargo nextest run --workspace`, then `cargo test --doc`.
 - Use Conventional Commits, one change per commit, each with its own tests.
 - Fix CI failures by amending the commit that caused them, not by adding "fix CI" commits.
+- After opening a PR, watch its CI until it is ready to merge. The user merges it, never you.
 - Treat every filesystem syscall as expensive. Profile before optimizing.
 - Never panic or `unwrap` on user input or runtime I/O.
 - Reproduce upstream issues against our binary before working on them.
@@ -185,6 +186,8 @@ Use `Path` and `PathBuf` methods instead of hardcoding `/` or `\`.
 - Keep commits atomic. Each fix or feature gets its own commit with its tests, and unrelated changes don't share a commit.
 - Keep history clean. If CI fails or you spot a typo, amend the commit that caused it and `git push --force-with-lease`.
 - Follow the PR template in `.github/PULL_REQUEST_TEMPLATE/pull_request_template.md`.
+- After opening a PR, stay with it until it is ready to merge: every check green on its latest commit, no conflict with `dev`, and every review comment answered. Wait on CI as [Waiting on long-running commands](#waiting-on-long-running-commands) describes, and fix a red check by amending the commit that caused it. A red or conflicted PR is never just waiting on review.
+- Don't merge the PR yourself. Once it is ready, say so and leave the merge to the user.
 
 ## Upstream issues
 
