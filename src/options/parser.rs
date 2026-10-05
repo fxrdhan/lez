@@ -43,22 +43,44 @@ const FORMAT_STYLE_FIELDS_HELP: &str = "[possible values:
   default, iso, long-iso, full-iso, relative, relative-recent, \"+<CUSTOM_FORMAT>\"]";
 
 pub fn get_command() -> clap::Command {
-    clap::Command::new(clap::crate_name!())
+    let command = clap::Command::new(clap::crate_name!())
         .author(clap::crate_authors!())
         .about(clap::crate_description!())
-        .version(include_str!(concat!(env!("OUT_DIR"), "/version_string.txt")))
+        .version(include_str!(concat!(
+            env!("OUT_DIR"),
+            "/version_string.txt"
+        )))
         .disable_help_flag(true)
         .disable_version_flag(true)
         .args_override_self(true)
         .styles(HELP_STYLES)
+        .arg(
+            arg!([FILE]...)
+                .value_parser(clap::value_parser!(OsString))
+                .hide_short_help(true),
+        );
 
-        .arg(arg!([FILE]...).value_parser(clap::value_parser!(OsString)).hide_short_help(true))
+    // Each heading's arguments are added by a function of its own. In a
+    // debug build every value in a builder chain keeps a stack slot of its
+    // own, and one chain of all of them took a frame of nearly a mebibyte,
+    // the whole of a Windows main thread's stack.
+    let command = meta_options(command);
+    let command = layout_options(command);
+    let command = display_options(command);
+    let command = filtering_options(command);
+    let command = sorting_options(command);
+    long_view_options(command)
+}
 
+fn meta_options(command: clap::Command) -> clap::Command {
+    command
         .next_help_heading("META OPTIONS")
         .arg(arg!(--stdin "read file names from stdin").overrides_with("stdin0"))
         .arg(arg!(--stdin0 "read NUL-separated file names from stdin").overrides_with("stdin"))
-        .arg(arg!(--config <PATH> "load custom configuration file")
-            .value_parser(value_parser!(PathBuf)))
+        .arg(
+            arg!(--config <PATH> "load custom configuration file")
+                .value_parser(value_parser!(PathBuf)),
+        )
         .arg(arg!(--"no-config" "do not read any configuration file"))
         .arg(arg!(-'?' --help "Print help").action(clap::ArgAction::HelpShort))
         .arg(arg!(--version "Print version").action(clap::ArgAction::Version))
@@ -67,7 +89,10 @@ pub fn get_command() -> clap::Command {
         // flag exists so that reflex does the expected thing rather than
         // printing a version string and exiting, which is what it used to do.
         .arg(arg!(v: -v "sort numerically within names, as `ls -v` does (the default)"))
+}
 
+fn layout_options(command: clap::Command) -> clap::Command {
+    command
         .next_help_heading("LAYOUT OPTIONS")
         .arg(arg!(-'1' --oneline "display one entry per line"))
         .arg(arg!(-l --long "display extended file metadata as a table"))
@@ -89,7 +114,10 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--spacing <SPACES> "set number of spaces between columns")
             .value_parser(value_parser!(usize)))
         .arg(arg!(--json "display as a json object"))
+}
 
+fn display_options(command: clap::Command) -> clap::Command {
+    command
         .next_help_heading("DISPLAY OPTIONS")
         .arg(arg!(-F --classify [WHEN] "display type indicator by file names")
             .num_args(0..=1)
@@ -148,7 +176,10 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"no-symlink-targets" "do not show symlink targets (the `-> ...`)"))
         .arg(arg!(--summary "display total summary statistics of entries"))
         .arg(arg!(--"mime-types" "determine file MIME types to better inform styling decisions (unix only)"))
+}
 
+fn filtering_options(command: clap::Command) -> clap::Command {
+    command
         .next_help_heading("FILTERING OPTIONS")
         .arg(arg!(-a --all... "show hidden files. Use this twice to also show the '.' and '..' directories"))
         .arg(arg!(-A --"almost-all" "equivalent to --all; included for compatibility with `ls -A`"))
@@ -184,22 +215,34 @@ pub fn get_command() -> clap::Command {
         .arg(arg!(--"ignore-submodule-contents" "do not list contents of submodules"))
         .arg(arg!(--since <DURATION> "filter and display only files created or modified within the specified duration window")
             .value_parser(humantime::parse_duration))
+}
 
+fn sorting_options(command: clap::Command) -> clap::Command {
+    command
         .next_help_heading("SORTING OPTIONS")
-        .arg(arg!(--"group-directories-first" "list directories before other files")
-            .id("dirs-first")
-            .overrides_with("dirs-last"))
-        .arg(arg!(--"group-directories-last" "list directories after other files")
-            .id("dirs-last")
-            .overrides_with("dirs-first"))
-        .arg(arg!(-s --sort <FIELD>)
-            .help(format!("which field to sort by {SORT_FIELDS_HELP}"))
-            .value_parser(value_parser!(SortField))
-            .default_value("name")
-            .hide_default_value(true)
-            .hide_possible_values(true))
+        .arg(
+            arg!(--"group-directories-first" "list directories before other files")
+                .id("dirs-first")
+                .overrides_with("dirs-last"),
+        )
+        .arg(
+            arg!(--"group-directories-last" "list directories after other files")
+                .id("dirs-last")
+                .overrides_with("dirs-first"),
+        )
+        .arg(
+            arg!(-s --sort <FIELD>)
+                .help(format!("which field to sort by {SORT_FIELDS_HELP}"))
+                .value_parser(value_parser!(SortField))
+                .default_value("name")
+                .hide_default_value(true)
+                .hide_possible_values(true),
+        )
         .arg(arg!(-r --reverse "reverse the sort order"))
+}
 
+fn long_view_options(command: clap::Command) -> clap::Command {
+    command
         .next_help_heading("LONG VIEW OPTIONS")
         .arg(arg!(-h --header "add a header row to each column"))
         .arg(arg!(-i --inode "list each file's inode number"))
@@ -1313,6 +1356,21 @@ pub mod test {
             ["always"],
             "the word becomes a path"
         );
+    }
+
+    /// Building the command fits a small stack in a debug build. A Windows
+    /// main thread has one mebibyte for everything lez does, and when every
+    /// argument was added in one builder chain its frame alone took nearly
+    /// all of it, so each new flag risked a stack overflow before a single
+    /// option was read. A heading that outgrows this wants splitting.
+    #[test]
+    fn the_command_is_built_within_half_a_mebibyte_of_stack() {
+        std::thread::Builder::new()
+            .stack_size(512 * 1024)
+            .spawn(get_command)
+            .expect("spawn a thread")
+            .join()
+            .expect("build the command");
     }
 
     #[test]
