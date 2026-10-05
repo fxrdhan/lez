@@ -254,9 +254,13 @@ jobs:
         with:
           name: code-coverage-lcov
           path: lcov.info
+  # Alongside the tests rather than after them. Waiting on the slowest test
+  # row put a Windows release build behind a Windows test run, the longest
+  # path through a run; `CI result` waits on both either way.
   build-release:
     name: Release Build (${{ matrix.target }})
-    needs: [unit-and-integration-tests]
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
