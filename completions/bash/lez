@@ -87,7 +87,7 @@ _lez() {
     esac
 
     case "$prev" in
-        --help|--version|-v|--smart-group|--show-dotfiles|--no-system|--no-hidden-attrib|--no-hidden-links|--mime-types|--no-config|--no-language)
+        --help|--version|-v|--smart-group|--owner-width|--show-dotfiles|--no-system|--no-hidden-attrib|--no-hidden-links|--mime-types|--no-config|--no-language)
             return
             ;;
 

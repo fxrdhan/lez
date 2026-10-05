@@ -263,6 +263,8 @@ fn long_view_options(command: clap::Command) -> clap::Command {
         .arg(arg!(-g --group "list each file's group"))
         .arg(arg!(--"smart-group" "only show group if it has a different name from owner"))
         .arg(arg!(-n --numeric "show user and group as their numeric IDs"))
+        .arg(arg!(--"owner-width" <COLS> "cut user and group names to COLS columns, ending in an ellipsis")
+            .value_parser(value_parser!(u16).range(1..)))
         .arg(arg!(-t --time <FIELD>)
             .help(format!("which timestamp field to show {TIME_FIELDS_HELP}"))
             .value_parser(value_parser!(TimeArgs))

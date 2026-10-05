@@ -48,6 +48,8 @@ pub struct Options {
     pub time_format: TimeFormat,
     pub user_format: UserFormat,
     pub group_format: GroupFormat,
+    /// The most columns a user or group name takes before it is cut.
+    pub owner_width: Option<usize>,
     pub flags_format: FlagsFormat,
     pub allocated_size_mode: AllocatedSizeMode,
     pub columns: Columns,
@@ -466,6 +468,8 @@ pub struct Table<'a> {
     user_format: UserFormat,
     #[cfg(unix)]
     group_format: GroupFormat,
+    #[cfg(unix)]
+    owner_width: Option<usize>,
     flags_format: FlagsFormat,
     git: Option<&'a GitCache>,
     git_glyphs: bool,
@@ -515,6 +519,8 @@ impl<'a> Table<'a> {
             user_format: options.user_format,
             #[cfg(unix)]
             group_format: options.group_format,
+            #[cfg(unix)]
+            owner_width: options.owner_width,
             flags_format: options.flags_format,
             use_utc: options.use_utc,
             loc_total: None,
@@ -648,17 +654,19 @@ impl<'a> Table<'a> {
             #[cfg(unix)]
             Column::User => {
                 let users = users_cache.expect("users cache must be available for Column::User");
-                file.user().render(self.theme, users, self.user_format)
+                file.user()
+                    .render_within(self.theme, users, self.user_format, self.owner_width)
             }
             #[cfg(unix)]
             Column::Group => {
                 let users = users_cache.expect("users cache must be available for Column::Group");
-                file.group().render(
+                file.group().render_within(
                     self.theme,
                     users,
                     self.user_format,
                     self.group_format,
                     file.user(),
+                    self.owner_width,
                 )
             }
             Column::SecurityContext => file.security_context().render(self.theme),

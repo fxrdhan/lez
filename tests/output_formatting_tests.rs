@@ -19,6 +19,8 @@ mod grid_width;
 mod hyperlinks;
 #[path = "output_formatting/number_locale.rs"]
 mod number_locale;
+#[path = "output_formatting/owner_width.rs"]
+mod owner_width;
 #[path = "output_formatting/palette.rs"]
 mod palette;
 #[path = "output_formatting/path_quoting.rs"]

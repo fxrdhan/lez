@@ -348,6 +348,9 @@ These options are available when running with `--long` (`-l`):
 `-n`, `--numeric`
 : List numeric user and group IDs.
 
+`--owner-width=COLS`
+: Cut user and group names wider than `COLS` display columns, ending them in an ellipsis in the last column, so `firstname.lastname` becomes `firstna…` under `--owner-width=8`. A number, from `--numeric` or for an ID with no name, is never cut, nor is `--json` output, and `--smart-group` compares the names before they are cut. `COLS` is at least `1`.
+
 `-O`, `--flags`
 : List file flags on Linux, macOS, and BSD systems, and file attributes on Windows systems. On Linux systems, lists inode flags/attributes (`FS_IOC_GETFLAGS`, equivalent to `lsattr`). On BSD systems see chflags(1) for a list of file flags and their meanings. By default, attributes are displayed in a long form. To display attributes as single-character abbreviations, set the environment variable `LEZ_FLAGS_FORMAT=short` (or `LEZ_WINDOWS_ATTRIBUTES=short`).
 

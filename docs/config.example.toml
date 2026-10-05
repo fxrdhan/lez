@@ -77,6 +77,9 @@
 # Only show group column if group name differs from owner
 # smart_group = false
 
+# Cut user and group names wider than this many columns (0 leaves them whole)
+# owner_width = 12
+
 # Absolute path mode: "off", "on", or "follow"
 # absolute = "off"
 

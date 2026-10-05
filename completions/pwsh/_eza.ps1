@@ -91,6 +91,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--bytes'                    ,'bytes'               , [CompletionResultType]::ParameterName, 'list file sizes in bytes, without any prefixes') 
         #   [CompletionResult]::new('-g'                         ,'group'               , [CompletionResultType]::ParameterName, 'list each file''s group')
             [CompletionResult]::new('--smart-group'              ,'smart-group'         , [CompletionResultType]::ParameterName, 'only show group if it has a different name from owner') 
+            [CompletionResult]::new('--owner-width'              ,'owner-width'         , [CompletionResultType]::ParameterName, 'cut user and group names to COLS columns, ending in an ellipsis')
             [CompletionResult]::new('--group'                    ,'group'               , [CompletionResultType]::ParameterName, 'list each file''s group')
         #   [CompletionResult]::new('-h'                         ,'header'              , [CompletionResultType]::ParameterName, 'add a header row to each column')
             [CompletionResult]::new('--header'                   ,'header'              , [CompletionResultType]::ParameterName, 'add a header row to each column') 

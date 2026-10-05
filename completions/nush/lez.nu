@@ -95,6 +95,7 @@ export extern "lez" [
     --flags(-O)                # List file flags (Linux, macOS, BSD, and Windows)
     --tags(-e)                 # List each file's color tags stored in extended attributes
     --smart-group              # Only show group if it has a different name from owner
+    --owner-width: int         # Cut user and group names wider than COLS columns
     --stdin                    # When piping to lez. Read file paths from stdin
     --stdin0                   # Like --stdin, but paths are separated by NUL
     --print-total              # Display total number of entries

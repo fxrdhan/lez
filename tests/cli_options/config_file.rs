@@ -398,7 +398,7 @@ fn every_config_key_does_what_its_flag_does() {
     let octal = ["-l", "--no-filesize", "--no-user", "--no-time"];
     let timed = ["-l", "--no-permissions", "--no-filesize", "--no-user"];
 
-    let cases: [(&str, &[&str], &[&str]); 40] = [
+    let cases: [(&str, &[&str], &[&str]); 41] = [
         ("[display]\nmode = \"tree\"", &[], &["--tree"]),
         ("[display]\nmode = \"long\"", &[], &["-l"]),
         ("[display]\nmode = \"lines\"", &["--width=200"], &["-1"]),
@@ -422,6 +422,7 @@ fn every_config_key_does_what_its_flag_does() {
         ("[display]\ndereference = true", &long, &["-X"]),
         ("[display]\nfile_flags = true", &long, &["-O"]),
         ("[display]\nsmart_group = true", &long, &["--smart-group"]),
+        ("[display]\nowner_width = 2", &numeric, &["--owner-width=2"]),
         ("[display]\nabsolute = \"on\"", &["-1"], &["--absolute=on"]),
         (
             "[display]\nhyperlink = \"always\"",

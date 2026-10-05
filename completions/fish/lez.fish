@@ -87,6 +87,7 @@ complete -c lez -l absolute -d "Display entries with their absolute path" -x -n 
   off\t'Do not show the absolute path'
 "
 complete -c lez -l smart-group -d "Only show group if it has a different name from owner"
+complete -c lez -l owner-width -d "Cut user and group names wider than COLS columns" -x
 complete -c lez -l mime-types -d "Determine file MIME types to better inform styling decisions (unix only)"
 
 # Filtering and sorting options

@@ -273,6 +273,7 @@ These options are available when running with `--long` (`-l`):
 - **-g**, **--group**: list each file’s group
 - **--smart-group**: only show group if it has a different name from owner (automatically enables group column)
 - **-n**, **--numeric**: show user and group as their numeric IDs
+- **--owner-width=(COLS)**: cut user and group names wider than `COLS` columns, ending them in an ellipsis (`firstname.lastname` becomes `firstna…` under `--owner-width=8`); numeric IDs and `--json` are left whole
 - **-h**, **--header**: add a header row to each column
 - **-H**, **--links**: list each file’s number of hard links
 - **-i**, **--inode**: list each file’s inode number

@@ -662,3 +662,37 @@ pub fn grant_capabilities(file: &Path, caps: &str) -> bool {
     eprintln!("skipped: setcap is not available to this account");
     false
 }
+
+/// A name from `getpwuid_r` or `getgrgid_r`, or the number when there is
+/// none, as lez falls back to.
+#[cfg(unix)]
+pub fn owner_name(id: u32, user: bool) -> String {
+    use std::ffi::CStr;
+
+    let mut buffer = vec![0u8; 16 * 1024];
+    let buffer_ptr = buffer.as_mut_ptr().cast();
+    // SAFETY: each call fills a zeroed record whose strings point into
+    // `buffer`, which outlives every use of them below.
+    unsafe {
+        if user {
+            let mut record: libc::passwd = std::mem::zeroed();
+            let mut found = std::ptr::null_mut();
+            libc::getpwuid_r(id, &mut record, buffer_ptr, buffer.len(), &mut found);
+            if !found.is_null() {
+                return CStr::from_ptr(record.pw_name)
+                    .to_string_lossy()
+                    .into_owned();
+            }
+        } else {
+            let mut record: libc::group = std::mem::zeroed();
+            let mut found = std::ptr::null_mut();
+            libc::getgrgid_r(id, &mut record, buffer_ptr, buffer.len(), &mut found);
+            if !found.is_null() {
+                return CStr::from_ptr(record.gr_name)
+                    .to_string_lossy()
+                    .into_owned();
+            }
+        }
+    }
+    id.to_string()
+}

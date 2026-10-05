@@ -256,6 +256,7 @@ impl Mode {
             "git-glyphs",
             "octal-permissions",
             "smart-group",
+            "owner-width",
             "extended",
             "no-extended",
             "tags",
@@ -485,6 +486,11 @@ impl TableOptions {
         let percent_digits = PercentDigits::deduce(matches, vars, config)?;
         let user_format = UserFormat::deduce(matches, config);
         let group_format = GroupFormat::deduce(matches, config);
+        let owner_width = matches
+            .get_one::<u16>("owner-width")
+            .copied()
+            .or(config.display.owner_width.filter(|&width| width > 0))
+            .map(usize::from);
         let columns = Columns::deduce(matches, vars, config)?;
         let use_utc = matches.get_flag("utc");
         Ok(Self {
@@ -494,6 +500,7 @@ impl TableOptions {
             time_format,
             user_format,
             group_format,
+            owner_width,
             flags_format,
             allocated_size_mode,
             columns,
