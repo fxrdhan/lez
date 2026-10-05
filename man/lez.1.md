@@ -505,6 +505,8 @@ See `https://no-color.org/` for details.
 
 Specifies the colour scheme used to highlight files based on their name and kind, as well as highlighting metadata and parts of the UI.
 
+When lez reads a theme file, `LS_COLORS` is left unread, and `LEZ_COLORS` or `EZA_COLORS` is laid over the theme.
+
 For more information on the format of these environment variables, see the **lez_colors**(5) manual page.
 
 ## `LEZ_OVERRIDE_GIT`, `EZA_OVERRIDE_GIT`

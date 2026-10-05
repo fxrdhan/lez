@@ -30,6 +30,8 @@ A regular file matching a glob takes the glob’s colour ahead of `ca`, `ex` and
 
 For backwards compatibility `EZA_COLORS` and `EXA_COLORS` environment variables are checked if `LEZ_COLORS` is unset.
 
+When lez reads a theme file (see **lez_colors-explanation**(5)), it leaves `LS_COLORS` unread and lays `LEZ_COLORS` or `EZA_COLORS` over the theme.
+
 
 EXAMPLES
 ========

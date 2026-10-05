@@ -39,3 +39,5 @@ mod symlink_target_styles;
 mod tar_shorthands;
 #[path = "icons_theme/theme_hardening.rs"]
 mod theme_hardening;
+#[path = "icons_theme/theme_precedence.rs"]
+mod theme_precedence;
