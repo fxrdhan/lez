@@ -169,6 +169,7 @@ Triaged 2026-10-05. [#1729](https://github.com/eza-community/eza/pull/1729) is o
 | [#1940](https://github.com/eza-community/eza/issues/1940), [#1943](https://github.com/eza-community/eza/pull/1943) | Four `FILENAME_ICONS` entries (`.atom`, `.idea`, `.rvm`, `.zsh_sessions`) unreachable because names are directories. Moved to `DIRECTORY_ICONS`. |
 | [#1088](https://github.com/eza-community/eza/issues/1088) | `ca` in `LS_COLORS` was unsupported; PR #66 styles files with capabilities by it (issue #60). Verified on Linux: after `setcap cap_net_raw+ep`, `LS_COLORS='ca=30;41'` paints the name `41;30`. |
 | [#1548](https://github.com/eza-community/eza/issues/1548) | Names with control characters were printed as `'with\u{1b}control 1'` or a bare `with\nnewline`, which a shell cannot read back. Since v0.28.5 (PR #149), `--quotes=auto` writes them in ANSI-C quotes (`$'with\nnewline'`, `$'with\033control 1'`). GNU `ls` quotes only the special characters (`'with'$'\n''newline'`); both read back as the same name. Distinct from [#1482](https://github.com/eza-community/eza/issues/1482), fixed in PR #52. |
+| [#1576](https://github.com/eza-community/eza/issues/1576) | Icons ignored case but `LS_COLORS` globs did not. Globs now ignore case too (commit `ac07744f`), and, as in GNU `ls` since coreutils 9.2, two globs that differ only in case and give different colours each match only their own case: `*.qux=31:*.QUX=32` paints `a.qux` red and `b.QUX` green, and leaves `c.Qux` uncoloured, as GNU `ls` 9.4 does. Globs in `LEZ_COLORS` are weighed with those in `LS_COLORS` as one list. |
 
 ### Re-run 2026-10-05: Open Upstream Bugs That Do Not Reproduce
 
@@ -217,7 +218,6 @@ Run against v0.28.5 on Linux. None of these was named in this file before; most 
 | Upstream ID | Description & Status |
 |---|---|
 | [#1919](https://github.com/eza-community/eza/issues/1919) | `.m` renders as C icon (shared with Objective-C / MATLAB; no MATLAB glyph in Nerd Fonts). |
-| [#1576](https://github.com/eza-community/eza/issues/1576) | `LS_COLORS` extension entries now match case-insensitively, like icons, which answers the report. One difference from GNU `ls` remains: when two entries differ only in case, `ls` goes back to case-sensitive matching (`*.rs=31:*.RS=32` paints `q.rs` red and `Q.RS` green), while `lez` paints both with the last entry. |
 
 ### Pending Decisions
 
