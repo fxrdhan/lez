@@ -1,12 +1,15 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Malformed and pathological tar archives fed to `archives::read_entries`.
+//! Malformed and pathological tar and zip archives fed to
+//! `archives::read_entries`.
 //!
-//! The reader only returns `Err` when the file cannot be opened; everything
-//! wrong inside the archive ends the walk and keeps what was read so far
-//! (`src/fs/archives.rs`). So each case pins the exact entries that survive,
-//! because asserting `is_ok()` on an existing file can never fail.
+//! The tar reader only returns `Err` when the file cannot be opened;
+//! everything wrong inside the archive ends the walk and keeps what was read
+//! so far (`src/fs/archives.rs`). So each tar case pins the exact entries
+//! that survive, because asserting `is_ok()` on an existing file can never
+//! fail. The zip reader also refuses a file with no end record; either way
+//! the listing shows the archive as a plain file.
 //!
 //! How the listing renders entries is covered in `filesystem/inspect_archives.rs`.
 
@@ -14,7 +17,7 @@ use std::path::{Path, PathBuf};
 
 use lez::fs::archives;
 
-use crate::common::TempTestDir;
+use crate::common::{TempTestDir, zip_bytes};
 
 /// The entries of an archive small enough to be read whole.
 fn entries(path: &Path) -> Vec<(String, u64)> {
@@ -304,4 +307,31 @@ fn a_sparse_entry_has_the_size_of_the_whole_file() {
         &builder.into_inner().expect("finish archive"),
     );
     assert_eq!(entries(&path), [("sparse.img".to_owned(), real_size)]);
+}
+
+/// Every byte of a zip archive, overwritten in turn with values that
+/// matter to the reader (zero, all ones, a signature's first byte), and
+/// every length it could be cut to: the reader must neither panic nor list
+/// more than it was given, whatever the end record and headers then say.
+#[test]
+fn a_zip_archive_mangled_byte_by_byte_never_panics() {
+    let dir = TempTestDir::new("arc_zip_mangled");
+    let archive = zip_bytes(&[("a.txt", b"hello"), ("dir/b.rs", b"fn main() {}")]);
+    let path = dir.path().join("mangled.zip");
+    let read = |bytes: &[u8]| {
+        std::fs::write(&path, bytes).expect("write the archive");
+        if let Ok(listing) = archives::read_entries(&path) {
+            assert!(listing.entries.len() <= 2, "{:?}", listing.entries);
+        }
+    };
+    for at in 0..archive.len() {
+        for value in [0x00, 0xFF, 0x50, 0x01] {
+            let mut bytes = archive.clone();
+            bytes[at] = value;
+            read(&bytes);
+        }
+    }
+    for len in 0..archive.len() {
+        read(&archive[..len]);
+    }
 }

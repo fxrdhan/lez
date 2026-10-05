@@ -31,7 +31,7 @@ SPDX-License-Identifier: EUPL-1.2
 - **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
 - **Built-in Tree View:** Hierarchical directory tree out of the box (`lez --tree`).
 - **Structured Data Export:** Full metadata serialization via `--json` in complete parity with the long view.
-- **Archive Inspection:** Inspect files inside `.tar` archives directly in the long view (`lez -l --inspect-archives`).
+- **Archive Inspection:** Inspect files inside `.tar` and `.zip` archives directly in the long view (`lez -l --inspect-archives`).
 - **Lines-of-Code Counter:** Comment-aware LOC breakdowns for 100+ programming languages (`lez --code`).
 - **Deep OS Integration:** Native macOS Finder color tags, Linux capability decoding (`security.capability`), and Windows `PATHEXT` executables.
 
@@ -91,7 +91,7 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 | **Multithreaded Traversal** (Rayon Engine) | ✅ | ⚠️ Limited | ❌ |
 | **Lines-of-Code Counter** (`--code`, `--loc`) | ✅ 100+ langs | ✅ 50+ langs | ❌ |
 | **Structured JSON Export** (`--json`) | ✅ | ❌ | ❌ |
-| **Archive Inspection** (`--inspect-archives` for `.tar`) | ✅ | ❌ | ❌ |
+| **Archive Inspection** (`--inspect-archives` for `.tar` and `.zip`) | ✅ | ❌ | ❌ |
 | **Time-Window Filtering** (`--since`) | ✅ | ❌ | ❌ |
 | **Size Precision Formatting** (`--size-digits`) | ✅ | ❌ | ❌ |
 | **Nix Store Hash Abbreviation** (`--short-nix`) | ✅ | ❌ | ❌ |
@@ -294,7 +294,7 @@ These options are available when running with `--long` (`-l`):
 - **-@**, **--extended**: list each file’s extended attributes and sizes
 - **--no-extended**: don't show the `@` marker that a file has extended attributes
 - **-e**, **--tags**: list each file's color tags stored in extended attributes (macOS Finder tags)
-- **--inspect-archives**: list the contents of supported archives (.tar) in long view, with each entry's file name colored by type
+- **--inspect-archives**: list the contents of supported archives (.tar, .zip) in long view, with each entry's file name colored by type
 - **--git**: list each file’s Git status, if tracked or ignored
 - **--git-glyphs**: display Git status with Nerd Font glyphs instead of ASCII characters
 - **--git-repos**: list each directory’s Git status, if tracked

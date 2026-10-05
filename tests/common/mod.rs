@@ -696,3 +696,45 @@ pub fn owner_name(id: u32, user: bool) -> String {
     }
     id.to_string()
 }
+
+/// A zip archive of stored regular files, in the order given. The checksums
+/// are left at zero: lez reads only the central directory.
+pub fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut central = Vec::new();
+    for (name, content) in entries {
+        let offset = u32::try_from(out.len()).unwrap();
+        let size = u32::try_from(content.len()).unwrap();
+        let name_len = u16::try_from(name.len()).unwrap();
+        out.extend_from_slice(&0x0403_4b50_u32.to_le_bytes());
+        out.extend_from_slice(&[20, 0, 0, 0]);
+        out.extend_from_slice(&[0; 10]);
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&name_len.to_le_bytes());
+        out.extend_from_slice(&[0, 0]);
+        out.extend_from_slice(name.as_bytes());
+        out.extend_from_slice(content);
+
+        central.extend_from_slice(&0x0201_4b50_u32.to_le_bytes());
+        central.extend_from_slice(&[20, 0, 20, 0, 0, 0]);
+        central.extend_from_slice(&[0; 10]);
+        central.extend_from_slice(&size.to_le_bytes());
+        central.extend_from_slice(&size.to_le_bytes());
+        central.extend_from_slice(&name_len.to_le_bytes());
+        central.extend_from_slice(&[0; 12]);
+        central.extend_from_slice(&offset.to_le_bytes());
+        central.extend_from_slice(name.as_bytes());
+    }
+    let central_offset = u32::try_from(out.len()).unwrap();
+    let count = u16::try_from(entries.len()).unwrap();
+    out.extend_from_slice(&central);
+    out.extend_from_slice(&0x0605_4b50_u32.to_le_bytes());
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&count.to_le_bytes());
+    out.extend_from_slice(&count.to_le_bytes());
+    out.extend_from_slice(&u32::try_from(central.len()).unwrap().to_le_bytes());
+    out.extend_from_slice(&central_offset.to_le_bytes());
+    out.extend_from_slice(&[0, 0]);
+    out
+}

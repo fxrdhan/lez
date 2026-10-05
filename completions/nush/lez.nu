@@ -34,7 +34,7 @@ export extern "lez" [
     --group-directories-first  # Sort directories before other files
     --group-directories-last   # Sort directories after other files
     --group-dotfiles-first     # Sort dotfiles before other files
-    --inspect-archives         # List contents of supported archives (.tar) in long view
+    --inspect-archives         # List contents of supported archives (.tar, .zip) in long view
     --ignore-submodule-contents # Do not list contents of submodules
     --warn-hidden(-W)          # Print a tally of hidden and ignored items; twice to always print
     --no-extended              # Do not show a marker if a file's extended attributes exist

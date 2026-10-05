@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 name: Fuzz Canary
 # Automated coverage-guided fuzzing smoke test using LLVM libFuzzer and AddressSanitizer (ASan).
-# Runs fuzz targets against Tar archives, YAML themes, LS_COLORS, and duration parsers.
+# Runs fuzz targets against Tar and Zip archives, YAML themes, LS_COLORS, and duration parsers.
 on:
   push:
     branches: [main, dev]
@@ -30,6 +30,7 @@ jobs:
       matrix:
         target:
           - fuzz_tar_archive
+          - fuzz_zip_archive
           - fuzz_theme_yaml
           - fuzz_lscolors
           - fuzz_since_duration

@@ -11,13 +11,34 @@
 use std::io;
 use std::path::Path;
 
-/// Whether this file name looks like an archive we can inspect. Detection is
-/// extension-based for now; content sniffing is future work (see upstream
-/// eza#797 discussion).
+mod zip;
+
+/// The kinds of archive whose entries can be listed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Tar,
+    Zip,
+}
+
+impl Kind {
+    fn of(name: &str) -> Option<Self> {
+        let (_, ext) = name.rsplit_once('.')?;
+        if ext.eq_ignore_ascii_case("tar") {
+            Some(Self::Tar)
+        } else if ext.eq_ignore_ascii_case("zip") {
+            Some(Self::Zip)
+        } else {
+            None
+        }
+    }
+}
+
+/// Whether this file name looks like an archive we can inspect: an
+/// uncompressed `.tar`, or a `.zip`. Detection is extension-based for now;
+/// content sniffing is future work (see upstream eza#797 discussion).
 #[must_use]
 pub fn is_archive_name(name: &str) -> bool {
-    name.rsplit_once('.')
-        .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("tar"))
+    Kind::of(name).is_some()
 }
 
 /// A single entry inside an inspected archive.
@@ -51,12 +72,24 @@ pub struct ArchiveListing {
 /// Safety valve so a pathological archive cannot flood the listing.
 pub const MAX_ENTRIES: usize = 500;
 
-/// Reads the entries of a tar archive at `path`.
+/// Reads the entries of the archive at `path`, as its extension names it,
+/// or as a tar archive when the extension names none.
 ///
 /// Directories are skipped. Reading stops at [`MAX_ENTRIES`], marking the
 /// listing truncated; what is left is not counted, which would mean reading
 /// on through an archive of any size.
 pub fn read_entries(path: &Path) -> io::Result<ArchiveListing> {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy())
+        .unwrap_or_default();
+    match Kind::of(&name) {
+        Some(Kind::Zip) => zip::read_entries(std::fs::File::open(path)?),
+        Some(Kind::Tar) | None => read_tar_entries(path),
+    }
+}
+
+fn read_tar_entries(path: &Path) -> io::Result<ArchiveListing> {
     use std::fs::File;
 
     let file = File::open(path)?;
@@ -107,14 +140,17 @@ mod test {
     use super::*;
 
     #[test]
-    fn detects_tar_by_extension_case_insensitively() {
+    fn detects_tar_and_zip_by_extension_case_insensitively() {
         assert!(is_archive_name("backup.tar"));
         assert!(is_archive_name("BACKUP.TAR"));
         assert!(is_archive_name("mixed.Tar"));
+        assert!(is_archive_name("archive.zip"));
+        assert!(is_archive_name("ARCHIVE.ZIP"));
         assert!(!is_archive_name("no-extension"));
-        assert!(!is_archive_name("archive.zip"));
-        // Compressed variants are explicitly out of scope for now.
+        // Compressed tar variants are explicitly out of scope for now.
         assert!(!is_archive_name("archive.tar.gz"));
         assert!(!is_archive_name("archive.tgz"));
+        // Formats built on zip go by their own names, and are not opened.
+        assert!(!is_archive_name("library.jar"));
     }
 }

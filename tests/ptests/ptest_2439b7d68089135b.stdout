@@ -122,7 +122,7 @@ LONG VIEW OPTIONS:
   -M, --mounts                show mount details (Linux and macOS only)
   -@, --extended              list each file's extended attributes and sizes
       --no-extended           don't show the marker that a file has extended attributes
-      --inspect-archives      list the contents of supported archives (.tar) in long view
+      --inspect-archives      list the contents of supported archives (.tar, .zip) in long view
   -e, --tags                  list each file's color tags stored in extended attributes
       --no-permissions        suppress the permissions field
       --no-filesize           suppress the filesize field
