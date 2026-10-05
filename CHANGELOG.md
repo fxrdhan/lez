@@ -8,6 +8,51 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.29.0] - 2026-10-05
+
+### Behaviour Changes
+
+- **A Theme Takes the Place of `LS_COLORS`**: When lez reads a `theme.yml`, it no longer reads `LS_COLORS`. The system's `dircolors` often sets that variable for every program, and it used to override a theme's directory, executable and other colours. `LEZ_COLORS` and `EZA_COLORS` are still laid over the theme, and a glob there now colours a name ahead of the theme's `filenames`, `extensions` and `mimetypes` entries for it. To keep a colour from `LS_COLORS` beside a theme, give it in the theme or in `LEZ_COLORS`. Copying `LS_COLORS` into `LEZ_COLORS` wholesale is not a substitute, as some `dircolors` keys (`tw`, `su`, `do`) mean other things there. Under `--no-config` without `--theme`, `LS_COLORS` is read as before ([eza#1700](https://github.com/eza-community/eza/issues/1700), [eza#1224](https://github.com/eza-community/eza/issues/1224), [#156](https://github.com/fxrdhan/lez/pull/156)).
+- **`QUOTING_STYLE` Is Read**: GNU `ls`'s variable now sets the default quoting, after `LEZ_QUOTING_STYLE` and `EZA_QUOTING_STYLE` and before the configuration file:
+  - `literal` quotes nothing.
+  - `shell` and `shell-escape` are `auto`.
+  - `shell-always` and `shell-escape-always` quote every name.
+  - GNU's `c`, `escape` and `locale` have no counterpart and are passed over.
+
+  A shell that sets the variable for `ls` now changes lez too. Set `LEZ_QUOTING_STYLE` or pass `--quotes` to keep lez's own style ([eza#584](https://github.com/eza-community/eza/issues/584), [#157](https://github.com/fxrdhan/lez/pull/157)).
+- **Case Variants in `LS_COLORS`**: Globs still ignore letter case. Two that differ only in case and give different colours now each match only their own case, as in GNU `ls` since coreutils 9.2: `*.c=33:*.C=36` tells C sources from C++ ones. Globs in `LEZ_COLORS` are weighed with those in `LS_COLORS` as one list ([eza#1576](https://github.com/eza-community/eza/issues/1576), [#154](https://github.com/fxrdhan/lez/pull/154)).
+
+### Features & Enhancements
+
+- **`--explain`**: List each entry with the rule that chose the colour of its name and the one that chose its icon. The colour rule is one of:
+  - a glob, with the variable it was given in;
+  - a theme entry, and any `LEZ_COLORS` glob laid over it;
+  - a built-in file type;
+  - a file kind such as `di`, `ex` or `ln=target`.
+
+  The answers come from the code the listing runs, so they cannot drift from what it prints ([eza#1954](https://github.com/eza-community/eza/issues/1954), [#157](https://github.com/fxrdhan/lez/pull/157)).
+- **Named Themes**: `--theme=NAME`, `LEZ_THEME` (or `EZA_THEME`), or `name` under `[theme]` in the configuration file read `themes/NAME.yml` or `themes/NAME.yaml` from the configuration directory instead of `theme.yml`. A name holding a directory is a path, and a theme that is not there is an error ([eza#1945](https://github.com/eza-community/eza/pull/1945), [#157](https://github.com/fxrdhan/lez/pull/157)).
+- **`.zip` Inspection**: `--inspect-archives` lists the files of a `.zip` as it does those of a `.tar`. The reader takes them from the archive's central directory and decompresses nothing. It handles ZIP64, archive comments and data put in front of the archive, and reads names as UTF-8 or CP437 ([eza#600](https://github.com/eza-community/eza/issues/600), [#157](https://github.com/fxrdhan/lez/pull/157)).
+- **`--owner-width`**: `--owner-width=COLS`, or `owner_width` in the configuration file, cuts user and group names wider than `COLS` display columns and ends them in `…`. Numeric IDs and `--json` stay whole ([eza#1760](https://github.com/eza-community/eza/issues/1760), [eza#1948](https://github.com/eza-community/eza/pull/1948), [#157](https://github.com/fxrdhan/lez/pull/157)).
+- **`--group-dotfiles-first`**: List dotfiles before the rest within each directory group. With `--group-directories-first --sort=extension`, that lists directories, then dotfiles, then the other files by extension ([eza#1920](https://github.com/eza-community/eza/issues/1920), [#157](https://github.com/fxrdhan/lez/pull/157)).
+- **`-N` / `--literal`**: Print names without quoting, as `ls -N` does: the same as `--quotes=never`. The last of `--quotes`, `--no-quotes` and `--literal` wins ([eza#584](https://github.com/eza-community/eza/issues/584), [#157](https://github.com/fxrdhan/lez/pull/157)).
+- **`.tzst` Archives**: Zstandard tarballs named `.tzst` get the compressed colour and icon ([eza#1956](https://github.com/eza-community/eza/pull/1956), [#154](https://github.com/fxrdhan/lez/pull/154)).
+
+### Bug Fixes & Hardening
+
+- **Control Characters in Archive Entries**: `--inspect-archives` printed an entry's path as the archive stored it. A crafted `.tar` could send escape sequences to the terminal, and a newline split the row. Control characters in an entry are now shown as escapes, as they are in names on disk ([#157](https://github.com/fxrdhan/lez/pull/157)).
+- **Directory Icons**: `.atom`, `.idea`, `.rvm` and `.zsh_sessions` are always directories, but their icons were filed under file names, where a directory is never looked up. They are now filed with the directory names, so they show ([eza#1940](https://github.com/eza-community/eza/issues/1940), [eza#1943](https://github.com/eza-community/eza/pull/1943), [#153](https://github.com/fxrdhan/lez/pull/153)).
+
+### Documentation
+
+- **One Spelling of "color"**: `--help`, the shell completions and the option lists in the README and `lez(1)` say "color". `--help` also names the `--colour`, `--colour-scale` and `--colour-scale-mode` aliases, so a search for either spelling finds every colour option ([eza#1243](https://github.com/eza-community/eza/issues/1243), [#155](https://github.com/fxrdhan/lez/pull/155)).
+- **Upstream Triage**: `docs/UPSTREAM_TRIAGE.md` is refreshed against upstream as of 2026-10-05, with the open bugs re-run against v0.28.5. Every pending decision is now settled; the SF Symbol overlays of eza#1949 are declined ([#154](https://github.com/fxrdhan/lez/pull/154), [#156](https://github.com/fxrdhan/lez/pull/156), [#157](https://github.com/fxrdhan/lez/pull/157)).
+
+### Testing & Quality Assurance
+
+- **Debug Builds Within a Small Stack**: Building the command-line parser took a frame of nearly a mebibyte in a debug build, the whole of a Windows main thread's stack, and a few more flags overflowed it. Each help heading's flags are now added by a function of their own, and a test holds the build to half a mebibyte ([#157](https://github.com/fxrdhan/lez/pull/157)).
+- **Archive Readers Under Corrupt Input**: A `fuzz_zip_archive` target joins the fuzz canary, and a test overwrites a `.zip` byte by byte and cuts it at every length ([#157](https://github.com/fxrdhan/lez/pull/157)).
+
 ## [0.28.5] - 2026-10-04
 
 ### Features & Enhancements
