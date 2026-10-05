@@ -152,6 +152,8 @@ fn display_options(command: clap::Command) -> clap::Command {
             .num_args(1)
             .value_parser(value_parser!(ColorScaleModeArgs))
             .default_value("gradient"))
+        .arg(arg!(--theme <NAME> "use themes/NAME.yml from the configuration directory")
+            .value_parser(value_parser!(OsString)))
         .arg(arg!(--icons <WHEN> "when to display icons")
             .num_args(0..=1)
             .require_equals(true)

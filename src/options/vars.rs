@@ -130,6 +130,11 @@ pub static LEZ_CONFIG_FILE: &str = "LEZ_CONFIG_FILE";
 pub static EZA_CONFIG_FILE: &str = "EZA_CONFIG_FILE";
 pub static EXA_CONFIG_FILE: &str = "EXA_CONFIG_FILE";
 
+/// Environment variable used to choose a theme from the `themes` folder of
+/// the configuration directory, by name.
+pub static LEZ_THEME: &str = "LEZ_THEME";
+pub static EZA_THEME: &str = "EZA_THEME";
+
 /// Environment variable used to choose when file names are quoted:
 /// `always`, `auto`, or `never`.
 pub static LEZ_QUOTING_STYLE: &str = "LEZ_QUOTING_STYLE";
@@ -250,6 +255,8 @@ pub mod test {
         pub exa_config_file: OsString,
         pub quoting_style: OsString,
         pub gnu_quoting_style: OsString,
+        pub lez_theme: OsString,
+        pub eza_theme: OsString,
         pub xdg_config_home: OsString,
         pub home: OsString,
         pub lez_stdin_separator: OsString,
@@ -367,6 +374,8 @@ pub mod test {
                 "QUOTING_STYLE" if !self.gnu_quoting_style.is_empty() => {
                     Some(self.gnu_quoting_style.clone())
                 }
+                "LEZ_THEME" if !self.lez_theme.is_empty() => Some(self.lez_theme.clone()),
+                "EZA_THEME" if !self.eza_theme.is_empty() => Some(self.eza_theme.clone()),
                 "XDG_CONFIG_HOME" if !self.xdg_config_home.is_empty() => {
                     Some(self.xdg_config_home.clone())
                 }
@@ -480,6 +489,8 @@ pub mod test {
                 "EXA_CONFIG_FILE" => self.exa_config_file = value.clone(),
                 "LEZ_QUOTING_STYLE" | "EZA_QUOTING_STYLE" => self.quoting_style = value.clone(),
                 "QUOTING_STYLE" => self.gnu_quoting_style = value.clone(),
+                "LEZ_THEME" => self.lez_theme = value.clone(),
+                "EZA_THEME" => self.eza_theme = value.clone(),
                 "XDG_CONFIG_HOME" => self.xdg_config_home = value.clone(),
                 "HOME" => self.home = value.clone(),
                 "LEZ_STDIN_SEPARATOR" => self.lez_stdin_separator = value.clone(),

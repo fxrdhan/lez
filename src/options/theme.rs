@@ -11,7 +11,10 @@ use crate::options::{OptionsError, Vars, vars};
 use crate::output::color_scale::ColorScaleOptions;
 use crate::theme::{Definitions, Options, UseColours};
 
-use super::config::{ThemeConfig, config_dir};
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+
+use super::config::{ThemeConfig, config_dir, expand_home_path};
 use crate::options::file_config::FileConfig;
 
 impl Options {
@@ -22,10 +25,24 @@ impl Options {
     ) -> Result<Self, OptionsError> {
         let use_colours = UseColours::deduce(matches, vars, config);
         let colour_scale = ColorScaleOptions::deduce(matches, vars, config)?;
-        let theme_config = if matches.get_flag("no-config") {
-            None
-        } else {
-            ThemeConfig::deduce(vars)
+        let no_config = matches.get_flag("no-config");
+
+        // A theme named on the command line is loaded whatever else is
+        // said; one named by the environment or the configuration file
+        // falls under `--no-config` with the rest of the configuration.
+        let named = matches.get_one::<OsString>("theme").cloned().or_else(|| {
+            (!no_config)
+                .then(|| {
+                    vars.get_with_fallback(vars::LEZ_THEME, vars::EZA_THEME)
+                        .filter(|name| !name.is_empty())
+                        .or_else(|| config.theme.name.clone().map(OsString::from))
+                })
+                .flatten()
+        });
+        let theme_config = match named {
+            Some(name) => Some(ThemeConfig::named(&name, vars)?),
+            None if no_config => None,
+            None => ThemeConfig::deduce(vars),
         };
 
         let definitions = if use_colours == UseColours::Never {
@@ -58,6 +75,44 @@ impl ThemeConfig {
         }
 
         None
+    }
+
+    /// The theme called `name`: `name.yml` or `name.yaml` in the `themes`
+    /// folder of the configuration directory, or `name` itself there when it
+    /// already ends in one of those. A name holding a directory, such as
+    /// `./night.yml` or `~/themes/night.yml`, is the path to the file.
+    pub(crate) fn named<V: Vars>(name: &OsStr, vars: &V) -> Result<Self, OptionsError> {
+        let given = Path::new(name);
+        let candidates: Vec<PathBuf> = if given.components().count() > 1 {
+            let home = vars.get(vars::HOME).map(PathBuf::from);
+            vec![expand_home_path(name, home.as_deref())]
+        } else {
+            let themes = config_dir(vars).join("themes");
+            if given
+                .extension()
+                .is_some_and(|ext| ext == "yml" || ext == "yaml")
+            {
+                vec![themes.join(given)]
+            } else {
+                ["yml", "yaml"]
+                    .iter()
+                    .map(|ext| {
+                        let mut file = name.to_os_string();
+                        file.push(".");
+                        file.push(ext);
+                        themes.join(file)
+                    })
+                    .collect()
+            }
+        };
+
+        match candidates.iter().find(|path| path.is_file()) {
+            Some(path) => Ok(Self::from_path(path.clone())),
+            None => Err(OptionsError::MissingTheme(
+                name.to_string_lossy().into_owned(),
+                candidates,
+            )),
+        }
     }
 }
 
@@ -374,6 +429,118 @@ mod tests {
 
         let theme_cfg = ThemeConfig::deduce(&vars);
         assert!(theme_cfg.is_none());
+    }
+
+    /// The location of the theme `Options::deduce` picks, or the error.
+    fn picked(
+        args: Vec<&str>,
+        vars: &MockVars,
+        config: &FileConfig,
+    ) -> Result<Option<PathBuf>, OptionsError> {
+        Options::deduce(&mock_cli(args), vars, config)
+            .map(|opts| opts.theme_config.map(|t| t.location().to_path_buf()))
+    }
+
+    fn themes_dir() -> (TempDir, MockVars) {
+        let temp = TempDir::new("named");
+        temp.create_file("theme.yml", b"");
+        temp.create_file("themes/night.yml", b"");
+        temp.create_file("themes/day.yaml", b"");
+        let mut vars = MockVars::default();
+        vars.set(vars::LEZ_CONFIG_DIR, &temp.path.clone().into_os_string());
+        (temp, vars)
+    }
+
+    #[test]
+    fn a_theme_is_picked_by_name_from_the_themes_folder() {
+        let (temp, vars) = themes_dir();
+        let themes = temp.path.join("themes");
+        let config = FileConfig::default();
+
+        assert_eq!(
+            picked(vec![""], &vars, &config),
+            Ok(Some(temp.path.join("theme.yml")))
+        );
+        assert_eq!(
+            picked(vec!["--theme=night"], &vars, &config),
+            Ok(Some(themes.join("night.yml")))
+        );
+        assert_eq!(
+            picked(vec!["--theme=day"], &vars, &config),
+            Ok(Some(themes.join("day.yaml")))
+        );
+        assert_eq!(
+            picked(vec!["--theme=night.yml"], &vars, &config),
+            Ok(Some(themes.join("night.yml")))
+        );
+        assert_eq!(
+            picked(vec!["--theme=dusk"], &vars, &config),
+            Err(OptionsError::MissingTheme(
+                "dusk".into(),
+                vec![themes.join("dusk.yml"), themes.join("dusk.yaml")]
+            ))
+        );
+    }
+
+    #[test]
+    fn a_name_holding_a_directory_is_a_path() {
+        let (temp, mut vars) = themes_dir();
+        temp.create_file("elsewhere/own.yml", b"");
+        vars.set(vars::HOME, &temp.path.clone().into_os_string());
+
+        assert_eq!(
+            picked(vec!["--theme=~/elsewhere/own.yml"], &vars, &FileConfig::default()),
+            Ok(Some(temp.path.join("elsewhere/own.yml")))
+        );
+        let missing = temp.path.join("elsewhere/gone.yml");
+        let missing_arg = format!("--theme={}", missing.display());
+        assert_eq!(
+            picked(vec![&missing_arg], &vars, &FileConfig::default()),
+            Err(OptionsError::MissingTheme(
+                missing.display().to_string(),
+                vec![missing.clone()]
+            ))
+        );
+    }
+
+    #[test]
+    fn the_flag_beats_the_variables_which_beat_the_config() {
+        let (temp, mut vars) = themes_dir();
+        let themes = temp.path.join("themes");
+        let mut config = FileConfig::default();
+        config.theme.name = Some("day".into());
+
+        assert_eq!(
+            picked(vec![""], &vars, &config),
+            Ok(Some(themes.join("day.yaml")))
+        );
+        vars.set(vars::EZA_THEME, &OsString::from("night"));
+        assert_eq!(
+            picked(vec![""], &vars, &config),
+            Ok(Some(themes.join("night.yml")))
+        );
+        vars.set(vars::LEZ_THEME, &OsString::from("day"));
+        assert_eq!(
+            picked(vec![""], &vars, &config),
+            Ok(Some(themes.join("day.yaml")))
+        );
+        assert_eq!(
+            picked(vec!["--theme=night"], &vars, &config),
+            Ok(Some(themes.join("night.yml")))
+        );
+    }
+
+    #[test]
+    fn no_config_leaves_out_every_theme_but_one_named_on_the_command_line() {
+        let (temp, mut vars) = themes_dir();
+        vars.set(vars::LEZ_THEME, &OsString::from("day"));
+        let config = FileConfig::default();
+
+        assert_eq!(picked(vec!["--no-config"], &vars, &config), Ok(None));
+        assert_eq!(
+            picked(vec!["--no-config", "--theme=night"], &vars, &config),
+            Ok(Some(temp.path.join("themes/night.yml")))
+        );
     }
 
     #[test]

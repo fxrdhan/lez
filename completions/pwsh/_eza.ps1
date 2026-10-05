@@ -172,6 +172,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--color-scale'              ,'colorscale'          , [CompletionResultType]::ParameterName, 'highlight levels of ''field'' distinctly(all, age, size)')
         #   [CompletionResult]::new('--colour-scale'             ,'colorscale'          , [CompletionResultType]::ParameterName, 'highlight levels of ''field'' distinctly(all, age, size)')
             [CompletionResult]::new('--color-scale-mode'         ,'colorscalemode'      , [CompletionResultType]::ParameterName, 'use gradient or fixed colors in --color-scale (fixed, gradient)')
+            [CompletionResult]::new('--theme'                    ,'theme'               , [CompletionResultType]::ParameterName, 'use themes/NAME.yml from the configuration directory')
         #   [CompletionResult]::new('--colour-scale-mode'        ,'colorscalemode'      , [CompletionResultType]::ParameterName, 'use gradient or fixed colors in --color-scale (fixed, gradient)')
             [CompletionResult]::new('--icons'                    ,'icons'               , [CompletionResultType]::ParameterName, 'when to display icons (always, auto, never)')
             [CompletionResult]::new('--quotes'                  ,'quotes'             , [CompletionResultType]::ParameterName, 'when to quote filenames (always, auto, never)')

@@ -120,6 +120,10 @@ _eza() {
             mapfile -t COMPREPLY < <(compgen -W 'fixed gradient --' -- "$cur")
             return
             ;;
+
+        --theme)
+            return
+            ;;
     esac
 
     case "$cur" in

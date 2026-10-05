@@ -60,7 +60,7 @@ META OPTIONS
 : Load default options from the specified configuration file (`.toml`, `.yaml`, or `.yml`).
 
 `--no-config`
-: Do not load any global or per-directory configuration files.
+: Do not load any global or per-directory configuration files, nor a theme file other than one named by `--theme`.
 
 `--stdin`
 : When you wish to pipe directories to lez/read from stdin. Separate one per line or define custom separation char in `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
@@ -144,6 +144,9 @@ Valid options are `fixed` to use a fixed color (disabling color scale), or `grad
 When used without a value, defaults to `gradient`.
 
 The size gradient runs over orders of magnitude rather than bytes, so a single large file does not flatten every ordinary one to the same shade. The age gradient runs over elapsed time directly.
+
+`--theme=NAME`
+: Use the theme `NAME` instead of `theme.yml`: the file `themes/NAME.yml` or `themes/NAME.yaml` in the configuration directory (see `LEZ_CONFIG_DIR`), or `themes/NAME` when `NAME` already ends in `.yml` or `.yaml`. A name holding a directory, such as `./night.yml` or `~/themes/night.yml`, is the path to the theme file. A theme that is not there is an error. It overrides `LEZ_THEME` and the configuration file, and is honoured under `--no-config`. See **lez_colors-explanation**(5).
 
 `--icons[=WHEN]`
 : Display icons next to file names.
@@ -543,6 +546,10 @@ Specifies the separator to use when file names are piped from stdin with `--stdi
 ## `LEZ_CONFIG_FILE`, `EZA_CONFIG_FILE`
 
 Explicitly specifies the path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). Overrides standard discovery. An empty value names no file and is passed over, as if it were unset.
+
+## `LEZ_THEME`, `EZA_THEME`
+
+Names the theme to use instead of `theme.yml`, as `--theme` does, which overrides it. An empty value names none. It in turn overrides `name` under `[theme]` in the configuration file, and is not read under `--no-config`.
 
 ## `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR`
 

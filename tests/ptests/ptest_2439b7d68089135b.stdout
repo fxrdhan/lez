@@ -37,6 +37,7 @@ DISPLAY OPTIONS:
                                    [possible values: all, age, size]
       --color-scale-mode <MODE>    mode for --color-scale [default: gradient] [alias:
                                    --colour-scale-mode] [possible values: fixed, gradient]
+      --theme <NAME>               use themes/NAME.yml from the configuration directory
       --icons[=<WHEN>]             when to display icons [possible values: always, auto, never]
       --hyperlink[=<WHEN>]         when to display entries as hyperlinks [possible values: always,
                                    auto, never]

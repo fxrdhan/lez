@@ -53,6 +53,7 @@ complete -c lez -l color-scale-mode \
     fixed\t'Highlight based on fixed colors'
     gradient\t'Highlight based \'field\' in relation to other files'
 "
+complete -c lez -l theme -d "Use the named theme from the themes folder" -x
 complete -c lez -l icons -d "When to display icons"
 complete -c lez -l icons -d "When to display icons" -x -n "__lez_value_follows_an_equals_sign" -a "
   always\t'Always display icons'

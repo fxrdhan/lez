@@ -211,6 +211,7 @@ nix run github:fxrdhan/lez
 - **--color=(when)**, **--colour=(when)**: when to use terminal colors (always, auto, never)
 - **--color-scale=(fields)**, **--colour-scale=(fields)**: highlight levels of `fields` distinctly (all, age, size)
 - **--color-scale-mode=(mode)**, **--colour-scale-mode=(mode)**: use gradient or fixed colors in `--color-scale` (`fixed` or `gradient`)
+- **--theme=(name)**: use the theme `name` from the `themes` folder of the configuration directory instead of `theme.yml` (also `LEZ_THEME`, or `name` under `[theme]` in the configuration file)
 - **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
 - **--spacing=(spaces)**: number of spaces between columns (default: 2 in the grid views, 1 in the long view; at most 1000)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
@@ -330,7 +331,7 @@ These options work with every view:
 - **--stdin**: read file names from stdin
 - **--stdin0**: read NUL-separated file names from stdin (e.g. `find -print0 | lez --stdin0`)
 - **--config**: load default options from specified configuration file (`.toml`, `.yaml`, or `.yml`)
-- **--no-config**: do not load any global or per-directory configuration files
+- **--no-config**: do not load any global or per-directory configuration files, nor a theme file other than one named by `--theme`
 
 </details>
 
@@ -382,6 +383,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 |---|---|
 | `LEZ_CONFIG_FILE` / `EZA_CONFIG_FILE` | Explicit path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). |
 | `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS, `%APPDATA%\lez` on Windows). |
+| `LEZ_THEME` / `EZA_THEME` | Name of a theme in the `themes` folder of the configuration directory, used instead of `theme.yml` (`--theme` overrides it). |
 | `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. `LS_COLORS` is not read when a `theme.yml` is. |
 | `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (-100..=100) for color scaling on dates and sizes. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
@@ -404,6 +406,8 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 
 An example theme file is available in [`docs/theme.yml`](docs/theme.yml), and can be placed in a directory specified by 
 `$LEZ_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in the configuration directory: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows (an existing `eza` directory there is used when there is no `lez` one).
+
+To keep several themes and switch between them, put each in a `themes` folder in the configuration directory, as `themes/NAME.yml` or `themes/NAME.yaml`, and pick one with `--theme=NAME`, `LEZ_THEME=NAME`, or `name = "NAME"` under `[theme]` in the configuration file, in that order. A named theme replaces `theme.yml`, and naming one that is not there is an error. A name holding a directory, such as `--theme=./night.yml`, is the path to the theme file.
 
 A theme file takes the place of `LS_COLORS`, which the system's `dircolors` often sets for every program, so `LS_COLORS` is not read beside one. `LEZ_COLORS` and `EZA_COLORS` are still laid over the theme.
 

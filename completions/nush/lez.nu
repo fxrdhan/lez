@@ -23,6 +23,7 @@ export extern "lez" [
     --tree(-T)                 # Recurse into directories as a tree
     --dereference(-X)          # Dereference symbolic links when displaying file information
     --color-scale-mode: string # Use gradient or fixed colors in --color-scale
+    --theme: string            # Use the named theme from the themes folder
     --colour-scale-mode: string # Use gradient or fixed colors in --colour-scale
     --no-quotes                # Don't quote file names with spaces
     --literal(-N)              # Print file names without quoting, as ls -N does

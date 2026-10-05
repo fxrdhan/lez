@@ -94,6 +94,7 @@ pub struct ThemeConfigSection {
     pub color: Option<String>,
     pub color_scale: Option<String>,
     pub color_scale_mode: Option<String>,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
@@ -181,6 +182,7 @@ impl FileConfig {
             color,
             color_scale,
             color_scale_mode,
+            name,
         );
 
         merge_field!(self.loc, other.loc, sub_files, percent_digits, language);

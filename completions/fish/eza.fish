@@ -53,6 +53,7 @@ complete -c eza -l color-scale-mode \
     fixed\t'Highlight based on fixed colors'
     gradient\t'Highlight based \'field\' in relation to other files'
 "
+complete -c eza -l theme -d "Use the named theme from the themes folder" -x
 complete -c eza -l icons -d "When to display icons"
 complete -c eza -l icons -d "When to display icons" -x -n "__eza_value_follows_an_equals_sign" -a "
   always\t'Always display icons'

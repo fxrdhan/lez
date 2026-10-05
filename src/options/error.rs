@@ -8,6 +8,7 @@ use std::ffi::OsString;
 use std::fmt;
 use std::num::ParseIntError;
 use std::ops::RangeInclusive;
+use std::path::PathBuf;
 
 /// Something wrong with the combination of options the user has picked.
 #[derive(PartialEq, Eq, Debug)]
@@ -43,6 +44,10 @@ pub enum OptionsError {
 
     /// A glob ignore was given that failed to be parsed as a pattern.
     FailedGlobPattern(String),
+
+    /// A theme was asked for by name, and none of the files it could be is
+    /// there.
+    MissingTheme(String, Vec<PathBuf>),
 }
 
 /// The source of a string that failed to be parsed as a number.
@@ -86,6 +91,10 @@ impl fmt::Display for OptionsError {
             Self::FailedParse(s, n, e)       => write!(f, "Value {s:?} not valid for {n}: {e}"),
             Self::OutOfRange(s, n, r)        => write!(f, "Value {s:?} not valid for {n}: {s} is not in {}..={}", r.start(), r.end()),
             Self::FailedGlobPattern(e)       => write!(f, "Failed to parse glob pattern: {e}"),
+            Self::MissingTheme(name, paths)  => {
+                let paths = paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>();
+                write!(f, "Theme {name:?} not found: there is no {}", paths.join(" or "))
+            }
         };
     }
 }

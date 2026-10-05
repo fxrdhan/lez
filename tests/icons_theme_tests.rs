@@ -27,6 +27,8 @@ mod isolation;
 mod ls_colors_case;
 #[path = "icons_theme/multicodepoint_emoji.rs"]
 mod multicodepoint_emoji;
+#[path = "icons_theme/named_themes.rs"]
+mod named_themes;
 #[path = "icons_theme/reset.rs"]
 mod reset;
 #[path = "icons_theme/schema.rs"]
