@@ -192,4 +192,4 @@ We port changes from `eza-community/eza` by hand rather than tracking it as a gi
 
 1. Reproduce an upstream report against our binary before working on it. Many are already fixed here or turn out to have outside causes.
 2. Linux-only reports can be reproduced on macOS with Docker (`rust:*-bookworm`). Windows behavior can be checked with `.github/workflows/windows-probe.yml`.
-3. The full audit tables, closed and declined items, and pending architectural work are in [`docs/UPSTREAM_TRIAGE.md`](docs/UPSTREAM_TRIAGE.md).
+3. The audit tables, declined items, pending decisions and the upstream issues not yet recorded are in [`docs/UPSTREAM_TRIAGE.md`](docs/UPSTREAM_TRIAGE.md), along with how to refresh it.
