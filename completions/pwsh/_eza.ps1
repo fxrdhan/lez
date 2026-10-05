@@ -175,6 +175,8 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--icons'                    ,'icons'               , [CompletionResultType]::ParameterName, 'when to display icons (always, auto, never)')
             [CompletionResult]::new('--quotes'                  ,'quotes'             , [CompletionResultType]::ParameterName, 'when to quote filenames (always, auto, never)')
             [CompletionResult]::new('--no-quotes'                ,'noquotes'            , [CompletionResultType]::ParameterName, 'don''t quote file names with spaces')
+        #   [CompletionResult]::new('-N'                         ,'literal'             , [CompletionResultType]::ParameterName, 'print file names without quoting, as ls -N does')
+            [CompletionResult]::new('--literal'                  ,'literal'             , [CompletionResultType]::ParameterName, 'print file names without quoting, as ls -N does')
             [CompletionResult]::new('--short-nix'                ,'shortnix'            , [CompletionResultType]::ParameterName, 'abbreviate Nix store hashes in file names and paths')
             [CompletionResult]::new('--no-symlink-targets'       ,'nosymlinktargets'    , [CompletionResultType]::ParameterName, 'do not show symlink targets')
             [CompletionResult]::new('--summary'                  ,'summary'             , [CompletionResultType]::ParameterName, 'display total summary statistics of entries')

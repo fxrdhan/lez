@@ -42,6 +42,7 @@ DISPLAY OPTIONS:
                                    auto, never]
       --quotes[=<WHEN>]            when to quote file names (always, auto, never) [possible values:
                                    always, auto, never]
+  -N, --literal                    print file names without quoting, as `ls -N` does
       --short-nix                  abbreviate Nix store hashes in file names and paths
       --no-symlink-targets         do not show symlink targets (the `-> ...`)
       --summary                    display total summary statistics of entries

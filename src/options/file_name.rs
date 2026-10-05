@@ -149,7 +149,7 @@ impl QuoteStyle {
             };
         }
 
-        if matches.get_flag("no-quotes") {
+        if matches.get_flag("no-quotes") || matches.get_flag("literal") {
             return Self::Never;
         }
 
@@ -168,6 +168,16 @@ impl QuoteStyle {
             return from_env;
         }
 
+        // Then GNU `ls`'s own variable, in its own words. A style lez does
+        // not have (`c`, `escape`, `locale`) is passed over, as GNU `ls`
+        // passes over one it does not know.
+        if let Some(from_gnu) = vars
+            .get(vars::QUOTING_STYLE)
+            .and_then(|value| Self::from_gnu_quoting_style(&value.to_string_lossy()))
+        {
+            return from_gnu;
+        }
+
         if let Some(from_config) =
             config
                 .display
@@ -184,6 +194,18 @@ impl QuoteStyle {
         }
 
         Self::default()
+    }
+
+    /// A `QUOTING_STYLE` value as GNU `ls` reads it, for the styles that have
+    /// a counterpart here. `shell-escape`, the default GNU `ls` writes to a
+    /// terminal, is `auto`, which quotes control characters the same way.
+    fn from_gnu_quoting_style(value: &str) -> Option<Self> {
+        match value {
+            "literal" => Some(Self::Never),
+            "shell" | "shell-escape" => Some(Self::Auto),
+            "shell-always" | "shell-escape-always" => Some(Self::Always),
+            _ => None,
+        }
     }
 }
 
@@ -452,6 +474,65 @@ mod tests {
         assert_eq!(
             QuoteStyle::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default()),
             QuoteStyle::Auto
+        );
+    }
+
+    #[test]
+    fn literal_quotes_nothing_and_the_last_quoting_flag_wins() {
+        let deduce = |args: Vec<&str>| {
+            QuoteStyle::deduce(
+                &mock_cli(args),
+                &MockVars::default(),
+                &FileConfig::default(),
+            )
+        };
+        assert_eq!(deduce(vec!["-N"]), QuoteStyle::Never);
+        assert_eq!(deduce(vec!["--literal"]), QuoteStyle::Never);
+        assert_eq!(deduce(vec!["-N", "--quotes=always"]), QuoteStyle::Always);
+        assert_eq!(deduce(vec!["--quotes=always", "-N"]), QuoteStyle::Never);
+    }
+
+    #[test]
+    fn quoting_style_is_read_as_gnu_ls_reads_it() {
+        let deduce = |value: &str| {
+            let mut vars = MockVars::default();
+            vars.set(vars::QUOTING_STYLE, &OsString::from(value));
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars, &FileConfig::default())
+        };
+        assert_eq!(deduce("literal"), QuoteStyle::Never);
+        assert_eq!(deduce("shell"), QuoteStyle::Auto);
+        assert_eq!(deduce("shell-escape"), QuoteStyle::Auto);
+        assert_eq!(deduce("shell-always"), QuoteStyle::Always);
+        assert_eq!(deduce("shell-escape-always"), QuoteStyle::Always);
+        // Styles lez does not have are passed over.
+        assert_eq!(deduce("c"), QuoteStyle::Auto);
+        assert_eq!(deduce("escape"), QuoteStyle::Auto);
+        assert_eq!(deduce("locale"), QuoteStyle::Auto);
+    }
+
+    #[test]
+    fn quoting_style_comes_after_lez_quoting_style_and_before_the_config() {
+        let mut vars = MockVars::default();
+        vars.set(vars::QUOTING_STYLE, &OsString::from("literal"));
+        let mut config = FileConfig::default();
+        config.display.quotes = Some("always".into());
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars, &config),
+            QuoteStyle::Never
+        );
+
+        vars.set(vars::LEZ_QUOTING_STYLE, &OsString::from("always"));
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars, &config),
+            QuoteStyle::Always
+        );
+
+        // A value of GNU's that lez does not have leaves the config in charge.
+        let mut vars = MockVars::default();
+        vars.set(vars::QUOTING_STYLE, &OsString::from("c"));
+        assert_eq!(
+            QuoteStyle::deduce(&mock_cli(vec![""]), &vars, &config),
+            QuoteStyle::Always
         );
     }
 

@@ -215,6 +215,7 @@ nix run github:fxrdhan/lez
 - **--spacing=(spaces)**: number of spaces between columns (default: 2 in the grid views, 1 in the long view; at most 1000)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
 - **--quotes=(when)**: when to quote file names (always, auto, never; requires '=' if value provided)
+- **-N**, **--literal**: print file names without quoting, as `ls -N` does (the same as `--quotes=never`)
 - **--summary**: display total summary statistics of entries (directories, files, symlinks, and total)
 - **--hyperlink[=(when)]**: when to display entries as hyperlinks (always, auto, never; requires '=' if value provided)
 - **--absolute=(mode)**: display entries with their absolute path (on, follow, off)
@@ -382,6 +383,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 | `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. `LS_COLORS` is not read when a `theme.yml` is. |
 | `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (-100..=100) for color scaling on dates and sizes. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
+| `QUOTING_STYLE` | GNU `ls`'s quoting style, read when neither variable above is set: `literal` is `never`, `shell` and `shell-escape` are `auto`, and `shell-always` and `shell-escape-always` are `always`. Its other styles are passed over. |
 | `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
 | `LEZ_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |
 | `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin`; ignored by `--stdin0` (default: newline `\n`). Supports escape sequences (e.g. `\0`, `\n`, `\t`, `\x00`) and `null`/`nul`. |

@@ -25,6 +25,10 @@ pub static TIME_STYLE: &str = "TIME_STYLE";
 /// See: <https://no-color.org/>
 pub static NO_COLOR: &str = "NO_COLOR";
 
+/// Environment variable GNU `ls` reads for its quoting style, consulted after
+/// `LEZ_QUOTING_STYLE` and `EZA_QUOTING_STYLE`.
+pub static QUOTING_STYLE: &str = "QUOTING_STYLE";
+
 /// Environment variables for POSIX locale collation and time formats.
 pub static LC_ALL: &str = "LC_ALL";
 pub static LC_COLLATE: &str = "LC_COLLATE";
@@ -245,6 +249,7 @@ pub mod test {
         pub eza_config_file: OsString,
         pub exa_config_file: OsString,
         pub quoting_style: OsString,
+        pub gnu_quoting_style: OsString,
         pub xdg_config_home: OsString,
         pub home: OsString,
         pub lez_stdin_separator: OsString,
@@ -359,6 +364,9 @@ pub mod test {
                 "LEZ_QUOTING_STYLE" | "EZA_QUOTING_STYLE" if !self.quoting_style.is_empty() => {
                     Some(self.quoting_style.clone())
                 }
+                "QUOTING_STYLE" if !self.gnu_quoting_style.is_empty() => {
+                    Some(self.gnu_quoting_style.clone())
+                }
                 "XDG_CONFIG_HOME" if !self.xdg_config_home.is_empty() => {
                     Some(self.xdg_config_home.clone())
                 }
@@ -471,6 +479,7 @@ pub mod test {
                 "EZA_CONFIG_FILE" => self.eza_config_file = value.clone(),
                 "EXA_CONFIG_FILE" => self.exa_config_file = value.clone(),
                 "LEZ_QUOTING_STYLE" | "EZA_QUOTING_STYLE" => self.quoting_style = value.clone(),
+                "QUOTING_STYLE" => self.gnu_quoting_style = value.clone(),
                 "XDG_CONFIG_HOME" => self.xdg_config_home = value.clone(),
                 "HOME" => self.home = value.clone(),
                 "LEZ_STDIN_SEPARATOR" => self.lez_stdin_separator = value.clone(),

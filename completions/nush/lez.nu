@@ -25,6 +25,7 @@ export extern "lez" [
     --color-scale-mode: string # Use gradient or fixed colors in --color-scale
     --colour-scale-mode: string # Use gradient or fixed colors in --colour-scale
     --no-quotes                # Don't quote file names with spaces
+    --literal(-N)              # Print file names without quoting, as ls -N does
     --short-nix                # Abbreviate Nix store hashes in file names and paths
     --no-symlink-targets       # Do not show symlink targets
     --summary                  # Display total summary statistics of entries

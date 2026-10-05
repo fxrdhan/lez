@@ -158,6 +158,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 
 A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe and nothing double quotes would still expand (`` " $ ` \ ! ``), and otherwise the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`. A name holding a control character, such as a newline, is written in ANSI-C quotes, which bash, zsh and ksh read: the character as `\n`, `\t`, `\r`, `\a`, `\b`, `\v` or `\f`, or else as the octal escapes of its bytes, with `\'` and `\\` for an apostrophe and a backslash, so `new<newline>line` prints as `$'new\nline'`. With `never`, and on Windows, whose shells have no such quotes, a control character is shown as an escape such as `\n` or `\u{85}` that is not read back.
 
+`-N`, `--literal`
+: Print file names without quoting, as `ls -N` does: the same as `--quotes=never`. Of `--quotes`, `--no-quotes` and `--literal`, the last one given wins.
+
 `--spacing=SPACES`
 : Number of spaces to print between columns. The default is `2` in the grid views and `1` in the long view; a value above `1000` is taken as `1000`.
 
@@ -541,7 +544,11 @@ Specifies the directory where lez will look for its configuration and theme file
 
 ## `LEZ_QUOTING_STYLE`, `EZA_QUOTING_STYLE`
 
-Specifies when file names are quoted, as if `--quotes` had been given. Valid values are `always`, `auto`, and `never`; invalid or unset values fall back to `auto`. `--quotes=never` is equivalent to `ls -N`, and the command-line option overrides this variable.
+Specifies when file names are quoted, as if `--quotes` had been given. Valid values are `always`, `auto`, and `never`; an invalid value is passed over, as if the variable were unset. `--quotes=never` is equivalent to `ls -N`, and the command-line option overrides this variable.
+
+## `QUOTING_STYLE`
+
+GNU `ls`'s quoting style, read in its own words when neither `LEZ_QUOTING_STYLE` nor `EZA_QUOTING_STYLE` gives a style: `literal` is `--quotes=never`, `shell` and `shell-escape` are `auto`, and `shell-always` and `shell-escape-always` are `always`. Its other styles, `c`, `escape` and `locale`, have no counterpart here and are passed over. Like the variables above, it overrides the configuration file and is overridden by the command line.
 
 ## `LEZ_DEBUG`, `EZA_DEBUG`
 

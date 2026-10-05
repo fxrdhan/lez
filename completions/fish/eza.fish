@@ -68,6 +68,7 @@ complete -c eza -l quotes -d "When to quote filenames" -x -n "__eza_value_follow
   never\t'Never quote filenames'
 "
 complete -c eza -l no-quotes -d "Don't quote file names with spaces"
+complete -c eza -s N -l literal -d "Print file names without quoting, as ls -N does"
 complete -c eza -l short-nix -d "Abbreviate Nix store hashes in file names and paths"
 complete -c eza -l no-symlink-targets -d "Do not show symlink targets"
 complete -c eza -l summary -d "Display total summary statistics of entries"

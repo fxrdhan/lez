@@ -68,6 +68,7 @@ complete -c lez -l quotes -d "When to quote filenames" -x -n "__lez_value_follow
   never\t'Never quote filenames'
 "
 complete -c lez -l no-quotes -d "Don't quote file names with spaces"
+complete -c lez -s N -l literal -d "Print file names without quoting, as ls -N does"
 complete -c lez -l short-nix -d "Abbreviate Nix store hashes in file names and paths"
 complete -c lez -l no-symlink-targets -d "Do not show symlink targets"
 complete -c lez -l summary -d "Display total summary statistics of entries"
