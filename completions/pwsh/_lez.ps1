@@ -207,6 +207,7 @@ Register-ArgumentCompleter -Native -CommandName 'lez' -ScriptBlock {
             [CompletionResult]::new('--sort'                     ,'sort'                , [CompletionResultType]::ParameterName, 'which field to sort by SORT_FIELD')
             [CompletionResult]::new('--group-directories-first'  ,'gdf'                 , [CompletionResultType]::ParameterName, 'list directories before other files')
             [CompletionResult]::new('--group-directories-last'   ,'gdl'                 , [CompletionResultType]::ParameterName, 'list directories after other files')
+            [CompletionResult]::new('--group-dotfiles-first'     ,'gdotf'               , [CompletionResultType]::ParameterName, 'list dotfiles before other files, within the directory groups')
         #   [CompletionResult]::new('-I'                         ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--ignore-glob'              ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--ignore-glob-ci'         ,'ignore-glob-ci'        , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore, case-insensitively GLOBS')

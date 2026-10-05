@@ -32,6 +32,7 @@ export extern "eza" [
     --follow-symlinks          # Drill down into symbolic links that point to directories
     --group-directories-first  # Sort directories before other files
     --group-directories-last   # Sort directories after other files
+    --group-dotfiles-first     # Sort dotfiles before other files
     --inspect-archives         # List contents of supported archives (.tar) in long view
     --ignore-submodule-contents # Do not list contents of submodules
     --warn-hidden(-W)          # Print a tally of hidden and ignored items; twice to always print

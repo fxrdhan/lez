@@ -203,6 +203,10 @@ pub enum FileFilterFlags {
     /// Whether directories should be listed as the last items, after other
     /// types of file. Some users prefer it like this.
     ListDirsLast,
+
+    /// Whether names starting with a dot should be listed before the rest,
+    /// within each group that the two flags above make.
+    ListDotfilesFirst,
 }
 
 /// The **file filter** processes a list of files before displaying them to
@@ -502,12 +506,33 @@ impl FileFilter {
     {
         const PARALLEL_SORT_THRESHOLD: usize = 2048;
 
-        if self.sort_field == SortField::Unsorted {
-            let reverse = self.flags.contains(&FileFilterFlags::Reverse);
-            let list_dirs_first = self.flags.contains(&FileFilterFlags::ListDirsFirst);
-            let list_dirs_last = self.flags.contains(&FileFilterFlags::ListDirsLast);
+        let reverse = self.flags.contains(&FileFilterFlags::Reverse);
+        let list_dirs_first = self.flags.contains(&FileFilterFlags::ListDirsFirst);
+        let list_dirs_last = self.flags.contains(&FileFilterFlags::ListDirsLast);
+        let list_dotfiles_first = self.flags.contains(&FileFilterFlags::ListDotfilesFirst);
+        let grouped = list_dirs_first || list_dirs_last || list_dotfiles_first;
 
-            if !reverse && !list_dirs_first && !list_dirs_last {
+        // The groups keep their places whatever `--reverse` says: directories
+        // first or last, then dotfiles first within each.
+        let group_order = |a: &File<'_>, b: &File<'_>| {
+            let dir_order = if list_dirs_first {
+                b.points_to_directory().cmp(&a.points_to_directory())
+            } else if list_dirs_last {
+                a.points_to_directory().cmp(&b.points_to_directory())
+            } else {
+                Ordering::Equal
+            };
+            dir_order.then_with(|| {
+                if list_dotfiles_first {
+                    b.name.starts_with('.').cmp(&a.name.starts_with('.'))
+                } else {
+                    Ordering::Equal
+                }
+            })
+        };
+
+        if self.sort_field == SortField::Unsorted {
+            if !reverse && !grouped {
                 return;
             }
 
@@ -515,23 +540,13 @@ impl FileFilter {
                 files.reverse();
             }
 
-            if list_dirs_first || list_dirs_last {
-                let dir_compare = |a: &F, b: &F| {
-                    if list_dirs_first {
-                        b.as_ref()
-                            .points_to_directory()
-                            .cmp(&a.as_ref().points_to_directory())
-                    } else {
-                        a.as_ref()
-                            .points_to_directory()
-                            .cmp(&b.as_ref().points_to_directory())
-                    }
-                };
+            if grouped {
+                let group_compare = |a: &F, b: &F| group_order(a.as_ref(), b.as_ref());
 
                 if files.len() >= PARALLEL_SORT_THRESHOLD {
-                    files.par_sort_by(dir_compare);
+                    files.par_sort_by(group_compare);
                 } else {
-                    files.sort_by(dir_compare);
+                    files.sort_by(group_compare);
                 }
             }
 
@@ -545,27 +560,14 @@ impl FileFilter {
         // stable, exactly like `sort_by`, so the resulting order is identical.
         let parallel = files.len() >= PARALLEL_SORT_THRESHOLD;
 
-        let reverse = self.flags.contains(&FileFilterFlags::Reverse);
-        let list_dirs_first = self.flags.contains(&FileFilterFlags::ListDirsFirst);
-        let list_dirs_last = self.flags.contains(&FileFilterFlags::ListDirsLast);
-
-        if list_dirs_first || list_dirs_last {
+        if grouped {
             let compare = |a: &F, b: &F| {
                 let file_a = a.as_ref();
                 let file_b = b.as_ref();
 
-                let dir_order = if list_dirs_first {
-                    file_b
-                        .points_to_directory()
-                        .cmp(&file_a.points_to_directory())
-                } else {
-                    file_a
-                        .points_to_directory()
-                        .cmp(&file_b.points_to_directory())
-                };
-
-                if dir_order != Ordering::Equal {
-                    return dir_order;
+                let group = group_order(file_a, file_b);
+                if group != Ordering::Equal {
+                    return group;
                 }
 
                 let sort_order = self

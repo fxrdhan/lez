@@ -62,6 +62,9 @@ impl FileFilter {
         if dirs_first {
             filter_flags.push(FFF::ListDirsFirst);
         }
+        if matches.get_flag("group-dotfiles-first") {
+            filter_flags.push(FFF::ListDotfilesFirst);
+        }
 
         // `-v` is ls's spelling for the numeric-aware name ordering that
         // `--sort=name` already gives. Whichever of the two came last on the

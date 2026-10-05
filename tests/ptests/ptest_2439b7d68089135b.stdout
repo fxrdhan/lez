@@ -79,6 +79,7 @@ FILTERING OPTIONS:
 SORTING OPTIONS:
       --group-directories-first  list directories before other files
       --group-directories-last   list directories after other files
+      --group-dotfiles-first     list dotfiles before other files, within the directory groups
   -s, --sort <FIELD>             which field to sort by [default: name] [possible values:
                                    name, Name, .name, .Name, lexicographic, Lexicographic,
                                    ext, Ext, path, Path, created,

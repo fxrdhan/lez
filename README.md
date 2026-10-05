@@ -241,6 +241,7 @@ nix run github:fxrdhan/lez
 - **-t**: sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`)
 - **--group-directories-first**: list directories before other files
 - **--group-directories-last**: list directories after other files
+- **--group-dotfiles-first**: list dotfiles before other files, within the directory groups
 - **-D**, **--only-dirs**: list only directories
 - **-f**, **--only-files**: list only files
 - **--no-symlinks**: don't show symbolic links

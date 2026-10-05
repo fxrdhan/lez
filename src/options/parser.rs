@@ -222,24 +222,19 @@ fn filtering_options(command: clap::Command) -> clap::Command {
 fn sorting_options(command: clap::Command) -> clap::Command {
     command
         .next_help_heading("SORTING OPTIONS")
-        .arg(
-            arg!(--"group-directories-first" "list directories before other files")
-                .id("dirs-first")
-                .overrides_with("dirs-last"),
-        )
-        .arg(
-            arg!(--"group-directories-last" "list directories after other files")
-                .id("dirs-last")
-                .overrides_with("dirs-first"),
-        )
-        .arg(
-            arg!(-s --sort <FIELD>)
-                .help(format!("which field to sort by {SORT_FIELDS_HELP}"))
-                .value_parser(value_parser!(SortField))
-                .default_value("name")
-                .hide_default_value(true)
-                .hide_possible_values(true),
-        )
+        .arg(arg!(--"group-directories-first" "list directories before other files")
+            .id("dirs-first")
+            .overrides_with("dirs-last"))
+        .arg(arg!(--"group-directories-last" "list directories after other files")
+            .id("dirs-last")
+            .overrides_with("dirs-first"))
+        .arg(arg!(--"group-dotfiles-first" "list dotfiles before other files, within the directory groups"))
+        .arg(arg!(-s --sort <FIELD>)
+            .help(format!("which field to sort by {SORT_FIELDS_HELP}"))
+            .value_parser(value_parser!(SortField))
+            .default_value("name")
+            .hide_default_value(true)
+            .hide_possible_values(true))
         .arg(arg!(-r --reverse "reverse the sort order"))
 }
 

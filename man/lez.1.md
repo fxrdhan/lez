@@ -278,6 +278,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--group-directories-last`
 : List directories after other files.
 
+`--group-dotfiles-first`
+: List names starting with a dot before the rest, within each group that `--group-directories-first` or `--group-directories-last` makes, or across the whole listing without them. `--sort` orders each part, and `--reverse` reverses each part while the groups keep their places, so `--group-directories-first --group-dotfiles-first --sort=extension` lists directories, then dotfiles, then the other files by extension.
+
 `-D`, `--only-dirs`
 : List only directories, not files.
 
