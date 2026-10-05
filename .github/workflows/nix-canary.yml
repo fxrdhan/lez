@@ -26,11 +26,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+      # Sandboxed, as in CI: the generated trycmd suites pass only as the
+      # `nixbld` user the sandbox presents.
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           extra-conf: |
-            sandbox = false
+            sandbox = true
             ssl-cert-file = /etc/ssl/certs/ca-certificates.crt
             extra-sandbox-paths = /etc/ssl/certs
             user-agent = lez-ci (https://github.com/fxrdhan/lez)

@@ -12,7 +12,10 @@ naersk'.buildPackage rec {
   version = "git";
 
   src = ../.;
-  doCheck = true;
+  # The flake's trycmd check runs the suite, in a debug build that compiles
+  # in a fraction of the time this one's LTO takes. Running it here as well
+  # only made every build of the package, and CI's, minutes longer.
+  doCheck = false;
 
   inherit buildInputs;
   nativeBuildInputs = with pkgs; [
@@ -20,17 +23,6 @@ naersk'.buildPackage rec {
     pkg-config
     installShellFiles
     pandoc
-  ];
-  # Tools the tests run, which fail rather than skip without them: git
-  # builds repository fixtures, chattr sets Linux file flags, and locale
-  # reports the C library's number separators, which a sandboxed build
-  # otherwise lacks.
-  nativeCheckInputs = [
-    pkgs.git
-  ]
-  ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-    pkgs.e2fsprogs
-    pkgs.glibc.bin
   ];
 
   buildNoDefaultFeatures = true;

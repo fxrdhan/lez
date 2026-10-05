@@ -187,12 +187,11 @@
               };
             };
           formatting = treefmtEval.config.build.check self;
-          inherit (packages)
-            default
-            check
-            test
-            clippy
-            ;
+          # The package, exactly as a user builds it, so CI's binary cache
+          # holds it; and the suite, sandboxed, together with the generated
+          # suites that run nowhere else. Cargo check, Clippy and the suite
+          # on three platforms are the CI workflow's.
+          inherit (packages) default trycmd;
         };
       }
     );
