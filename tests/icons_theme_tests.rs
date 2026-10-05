@@ -33,5 +33,7 @@ mod schema;
 mod special_dirs;
 #[path = "icons_theme/symlink_target_styles.rs"]
 mod symlink_target_styles;
+#[path = "icons_theme/tar_shorthands.rs"]
+mod tar_shorthands;
 #[path = "icons_theme/theme_hardening.rs"]
 mod theme_hardening;
