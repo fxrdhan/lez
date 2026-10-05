@@ -22,11 +22,16 @@ naersk'.buildPackage rec {
     pandoc
   ];
   # Tools the tests run, which fail rather than skip without them: git
-  # builds repository fixtures, chattr sets Linux file flags.
+  # builds repository fixtures, chattr sets Linux file flags, and locale
+  # reports the C library's number separators, which a sandboxed build
+  # otherwise lacks.
   nativeCheckInputs = [
     pkgs.git
   ]
-  ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.e2fsprogs ];
+  ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+    pkgs.e2fsprogs
+    pkgs.glibc.bin
+  ];
 
   buildNoDefaultFeatures = true;
   buildFeatures = "git,inspect-archives";

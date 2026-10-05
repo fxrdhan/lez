@@ -16,6 +16,10 @@ use crate::common::{TempTestDir, lez_in, success_stdout};
 /// `decimal_point` and `thousands_sep` in `locale`, or `None` where the
 /// system does not have it. `LOCPATH` is passed on, so locales built with
 /// `localedef` can be tried too.
+///
+/// `locale` itself is looked for on `PATH` first, then in `/usr/bin` and
+/// `/bin`, the only places a cleared environment would search. NixOS and
+/// the Nix build sandbox keep it in neither.
 fn separators(locale: &str) -> Option<(String, String)> {
     let mut cmd = Command::new("locale");
     cmd.env_clear()
@@ -24,6 +28,14 @@ fn separators(locale: &str) -> Option<(String, String)> {
     if let Some(path) = std::env::var_os("LOCPATH") {
         cmd.env("LOCPATH", path);
     }
+    let search = match std::env::var_os("PATH") {
+        Some(mut path) => {
+            path.push(":/usr/bin:/bin");
+            path
+        }
+        None => "/usr/bin:/bin".into(),
+    };
+    cmd.env("PATH", search);
     let output = cmd.output().expect("run locale");
     if !output.status.success() || !output.stderr.is_empty() {
         return None;
