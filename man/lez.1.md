@@ -127,7 +127,7 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 : Sort the grid across, rather than downwards.
 
 `--color=WHEN`, `--colour=WHEN`
-: When to use terminal colours.
+: When to use terminal colors.
 
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’. Note: when providing an explicit value, an equals sign is required (`--color=WHEN`).
 
@@ -404,10 +404,10 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 : Don’t show the `@` marker that a file has extended attributes.
 
 `-e`, `--tags`
-: List each file’s colour tags, read from the extended attributes that macOS Finder writes. Tagged names are painted with the tag’s colour.
+: List each file’s color tags, read from the extended attributes that macOS Finder writes. Tagged names are painted with the tag’s color.
 
 `--inspect-archives` [if built with inspect-archives support]
-: In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files. Each entry's own file name is coloured by type as a normal listing would colour it, while the archive path and the entry size stay in the punctuation style; names the theme has no rule for stay punctuation too.
+: In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files. Each entry's own file name is colored by type as a normal listing would color it, while the archive path and the entry size stay in the punctuation style; names the theme has no rule for stay punctuation too.
 
 `-Z`, `--context`
 : List each file's security context: its SELinux label, or `?` where it has none, as on every system but Linux.

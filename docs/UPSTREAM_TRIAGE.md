@@ -67,7 +67,7 @@ Triaged 2026-10-05. [#1729](https://github.com/eza-community/eza/pull/1729) is o
 | [#1942](https://github.com/eza-community/eza/pull/1942) reject `--width` above 65535 ([#1895](https://github.com/eza-community/eza/issues/1895)) | **Covered.** The width clamp ported from [#1909](https://github.com/eza-community/eza/pull/1909) in PR #3; `-w 99999999999` lists normally. |
 | [#1943](https://github.com/eza-community/eza/pull/1943) directory-only names to `DIRECTORY_ICONS` ([#1940](https://github.com/eza-community/eza/issues/1940)) | **Ported** in commit `56cef37e`. |
 | [#1945](https://github.com/eza-community/eza/pull/1945) named themes (`EZA_THEME`) | **Pending decision** (§5). |
-| [#1946](https://github.com/eza-community/eza/pull/1946) one spelling of "color" in help ([#1243](https://github.com/eza-community/eza/issues/1243)) | **Pending decision** (§5). |
+| [#1946](https://github.com/eza-community/eza/pull/1946) one spelling of "color" in help ([#1243](https://github.com/eza-community/eza/issues/1243)) | **Covered**; see #1243 in §5. |
 | [#1947](https://github.com/eza-community/eza/pull/1947) `--only-files`/`--only-dirs` with `-d` ([#618](https://github.com/eza-community/eza/issues/618)) | **Covered.** `lez -d -f dir file link` prints only `file`. |
 | [#1948](https://github.com/eza-community/eza/pull/1948) `--user-length` | **Pending decision** (§5). |
 | [#1949](https://github.com/eza-community/eza/pull/1949) `--finder-meta` | **Partly covered.** `-e`/`--tags` lists Finder colour tags; the SF Symbol overlays are a pending decision (§5). |
@@ -150,6 +150,7 @@ Triaged 2026-10-05. [#1729](https://github.com/eza-community/eza/pull/1729) is o
 | [#1498](https://github.com/eza-community/eza/issues/1498), [#1291](https://github.com/eza-community/eza/issues/1291) | Recursive size calculation (`--total-size`) respects `--all` / `dot_filter`, skipping hidden directories when dotfiles are not shown (commit `b4e0a3d4`, PR #38). The 2026-08-25 sweep recorded #1498 as still reproducing; that was wrong. A build of the PR #38 merge already gives `1.0k` without `-a` and `101k` with it, for a directory holding a 100 kB hidden file. |
 | [#1922](https://github.com/eza-community/eza/issues/1922) | `--code` counts the lines in a Markdown fence under the fence's language (PRs #109, #111) |
 | [#1929](https://github.com/eza-community/eza/issues/1929) | the release workflow builds `aarch64-pc-windows-msvc` |
+| [#1243](https://github.com/eza-community/eza/issues/1243), [#1946](https://github.com/eza-community/eza/pull/1946) | `--help`, the shell completions and the option lists in the README and `lez(1)` spell it "color", and `--help` shows the `--colour`, `--colour-scale` and `--colour-scale-mode` aliases, so searching it for either spelling finds every colour option. Prose outside those option lists, such as `lez_colors(5)`, keeps its own spelling. |
 
 *Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` and, since v0.28.5, ANSI-C quoting of control characters yes; `-N`/`--literal` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no).
 
@@ -225,7 +226,6 @@ Real requests that `lez` has not answered either way. Each needs a product decis
 
 | Upstream ID | Question |
 |---|---|
-| [#1243](https://github.com/eza-community/eza/issues/1243), [#1946](https://github.com/eza-community/eza/pull/1946) | One spelling in `--help`: it says "colours" for `--color` and "color" elsewhere. |
 | [#1700](https://github.com/eza-community/eza/issues/1700) | Precedence of `theme.yml` against `LS_COLORS`. Today `LS_COLORS` wins (a theme's red directories turn green under `di=32`), and neither the README nor the man pages say so. |
 | [#1760](https://github.com/eza-community/eza/issues/1760), [#1948](https://github.com/eza-community/eza/pull/1948) | Truncating user (and group) names in the long view. |
 | [#1920](https://github.com/eza-community/eza/issues/1920) | Sorting by extension inside the directories-first and dotfiles groups. |

@@ -398,12 +398,16 @@ fn all_clap_flags_are_present_in_completions() {
         } else {
             for flag in &clap_longs {
                 // fish names a long option `-l name`; zsh may spell `colour`
-                // both ways at once.
+                // both ways at once, for the flag and for its alias.
                 let spellings = match dir {
                     "fish" => vec![format!("-l {flag}")],
                     "zsh" => vec![
                         format!("--{flag}"),
-                        format!("--{}", flag.replace("color", "colo{,u}r")),
+                        format!(
+                            "--{}",
+                            flag.replace("colour", "color")
+                                .replace("color", "colo{,u}r")
+                        ),
                     ],
                     _ => vec![format!("--{flag}")],
                 };

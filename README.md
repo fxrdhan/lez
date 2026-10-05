@@ -208,9 +208,9 @@ nix run github:fxrdhan/lez
 - **--json**: output file listing and metadata as structured JSON
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
-- **--colo[u]r=(when)**: when to use terminal colours (always, auto, never)
-- **--colo[u]r-scale=(fields)**: highlight levels of `fields` distinctly (all, age, size)
-- **--color-scale-mode=(mode)**: use gradient or fixed colors in `--color-scale` (`fixed` or `gradient`)
+- **--color=(when)**, **--colour=(when)**: when to use terminal colors (always, auto, never)
+- **--color-scale=(fields)**, **--colour-scale=(fields)**: highlight levels of `fields` distinctly (all, age, size)
+- **--color-scale-mode=(mode)**, **--colour-scale-mode=(mode)**: use gradient or fixed colors in `--color-scale` (`fixed` or `gradient`)
 - **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
 - **--spacing=(spaces)**: number of spaces between columns (default: 2 in the grid views, 1 in the long view; at most 1000)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
@@ -290,7 +290,7 @@ These options are available when running with `--long` (`-l`):
 - **-@**, **--extended**: list each file’s extended attributes and sizes
 - **--no-extended**: don't show the `@` marker that a file has extended attributes
 - **-e**, **--tags**: list each file's color tags stored in extended attributes (macOS Finder tags)
-- **--inspect-archives**: list the contents of supported archives (.tar) in long view, with each entry's file name coloured by type
+- **--inspect-archives**: list the contents of supported archives (.tar) in long view, with each entry's file name colored by type
 - **--git**: list each file’s Git status, if tracked or ignored
 - **--git-glyphs**: display Git status with Nerd Font glyphs instead of ASCII characters
 - **--git-repos**: list each directory’s Git status, if tracked

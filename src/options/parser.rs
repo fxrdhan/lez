@@ -105,22 +105,22 @@ pub fn get_command() -> clap::Command {
             .default_missing_value("on")
             .default_value("off")
             .hide_default_value(true))
-        .arg(arg!(--color <WHEN> "When to use colours.")
-            .alias("colour")
+        .arg(arg!(--color <WHEN> "when to use terminal colors")
+            .visible_alias("colour")
             .num_args(0..=1)
             .require_equals(true)
             .value_parser(value_parser!(ShowWhen))
             .default_missing_value("auto")
             .default_value("auto"))
         .arg(arg!(--"color-scale" <FIELDS> "highlight value of FIELDS distinctly")
-            .alias("colour-scale")
+            .visible_alias("colour-scale")
             .num_args(0..)
             .require_equals(true)
             .value_parser(value_parser!(ColorScaleArgs))
             .default_missing_value("all")
             .value_delimiter(','))
         .arg(arg!(--"color-scale-mode" <MODE> "mode for --color-scale")
-            .alias("colour-scale-mode")
+            .visible_alias("colour-scale-mode")
             .num_args(1)
             .value_parser(value_parser!(ColorScaleModeArgs))
             .default_value("gradient"))
@@ -650,6 +650,31 @@ pub mod test {
             cli.get_one::<ColorScaleModeArgs>("color-scale-mode"),
             Some(&ColorScaleModeArgs::Fixed)
         );
+    }
+
+    /// `--help` spells it "color" throughout and names each `--colour`
+    /// alias, so searching it for either spelling finds every colour option.
+    #[test]
+    fn help_spells_color_and_names_the_colour_aliases() {
+        let command = get_command();
+        for (long, alias) in [
+            ("color", "colour"),
+            ("color-scale", "colour-scale"),
+            ("color-scale-mode", "colour-scale-mode"),
+        ] {
+            let arg = command
+                .get_arguments()
+                .find(|arg| arg.get_long() == Some(long))
+                .unwrap();
+            assert_eq!(arg.get_visible_aliases(), Some(vec![alias]), "--{long}");
+        }
+
+        let help = get_command().render_help().to_string();
+        let british: Vec<&str> = help
+            .lines()
+            .filter(|line| line.contains("colour") && !line.contains("--colour"))
+            .collect();
+        assert!(british.is_empty(), "{british:?}");
     }
 
     #[test]
