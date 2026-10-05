@@ -11,6 +11,7 @@ pub use self::escape::escape;
 pub mod code;
 pub mod color_scale;
 pub mod details;
+pub mod explain;
 pub mod file_name;
 pub mod grid;
 pub mod grid_details;
@@ -54,6 +55,8 @@ pub enum Mode {
     /// files.
     Code(code::Options),
     Json(json::Options),
+    /// `--explain`: each entry with the rules behind its colour and icon.
+    Explain(explain::Options),
 }
 
 impl Mode {
@@ -68,7 +71,7 @@ impl Mode {
                 .details
                 .as_ref()
                 .is_some_and(|details| details.table.is_some()),
-            Self::Grid(_) | Self::Lines | Self::Code(_) => false,
+            Self::Grid(_) | Self::Lines | Self::Code(_) | Self::Explain(_) => false,
         }
     }
 }

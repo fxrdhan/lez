@@ -206,6 +206,7 @@ nix run github:fxrdhan/lez
 - **--follow-symlinks**: drill down into symbolic links that point to directories
 - **--code[=MODE]**: print lines-of-code summary by language (modes: `lines`, `percent`, `both`)
 - **--json**: output file listing and metadata as structured JSON
+- **--explain**: list each entry with the rule that chose the color of its name (a glob in `LS_COLORS` or `LEZ_COLORS`, a theme entry, a built-in file type, `di`, `ex`...) and the one that chose its icon
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
 - **--color=(when)**, **--colour=(when)**: when to use terminal colors (always, auto, never)

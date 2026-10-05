@@ -33,8 +33,8 @@ use lez::options::stdin::FilesInput;
 use lez::options::{Options, Vars, vars};
 use lez::output::summary::Summary;
 use lez::output::{
-    Mode, View, code, details, escape, file_name, grid, grid_details, hidden_count::HiddenCount,
-    json, lines,
+    Mode, View, code, details, escape, explain, file_name, grid, grid_details,
+    hidden_count::HiddenCount, json, lines,
 };
 use lez::theme::Theme;
 
@@ -142,7 +142,10 @@ fn main() {
             let git_repos = git_repos(&options, &input_paths);
 
             let console_width = options.view.width.actual_terminal_width();
-            let theme = options.theme.to_theme(stdout_istty);
+            // `--explain` names the colours a listing would use, so it works
+            // them out as a terminal would get them, wherever it is written.
+            let explain = matches!(options.view.mode, Mode::Explain(_));
+            let theme = options.theme.to_theme(stdout_istty || explain);
             let lez = Lez {
                 options,
                 writer,
@@ -850,6 +853,16 @@ impl Lez<'_> {
                     files,
                     theme,
                     file_style,
+                };
+                r.render(&mut self.writer).map(|()| exits::SUCCESS)
+            }
+
+            (Mode::Explain(opts), _) => {
+                let r = explain::Render {
+                    files,
+                    theme,
+                    file_style,
+                    opts,
                 };
                 r.render(&mut self.writer).map(|()| exits::SUCCESS)
             }

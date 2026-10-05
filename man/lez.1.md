@@ -117,6 +117,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 `--json`
 : Output file listing and metadata as structured JSON for easy parsing and scripting.
 
+`--explain`
+: List each entry with the rule that chose the color of its name and the one that chose its icon: a glob, named with the variable it was given in, an entry of the theme file, a built-in file type, or a file kind such as `di` or `ex`, each with the codes it gives. The colors are worked out as a terminal would get them, even when the output is not one; `--color=never` and `NO_COLOR` still turn them off. It takes the place of every layout, and strict mode refuses one beside it. See **lez_colors**(5) for the rules and their order.
+
 `--follow-symlinks`
 : Drill down into symbolic links that point to directories.
 

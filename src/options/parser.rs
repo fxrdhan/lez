@@ -114,6 +114,7 @@ fn layout_options(command: clap::Command) -> clap::Command {
         .arg(arg!(--spacing <SPACES> "set number of spaces between columns")
             .value_parser(value_parser!(usize)))
         .arg(arg!(--json "display as a json object"))
+        .arg(arg!(--explain "list each entry with the rules behind its color and icon"))
 }
 
 fn display_options(command: clap::Command) -> clap::Command {

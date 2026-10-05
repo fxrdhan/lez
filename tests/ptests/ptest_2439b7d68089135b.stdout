@@ -24,6 +24,7 @@ LAYOUT OPTIONS:
   -w, --width <COLS>      set screen width in columns
       --spacing <SPACES>  set number of spaces between columns
       --json              display as a json object
+      --explain           list each entry with the rules behind its color and icon
 
 DISPLAY OPTIONS:
   -F, --classify[=<WHEN>]          display type indicator by file names [possible values: always,

@@ -162,6 +162,7 @@ Register-ArgumentCompleter -Native -CommandName 'lez' -ScriptBlock {
         #   [CompletionResult]::new('-T'                         ,'tree'                , [CompletionResultType]::ParameterName, 'recurse into directories as a tree')
             [CompletionResult]::new('--tree'                     ,'tree'                , [CompletionResultType]::ParameterName, 'recurse into directories as a tree')
             [CompletionResult]::new('--json'                   ,'json'                  , [CompletionResultType]::ParameterName, 'output file listing and metadata as structured JSON')
+            [CompletionResult]::new('--explain'                ,'explain'               , [CompletionResultType]::ParameterName, 'list each entry with the rules behind its color and icon')
             [CompletionResult]::new('--spacing'                ,'spacing'               , [CompletionResultType]::ParameterName, 'number of spaces between columns in grid views')
         #   [CompletionResult]::new('-X'                         ,'dereference'         , [CompletionResultType]::ParameterName, 'dereference symbolic links when displaying information')
             [CompletionResult]::new('--dereference'              ,'dereference'         , [CompletionResultType]::ParameterName, 'dereference symbolic links when displaying information')

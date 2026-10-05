@@ -215,6 +215,7 @@ impl Definitions {
                 }
             });
         }
+        let from_ls_colors = globs.len();
 
         let mut use_default_filetypes = true;
 
@@ -230,7 +231,10 @@ impl Definitions {
             });
         }
 
-        (ExtensionMappings::from_globs(&globs), use_default_filetypes)
+        (
+            ExtensionMappings::from_globs(&globs, from_ls_colors),
+            use_default_filetypes,
+        )
     }
 }
 
@@ -284,9 +288,9 @@ pub trait FileStyle: Sync {
         None
     }
 
-    /// Return the style a glob in the colour variables gives `file`, leaving
-    /// out the built-in file type colours.
-    fn glob_style(&self, _file: &File<'_>, _theme: &Theme) -> Option<Style> {
+    /// The glob in the colour variables that matches `name`, leaving out the
+    /// built-in file type colours.
+    fn glob_rule(&self, _name: &str) -> Option<&GlobRule> {
         None
     }
 }
@@ -321,10 +325,8 @@ where
             .or_else(|| self.1.get_precedence_style(file, theme))
     }
 
-    fn glob_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
-        self.0
-            .glob_style(file, theme)
-            .or_else(|| self.1.glob_style(file, theme))
+    fn glob_rule(&self, name: &str) -> Option<&GlobRule> {
+        self.0.glob_rule(name).or_else(|| self.1.glob_rule(name))
     }
 
     fn get_style_for_name(&self, name: &str, theme: &Theme) -> Option<Style> {
@@ -351,8 +353,25 @@ struct ExtensionMappings {
 /// In the event that a pattern shows up twice, we will use the later one (since
 /// .insert overrides any entry that exists), which is the correct behavior.
 enum GlobPattern {
-    Complex(glob::Pattern, Style, Case),
+    Complex(glob::Pattern, GlobRule, Case),
     Simple(Extensions),
+}
+
+/// Which variable a glob was given in.
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+pub enum GlobSource {
+    LsColors,
+    /// `LEZ_COLORS`, or `EZA_COLORS` or `EXA_COLORS` in its place.
+    LezColors,
+}
+
+/// A glob from the colour variables: its style, and, for `--explain`, the
+/// glob as it was written and where.
+#[derive(PartialEq, Debug, Clone)]
+pub struct GlobRule {
+    pub style: Style,
+    pub pattern: String,
+    pub source: GlobSource,
 }
 
 /// A run of plain-extension globs, looked up by a name's extension.
@@ -362,17 +381,17 @@ enum GlobPattern {
 #[derive(PartialEq, Debug, Default)]
 struct Extensions {
     /// The globs that ignore case, keyed by their lowercased extension.
-    any_case: HashMap<String, Style>,
+    any_case: HashMap<String, GlobRule>,
 
     /// The globs that keep to their own case, keyed by their extension.
-    exact: HashMap<String, Style>,
+    exact: HashMap<String, GlobRule>,
 }
 
 impl Extensions {
-    fn insert(&mut self, ext: String, style: Style, case: Case) {
+    fn insert(&mut self, ext: String, rule: GlobRule, case: Case) {
         match case {
-            Case::Ignored => self.any_case.insert(ext.to_ascii_lowercase(), style),
-            Case::Exact => self.exact.insert(ext, style),
+            Case::Ignored => self.any_case.insert(ext.to_ascii_lowercase(), rule),
+            Case::Exact => self.exact.insert(ext, rule),
         };
     }
 }
@@ -400,15 +419,27 @@ impl Case {
 impl ExtensionMappings {
     /// Builds the mappings from the glob entries of the colour variables,
     /// oldest first, settling how each one treats case as GNU `ls` does.
-    fn from_globs(globs: &[Pair<'_>]) -> Self {
+    /// The first `from_ls_colors` of them were given in `LS_COLORS`.
+    fn from_globs(globs: &[Pair<'_>], from_ls_colors: usize) -> Self {
         use log::warn;
 
         let mut exts = Self::default();
-        for (pair, case) in globs.iter().zip(settle_case(globs)) {
+        for (index, (pair, case)) in globs.iter().zip(settle_case(globs)).enumerate() {
             // A glob that can never match is not worth parsing.
             let Some(case) = case else { continue };
             match glob::Pattern::new(pair.key) {
-                Ok(pattern) => exts.add(pattern, pair.to_style(), case),
+                Ok(pattern) => {
+                    let rule = GlobRule {
+                        style: pair.to_style(),
+                        pattern: pair.key.to_owned(),
+                        source: if index < from_ls_colors {
+                            GlobSource::LsColors
+                        } else {
+                            GlobSource::LezColors
+                        },
+                    };
+                    exts.add(pattern, rule, case);
+                }
                 Err(e) => warn!("Couldn't parse glob pattern {:?}: {}", pair.key, e),
             }
         }
@@ -419,18 +450,18 @@ impl ExtensionMappings {
         !self.mappings.is_empty()
     }
 
-    fn add(&mut self, pattern: glob::Pattern, style: Style, case: Case) {
+    fn add(&mut self, pattern: glob::Pattern, rule: GlobRule, case: Case) {
         match (self.mappings.last_mut(), is_simple_pattern(pattern)) {
             (Some(GlobPattern::Simple(exts)), Ok(ext)) => {
-                exts.insert(ext, style, case);
+                exts.insert(ext, rule, case);
             }
             (_, Ok(ext)) => {
                 let mut exts = Extensions::default();
-                exts.insert(ext, style, case);
+                exts.insert(ext, rule, case);
                 self.mappings.push(GlobPattern::Simple(exts));
             }
             (_, Err(p)) => {
-                self.mappings.push(GlobPattern::Complex(p, style, case));
+                self.mappings.push(GlobPattern::Complex(p, rule, case));
             }
         }
     }
@@ -530,13 +561,20 @@ impl FileStyle for ExtensionMappings {
         self.get_style_for_name(&file.name, theme)
     }
 
-    fn glob_style(&self, file: &File<'_>, theme: &Theme) -> Option<Style> {
-        self.get_style_for_name(&file.name, theme)
+    fn glob_rule(&self, name: &str) -> Option<&GlobRule> {
+        self.rule_for_name(name)
     }
 
     /// These mappings only ever consult the name, so an archive entry can use
     /// exactly the same lookup a real file does.
     fn get_style_for_name(&self, name: &str, _theme: &Theme) -> Option<Style> {
+        self.rule_for_name(name).map(|rule| rule.style)
+    }
+}
+
+impl ExtensionMappings {
+    /// The glob that colours `name`: of those that match it, the last given.
+    fn rule_for_name(&self, name: &str) -> Option<&GlobRule> {
         // GNU ls matches LS_COLORS patterns without regard to case unless two
         // differ only in case, and our own icon lookup ignores case too.
         // Simple patterns are filed by how they compare case, and complex
@@ -546,22 +584,22 @@ impl FileStyle for ExtensionMappings {
 
         for mapping in self.mappings.iter().rev() {
             match mapping {
-                GlobPattern::Complex(pat, style, case) => {
+                GlobPattern::Complex(pat, rule, case) => {
                     if pat.matches_with(name, case.match_options()) {
-                        return Some(*style);
+                        return Some(rule);
                     }
                 }
                 GlobPattern::Simple(exts) => {
                     if let Some(ext) = maybe_ext
                         && !exts.exact.is_empty()
-                        && let Some(style) = exts.exact.get(ext)
+                        && let Some(rule) = exts.exact.get(ext)
                     {
-                        return Some(*style);
+                        return Some(rule);
                     }
                     if let Some(ref ext) = maybe_lowercase_ext
-                        && let Some(style) = exts.any_case.get(ext)
+                        && let Some(rule) = exts.any_case.get(ext)
                     {
-                        return Some(*style);
+                        return Some(rule);
                     }
                 }
             }
@@ -839,77 +877,134 @@ impl FileNameColours for Theme {
     }
 
     fn style_override(&self, file: &File<'_>) -> Option<FileNameStyle> {
-        if file.is_directory() {
-            if let Some(ref dir_overrides) = self.ui.directorynames
-                && let Some(dir_override) = dir_overrides.get(&file.name)
-            {
-                return Some(dir_override.clone());
-            }
+        self.name_override(file).map(|found| found.style)
+    }
+}
 
-            if let Some(ref ext_overrides) = self.ui.extensions
-                && !crate::output::icons::has_specific_icon(file)
+/// Which entry of the theme file gave a name its style or icon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemeEntry {
+    /// `directorynames`, by the directory's name.
+    DirectoryName,
+    /// `extensions` `.default_directory_empty`.
+    EmptyDirectoryDefault,
+    /// `extensions` `.default_directory`.
+    DirectoryDefault,
+    /// `filenames`, by the file's name.
+    FileName,
+    /// `extensions`, by the file's extension.
+    Extension,
+    /// `mimetypes`, by the file's MIME type.
+    MimeType,
+    /// `extensions` `.default_file`.
+    FileDefault,
+    /// `extensions` `.default_file_unknown`.
+    FileUnknownDefault,
+}
+
+/// The theme file's entry for a name, as `style_override` gives it, with
+/// where it came from, for `--explain`.
+pub struct NameOverride<'t> {
+    pub style: FileNameStyle,
+    pub entry: ThemeEntry,
+    /// The glob from `LEZ_COLORS` laid over the entry's colour, if any.
+    pub glob: Option<&'t GlobRule>,
+}
+
+impl Theme {
+    /// The theme file's entry for `file`, if it has one.
+    #[must_use]
+    pub fn name_override(&self, file: &File<'_>) -> Option<NameOverride<'_>> {
+        if file.is_directory() {
+            return self
+                .directory_override(file)
+                .map(|(style, entry)| NameOverride {
+                    style: style.clone(),
+                    entry,
+                    glob: None,
+                });
+        }
+
+        let (style, entry) = self.file_override(file)?;
+        let mut style = style.clone();
+        // `LEZ_COLORS` is laid over the theme file, so a glob there colours
+        // the name ahead of the theme's entry for it, on the regular files
+        // globs colour. The theme's icon stays.
+        let glob = if style.filename.is_some() && file.is_file() {
+            self.exts.glob_rule(&file.name)
+        } else {
+            None
+        };
+        if let Some(rule) = glob {
+            style.filename = Some(rule.style);
+        }
+        Some(NameOverride { style, entry, glob })
+    }
+
+    /// The theme file's entry for a directory: by name, then the defaults.
+    fn directory_override(&self, file: &File<'_>) -> Option<(&FileNameStyle, ThemeEntry)> {
+        if let Some(ref dir_overrides) = self.ui.directorynames
+            && let Some(dir_override) = dir_overrides.get(&file.name)
+        {
+            return Some((dir_override, ThemeEntry::DirectoryName));
+        }
+
+        if let Some(ref ext_overrides) = self.ui.extensions
+            && !crate::output::icons::has_specific_icon(file)
+        {
+            if ext_overrides.contains_key(FileDefaults::DIRECTORY_EMPTY)
+                && file.is_empty_dir()
+                && let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY_EMPTY)
             {
-                if ext_overrides.contains_key(FileDefaults::DIRECTORY_EMPTY)
-                    && file.is_empty_dir()
-                    && let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY_EMPTY)
-                {
-                    return Some(file_override.clone());
-                }
-                if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY) {
-                    return Some(file_override.clone());
-                }
+                return Some((file_override, ThemeEntry::EmptyDirectoryDefault));
             }
-        } else if let Some(file_override) = self.file_override(file) {
-            let mut file_override = file_override.clone();
-            // `LEZ_COLORS` is laid over the theme file, so a glob there
-            // colours the name ahead of the theme's entry for it, on the
-            // regular files globs colour. The theme's icon stays.
-            if file_override.filename.is_some()
-                && file.is_file()
-                && let Some(style) = self.exts.glob_style(file, self)
-            {
-                file_override.filename = Some(style);
+            if let Some(file_override) = ext_overrides.get(FileDefaults::DIRECTORY) {
+                return Some((file_override, ThemeEntry::DirectoryDefault));
             }
-            return Some(file_override);
         }
 
         None
     }
-}
 
-impl Theme {
     /// The theme file's entry for a file that is not a directory: by name,
     /// then by extension, then by MIME type, then the defaults.
-    fn file_override(&self, file: &File<'_>) -> Option<&FileNameStyle> {
+    fn file_override(&self, file: &File<'_>) -> Option<(&FileNameStyle, ThemeEntry)> {
         if let Some(ref name_overrides) = self.ui.filenames
             && let Some(file_override) = name_overrides.get(&file.name)
         {
-            return Some(file_override);
+            return Some((file_override, ThemeEntry::FileName));
         }
 
         if let Some(ref ext_overrides) = self.ui.extensions
             && let Some(ext) = file.ext.as_deref()
             && let Some(file_override) = ext_overrides.get(ext)
         {
-            return Some(file_override);
+            return Some((file_override, ThemeEntry::Extension));
         }
 
         if let Some(ref mime_overrides) = self.ui.mimetypes
             && let Some(mimetype) = file.mimetype()
             && let Some(file_override) = mime_overrides.get(mimetype)
         {
-            return Some(file_override);
+            return Some((file_override, ThemeEntry::MimeType));
         }
 
         if let Some(ref ext_overrides) = self.ui.extensions
             && !crate::output::icons::has_specific_icon(file)
         {
             if file.ext.is_some() {
-                return ext_overrides.get(FileDefaults::FILE);
+                return ext_overrides
+                    .get(FileDefaults::FILE)
+                    .map(|found| (found, ThemeEntry::FileDefault));
             }
             return ext_overrides
                 .get(FileDefaults::FILE_UNKNOWN)
-                .or_else(|| ext_overrides.get(FileDefaults::FILE));
+                .map(|found| (found, ThemeEntry::FileUnknownDefault))
+                .or_else(|| {
+                    ext_overrides
+                        .get(FileDefaults::FILE)
+                        .map(|found| (found, ThemeEntry::FileDefault))
+                });
         }
 
         None
@@ -968,15 +1063,15 @@ mod customs_test {
             let mut out = Vec::new();
             for map in &self.mappings {
                 match map {
-                    GlobPattern::Complex(p, s, _) => {
-                        out.push((p.clone(), *s));
+                    GlobPattern::Complex(p, rule, _) => {
+                        out.push((p.clone(), rule.style));
                     }
                     GlobPattern::Simple(exts) => {
                         let mut simple_pats = exts
                             .any_case
                             .iter()
                             .chain(&exts.exact)
-                            .map(|(k, v)| (glob::Pattern::new(&format!("*.{k}")).unwrap(), *v))
+                            .map(|(k, v)| (glob::Pattern::new(&format!("*.{k}")).unwrap(), v.style))
                             .collect::<Vec<(glob::Pattern, Style)>>();
 
                         simple_pats.sort_by_key(|x| x.0.clone());

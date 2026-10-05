@@ -22,7 +22,8 @@ use crate::output::table::{
 };
 use crate::output::time::TimeFormat;
 use crate::output::{
-    Mode, SpacingBetweenColumns, SpacingMode, TerminalWidth, View, code, details, grid, json,
+    Mode, SpacingBetweenColumns, SpacingMode, TerminalWidth, View, code, details, explain, grid,
+    json,
 };
 
 use super::parser::{ColorScaleArgs, TimeArgs};
@@ -82,6 +83,32 @@ impl Mode {
         strict: bool,
         config: &FileConfig,
     ) -> Result<Self, OptionsError> {
+        // `--explain` lists each entry with the rules behind its colour and
+        // icon, which no layout draws, so it takes the place of all of them.
+        if matches.get_flag("explain") {
+            if strict {
+                let layouts = [
+                    ("code", "code"),
+                    ("json", "json"),
+                    ("long", "long"),
+                    ("tree", "tree"),
+                    ("grid", "grid"),
+                    ("oneline", "one-line"),
+                ];
+                if let Some((_, name)) = layouts
+                    .iter()
+                    .find(|(id, _)| matches.value_source(id) == Some(ValueSource::CommandLine))
+                {
+                    return Err(OptionsError::Useless(name, true, "explain"));
+                }
+            }
+            let colours_var = [vars::LEZ_COLORS, vars::EZA_COLORS, vars::EXA_COLORS]
+                .into_iter()
+                .find(|name| vars.get(name).is_some())
+                .unwrap_or(vars::LEZ_COLORS);
+            return Ok(Self::Explain(explain::Options { colours_var }));
+        }
+
         // `--code` is its own standalone tool: it summarises languages rather
         // than listing files, so it takes precedence over the layout flags.
         let code_from_cli = matches.get_one::<CodeContent>("code").copied();

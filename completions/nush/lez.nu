@@ -19,6 +19,7 @@ export extern "lez" [
     --across(-x)               # Sort the grid across, rather than downwards
     --recurse(-R)              # Recurse into directories
     --json                     # Output file listing and metadata as structured JSON
+    --explain                  # List each entry with the rules behind its color and icon
     --spacing: string          # Number of spaces between columns in grid views
     --tree(-T)                 # Recurse into directories as a tree
     --dereference(-X)          # Dereference symbolic links when displaying file information

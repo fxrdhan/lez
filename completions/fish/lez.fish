@@ -22,6 +22,7 @@ complete -c lez -s G -l grid -d "Display entries in a grid"
 complete -c lez -s x -l across -d "Sort the grid across, rather than downwards"
 complete -c lez -s R -l recurse -d "Recurse into directories"
 complete -c lez -l json -d "Output file listing and metadata as structured JSON"
+complete -c lez -l explain -d "List each entry with the rules behind its color and icon"
 complete -c lez -l spacing -d "Number of spaces between columns in grid views" -r
 complete -c lez -s T -l tree -d "Recurse into directories as a tree"
 complete -c lez -s X -l dereference -d "Dereference symbolic links when displaying file information"

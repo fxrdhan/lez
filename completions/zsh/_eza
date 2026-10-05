@@ -75,6 +75,7 @@ __eza() {
         \*--loc="[Add lines-of-code and language columns]:(mode):(lines percent both)" \
         \*--code="[Summarise lines of code by language]:(mode):(lines percent both)" \
         \*--json"[Output file listing and metadata as structured JSON]" \
+        \*--explain"[List each entry with the rules behind its color and icon]" \
         \*{-m,--modified}"[Use the modified timestamp field]" \
         \*{-n,--numeric}"[List numeric user and group IDs.]" \
         \*{-S,--blocksize}"[List the allocated size of each file, in bytes.]" \

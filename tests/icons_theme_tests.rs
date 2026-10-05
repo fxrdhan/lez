@@ -17,6 +17,8 @@ mod default_overrides;
 mod dev_eclass_astro;
 #[path = "icons_theme/empty_dirs.rs"]
 mod empty_dirs;
+#[path = "icons_theme/explain.rs"]
+mod explain;
 #[path = "icons_theme/glob_precedence.rs"]
 mod glob_precedence;
 #[path = "icons_theme/icon_colours.rs"]

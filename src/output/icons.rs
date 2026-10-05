@@ -1344,46 +1344,68 @@ const MIME_WILDCARD_ICONS: Map<&'static str, char> = phf_map! {
 /// Lookup the icon for a file based on the file's name, if the entry is a
 /// directory, or by the lowercase file extension.
 pub fn icon_for_file(file: &File<'_>, empty_dir_icon: bool) -> char {
+    icon_with_source(file, empty_dir_icon).0
+}
+
+/// Which of the built-in tables gave a file its icon, for `--explain`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IconSource {
+    /// One of the user's own folders, such as the home or downloads folder.
+    SpecialDirectory,
+    /// A directory known by its name, such as `.git`.
+    DirectoryName,
+    EmptyDirectory,
+    Directory,
+    /// A file known by its whole name, such as `Makefile`.
+    FileName,
+    Extension,
+    MimeType,
+    /// A file whose MIME type is only known by its kind, such as `image`.
+    MimeCategory,
+    /// A file with an extension no table knows.
+    File,
+    /// A file with no extension, that no table knows.
+    FileWithoutExtension,
+}
+
+/// The icon for a file, and which table it came from.
+pub fn icon_with_source(file: &File<'_>, empty_dir_icon: bool) -> (char, IconSource) {
     if file.points_to_directory() {
         if let Some(icon) = special_dir_icon(file) {
-            icon
+            (icon, IconSource::SpecialDirectory)
+        } else if let Some(icon) = DIRECTORY_ICONS.get(file.name.as_str()) {
+            (*icon, IconSource::DirectoryName)
+        // `is_empty_dir` is the expensive part of drawing a listing with
+        // icons, so it is asked only when its answer can change the glyph.
+        } else if empty_dir_icon && file.is_empty_dir() {
+            (Icons::FOLDER_OPEN, IconSource::EmptyDirectory)
         } else {
-            *DIRECTORY_ICONS.get(file.name.as_str()).unwrap_or_else(|| {
-                // `is_empty_dir` is the expensive part of drawing a listing
-                // with icons, so it is asked only when its answer can change
-                // the glyph.
-                if empty_dir_icon && file.is_empty_dir() {
-                    &Icons::FOLDER_OPEN // 
-                } else {
-                    &Icons::FOLDER // 
-                }
-            })
+            (Icons::FOLDER, IconSource::Directory)
         }
     } else if let Some(icon) = FILENAME_ICONS.get(file.name.as_str()) {
-        *icon
+        (*icon, IconSource::FileName)
     } else if let Some(icon) = file
         .ext
         .as_ref()
         .and_then(|ext| EXTENSION_ICONS.get(ext.as_str()))
     {
-        *icon
-    } else if let Some(mimetype) = file.mimetype() {
-        if let Some(icon) = MIME_ICONS.get(mimetype) {
-            *icon
-        } else if let Some(icon) = mimetype
-            .split_once('/')
-            .and_then(|(mime, _)| MIME_WILDCARD_ICONS.get(mime))
-        {
-            *icon
-        } else if file.ext.is_some() {
-            Icons::FILE
-        } else {
-            Icons::FILE_UNKNOW
-        }
+        (*icon, IconSource::Extension)
+    } else if let Some(found) = file.mimetype().and_then(|mimetype| {
+        MIME_ICONS
+            .get(mimetype)
+            .map(|icon| (*icon, IconSource::MimeType))
+            .or_else(|| {
+                mimetype
+                    .split_once('/')
+                    .and_then(|(mime, _)| MIME_WILDCARD_ICONS.get(mime))
+                    .map(|icon| (*icon, IconSource::MimeCategory))
+            })
+    }) {
+        found
     } else if file.ext.is_some() {
-        Icons::FILE // 
+        (Icons::FILE, IconSource::File)
     } else {
-        Icons::FILE_UNKNOW // 󰡯
+        (Icons::FILE_UNKNOW, IconSource::FileWithoutExtension)
     }
 }
 
