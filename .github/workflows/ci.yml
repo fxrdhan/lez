@@ -76,6 +76,8 @@ jobs:
               - 'completions/**'
               - 'justfile'
               - '.config/**'
+              # The generated suites run against fixtures these scripts make.
+              - 'devtools/**'
               - '.github/workflows/ci.yml'
   lint-and-format:
     name: Lint & Format (Rustfmt & Clippy)
@@ -90,8 +92,13 @@ jobs:
         with:
           toolchain: stable
           components: clippy, rustfmt
+      # Every Rust cache is saved from dev alone. A pull request restores
+      # dev's, and one it saved under its own merge ref would serve that pull
+      # request only, while pushing dev's out of the repository's 10 GB.
       - name: Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
@@ -136,6 +143,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: features-${{ matrix.label }}
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       # The tests too: a suite that builds its Git or tar fixtures with an
       # optional crate is gated on that crate's feature, and a packager who
       # switches a feature off still runs the rest.
@@ -186,6 +194,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       # nextest runs every test binary in one pool. `cargo test` runs them
       # one at a time, and this suite is ninety-one binaries with a median of
       # five tests each, so most of a run is spent with the runner idle.
@@ -229,6 +238,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: llvm-cov
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Install cargo-llvm-cov & cargo-nextest
         uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
@@ -244,9 +254,13 @@ jobs:
         with:
           name: code-coverage-lcov
           path: lcov.info
+  # Alongside the tests rather than after them. Waiting on the slowest test
+  # row put a Windows release build behind a Windows test run, the longest
+  # path through a run; `CI result` waits on both either way.
   build-release:
     name: Release Build (${{ matrix.target }})
-    needs: [unit-and-integration-tests]
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -274,6 +288,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: release-${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Build release binary
         run: cargo build --release --locked --target ${{ matrix.target }} --features git,inspect-archives
   nix-flake-check:
@@ -284,11 +299,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+      # Sandboxed, because the generated trycmd suites were recorded as the
+      # `nixbld` user the sandbox presents. Unsandboxed, a build runs as
+      # nixbld1, and dozens of their cases fail on that name alone.
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           extra-conf: |
-            sandbox = false
+            sandbox = true
             ssl-cert-file = /etc/ssl/certs/ca-certificates.crt
             extra-sandbox-paths = /etc/ssl/certs
             user-agent = lez-ci (https://github.com/fxrdhan/lez)

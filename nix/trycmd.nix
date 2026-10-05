@@ -8,22 +8,32 @@
 }:
 
 {
+  # The whole suite, plus the generated suites under tests/gen and
+  # tests/ptests, which nothing else runs. `nix flake check` builds it.
+  #
+  # Their snapshots were recorded inside the build sandbox, as the `nixbld`
+  # user it presents, so they pass only in a sandboxed build. Outside one,
+  # the build runs as nixbld1.
   trycmd = naersk'.buildPackage {
     src = ../.;
     mode = "test";
     doCheck = true;
     # No reason to wait for release build
     release = false;
-    # buildPhase files differ between dep and main phase
-    singleStep = true;
-    # generate testing files
-    buildPhase = ''
-      bash devtools/dir-generator.sh tests/test_dir
-      bash devtools/generate-timestamp-test-dir.sh tests/timestamp_test_dir
-      touch --date=@0 tests/itest/*
-      touch --date=@0 tests/ptests/*
-      fd -e stdout -e stderr -H -t file -X sed -i 's/[CWD]\//\/build\/source\//g'
-    '';
+    # Debug info only slows the build and bloats the cached dependencies.
+    CARGO_PROFILE_DEV_DEBUG = "0";
+    # The fixtures are generated from the full source, which the stand-in
+    # naersk builds the dependencies from lacks, so only the main derivation
+    # generates them. The dependencies keep a derivation of their own, which
+    # the binary cache serves.
+    overrideMain = _: {
+      buildPhase = ''
+        bash devtools/dir-generator.sh tests/test_dir
+        bash devtools/generate-timestamp-test-dir.sh tests/timestamp_test_dir
+        touch --date=@0 tests/itest/*
+        touch --date=@0 tests/ptests/*
+      '';
+    };
     cargoTestOptions =
       opts:
       opts
@@ -33,10 +43,15 @@
         "--features powertest"
       ];
     inherit buildInputs;
-    nativeBuildInputs = with pkgs; [
-      fd
-      gnused
-      git
+    # Tools the tests run, which fail rather than skip without them: git
+    # builds repository fixtures, chattr sets Linux file flags, and locale
+    # reports the C library's number separators.
+    nativeBuildInputs = [
+      pkgs.git
+    ]
+    ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+      pkgs.e2fsprogs
+      pkgs.glibc.bin
     ];
   };
 
