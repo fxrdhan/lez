@@ -170,6 +170,24 @@ fn without_the_flag_or_the_long_view_archives_stay_opaque() {
     );
 }
 
+/// An entry's path is whatever wrote the archive put there, so a control
+/// character in it is shown as an escape, as one in a name on disk is,
+/// rather than handed to the terminal: an escape sequence there could
+/// recolour the screen or worse, and a newline would break the row.
+#[test]
+fn control_characters_in_an_entry_are_escaped() {
+    let dir = TempTestDir::new("inspect_control");
+    write_tar(
+        &dir.path().join("evil.tar"),
+        &[("evil\x1b[31m\x07\nname.txt", b"x")],
+    );
+    assert_eq!(
+        names(&dir, &["--inspect-archives"]),
+        "evil.tar\n\
+         └── evil.tar/evil\\u{1b}[31m\\u{7}\\nname.txt (1 B)\n"
+    );
+}
+
 /// The archive path and the size stay in the punctuation style; the leaf
 /// name takes its own file colour when the theme has one (`.txt`, `.rs`),
 /// and keeps the punctuation style when it has none (`.bin`).

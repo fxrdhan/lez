@@ -82,10 +82,12 @@ use crate::fs::filter::FileFilter;
 use crate::fs::filter::FileFilterFlags::OnlyFiles;
 use crate::fs::{Dir, File};
 use crate::options::parser::CodeContent;
-#[cfg(feature = "inspect-archives")]
-use crate::output::cell::DisplayWidth;
 use crate::output::cell::TextCell;
+#[cfg(feature = "inspect-archives")]
+use crate::output::cell::TextCellContents;
 use crate::output::color_scale::{ColorScaleInformation, ColorScaleOptions};
+#[cfg(feature = "inspect-archives")]
+use crate::output::escape::{Quoting, escape_inner_chars};
 use crate::output::file_name::Options as FileStyle;
 use crate::output::table::{Options as TableOptions, Row as TableRow, Table};
 use crate::output::tree::{TreeDepth, TreeParams, TreeTrunk};
@@ -634,16 +636,18 @@ impl<'a> Render<'a> {
             .get_style_for_name(leaf, self.theme)
             .unwrap_or(punctuation);
 
-        let suffix = format!(" ({size})");
-        let width = DisplayWidth::from(&*format!("{dirs}{leaf}{suffix}"));
+        // The path is whatever the archive's writer put there, so a control
+        // character in it is shown as an escape, as one in a name on disk
+        // is, rather than sent to the terminal to act on.
+        let control = self.theme.ui.control_char();
+        let mut bits = Vec::new();
+        escape_inner_chars(&dirs, &mut bits, punctuation, control, Quoting::None);
+        escape_inner_chars(leaf, &mut bits, leaf_style, control, Quoting::None);
+        bits.push(punctuation.paint(format!(" ({size})")));
+        let contents = TextCellContents::from(bits);
         let name = TextCell {
-            contents: vec![
-                punctuation.paint(dirs),
-                leaf_style.paint(leaf.to_string()),
-                punctuation.paint(suffix),
-            ]
-            .into(),
-            width,
+            width: contents.width(),
+            contents,
         };
 
         Row {
