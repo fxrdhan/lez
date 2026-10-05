@@ -139,8 +139,7 @@ fn every_flag_is_documented() {
             })
     };
     for (page, before) in [("man/lez.1.md", "`"), ("README.md", "**")] {
-        // The README writes both spellings at once, as `--colo[u]r`.
-        let text = workspace_file(page).replace("colo[u]r", "color");
+        let text = workspace_file(page);
         let missing: Vec<&String> = flags
             .iter()
             .filter(|flag| !mentions(&text, before, flag))

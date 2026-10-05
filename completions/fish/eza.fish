@@ -32,13 +32,13 @@ complete -c eza -l classify -d "Display type indicator by file names" -x -n "__e
     automatic\t'Display type indicators if standard output is a terminal'
     never\t'Never display type indicators'
 "
-complete -c eza -l color -l colour -d "When to use terminal colours"
+complete -c eza -l color -l colour -d "When to use terminal colors"
 complete -c eza -l color \
-    -l colour -d "When to use terminal colours" -x -n "__eza_value_follows_an_equals_sign" -a "
-    always\t'Always use colour'
-    auto\t'Use colour if standard output is a terminal'
-    automatic\t'Use colour if standard output is a terminal'
-    never\t'Never use colour'
+    -l colour -d "When to use terminal colors" -x -n "__eza_value_follows_an_equals_sign" -a "
+    always\t'Always use color'
+    auto\t'Use color if standard output is a terminal'
+    automatic\t'Use color if standard output is a terminal'
+    never\t'Never use color'
 "
 complete -c eza -l color-scale -l colour-scale -d "Highlight levels 'field' distinctly"
 complete -c eza -l color-scale \
