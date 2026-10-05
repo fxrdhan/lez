@@ -3,15 +3,29 @@
 name: Fuzz Canary
 # Automated coverage-guided fuzzing smoke test using LLVM libFuzzer and AddressSanitizer (ASan).
 # Runs fuzz targets against Tar and Zip archives, YAML themes, LS_COLORS, and duration parsers.
+#
+# Not part of `CI result`, so the path filter cannot leave a pull request
+# waiting on it. The targets call into src/ and build from nothing outside
+# these paths.
 on:
   push:
     branches: [main, dev]
-    paths-ignore:
-      - '**.md'
+    paths:
+      - 'src/**'
+      - 'fuzz/**'
+      - 'build.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/fuzz-canary.yml'
   pull_request:
     branches: [main, dev]
-    paths-ignore:
-      - '**.md'
+    paths:
+      - 'src/**'
+      - 'fuzz/**'
+      - 'build.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/fuzz-canary.yml'
   schedule:
     # Weekly run on Sundays at 04:00 UTC
     - cron: "0 4 * * 0"
@@ -21,36 +35,57 @@ concurrency:
   cancel-in-progress: true
 permissions:
   contents: read
+env:
+  # A dated nightly rather than the latest. The Rust cache is keyed on the
+  # compiler, so one that changed every day was never restored, and the
+  # artifacts in it would have been rebuilt anyway. Move it forward by hand.
+  NIGHTLY: nightly-2026-10-05
 jobs:
   fuzz:
-    name: Fuzz Targets (${{ matrix.target }})
+    name: Fuzz Targets
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - fuzz_tar_archive
-          - fuzz_zip_archive
-          - fuzz_theme_yaml
-          - fuzz_lscolors
-          - fuzz_since_duration
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Nightly Rust (for libfuzzer)
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
-          toolchain: nightly
+          toolchain: ${{ env.NIGHTLY }}
           targets: x86_64-unknown-linux-gnu
       - name: Install cargo-fuzz
         uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
           tool: cargo-fuzz
+      # The versions the workspace locks, which the lint job checks the
+      # targets against too. Cargo adds the fuzz crate's own.
+      - name: Use the workspace's lockfile
+        run: cp Cargo.lock fuzz/Cargo.lock
       - name: Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          key: fuzz-${{ matrix.target }}
+          # cargo-fuzz builds into fuzz/target. The default, ./target, held
+          # nothing it built.
+          workspaces: fuzz
           # Saved from dev alone, as in CI: a pull request restores dev's.
           save-if: ${{ github.ref == 'refs/heads/dev' }}
-      - name: Run Fuzz Smoke Test (30 seconds)
-        run: cargo +nightly fuzz run --target x86_64-unknown-linux-gnu ${{ matrix.target }} -- -max_total_time=30
+      # Every target in one build. Each used to be a job of its own, building
+      # the crate and its dependencies under ASan all over again.
+      - name: Build the fuzz targets
+        run: cargo "+$NIGHTLY" fuzz build --target x86_64-unknown-linux-gnu
+      - name: Run each target for 30 seconds
+        run: |
+          targets=$(cargo "+$NIGHTLY" fuzz list)
+          if [ -z "$targets" ]; then
+            echo "::error::cargo fuzz list found no targets"
+            exit 1
+          fi
+          status=0
+          for target in $targets; do
+            echo "::group::$target"
+            if ! cargo "+$NIGHTLY" fuzz run --target x86_64-unknown-linux-gnu "$target" -- -max_total_time=30; then
+              echo "::error::$target failed"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"
