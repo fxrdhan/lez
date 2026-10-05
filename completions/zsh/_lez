@@ -25,12 +25,14 @@ __lez() {
         \*-F"[Display type indicator by file names (defaults to always)]" \
         \*--classify="[Display type indicator by file names]:(when):(always auto automatic never)" \
         \*--colo{,u}r="[When to use terminal colors]:(when):(always auto automatic never)" \
+        \*--theme="[Use the named theme from the themes folder]:(name):" \
         \*--colo{,u}r-scale="[highlight levels of 'field' distinctly]:(fields):(all age size)" \
         \*--colo{,u}r-scale-mode"[Use gradient or fixed colors in --color-scale]:(mode):(fixed gradient)" \
         \*--icons="[When to display icons]:(when):(always auto automatic never)" \
         \*--spacing="[Number of spaces between columns in grid views]:(spaces):" \
         \*--quotes="[When to quote filenames]:when:(always auto automatic never)" \
         \*--no-quotes"[Don't quote filenames with spaces]" \
+        \*{-N,--literal}"[Print file names without quoting, as ls -N does]" \
         \*--short-nix"[Abbreviate Nix store hashes in file names and paths]" \
         \*--no-symlink-targets"[Do not show symlink targets]" \
         \*--summary"[Display total summary statistics of entries]" \
@@ -39,6 +41,7 @@ __lez() {
         \*--follow-symlinks"[Drill down into symbolic links that point to directories]" \
         \*--group-directories-first"[Sort directories before other files]" \
         \*--group-directories-last"[Sort directories after other files]" \
+        \*--group-dotfiles-first"[Sort dotfiles before other files]" \
         \*--inspect-archives"[List contents of supported archives in long view]" \
         \*--ignore-submodule-contents"[Do not list contents of submodules]" \
         \*{-W,--warn-hidden}'[Print a tally of hidden and ignored items]' \
@@ -72,6 +75,7 @@ __lez() {
         \*--loc="[Add lines-of-code and language columns]:(mode):(lines percent both)" \
         \*--code="[Summarise lines of code by language]:(mode):(lines percent both)" \
         \*--json"[Output file listing and metadata as structured JSON]" \
+        \*--explain"[List each entry with the rules behind its color and icon]" \
         \*{-m,--modified}"[Use the modified timestamp field]" \
         \*{-n,--numeric}"[List numeric user and group IDs.]" \
         \*{-S,--blocksize}"[List the allocated size of each file, in bytes.]" \
@@ -105,6 +109,7 @@ __lez() {
         \*{-M,--mounts}"[Show mount details (long mode only)]" \
         '*:filename:_files' \
         \*--smart-group"[Only show group if it has a different name from owner]" \
+        \*--owner-width="[Cut user and group names wider than COLS columns]:(cols):" \
         \*--stdin"[When piping to lez. Read file names from stdin]" \
         \*--stdin0"[Like --stdin, but paths are separated by NUL]" \
         \*--print-total"[Display total number of entries]" \

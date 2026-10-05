@@ -22,6 +22,7 @@ complete -c eza -s G -l grid -d "Display entries in a grid"
 complete -c eza -s x -l across -d "Sort the grid across, rather than downwards"
 complete -c eza -s R -l recurse -d "Recurse into directories"
 complete -c eza -l json -d "Output file listing and metadata as structured JSON"
+complete -c eza -l explain -d "List each entry with the rules behind its color and icon"
 complete -c eza -l spacing -d "Number of spaces between columns in grid views" -r
 complete -c eza -s T -l tree -d "Recurse into directories as a tree"
 complete -c eza -s X -l dereference -d "Dereference symbolic links when displaying file information"
@@ -53,6 +54,7 @@ complete -c eza -l color-scale-mode \
     fixed\t'Highlight based on fixed colors'
     gradient\t'Highlight based \'field\' in relation to other files'
 "
+complete -c eza -l theme -d "Use the named theme from the themes folder" -x
 complete -c eza -l icons -d "When to display icons"
 complete -c eza -l icons -d "When to display icons" -x -n "__eza_value_follows_an_equals_sign" -a "
   always\t'Always display icons'
@@ -68,6 +70,7 @@ complete -c eza -l quotes -d "When to quote filenames" -x -n "__eza_value_follow
   never\t'Never quote filenames'
 "
 complete -c eza -l no-quotes -d "Don't quote file names with spaces"
+complete -c eza -s N -l literal -d "Print file names without quoting, as ls -N does"
 complete -c eza -l short-nix -d "Abbreviate Nix store hashes in file names and paths"
 complete -c eza -l no-symlink-targets -d "Do not show symlink targets"
 complete -c eza -l summary -d "Display total summary statistics of entries"
@@ -86,12 +89,14 @@ complete -c eza -l absolute -d "Display entries with their absolute path" -x -n 
   off\t'Do not show the absolute path'
 "
 complete -c eza -l smart-group -d "Only show group if it has a different name from owner"
+complete -c eza -l owner-width -d "Cut user and group names wider than COLS columns" -x
 complete -c eza -l mime-types -d "Determine file MIME types to better inform styling decisions (unix only)"
 
 # Filtering and sorting options
 complete -c eza -l group-directories-first -d "Sort directories before other files"
 complete -c eza -l group-directories-last -d "Sort directories after other files"
-complete -c eza -l inspect-archives -d "List the contents of supported archives (.tar) in long view"
+complete -c eza -l group-dotfiles-first -d "Sort dotfiles before other files"
+complete -c eza -l inspect-archives -d "List the contents of supported archives (.tar, .zip) in long view"
 complete -c eza -l ignore-submodule-contents -d "Do not list contents of submodules"
 complete -c eza -s W -l warn-hidden -d "Print a tally of hidden and ignored items; twice to always print"
 complete -c eza -l no-extended -d "Do not show a marker if a file's extended attributes exist"

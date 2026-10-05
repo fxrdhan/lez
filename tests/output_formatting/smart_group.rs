@@ -9,42 +9,10 @@
 
 #![cfg(unix)]
 
-use std::ffi::CStr;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-use crate::common::{TempTestDir, lez_in, success_stdout};
-
-/// A name from `getpwuid_r` or `getgrgid_r`, or the number when there is
-/// none, as lez falls back to.
-fn lookup(id: u32, user: bool) -> String {
-    let mut buffer = vec![0u8; 16 * 1024];
-    let buffer_ptr = buffer.as_mut_ptr().cast();
-    // SAFETY: each call fills a zeroed record whose strings point into
-    // `buffer`, which outlives every use of them below.
-    unsafe {
-        if user {
-            let mut record: libc::passwd = std::mem::zeroed();
-            let mut found = std::ptr::null_mut();
-            libc::getpwuid_r(id, &mut record, buffer_ptr, buffer.len(), &mut found);
-            if !found.is_null() {
-                return CStr::from_ptr(record.pw_name)
-                    .to_string_lossy()
-                    .into_owned();
-            }
-        } else {
-            let mut record: libc::group = std::mem::zeroed();
-            let mut found = std::ptr::null_mut();
-            libc::getgrgid_r(id, &mut record, buffer_ptr, buffer.len(), &mut found);
-            if !found.is_null() {
-                return CStr::from_ptr(record.gr_name)
-                    .to_string_lossy()
-                    .into_owned();
-            }
-        }
-    }
-    id.to_string()
-}
+use crate::common::{TempTestDir, lez_in, owner_name as lookup, success_stdout};
 
 /// `other` is moved into another of the caller's groups where it has one
 /// (any group when running as root), so the two files differ in group when

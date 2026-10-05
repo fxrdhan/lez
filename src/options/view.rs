@@ -22,7 +22,8 @@ use crate::output::table::{
 };
 use crate::output::time::TimeFormat;
 use crate::output::{
-    Mode, SpacingBetweenColumns, SpacingMode, TerminalWidth, View, code, details, grid, json,
+    Mode, SpacingBetweenColumns, SpacingMode, TerminalWidth, View, code, details, explain, grid,
+    json,
 };
 
 use super::parser::{ColorScaleArgs, TimeArgs};
@@ -82,6 +83,32 @@ impl Mode {
         strict: bool,
         config: &FileConfig,
     ) -> Result<Self, OptionsError> {
+        // `--explain` lists each entry with the rules behind its colour and
+        // icon, which no layout draws, so it takes the place of all of them.
+        if matches.get_flag("explain") {
+            if strict {
+                let layouts = [
+                    ("code", "code"),
+                    ("json", "json"),
+                    ("long", "long"),
+                    ("tree", "tree"),
+                    ("grid", "grid"),
+                    ("oneline", "one-line"),
+                ];
+                if let Some((_, name)) = layouts
+                    .iter()
+                    .find(|(id, _)| matches.value_source(id) == Some(ValueSource::CommandLine))
+                {
+                    return Err(OptionsError::Useless(name, true, "explain"));
+                }
+            }
+            let colours_var = [vars::LEZ_COLORS, vars::EZA_COLORS, vars::EXA_COLORS]
+                .into_iter()
+                .find(|name| vars.get(name).is_some())
+                .unwrap_or(vars::LEZ_COLORS);
+            return Ok(Self::Explain(explain::Options { colours_var }));
+        }
+
         // `--code` is its own standalone tool: it summarises languages rather
         // than listing files, so it takes precedence over the layout flags.
         let code_from_cli = matches.get_one::<CodeContent>("code").copied();
@@ -256,6 +283,7 @@ impl Mode {
             "git-glyphs",
             "octal-permissions",
             "smart-group",
+            "owner-width",
             "extended",
             "no-extended",
             "tags",
@@ -485,6 +513,11 @@ impl TableOptions {
         let percent_digits = PercentDigits::deduce(matches, vars, config)?;
         let user_format = UserFormat::deduce(matches, config);
         let group_format = GroupFormat::deduce(matches, config);
+        let owner_width = matches
+            .get_one::<u16>("owner-width")
+            .copied()
+            .or(config.display.owner_width.filter(|&width| width > 0))
+            .map(usize::from);
         let columns = Columns::deduce(matches, vars, config)?;
         let use_utc = matches.get_flag("utc");
         Ok(Self {
@@ -494,6 +527,7 @@ impl TableOptions {
             time_format,
             user_format,
             group_format,
+            owner_width,
             flags_format,
             allocated_size_mode,
             columns,

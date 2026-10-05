@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! `--inspect-archives`: uncompressed `.tar` files list their entries below
-//! themselves in the long view; corrupt archives fail silently and are
-//! listed like regular files.
+//! `--inspect-archives`: uncompressed `.tar` and `.zip` files list their
+//! entries below themselves in the long view; corrupt archives fail silently
+//! and are listed like regular files.
 
 use std::fs::File;
 use std::path::Path;
 
-use crate::common::{NAME_COLUMN_ONLY, TempTestDir, grouped, lez_in, success_stdout};
+use crate::common::{NAME_COLUMN_ONLY, TempTestDir, grouped, lez_in, success_stdout, zip_bytes};
 
 /// Writes a tar archive of regular files, in the order given.
 fn write_tar(path: &Path, entries: &[(&str, &[u8])]) {
@@ -23,6 +23,11 @@ fn write_tar(path: &Path, entries: &[(&str, &[u8])]) {
             .expect("append an entry");
     }
     builder.into_inner().expect("finish the archive");
+}
+
+/// Writes a zip archive of stored regular files, in the order given.
+fn write_zip(path: &Path, entries: &[(&str, &[u8])]) {
+    std::fs::write(path, zip_bytes(entries)).expect("write the archive");
 }
 
 /// `foo.tar` holds `inner.txt` (5 bytes), `nested/deep.bin` (4 bytes) and
@@ -170,6 +175,24 @@ fn without_the_flag_or_the_long_view_archives_stay_opaque() {
     );
 }
 
+/// An entry's path is whatever wrote the archive put there, so a control
+/// character in it is shown as an escape, as one in a name on disk is,
+/// rather than handed to the terminal: an escape sequence there could
+/// recolour the screen or worse, and a newline would break the row.
+#[test]
+fn control_characters_in_an_entry_are_escaped() {
+    let dir = TempTestDir::new("inspect_control");
+    write_tar(
+        &dir.path().join("evil.tar"),
+        &[("evil\x1b[31m\x07\nname.txt", b"x")],
+    );
+    assert_eq!(
+        names(&dir, &["--inspect-archives"]),
+        "evil.tar\n\
+         └── evil.tar/evil\\u{1b}[31m\\u{7}\\nname.txt (1 B)\n"
+    );
+}
+
 /// The archive path and the size stay in the punctuation style; the leaf
 /// name takes its own file colour when the theme has one (`.txt`, `.rs`),
 /// and keeps the punctuation style when it has none (`.bin`).
@@ -185,5 +208,52 @@ fn an_entrys_leaf_name_is_coloured_by_type() {
          \u{1b}[1;90m├── foo.tar/\u{1b}[0m\u{1b}[32minner.txt\u{1b}[1;90m (5 B)\u{1b}[0m\n\
          \u{1b}[1;90m├── foo.tar/nested/deep.bin (4 B)\u{1b}[0m\n\
          \u{1b}[1;90m└── foo.tar/nested/\u{1b}[33mmain.rs\u{1b}[90m (12 B)\u{1b}[0m\n"
+    );
+}
+
+/// A `.zip` lists its files the same way, read from its central directory
+/// without decompressing anything; directories are left out, as they are
+/// for a `.tar`, and a `.zip` that is not one is listed like any file.
+#[test]
+fn the_long_view_lists_zip_entries_below_the_archive() {
+    let dir = TempTestDir::new("inspect_zip");
+    write_zip(
+        &dir.path().join("foo.zip"),
+        &[
+            ("inner.txt", b"hello"),
+            ("nested/", b""),
+            ("nested/main.rs", b"fn main() {}"),
+        ],
+    );
+    write_zip(&dir.path().join("UPPER.ZIP"), &[("a.txt", b"a")]);
+    dir.create_file("broken.zip", b"this is definitely not a zip archive");
+    assert_eq!(
+        names(&dir, &["--inspect-archives"]),
+        "broken.zip\n\
+         foo.zip\n\
+         ├── foo.zip/inner.txt (5 B)\n\
+         └── foo.zip/nested/main.rs (12 B)\n\
+         UPPER.ZIP\n\
+         └── UPPER.ZIP/a.txt (1 B)\n"
+    );
+}
+
+/// A `.zip` past the entry limit is cut short with the same note.
+#[test]
+fn a_long_zip_is_cut_short_with_a_note() {
+    let dir = TempTestDir::new("inspect_zip_long");
+    let names_inside: Vec<String> = (0..501).map(|i| format!("f{i:03}")).collect();
+    let entries: Vec<(&str, &[u8])> = names_inside
+        .iter()
+        .map(|name| (name.as_str(), &b"x"[..]))
+        .collect();
+    write_zip(&dir.path().join("long.zip"), &entries);
+    let listed: String = names_inside[..500]
+        .iter()
+        .map(|name| format!("├── long.zip/{name} (1 B)\n"))
+        .collect();
+    assert_eq!(
+        names(&dir, &["--inspect-archives"]),
+        format!("long.zip\n{listed}└── … (more than 500 entries)\n")
     );
 }

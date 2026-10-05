@@ -60,7 +60,7 @@ META OPTIONS
 : Load default options from the specified configuration file (`.toml`, `.yaml`, or `.yml`).
 
 `--no-config`
-: Do not load any global or per-directory configuration files.
+: Do not load any global or per-directory configuration files, nor a theme file other than one named by `--theme`.
 
 `--stdin`
 : When you wish to pipe directories to lez/read from stdin. Separate one per line or define custom separation char in `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
@@ -117,6 +117,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 `--json`
 : Output file listing and metadata as structured JSON for easy parsing and scripting.
 
+`--explain`
+: List each entry with the rule that chose the color of its name and the one that chose its icon: a glob, named with the variable it was given in, an entry of the theme file, a built-in file type, or a file kind such as `di` or `ex`, each with the codes it gives. The colors are worked out as a terminal would get them, even when the output is not one; `--color=never` and `NO_COLOR` still turn them off. It takes the place of every layout, and strict mode refuses one beside it. See **lez_colors**(5) for the rules and their order.
+
 `--follow-symlinks`
 : Drill down into symbolic links that point to directories.
 
@@ -145,6 +148,9 @@ When used without a value, defaults to `gradient`.
 
 The size gradient runs over orders of magnitude rather than bytes, so a single large file does not flatten every ordinary one to the same shade. The age gradient runs over elapsed time directly.
 
+`--theme=NAME`
+: Use the theme `NAME` instead of `theme.yml`: the file `themes/NAME.yml` or `themes/NAME.yaml` in the configuration directory (see `LEZ_CONFIG_DIR`), or `themes/NAME` when `NAME` already ends in `.yml` or `.yaml`. A name holding a directory, such as `./night.yml` or `~/themes/night.yml`, is the path to the theme file. A theme that is not there is an error. It overrides `LEZ_THEME` and the configuration file, and is honoured under `--no-config`. See **lez_colors-explanation**(5).
+
 `--icons[=WHEN]`
 : Display icons next to file names.
 
@@ -157,6 +163,9 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 : When to quote file names. The default, `auto`, quotes names holding anything a shell gives a meaning to, the same characters `ls` quotes for: a space, `` ! " $ & ' ( ) * ; < = > ? [ \ ^ ` | ``, a control character, or a leading `#` or `~` (on Windows, where `\` separates paths, `\` and `[` are left bare, as are `?` and `*`, which a name there cannot hold and which appear only in a `\\?\` path prefix); `always` quotes every name; `never` quotes nothing (like `ls -N`).
 
 A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe and nothing double quotes would still expand (`` " $ ` \ ! ``), and otherwise the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`. A name holding a control character, such as a newline, is written in ANSI-C quotes, which bash, zsh and ksh read: the character as `\n`, `\t`, `\r`, `\a`, `\b`, `\v` or `\f`, or else as the octal escapes of its bytes, with `\'` and `\\` for an apostrophe and a backslash, so `new<newline>line` prints as `$'new\nline'`. With `never`, and on Windows, whose shells have no such quotes, a control character is shown as an escape such as `\n` or `\u{85}` that is not read back.
+
+`-N`, `--literal`
+: Print file names without quoting, as `ls -N` does: the same as `--quotes=never`. Of `--quotes`, `--no-quotes` and `--literal`, the last one given wins.
 
 `--spacing=SPACES`
 : Number of spaces to print between columns. The default is `2` in the grid views and `1` in the long view; a value above `1000` is taken as `1000`.
@@ -275,6 +284,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--group-directories-last`
 : List directories after other files.
 
+`--group-dotfiles-first`
+: List names starting with a dot before the rest, within each group that `--group-directories-first` or `--group-directories-last` makes, or across the whole listing without them. `--sort` orders each part, and `--reverse` reverses each part while the groups keep their places, so `--group-directories-first --group-dotfiles-first --sort=extension` lists directories, then dotfiles, then the other files by extension.
+
 `-D`, `--only-dirs`
 : List only directories, not files.
 
@@ -342,6 +354,9 @@ These options are available when running with `--long` (`-l`):
 `-n`, `--numeric`
 : List numeric user and group IDs.
 
+`--owner-width=COLS`
+: Cut user and group names wider than `COLS` display columns, ending them in an ellipsis in the last column, so `firstname.lastname` becomes `firstna…` under `--owner-width=8`. A number, from `--numeric` or for an ID with no name, is never cut, nor is `--json` output, and `--smart-group` compares the names before they are cut. `COLS` is at least `1`.
+
 `-O`, `--flags`
 : List file flags on Linux, macOS, and BSD systems, and file attributes on Windows systems. On Linux systems, lists inode flags/attributes (`FS_IOC_GETFLAGS`, equivalent to `lsattr`). On BSD systems see chflags(1) for a list of file flags and their meanings. By default, attributes are displayed in a long form. To display attributes as single-character abbreviations, set the environment variable `LEZ_FLAGS_FORMAT=short` (or `LEZ_WINDOWS_ATTRIBUTES=short`).
 
@@ -407,7 +422,7 @@ Alternatively, `<FORMAT>` can be a two line string, the first line will be used 
 : List each file’s color tags, read from the extended attributes that macOS Finder writes. Tagged names are painted with the tag’s color.
 
 `--inspect-archives` [if built with inspect-archives support]
-: In the long view, list the entries of supported archives (currently uncompressed `.tar`) below the archive itself. Detection is extension-based; corrupt archives are listed like regular files. Each entry's own file name is colored by type as a normal listing would color it, while the archive path and the entry size stay in the punctuation style; names the theme has no rule for stay punctuation too.
+: In the long view, list the entries of supported archives (uncompressed `.tar`, and `.zip`, whose central directory is read without decompressing anything) below the archive itself. Directories inside an archive are left out, and at most 500 entries are listed. Detection is extension-based; corrupt archives are listed like regular files. Each entry's own file name is colored by type as a normal listing would color it, while the archive path and the entry size stay in the punctuation style; names the theme has no rule for stay punctuation too.
 
 `-Z`, `--context`
 : List each file's security context: its SELinux label, or `?` where it has none, as on every system but Linux.
@@ -535,13 +550,21 @@ Specifies the separator to use when file names are piped from stdin with `--stdi
 
 Explicitly specifies the path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). Overrides standard discovery. An empty value names no file and is passed over, as if it were unset.
 
+## `LEZ_THEME`, `EZA_THEME`
+
+Names the theme to use instead of `theme.yml`, as `--theme` does, which overrides it. An empty value names none. It in turn overrides `name` under `[theme]` in the configuration file, and is not read under `--no-config`.
+
 ## `LEZ_CONFIG_DIR`, `EZA_CONFIG_DIR`
 
 Specifies the directory where lez will look for its configuration and theme files. Defaults to `$XDG_CONFIG_HOME/lez` when `XDG_CONFIG_HOME` is set to an absolute path, otherwise the platform's configuration directory: `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows. In either place an existing `eza` directory is used when there is no `lez` one.
 
 ## `LEZ_QUOTING_STYLE`, `EZA_QUOTING_STYLE`
 
-Specifies when file names are quoted, as if `--quotes` had been given. Valid values are `always`, `auto`, and `never`; invalid or unset values fall back to `auto`. `--quotes=never` is equivalent to `ls -N`, and the command-line option overrides this variable.
+Specifies when file names are quoted, as if `--quotes` had been given. Valid values are `always`, `auto`, and `never`; an invalid value is passed over, as if the variable were unset. `--quotes=never` is equivalent to `ls -N`, and the command-line option overrides this variable.
+
+## `QUOTING_STYLE`
+
+GNU `ls`'s quoting style, read in its own words when neither `LEZ_QUOTING_STYLE` nor `EZA_QUOTING_STYLE` gives a style: `literal` is `--quotes=never`, `shell` and `shell-escape` are `auto`, and `shell-always` and `shell-escape-always` are `always`. Its other styles, `c`, `escape` and `locale`, have no counterpart here and are passed over. Like the variables above, it overrides the configuration file and is overridden by the command line.
 
 ## `LEZ_DEBUG`, `EZA_DEBUG`
 

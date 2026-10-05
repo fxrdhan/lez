@@ -20,6 +20,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "fuzz_zip_archive"
+path = "fuzz_targets/fuzz_zip_archive.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "fuzz_theme_yaml"
 path = "fuzz_targets/fuzz_theme_yaml.rs"
 test = false

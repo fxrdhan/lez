@@ -24,6 +24,7 @@ LAYOUT OPTIONS:
   -w, --width <COLS>      set screen width in columns
       --spacing <SPACES>  set number of spaces between columns
       --json              display as a json object
+      --explain           list each entry with the rules behind its color and icon
 
 DISPLAY OPTIONS:
   -F, --classify[=<WHEN>]          display type indicator by file names [possible values: always,
@@ -37,11 +38,13 @@ DISPLAY OPTIONS:
                                    [possible values: all, age, size]
       --color-scale-mode <MODE>    mode for --color-scale [default: gradient] [alias:
                                    --colour-scale-mode] [possible values: fixed, gradient]
+      --theme <NAME>               use themes/NAME.yml from the configuration directory
       --icons[=<WHEN>]             when to display icons [possible values: always, auto, never]
       --hyperlink[=<WHEN>]         when to display entries as hyperlinks [possible values: always,
                                    auto, never]
       --quotes[=<WHEN>]            when to quote file names (always, auto, never) [possible values:
                                    always, auto, never]
+  -N, --literal                    print file names without quoting, as `ls -N` does
       --short-nix                  abbreviate Nix store hashes in file names and paths
       --no-symlink-targets         do not show symlink targets (the `-> ...`)
       --summary                    display total summary statistics of entries
@@ -78,6 +81,7 @@ FILTERING OPTIONS:
 SORTING OPTIONS:
       --group-directories-first  list directories before other files
       --group-directories-last   list directories after other files
+      --group-dotfiles-first     list dotfiles before other files, within the directory groups
   -s, --sort <FIELD>             which field to sort by [default: name] [possible values:
                                    name, Name, .name, .Name, lexicographic, Lexicographic,
                                    ext, Ext, path, Path, created,
@@ -99,6 +103,7 @@ LONG VIEW OPTIONS:
   -g, --group                 list each file's group
       --smart-group           only show group if it has a different name from owner
   -n, --numeric               show user and group as their numeric IDs
+      --owner-width <COLS>    cut user and group names to COLS columns, ending in an ellipsis
   -t, --time <FIELD>          which timestamp field to show [possible values:
                                 mod|m|modified, acc|accessed, ch|changed, cr|created]
   -m, --modified              show the modified timestamp field (replace default field, combinable)
@@ -118,7 +123,7 @@ LONG VIEW OPTIONS:
   -M, --mounts                show mount details (Linux and macOS only)
   -@, --extended              list each file's extended attributes and sizes
       --no-extended           don't show the marker that a file has extended attributes
-      --inspect-archives      list the contents of supported archives (.tar) in long view
+      --inspect-archives      list the contents of supported archives (.tar, .zip) in long view
   -e, --tags                  list each file's color tags stored in extended attributes
       --no-permissions        suppress the permissions field
       --no-filesize           suppress the filesize field

@@ -77,6 +77,9 @@
 # Only show group column if group name differs from owner
 # smart_group = false
 
+# Cut user and group names wider than this many columns (0 leaves them whole)
+# owner_width = 12
+
 # Absolute path mode: "off", "on", or "follow"
 # absolute = "off"
 
@@ -158,6 +161,10 @@
 
 # Colour scale gradient mode: "fixed" or "gradient"
 # color_scale_mode = "gradient"
+
+# A theme from the themes folder of the configuration directory, read
+# instead of theme.yml: "night" reads themes/night.yml or themes/night.yaml
+# name = "night"
 
 [loc]
 # Format for sub-language files column: "symbol" (default '*'), "count" (file count), or "blank"

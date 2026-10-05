@@ -662,3 +662,79 @@ pub fn grant_capabilities(file: &Path, caps: &str) -> bool {
     eprintln!("skipped: setcap is not available to this account");
     false
 }
+
+/// A name from `getpwuid_r` or `getgrgid_r`, or the number when there is
+/// none, as lez falls back to.
+#[cfg(unix)]
+pub fn owner_name(id: u32, user: bool) -> String {
+    use std::ffi::CStr;
+
+    let mut buffer = vec![0u8; 16 * 1024];
+    let buffer_ptr = buffer.as_mut_ptr().cast();
+    // SAFETY: each call fills a zeroed record whose strings point into
+    // `buffer`, which outlives every use of them below.
+    unsafe {
+        if user {
+            let mut record: libc::passwd = std::mem::zeroed();
+            let mut found = std::ptr::null_mut();
+            libc::getpwuid_r(id, &mut record, buffer_ptr, buffer.len(), &mut found);
+            if !found.is_null() {
+                return CStr::from_ptr(record.pw_name)
+                    .to_string_lossy()
+                    .into_owned();
+            }
+        } else {
+            let mut record: libc::group = std::mem::zeroed();
+            let mut found = std::ptr::null_mut();
+            libc::getgrgid_r(id, &mut record, buffer_ptr, buffer.len(), &mut found);
+            if !found.is_null() {
+                return CStr::from_ptr(record.gr_name)
+                    .to_string_lossy()
+                    .into_owned();
+            }
+        }
+    }
+    id.to_string()
+}
+
+/// A zip archive of stored regular files, in the order given. The checksums
+/// are left at zero: lez reads only the central directory.
+pub fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut central = Vec::new();
+    for (name, content) in entries {
+        let offset = u32::try_from(out.len()).unwrap();
+        let size = u32::try_from(content.len()).unwrap();
+        let name_len = u16::try_from(name.len()).unwrap();
+        out.extend_from_slice(&0x0403_4b50_u32.to_le_bytes());
+        out.extend_from_slice(&[20, 0, 0, 0]);
+        out.extend_from_slice(&[0; 10]);
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&name_len.to_le_bytes());
+        out.extend_from_slice(&[0, 0]);
+        out.extend_from_slice(name.as_bytes());
+        out.extend_from_slice(content);
+
+        central.extend_from_slice(&0x0201_4b50_u32.to_le_bytes());
+        central.extend_from_slice(&[20, 0, 20, 0, 0, 0]);
+        central.extend_from_slice(&[0; 10]);
+        central.extend_from_slice(&size.to_le_bytes());
+        central.extend_from_slice(&size.to_le_bytes());
+        central.extend_from_slice(&name_len.to_le_bytes());
+        central.extend_from_slice(&[0; 12]);
+        central.extend_from_slice(&offset.to_le_bytes());
+        central.extend_from_slice(name.as_bytes());
+    }
+    let central_offset = u32::try_from(out.len()).unwrap();
+    let count = u16::try_from(entries.len()).unwrap();
+    out.extend_from_slice(&central);
+    out.extend_from_slice(&0x0605_4b50_u32.to_le_bytes());
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&count.to_le_bytes());
+    out.extend_from_slice(&count.to_le_bytes());
+    out.extend_from_slice(&u32::try_from(central.len()).unwrap().to_le_bytes());
+    out.extend_from_slice(&central_offset.to_le_bytes());
+    out.extend_from_slice(&[0, 0]);
+    out
+}

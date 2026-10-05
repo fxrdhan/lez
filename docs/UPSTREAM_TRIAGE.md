@@ -66,11 +66,11 @@ Triaged 2026-10-05. [#1729](https://github.com/eza-community/eza/pull/1729) is o
 | [#1939](https://github.com/eza-community/eza/pull/1939), [#1944](https://github.com/eza-community/eza/pull/1944) split `filter_child_files` ([#1927](https://github.com/eza-community/eza/issues/1927)) | **Covered** by the #1930 port (PR #93). |
 | [#1942](https://github.com/eza-community/eza/pull/1942) reject `--width` above 65535 ([#1895](https://github.com/eza-community/eza/issues/1895)) | **Covered.** The width clamp ported from [#1909](https://github.com/eza-community/eza/pull/1909) in PR #3; `-w 99999999999` lists normally. |
 | [#1943](https://github.com/eza-community/eza/pull/1943) directory-only names to `DIRECTORY_ICONS` ([#1940](https://github.com/eza-community/eza/issues/1940)) | **Ported** in commit `56cef37e`. |
-| [#1945](https://github.com/eza-community/eza/pull/1945) named themes (`EZA_THEME`) | **Pending decision** (§5). |
+| [#1945](https://github.com/eza-community/eza/pull/1945) named themes (`EZA_THEME`) | **Covered**, more widely: `--theme`, `LEZ_THEME` or `EZA_THEME`, and `[theme] name`; see #1945 in §5. |
 | [#1946](https://github.com/eza-community/eza/pull/1946) one spelling of "color" in help ([#1243](https://github.com/eza-community/eza/issues/1243)) | **Covered**; see #1243 in §5. |
 | [#1947](https://github.com/eza-community/eza/pull/1947) `--only-files`/`--only-dirs` with `-d` ([#618](https://github.com/eza-community/eza/issues/618)) | **Covered.** `lez -d -f dir file link` prints only `file`. |
-| [#1948](https://github.com/eza-community/eza/pull/1948) `--user-length` | **Pending decision** (§5). |
-| [#1949](https://github.com/eza-community/eza/pull/1949) `--finder-meta` | **Partly covered.** `-e`/`--tags` lists Finder colour tags; the SF Symbol overlays are a pending decision (§5). |
+| [#1948](https://github.com/eza-community/eza/pull/1948) `--user-length` | **Covered** by `--owner-width`, which cuts group names too; see #1760 in §5. |
+| [#1949](https://github.com/eza-community/eza/pull/1949) `--finder-meta` | **Partly covered.** `-e`/`--tags` lists Finder colour tags; the SF Symbol overlays are declined (§5). |
 | [#1950](https://github.com/eza-community/eza/pull/1950) trailing separators on Windows ([#404](https://github.com/eza-community/eza/issues/404)) | **Covered.** #404 was verified fixed on a `windows-latest` runner in issue #57. |
 | [#1951](https://github.com/eza-community/eza/pull/1951) no panic on a closed stdout pipe on Windows | **Not yet checked.** Needs the Windows probe (§4). |
 | [#1952](https://github.com/eza-community/eza/pull/1952) bounded `listxattr` retries on macOS ([#1850](https://github.com/eza-community/eza/issues/1850)) | **Covered.** Commit `7a3487d7` (PR #38) caps the `ERANGE` retry loop. The macFUSE hang in #1850 itself is out of reach (§4). |
@@ -151,8 +151,12 @@ Triaged 2026-10-05. [#1729](https://github.com/eza-community/eza/pull/1729) is o
 | [#1922](https://github.com/eza-community/eza/issues/1922) | `--code` counts the lines in a Markdown fence under the fence's language (PRs #109, #111) |
 | [#1929](https://github.com/eza-community/eza/issues/1929) | the release workflow builds `aarch64-pc-windows-msvc` |
 | [#1243](https://github.com/eza-community/eza/issues/1243), [#1946](https://github.com/eza-community/eza/pull/1946) | `--help`, the shell completions and the option lists in the README and `lez(1)` spell it "color", and `--help` shows the `--colour`, `--colour-scale` and `--colour-scale-mode` aliases, so searching it for either spelling finds every colour option. Prose outside those option lists, such as `lez_colors(5)`, keeps its own spelling. |
-
-*Partly delivered*: [#584](https://github.com/eza-community/eza/issues/584) (`--quotes` and, since v0.28.5, ANSI-C quoting of control characters yes; `-N`/`--literal` and `QUOTING_STYLE` no), [#600](https://github.com/eza-community/eza/issues/600) (`.tar` yes, `.zip` no).
+| [#584](https://github.com/eza-community/eza/issues/584) | `-N`/`--literal`, the same as `--quotes=never`, and `QUOTING_STYLE`, read after `LEZ_QUOTING_STYLE` in GNU's words: `literal` is `never`, `shell` and `shell-escape` are `auto`, `shell-always` and `shell-escape-always` are `always`. GNU's `c`, `escape` and `locale` have no counterpart and are passed over. |
+| [#1760](https://github.com/eza-community/eza/issues/1760), [#1948](https://github.com/eza-community/eza/pull/1948) | `--owner-width=COLS` (or `owner_width`) cuts user and group names wider than `COLS` columns, ending them in `…`; numbers and `--json` stay whole, and `--smart-group` compares the whole names. Cutting at a character (`@`), which #1760 also floated, is not offered. |
+| [#1920](https://github.com/eza-community/eza/issues/1920) | `--group-dotfiles-first` lists dotfiles before the rest within each directory group, so `--group-directories-first --group-dotfiles-first --sort=extension` lists directories, then dotfiles, then the other files by extension. |
+| [#1945](https://github.com/eza-community/eza/pull/1945) | `--theme=NAME`, `LEZ_THEME` (or `EZA_THEME`) and `name` under `[theme]` read `themes/NAME.yml` or `.yaml` from the configuration directory instead of `theme.yml`; a name holding a directory is a path, and a theme that is not there is an error. |
+| [#1954](https://github.com/eza-community/eza/issues/1954) | `--explain` lists each entry with the rule that chose its name's colour (the glob and the variable it was in, the theme entry, the built-in file type, or a file kind such as `di` or `ex`) and the one that chose its icon. It covers the name and the icon, not every column. |
+| [#600](https://github.com/eza-community/eza/issues/600) | `--inspect-archives` lists `.tar` and `.zip` entries; a `.zip` is read from its central directory, ZIP64 included, with nothing decompressed. Compressed tarballs (`.tar.gz`, `.tar.xz`, `.tar.bz2`), also named in the issue, are not opened. |
 
 ### Reproduced and Fixed in `lez`
 
@@ -223,16 +227,7 @@ Run against v0.28.5 on Linux. None of these was named in this file before; most 
 
 ### Pending Decisions
 
-Real requests that `lez` has not answered either way. Each needs a product decision before any code.
-
-| Upstream ID | Question |
-|---|---|
-| [#1760](https://github.com/eza-community/eza/issues/1760), [#1948](https://github.com/eza-community/eza/pull/1948) | Truncating user (and group) names in the long view. |
-| [#1920](https://github.com/eza-community/eza/issues/1920) | Sorting by extension inside the directories-first and dotfiles groups. |
-| [#1945](https://github.com/eza-community/eza/pull/1945) | Named themes chosen by an environment variable. |
-| [#1949](https://github.com/eza-community/eza/pull/1949) | SF Symbol overlays for Finder metadata on macOS, beyond `--tags`. |
-| [#1954](https://github.com/eza-community/eza/issues/1954) | An `explain` subcommand that names the rule behind each part of the output. |
-| [#584](https://github.com/eza-community/eza/issues/584), [#600](https://github.com/eza-community/eza/issues/600) | The undelivered halves: `-N`/`--literal` and `QUOTING_STYLE`; `.zip` inspection. |
+Real requests that `lez` has not answered either way, each needing a product decision before any code. None is open: the last seven were settled on 2026-10-05, and their outcomes are in the tables above and below.
 
 ### Specifically Audited & Declined Issues (Detailed Rationale)
 
@@ -241,6 +236,7 @@ Real requests that `lez` has not answered either way. Each needs a product decis
 | [#693](https://github.com/eza-community/eza/issues/693) | **`--hyperlink` "eating characters" when saved to shell variable.** Not a bug in `lez`. It ends OSC 8 with ST (`ESC \`: `^[]8;;file://…/1^[\1^[]8;;^[\`), as GNU `ls` has since coreutils 9.10 (February 2026); 9.9 and earlier end it with BEL. The character eating occurs when `echo` interprets `\a`, `\b`, `\t` from combining the terminator with the leading letter of the filename. Changing to BEL would deviate from GNU ls standard. |
 | [#1360](https://github.com/eza-community/eza/issues/1360) | **Subdirectory `.gitignore` behavior.** In `lez`, explicit target arguments always display their contents (`tests/git/gitignore.rs` locks in "explicit arguments override filters"). Proposed `--no-git-ignore` was also declined upstream. |
 | [#519](https://github.com/eza-community/eza/issues/519) | **96G vs 103G.** By design, not an oversight. `lez` defaults to SI units ($1000^3$), while `--binary` gives 96Gi ($1024^3$). Matches upstream standard and documentation. |
+| [#1949](https://github.com/eza-community/eza/pull/1949) | **SF Symbol overlays for Finder metadata on macOS (`--finder-meta`).** The PR draws a folder's SF Symbol as one of about 230 emoji picked by hand to look like it, a table that would have to follow each macOS release and that cannot be checked from here. Finder's colour tags, the other half of the PR, are already listed by `-e`/`--tags`. |
 
 ### General Declined / Not Applicable Issues
 

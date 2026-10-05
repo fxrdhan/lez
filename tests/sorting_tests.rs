@@ -7,6 +7,8 @@ mod common;
 
 #[path = "sorting/aliases.rs"]
 mod aliases;
+#[path = "sorting/dotfiles_first.rs"]
+mod dotfiles_first;
 #[path = "sorting/lexicographic.rs"]
 mod lexicographic;
 #[path = "sorting/locale.rs"]

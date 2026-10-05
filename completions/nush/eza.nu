@@ -19,19 +19,23 @@ export extern "eza" [
     --across(-x)               # Sort the grid across, rather than downwards
     --recurse(-R)              # Recurse into directories
     --json                     # Output file listing and metadata as structured JSON
+    --explain                  # List each entry with the rules behind its color and icon
     --spacing: string          # Number of spaces between columns in grid views
     --tree(-T)                 # Recurse into directories as a tree
     --dereference(-X)          # Dereference symbolic links when displaying file information
     --color-scale-mode: string # Use gradient or fixed colors in --color-scale
+    --theme: string            # Use the named theme from the themes folder
     --colour-scale-mode: string # Use gradient or fixed colors in --colour-scale
     --no-quotes                # Don't quote file names with spaces
+    --literal(-N)              # Print file names without quoting, as ls -N does
     --short-nix                # Abbreviate Nix store hashes in file names and paths
     --no-symlink-targets       # Do not show symlink targets
     --summary                  # Display total summary statistics of entries
     --follow-symlinks          # Drill down into symbolic links that point to directories
     --group-directories-first  # Sort directories before other files
     --group-directories-last   # Sort directories after other files
-    --inspect-archives         # List contents of supported archives (.tar) in long view
+    --group-dotfiles-first     # Sort dotfiles before other files
+    --inspect-archives         # List contents of supported archives (.tar, .zip) in long view
     --ignore-submodule-contents # Do not list contents of submodules
     --warn-hidden(-W)          # Print a tally of hidden and ignored items; twice to always print
     --no-extended              # Do not show a marker if a file's extended attributes exist
@@ -93,6 +97,7 @@ export extern "eza" [
     --flags(-O)                # List file flags (Linux, macOS, BSD, and Windows)
     --tags(-e)                 # List each file's color tags stored in extended attributes
     --smart-group              # Only show group if it has a different name from owner
+    --owner-width: int         # Cut user and group names wider than COLS columns
     --stdin                    # When piping to eza. Read file paths from stdin
     --stdin0                   # Like --stdin, but paths are separated by NUL
     --print-total              # Display total number of entries

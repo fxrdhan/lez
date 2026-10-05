@@ -335,6 +335,42 @@ impl<C> FileName<'_, '_, C> {
     }
 }
 
+/// Which rule gave a name its colour, for `--explain`. Each is one branch of
+/// [`FileName::name_colour`], which the listing's own colouring runs too.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColourRule {
+    /// Colours are off.
+    Plain,
+    /// An entry of the theme file, or a glob from `LEZ_COLORS` laid over it.
+    ThemeEntry,
+    /// A link whose target is missing, listed without its target (`or`).
+    BrokenLink,
+    /// A glob from the colour variables, or a built-in file type that
+    /// cannot be an executable's.
+    FileStyle,
+    /// A file with capabilities (`ca`).
+    Capability,
+    /// An executable file (`ex`).
+    Executable,
+    /// A file with more than one hard link (`mh`).
+    MultiHardlink,
+    /// A regular file none of the above took: a built-in file type, or `fi`.
+    RegularFile,
+    MountPoint,
+    BtrfsSubvolume,
+    Directory,
+    Symlink,
+    /// `ln=target`: the colour of the file at the end of the link's chain.
+    LinkTarget,
+    /// `ln=target` on a link whose chain ends nowhere (`or`).
+    BrokenLinkTarget,
+    Pipe,
+    BlockDevice,
+    CharDevice,
+    Socket,
+    Special,
+}
+
 impl<C: Colours> FileName<'_, '_, C> {
     /// Paints the name of the file using the colours, resulting in a vector
     /// of coloured cells that can be printed to the terminal.
@@ -721,49 +757,80 @@ impl<C: Colours> FileName<'_, '_, C> {
     /// if there’s nowhere else for that fact to be shown.)
     #[must_use]
     pub fn style(&self) -> Style {
+        self.style_with_rule().0
+    }
+
+    /// The colour `paint` gives the name, and the rule that chose it, for
+    /// `--explain`.
+    #[must_use]
+    pub fn name_colour(&self) -> (Style, ColourRule) {
+        if self.colours.is_plain() {
+            return (Style::default(), ColourRule::Plain);
+        }
+        if let Some(FileNameStyle {
+            filename: Some(style),
+            ..
+        }) = self.colours.style_override(self.file)
+        {
+            return (style, ColourRule::ThemeEntry);
+        }
+        self.style_with_rule()
+    }
+
+    fn style_with_rule(&self) -> (Style, ColourRule) {
         // Everything below picks between styles that are all the default
         // one here, so the answer is known before any of it runs.
         if self.colours.is_plain() {
-            return Style::default();
+            return (Style::default(), ColourRule::Plain);
         }
 
         if let LinkStyle::JustFilenames = self.link_style
             && let Some(ref target) = self.target
             && target.is_broken()
         {
-            return self.colours.broken_symlink();
+            return (self.colours.broken_symlink(), ColourRule::BrokenLink);
         }
 
-        self.style_for_file(self.file)
+        self.style_for_file_with_rule(self.file)
     }
 
     /// Resolves the colour for a single file, without any symlink-target
     /// handling; `ln=target` links recurse into their target through here.
     fn style_for_file(&self, file: &File<'_>) -> Style {
+        self.style_for_file_with_rule(file).0
+    }
+
+    /// The colour for a single file, and the rule that chose it.
+    fn style_for_file_with_rule(&self, file: &File<'_>) -> (Style, ColourRule) {
+        use ColourRule as R;
+
         if file.is_file() {
             if let Some(custom) = self.colours.custom_file_style(file) {
-                return custom;
+                return (custom, R::FileStyle);
             }
             if self.colours.capability().is_some() && file.has_capabilities() {
-                return self.colours.capability().unwrap_or_default();
+                return (self.colours.capability().unwrap_or_default(), R::Capability);
             }
             if file.is_executable_file() {
-                return self.colours.executable_file();
+                return (self.colours.executable_file(), R::Executable);
             }
             #[cfg(unix)]
             if self.colours.multi_hardlink().is_some() && file.links().multiple {
-                return self.colours.multi_hardlink().unwrap_or_default();
+                return (
+                    self.colours.multi_hardlink().unwrap_or_default(),
+                    R::MultiHardlink,
+                );
             }
-            return self.colours.colour_file(file);
+            return (self.colours.colour_file(file), R::RegularFile);
         }
 
         #[rustfmt::skip]
         return match file {
-            f if f.is_mount_point()      => self.colours.mount_point(),
-            f if f.is_btrfs_subvolume()  => self.colours.btrfs_subvol(),
-            f if f.is_directory()        => self.colours.directory(),
+            f if f.is_mount_point()      => (self.colours.mount_point(), R::MountPoint),
+            f if f.is_btrfs_subvolume()  => (self.colours.btrfs_subvol(), R::BtrfsSubvolume),
+            f if f.is_directory()        => (self.colours.directory(), R::Directory),
             f if f.is_link()             => match self.colours.symlink() {
-                LinkColouring::AnsiStyle(style) => style,
+                LinkColouring::AnsiStyle(style) => (style, R::Symlink),
                 // ln=target borrows the colour of the file at the end of the
                 // chain, keeping the symlink's own style attributes. The first
                 // hop, already followed for the `->` column, is reused when it
@@ -778,20 +845,20 @@ impl<C: Colours> FileName<'_, '_, C> {
                         _ => f.chain_end(),
                     };
                     end.map_or_else(
-                        || self.colours.broken_symlink(),
-                        |end| Self::apply_link_style(self.resolve_file_style(end), &symlink_style),
+                        || (self.colours.broken_symlink(), R::BrokenLinkTarget),
+                        |end| (Self::apply_link_style(self.resolve_file_style(end), &symlink_style), R::LinkTarget),
                     )
                 }
             },
             #[cfg(unix)]
-            f if f.is_pipe()             => self.colours.pipe(),
+            f if f.is_pipe()             => (self.colours.pipe(), R::Pipe),
             #[cfg(unix)]
-            f if f.is_block_device()     => self.colours.block_device(),
+            f if f.is_block_device()     => (self.colours.block_device(), R::BlockDevice),
             #[cfg(unix)]
-            f if f.is_char_device()      => self.colours.char_device(),
+            f if f.is_char_device()      => (self.colours.char_device(), R::CharDevice),
             #[cfg(unix)]
-            f if f.is_socket()           => self.colours.socket(),
-            _                            => self.colours.special(),
+            f if f.is_socket()           => (self.colours.socket(), R::Socket),
+            _                            => (self.colours.special(), R::Special),
         };
     }
 

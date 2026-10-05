@@ -10,9 +10,10 @@ use uzers::{Groups, Users};
 use crate::fs::fields as f;
 use crate::fs::fields::User;
 use crate::output::cell::TextCell;
+use crate::output::render::users::fit_name;
 use crate::output::table::{GroupFormat, UserFormat};
 
-pub trait Render {
+pub trait Render: Sized {
     fn render<C: Colours, U: Users + Groups>(
         self,
         colours: &C,
@@ -20,19 +21,33 @@ pub trait Render {
         user_format: UserFormat,
         group_format: GroupFormat,
         file_user: Option<User>,
+    ) -> TextCell {
+        self.render_within(colours, users, user_format, group_format, file_user, None)
+    }
+
+    /// Render the group, cutting a name wider than `width` columns.
+    fn render_within<C: Colours, U: Users + Groups>(
+        self,
+        colours: &C,
+        users: &U,
+        user_format: UserFormat,
+        group_format: GroupFormat,
+        file_user: Option<User>,
+        width: Option<usize>,
     ) -> TextCell;
 
     fn render_json<U: Groups>(self, users: &U, user_format: UserFormat) -> Option<String>;
 }
 
 impl Render for Option<f::Group> {
-    fn render<C: Colours, U: Users + Groups>(
+    fn render_within<C: Colours, U: Users + Groups>(
         self,
         colours: &C,
         users: &U,
         user_format: UserFormat,
         group_format: GroupFormat,
         file_user: Option<User>,
+        width: Option<usize>,
     ) -> TextCell {
         use uzers::os::unix::GroupExt;
 
@@ -84,10 +99,15 @@ impl Render for Option<f::Group> {
                 UserFormat::Numeric => file_uid.0 == gid,
             };
             if is_match {
-                group_name = ":".to_string();
+                return TextCell::paint(style, ":".to_string());
             }
         }
 
+        // The smart group above compares the whole names; only what is
+        // shown is cut.
+        if user_format == UserFormat::Name && maybe_group.is_some() {
+            group_name = fit_name(group_name, width);
+        }
         TextCell::paint(style, group_name)
     }
 
@@ -254,6 +274,54 @@ pub mod test {
                 GroupFormat::Regular,
                 file_user
             )
+        );
+    }
+
+    #[test]
+    fn a_group_name_is_cut_after_smart_group_compares_it_whole() {
+        let mut users = MockUsers::with_current_uid(1000);
+        users.add_user(User::new(1000, "developers", 100));
+        users.add_user(User::new(1001, "develop", 100));
+        users.add_group(Group::new(100, "developers"));
+
+        let group = Some(f::Group(100));
+        let render = |owner: u32, format: GroupFormat| {
+            group.render_within(
+                &TestColours,
+                &users,
+                UserFormat::Name,
+                format,
+                Some(f::User(owner)),
+                Some(5),
+            )
+        };
+        assert_eq!(
+            render(1000, GroupFormat::Regular),
+            TextCell::paint_str(TestColours.yours(), "deve…")
+        );
+        // The names match whole, so the group is elided even though cutting
+        // would make `develop` and `developers` alike...
+        assert_eq!(
+            render(1000, GroupFormat::Smart),
+            TextCell::paint_str(TestColours.yours(), ":")
+        );
+        // ...and they differ whole, so it is not.
+        assert_eq!(
+            render(1001, GroupFormat::Smart),
+            TextCell::paint_str(TestColours.yours(), "deve…")
+        );
+
+        // A number is not cut.
+        assert_eq!(
+            group.render_within(
+                &TestColours,
+                &users,
+                UserFormat::Numeric,
+                GroupFormat::Regular,
+                None,
+                Some(2)
+            ),
+            TextCell::paint_str(TestColours.yours(), "100")
         );
     }
 

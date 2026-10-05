@@ -22,6 +22,7 @@ complete -c lez -s G -l grid -d "Display entries in a grid"
 complete -c lez -s x -l across -d "Sort the grid across, rather than downwards"
 complete -c lez -s R -l recurse -d "Recurse into directories"
 complete -c lez -l json -d "Output file listing and metadata as structured JSON"
+complete -c lez -l explain -d "List each entry with the rules behind its color and icon"
 complete -c lez -l spacing -d "Number of spaces between columns in grid views" -r
 complete -c lez -s T -l tree -d "Recurse into directories as a tree"
 complete -c lez -s X -l dereference -d "Dereference symbolic links when displaying file information"
@@ -53,6 +54,7 @@ complete -c lez -l color-scale-mode \
     fixed\t'Highlight based on fixed colors'
     gradient\t'Highlight based \'field\' in relation to other files'
 "
+complete -c lez -l theme -d "Use the named theme from the themes folder" -x
 complete -c lez -l icons -d "When to display icons"
 complete -c lez -l icons -d "When to display icons" -x -n "__lez_value_follows_an_equals_sign" -a "
   always\t'Always display icons'
@@ -68,6 +70,7 @@ complete -c lez -l quotes -d "When to quote filenames" -x -n "__lez_value_follow
   never\t'Never quote filenames'
 "
 complete -c lez -l no-quotes -d "Don't quote file names with spaces"
+complete -c lez -s N -l literal -d "Print file names without quoting, as ls -N does"
 complete -c lez -l short-nix -d "Abbreviate Nix store hashes in file names and paths"
 complete -c lez -l no-symlink-targets -d "Do not show symlink targets"
 complete -c lez -l summary -d "Display total summary statistics of entries"
@@ -86,12 +89,14 @@ complete -c lez -l absolute -d "Display entries with their absolute path" -x -n 
   off\t'Do not show the absolute path'
 "
 complete -c lez -l smart-group -d "Only show group if it has a different name from owner"
+complete -c lez -l owner-width -d "Cut user and group names wider than COLS columns" -x
 complete -c lez -l mime-types -d "Determine file MIME types to better inform styling decisions (unix only)"
 
 # Filtering and sorting options
 complete -c lez -l group-directories-first -d "Sort directories before other files"
 complete -c lez -l group-directories-last -d "Sort directories after other files"
-complete -c lez -l inspect-archives -d "List the contents of supported archives (.tar) in long view"
+complete -c lez -l group-dotfiles-first -d "Sort dotfiles before other files"
+complete -c lez -l inspect-archives -d "List the contents of supported archives (.tar, .zip) in long view"
 complete -c lez -l ignore-submodule-contents -d "Do not list contents of submodules"
 complete -c lez -s W -l warn-hidden -d "Print a tally of hidden and ignored items; twice to always print"
 complete -c lez -l no-extended -d "Do not show a marker if a file's extended attributes exist"

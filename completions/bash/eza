@@ -87,7 +87,7 @@ _eza() {
     esac
 
     case "$prev" in
-        --help|--version|-v|--smart-group|--show-dotfiles|--no-system|--no-hidden-attrib|--no-hidden-links|--mime-types|--no-config|--no-language)
+        --help|--version|-v|--smart-group|--owner-width|--show-dotfiles|--no-system|--no-hidden-attrib|--no-hidden-links|--mime-types|--no-config|--no-language)
             return
             ;;
 
@@ -118,6 +118,10 @@ _eza() {
 
         --color-scale-mode|--colour-scale-mode)
             mapfile -t COMPREPLY < <(compgen -W 'fixed gradient --' -- "$cur")
+            return
+            ;;
+
+        --theme)
             return
             ;;
     esac

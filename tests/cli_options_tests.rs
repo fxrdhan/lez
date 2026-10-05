@@ -15,6 +15,8 @@ mod exit_codes;
 mod feature_combinations;
 #[path = "cli_options/generated_arguments.rs"]
 mod generated_arguments;
+#[path = "cli_options/ls_compatible_literal.rs"]
+mod ls_compatible_literal;
 #[path = "cli_options/ls_compatible_v.rs"]
 mod ls_compatible_v;
 #[path = "cli_options/man_pages.rs"]

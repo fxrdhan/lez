@@ -43,6 +43,7 @@ pub struct DisplayConfig {
     pub security_context: Option<bool>,
     pub file_flags: Option<bool>,
     pub smart_group: Option<bool>,
+    pub owner_width: Option<u16>,
     pub absolute: Option<String>,
     pub hyperlink: Option<String>,
     pub quotes: Option<String>,
@@ -93,6 +94,7 @@ pub struct ThemeConfigSection {
     pub color: Option<String>,
     pub color_scale: Option<String>,
     pub color_scale_mode: Option<String>,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
@@ -137,6 +139,7 @@ impl FileConfig {
             security_context,
             file_flags,
             smart_group,
+            owner_width,
             absolute,
             hyperlink,
             quotes,
@@ -179,6 +182,7 @@ impl FileConfig {
             color,
             color_scale,
             color_scale_mode,
+            name,
         );
 
         merge_field!(self.loc, other.loc, sub_files, percent_digits, language);

@@ -31,7 +31,7 @@ SPDX-License-Identifier: EUPL-1.2
 - **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
 - **Built-in Tree View:** Hierarchical directory tree out of the box (`lez --tree`).
 - **Structured Data Export:** Full metadata serialization via `--json` in complete parity with the long view.
-- **Archive Inspection:** Inspect files inside `.tar` archives directly in the long view (`lez -l --inspect-archives`).
+- **Archive Inspection:** Inspect files inside `.tar` and `.zip` archives directly in the long view (`lez -l --inspect-archives`).
 - **Lines-of-Code Counter:** Comment-aware LOC breakdowns for 100+ programming languages (`lez --code`).
 - **Deep OS Integration:** Native macOS Finder color tags, Linux capability decoding (`security.capability`), and Windows `PATHEXT` executables.
 
@@ -91,7 +91,7 @@ hyperfine --warmup 3 'lez --tree ~/.cargo/registry' 'eza --tree ~/.cargo/registr
 | **Multithreaded Traversal** (Rayon Engine) | ✅ | ⚠️ Limited | ❌ |
 | **Lines-of-Code Counter** (`--code`, `--loc`) | ✅ 100+ langs | ✅ 50+ langs | ❌ |
 | **Structured JSON Export** (`--json`) | ✅ | ❌ | ❌ |
-| **Archive Inspection** (`--inspect-archives` for `.tar`) | ✅ | ❌ | ❌ |
+| **Archive Inspection** (`--inspect-archives` for `.tar` and `.zip`) | ✅ | ❌ | ❌ |
 | **Time-Window Filtering** (`--since`) | ✅ | ❌ | ❌ |
 | **Size Precision Formatting** (`--size-digits`) | ✅ | ❌ | ❌ |
 | **Nix Store Hash Abbreviation** (`--short-nix`) | ✅ | ❌ | ❌ |
@@ -206,15 +206,18 @@ nix run github:fxrdhan/lez
 - **--follow-symlinks**: drill down into symbolic links that point to directories
 - **--code[=MODE]**: print lines-of-code summary by language (modes: `lines`, `percent`, `both`)
 - **--json**: output file listing and metadata as structured JSON
+- **--explain**: list each entry with the rule that chose the color of its name (a glob in `LS_COLORS` or `LEZ_COLORS`, a theme entry, a built-in file type, `di`, `ex`...) and the one that chose its icon
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
 - **--color=(when)**, **--colour=(when)**: when to use terminal colors (always, auto, never)
 - **--color-scale=(fields)**, **--colour-scale=(fields)**: highlight levels of `fields` distinctly (all, age, size)
 - **--color-scale-mode=(mode)**, **--colour-scale-mode=(mode)**: use gradient or fixed colors in `--color-scale` (`fixed` or `gradient`)
+- **--theme=(name)**: use the theme `name` from the `themes` folder of the configuration directory instead of `theme.yml` (also `LEZ_THEME`, or `name` under `[theme]` in the configuration file)
 - **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
 - **--spacing=(spaces)**: number of spaces between columns (default: 2 in the grid views, 1 in the long view; at most 1000)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
 - **--quotes=(when)**: when to quote file names (always, auto, never; requires '=' if value provided)
+- **-N**, **--literal**: print file names without quoting, as `ls -N` does (the same as `--quotes=never`)
 - **--summary**: display total summary statistics of entries (directories, files, symlinks, and total)
 - **--hyperlink[=(when)]**: when to display entries as hyperlinks (always, auto, never; requires '=' if value provided)
 - **--absolute=(mode)**: display entries with their absolute path (on, follow, off)
@@ -240,6 +243,7 @@ nix run github:fxrdhan/lez
 - **-t**: sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`)
 - **--group-directories-first**: list directories before other files
 - **--group-directories-last**: list directories after other files
+- **--group-dotfiles-first**: list dotfiles before other files, within the directory groups
 - **-D**, **--only-dirs**: list only directories
 - **-f**, **--only-files**: list only files
 - **--no-symlinks**: don't show symbolic links
@@ -271,6 +275,7 @@ These options are available when running with `--long` (`-l`):
 - **-g**, **--group**: list each file’s group
 - **--smart-group**: only show group if it has a different name from owner (automatically enables group column)
 - **-n**, **--numeric**: show user and group as their numeric IDs
+- **--owner-width=(COLS)**: cut user and group names wider than `COLS` columns, ending them in an ellipsis (`firstname.lastname` becomes `firstna…` under `--owner-width=8`); numeric IDs and `--json` are left whole
 - **-h**, **--header**: add a header row to each column
 - **-H**, **--links**: list each file’s number of hard links
 - **-i**, **--inode**: list each file’s inode number
@@ -290,7 +295,7 @@ These options are available when running with `--long` (`-l`):
 - **-@**, **--extended**: list each file’s extended attributes and sizes
 - **--no-extended**: don't show the `@` marker that a file has extended attributes
 - **-e**, **--tags**: list each file's color tags stored in extended attributes (macOS Finder tags)
-- **--inspect-archives**: list the contents of supported archives (.tar) in long view, with each entry's file name colored by type
+- **--inspect-archives**: list the contents of supported archives (.tar, .zip) in long view, with each entry's file name colored by type
 - **--git**: list each file’s Git status, if tracked or ignored
 - **--git-glyphs**: display Git status with Nerd Font glyphs instead of ASCII characters
 - **--git-repos**: list each directory’s Git status, if tracked
@@ -327,7 +332,7 @@ These options work with every view:
 - **--stdin**: read file names from stdin
 - **--stdin0**: read NUL-separated file names from stdin (e.g. `find -print0 | lez --stdin0`)
 - **--config**: load default options from specified configuration file (`.toml`, `.yaml`, or `.yml`)
-- **--no-config**: do not load any global or per-directory configuration files
+- **--no-config**: do not load any global or per-directory configuration files, nor a theme file other than one named by `--theme`
 
 </details>
 
@@ -379,9 +384,11 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 |---|---|
 | `LEZ_CONFIG_FILE` / `EZA_CONFIG_FILE` | Explicit path to a configuration file to load (`.toml`, `.yaml`, or `.yml`). |
 | `LEZ_CONFIG_DIR` / `EZA_CONFIG_DIR` | Directory containing `config.toml` and `theme.yml` (default: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS, `%APPDATA%\lez` on Windows). |
+| `LEZ_THEME` / `EZA_THEME` | Name of a theme in the `themes` folder of the configuration directory, used instead of `theme.yml` (`--theme` overrides it). |
 | `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. `LS_COLORS` is not read when a `theme.yml` is. |
 | `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (-100..=100) for color scaling on dates and sizes. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
+| `QUOTING_STYLE` | GNU `ls`'s quoting style, read when neither variable above is set: `literal` is `never`, `shell` and `shell-escape` are `auto`, and `shell-always` and `shell-escape-always` are `always`. Its other styles are passed over. |
 | `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |
 | `LEZ_NO_EMPTY_DIR_ICON` / `EZA_NO_EMPTY_DIR_ICON` | Set to anything to give every directory the same icon. Distinguishing an empty one costs a filesystem round trip per directory, which is slow on FUSE and network mounts. |
 | `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` | Delimiter for paths read from standard input with `--stdin`; ignored by `--stdin0` (default: newline `\n`). Supports escape sequences (e.g. `\0`, `\n`, `\t`, `\x00`) and `null`/`nul`. |
@@ -400,6 +407,8 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 
 An example theme file is available in [`docs/theme.yml`](docs/theme.yml), and can be placed in a directory specified by 
 `$LEZ_CONFIG_DIR`, `$EZA_CONFIG_DIR`, or looked for by default in the configuration directory: `$XDG_CONFIG_HOME/lez`, or else `~/.config/lez` on Linux, `~/Library/Application Support/lez` on macOS and `%APPDATA%\lez` on Windows (an existing `eza` directory there is used when there is no `lez` one).
+
+To keep several themes and switch between them, put each in a `themes` folder in the configuration directory, as `themes/NAME.yml` or `themes/NAME.yaml`, and pick one with `--theme=NAME`, `LEZ_THEME=NAME`, or `name = "NAME"` under `[theme]` in the configuration file, in that order. A named theme replaces `theme.yml`, and naming one that is not there is an error. A name holding a directory, such as `--theme=./night.yml`, is the path to the theme file.
 
 A theme file takes the place of `LS_COLORS`, which the system's `dircolors` often sets for every program, so `LS_COLORS` is not read beside one. `LEZ_COLORS` and `EZA_COLORS` are still laid over the theme.
 
