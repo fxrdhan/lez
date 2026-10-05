@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: MIT
 use nu_ansi_term::Style;
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use crate::fs::File;
@@ -23,6 +24,7 @@ pub use self::ui_styles::{LinkStyle, UiStyles, is_target_str, merge_target_style
 
 pub mod lsc;
 pub use self::lsc::LSColors;
+use self::lsc::Pair;
 
 mod default_theme;
 
@@ -190,21 +192,15 @@ impl Definitions {
     /// Also returns if the `EZA_COLORS` variable should reset the existing file
     /// type mappings or not. The `reset` code needs to be the first one.
     fn parse_color_vars(&self, colours: &mut UiStyles) -> (ExtensionMappings, bool) {
-        use log::warn;
-
-        let mut exts = ExtensionMappings::default();
+        // The globs are gathered before any is added, because whether one
+        // ignores case depends on the globs after it. Those from `EZA_COLORS`
+        // follow those from `LS_COLORS`, as if both were one list.
+        let mut globs = Vec::new();
 
         if let Some(lsc) = &self.ls {
             LSColors(lsc).each_pair(|pair| {
                 if !colours.set_ls(&pair) && !is_builtin_ls_colors_key(pair.key) {
-                    match glob::Pattern::new(pair.key) {
-                        Ok(pat) => {
-                            exts.add(pat, pair.to_style());
-                        }
-                        Err(e) => {
-                            warn!("Couldn't parse glob pattern {:?}: {}", pair.key, e);
-                        }
-                    }
+                    globs.push(pair);
                 }
             });
         }
@@ -218,19 +214,12 @@ impl Definitions {
 
             LSColors(exa).each_pair(|pair| {
                 if !colours.set_ls(&pair) && !colours.set_exa(&pair) {
-                    match glob::Pattern::new(pair.key) {
-                        Ok(pat) => {
-                            exts.add(pat, pair.to_style());
-                        }
-                        Err(e) => {
-                            warn!("Couldn't parse glob pattern {:?}: {}", pair.key, e);
-                        }
-                    }
+                    globs.push(pair);
                 }
             });
         }
 
-        (exts, use_default_filetypes)
+        (ExtensionMappings::from_globs(&globs), use_default_filetypes)
     }
 }
 
@@ -339,29 +328,161 @@ struct ExtensionMappings {
 /// In the event that a pattern shows up twice, we will use the later one (since
 /// .insert overrides any entry that exists), which is the correct behavior.
 enum GlobPattern {
-    Complex(glob::Pattern, Style),
-    Simple(HashMap<String, Style>),
+    Complex(glob::Pattern, Style, Case),
+    Simple(Extensions),
+}
+
+/// A run of plain-extension globs, looked up by a name's extension.
+///
+/// No extension is in both maps: of the globs that differ only in case,
+/// either one ignores case or all of them keep to their own.
+#[derive(PartialEq, Debug, Default)]
+struct Extensions {
+    /// The globs that ignore case, keyed by their lowercased extension.
+    any_case: HashMap<String, Style>,
+
+    /// The globs that keep to their own case, keyed by their extension.
+    exact: HashMap<String, Style>,
+}
+
+impl Extensions {
+    fn insert(&mut self, ext: String, style: Style, case: Case) {
+        match case {
+            Case::Ignored => self.any_case.insert(ext.to_ascii_lowercase(), style),
+            Case::Exact => self.exact.insert(ext, style),
+        };
+    }
+}
+
+/// How a glob from the colour variables compares letters.
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+enum Case {
+    /// Matches a name whatever its case: `*.jpg` takes in `photo.JPG`.
+    Ignored,
+
+    /// Matches only a name in the glob's own case.
+    Exact,
+}
+
+impl Case {
+    const fn match_options(self) -> glob::MatchOptions {
+        glob::MatchOptions {
+            case_sensitive: matches!(self, Self::Exact),
+            require_literal_separator: false,
+            require_literal_leading_dot: false,
+        }
+    }
 }
 
 impl ExtensionMappings {
+    /// Builds the mappings from the glob entries of the colour variables,
+    /// oldest first, settling how each one treats case as GNU `ls` does.
+    fn from_globs(globs: &[Pair<'_>]) -> Self {
+        use log::warn;
+
+        let mut exts = Self::default();
+        for (pair, case) in globs.iter().zip(settle_case(globs)) {
+            // A glob that can never match is not worth parsing.
+            let Some(case) = case else { continue };
+            match glob::Pattern::new(pair.key) {
+                Ok(pattern) => exts.add(pattern, pair.to_style(), case),
+                Err(e) => warn!("Couldn't parse glob pattern {:?}: {}", pair.key, e),
+            }
+        }
+        exts
+    }
+
     fn is_non_empty(&self) -> bool {
         !self.mappings.is_empty()
     }
 
-    fn add(&mut self, pattern: glob::Pattern, style: Style) {
+    fn add(&mut self, pattern: glob::Pattern, style: Style, case: Case) {
         match (self.mappings.last_mut(), is_simple_pattern(pattern)) {
-            (Some(GlobPattern::Simple(h)), Ok(s)) => {
-                h.insert(s, style);
+            (Some(GlobPattern::Simple(exts)), Ok(ext)) => {
+                exts.insert(ext, style, case);
             }
-            (_, Ok(s)) => {
-                self.mappings
-                    .push(GlobPattern::Simple(HashMap::from([(s, style)])));
+            (_, Ok(ext)) => {
+                let mut exts = Extensions::default();
+                exts.insert(ext, style, case);
+                self.mappings.push(GlobPattern::Simple(exts));
             }
             (_, Err(p)) => {
-                self.mappings.push(GlobPattern::Complex(p, style));
+                self.mappings.push(GlobPattern::Complex(p, style, case));
             }
         }
     }
+}
+
+/// Settles which globs ignore case, as GNU `ls` has since coreutils 9.2.
+///
+/// `globs` holds the glob entries, oldest first, and the result says, glob
+/// by glob, how it compares letters, or `None` when it can never match. A
+/// glob ignores case unless another differs from it only in case:
+///
+/// - Of two identical globs, the newer one wins and the older is dropped.
+/// - Two that differ only in case and have different values each keep to
+///   their own case, so `*.c=33:*.C=36` tells C sources from C++ ones, and a
+///   name in a third case, `x.qUX` under `*.qux=31:*.QUX=32`, matches neither.
+/// - A case variant with the same value is folded into the newer glob,
+///   which then drops every older variant, whatever their values.
+///
+/// Values are compared as written, so `01;31` and `1;31` differ, as they do
+/// for GNU `ls`.
+fn settle_case(globs: &[Pair<'_>]) -> Vec<Option<Case>> {
+    let mut settled = vec![Some(Case::Ignored); globs.len()];
+
+    // Only globs that differ just in case need settling: of two identical
+    // ones, the newer is found first anyway. One of any two such globs has
+    // an uppercase letter, so the globs with one name the sets of variants,
+    // and most `LS_COLORS` values have none.
+    let has_uppercase = |key: &str| key.bytes().any(|b| b.is_ascii_uppercase());
+    let mut variants: HashMap<String, Vec<usize>> = globs
+        .iter()
+        .filter(|glob| has_uppercase(glob.key))
+        .map(|glob| (glob.key.to_ascii_lowercase(), Vec::new()))
+        .collect();
+    if variants.is_empty() {
+        return settled;
+    }
+    for (index, glob) in globs.iter().enumerate() {
+        let lowercase = if has_uppercase(glob.key) {
+            Cow::Owned(glob.key.to_ascii_lowercase())
+        } else {
+            Cow::Borrowed(glob.key)
+        };
+        if let Some(indices) = variants.get_mut(lowercase.as_ref()) {
+            indices.push(index);
+        }
+    }
+
+    for indices in variants.values().filter(|indices| indices.len() > 1) {
+        // GNU `ls` keeps its globs newest first and walks them in that
+        // order, comparing each with the older ones still in play.
+        for (position, &newer) in indices.iter().enumerate().rev() {
+            if settled[newer].is_none() {
+                continue;
+            }
+            let mut folded = false;
+
+            for &older in indices[..position].iter().rev() {
+                if settled[older].is_none() {
+                    continue;
+                }
+
+                if folded || globs[older].key == globs[newer].key {
+                    settled[older] = None;
+                } else if globs[older].value == globs[newer].value {
+                    settled[older] = None;
+                    folded = true;
+                } else {
+                    settled[newer] = Some(Case::Exact);
+                    settled[older] = Some(Case::Exact);
+                }
+            }
+        }
+    }
+
+    settled
 }
 
 fn is_simple_pattern(pattern: glob::Pattern) -> Result<String, glob::Pattern> {
@@ -374,7 +495,7 @@ fn is_simple_pattern(pattern: glob::Pattern) -> Result<String, glob::Pattern> {
         // Ideally we'd inspect pattern.tokens, but it's not public.
         None => Err(pattern),
         Some(ext) if ext.contains(['?', '*', '[', ']', '.']) => Err(pattern),
-        Some(ext) => Ok(ext.to_ascii_lowercase()),
+        Some(ext) => Ok(ext.to_string()),
     }
 }
 
@@ -389,26 +510,29 @@ impl FileStyle for ExtensionMappings {
     /// These mappings only ever consult the name, so an archive entry can use
     /// exactly the same lookup a real file does.
     fn get_style_for_name(&self, name: &str, _theme: &Theme) -> Option<Style> {
-        // GNU ls matches LS_COLORS patterns without regard to case, and our
-        // own icon lookup already does; simple patterns are lowercased on the
-        // way into the map, and complex ones need the option here.
-        const CASE_INSENSITIVE: glob::MatchOptions = glob::MatchOptions {
-            case_sensitive: false,
-            require_literal_separator: false,
-            require_literal_leading_dot: false,
-        };
-        let maybe_ext = name.rsplit_once('.').map(|x| x.1.to_ascii_lowercase());
+        // GNU ls matches LS_COLORS patterns without regard to case unless two
+        // differ only in case, and our own icon lookup ignores case too.
+        // Simple patterns are filed by how they compare case, and complex
+        // ones carry it.
+        let maybe_ext = name.rsplit_once('.').map(|x| x.1);
+        let maybe_lowercase_ext = maybe_ext.map(str::to_ascii_lowercase);
 
         for mapping in self.mappings.iter().rev() {
             match mapping {
-                GlobPattern::Complex(pat, style) => {
-                    if pat.matches_with(name, CASE_INSENSITIVE) {
+                GlobPattern::Complex(pat, style, case) => {
+                    if pat.matches_with(name, case.match_options()) {
                         return Some(*style);
                     }
                 }
-                GlobPattern::Simple(map) => {
-                    if let Some(ref ext) = maybe_ext
-                        && let Some(style) = map.get(ext)
+                GlobPattern::Simple(exts) => {
+                    if let Some(ext) = maybe_ext
+                        && !exts.exact.is_empty()
+                        && let Some(style) = exts.exact.get(ext)
+                    {
+                        return Some(*style);
+                    }
+                    if let Some(ref ext) = maybe_lowercase_ext
+                        && let Some(style) = exts.any_case.get(ext)
                     {
                         return Some(*style);
                     }
@@ -803,12 +927,14 @@ mod customs_test {
             let mut out = Vec::new();
             for map in &self.mappings {
                 match map {
-                    GlobPattern::Complex(p, s) => {
+                    GlobPattern::Complex(p, s, _) => {
                         out.push((p.clone(), *s));
                     }
-                    GlobPattern::Simple(h) => {
-                        let mut simple_pats = h
+                    GlobPattern::Simple(exts) => {
+                        let mut simple_pats = exts
+                            .any_case
                             .iter()
+                            .chain(&exts.exact)
                             .map(|(k, v)| (glob::Pattern::new(&format!("*.{k}")).unwrap(), *v))
                             .collect::<Vec<(glob::Pattern, Style)>>();
 
@@ -1452,6 +1578,126 @@ mod customs_test {
         assert_eq!(
             theme.exts.get_style_for_name("my_image.JPG", &theme),
             Some(LightCyan.normal())
+        );
+    }
+
+    /// The style each of `names` takes from these variables, a built-in
+    /// type's included.
+    fn styles_for(ls: &str, exa: Option<&str>, names: &[&str]) -> Vec<Option<Style>> {
+        let theme = Options {
+            use_colours: UseColours::Always,
+            colour_scale: ColorScaleOptions::default(),
+            definitions: Definitions {
+                ls: Some(ls.into()),
+                exa: exa.map(Into::into),
+            },
+            theme_config: None,
+        }
+        .to_theme(false);
+        names
+            .iter()
+            .map(|name| theme.exts.get_style_for_name(name, &theme))
+            .collect()
+    }
+
+    /// Each row is what GNU `ls` 9.4 prints for the same `LS_COLORS`. No
+    /// built-in type claims `.qux`, so a name no glob takes stays
+    /// uncoloured, as it does there.
+    #[test]
+    fn test_ls_colors_case_variants_settle_as_in_gnu_ls() {
+        const NAMES: [&str; 4] = ["q.qux", "Q.QUX", "x.Qux", "y.qUX"];
+        let (red, green, yellow) = (
+            Some(Red.normal()),
+            Some(Green.normal()),
+            Some(Yellow.normal()),
+        );
+
+        for (ls, expected) in [
+            // A lone glob, or variants that share a value, ignore case.
+            ("*.qux=31", [red, red, red, red]),
+            ("*.qux=31:*.QUX=31", [red, red, red, red]),
+            ("*.qux=31:*.qux=33", [yellow, yellow, yellow, yellow]),
+            // Variants with different values keep to their own case.
+            ("*.qux=31:*.QUX=32", [red, green, None, None]),
+            ("*.qux=31:*.QUX=32:*.qux=33", [yellow, green, None, None]),
+            ("*.qux=31:*.Qux=31:*.QUX=32", [None, green, red, None]),
+            // A variant with the value of a newer one is folded into it,
+            // and every older variant is dropped with it.
+            ("*.qux=31:*.QUX=32:*.Qux=31", [None, green, red, None]),
+            ("*.QUX=32:*.qux=31:*.Qux=31", [red, red, red, red]),
+            ("*.QUX=32:*.Qux=31:*.qux=31", [red, red, red, red]),
+            (
+                "*.QUX=32:*.qux=31:*.QUX=33:*.Qux=33",
+                [yellow, yellow, yellow, yellow],
+            ),
+            (
+                "*.qux=31:*.QUX=32:*.QuX=33:*.qUx=32",
+                [None, None, None, None],
+            ),
+            // Values are compared as written.
+            (
+                "*.qux=01;31:*.QUX=1;31",
+                [Some(Red.bold()), Some(Red.bold()), None, None],
+            ),
+        ] {
+            assert_eq!(styles_for(ls, None, &NAMES), expected, "LS_COLORS={ls}");
+        }
+    }
+
+    /// Globs from `EZA_COLORS` follow those from `LS_COLORS` in one list:
+    /// a case variant there keeps both to their own case, while a glob in
+    /// the same case still overrides the older one for every case.
+    #[test]
+    fn test_case_variants_span_ls_colors_and_eza_colors() {
+        const NAMES: [&str; 3] = ["q.qux", "Q.QUX", "x.Qux"];
+        let (red, green) = (Some(Red.normal()), Some(Green.normal()));
+
+        assert_eq!(
+            styles_for("*.qux=31", Some("*.QUX=32"), &NAMES),
+            [red, green, None]
+        );
+        assert_eq!(
+            styles_for("*.qux=31", Some("*.qux=32"), &NAMES),
+            [green, green, green]
+        );
+    }
+
+    /// Variants keep to their own case without taking any other glob with
+    /// them, in whichever order the globs come.
+    #[test]
+    fn test_other_globs_keep_ignoring_case_beside_variants() {
+        const NAMES: [&str; 4] = ["q.qux", "Q.QUX", "a.ZZ", "b.Zz"];
+        let (red, green, yellow) = (
+            Some(Red.normal()),
+            Some(Green.normal()),
+            Some(Yellow.normal()),
+        );
+
+        for ls in [
+            "*.qux=31:*.zz=33:*.QUX=32",
+            "*.zz=33:*.qux=31:*.QUX=32",
+            "*.qux=31:*.QUX=32:*.zz=33",
+        ] {
+            assert_eq!(
+                styles_for(ls, None, &NAMES),
+                [red, green, yellow, yellow],
+                "LS_COLORS={ls}"
+            );
+        }
+    }
+
+    /// Globs that are more than an extension settle the same way.
+    #[test]
+    fn test_complex_glob_case_variants_keep_their_case() {
+        const NAMES: [&str; 3] = ["my_IMAGE.qux", "my_image.qux", "MY_IMAGE.QUX"];
+
+        assert_eq!(
+            styles_for("*IMAGE*.qux=96:*image*.qux=95", None, &NAMES),
+            [Some(LightCyan.normal()), Some(LightPurple.normal()), None]
+        );
+        assert_eq!(
+            styles_for("*IMAGE*.qux=96", None, &NAMES),
+            [Some(LightCyan.normal()); 3]
         );
     }
 }

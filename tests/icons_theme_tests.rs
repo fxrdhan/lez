@@ -23,6 +23,8 @@ mod glob_precedence;
 mod icon_colours;
 #[path = "icons_theme/isolation.rs"]
 mod isolation;
+#[path = "icons_theme/ls_colors_case.rs"]
+mod ls_colors_case;
 #[path = "icons_theme/multicodepoint_emoji.rs"]
 mod multicodepoint_emoji;
 #[path = "icons_theme/reset.rs"]
@@ -33,5 +35,7 @@ mod schema;
 mod special_dirs;
 #[path = "icons_theme/symlink_target_styles.rs"]
 mod symlink_target_styles;
+#[path = "icons_theme/tar_shorthands.rs"]
+mod tar_shorthands;
 #[path = "icons_theme/theme_hardening.rs"]
 mod theme_hardening;

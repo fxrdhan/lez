@@ -1120,6 +1120,7 @@ const EXTENSION_ICONS: Map<&'static str, char> = phf_map! {
     "txz"            => Icons::COMPRESSED,       // 
     "tz"             => Icons::COMPRESSED,       // 
     "tzo"            => Icons::COMPRESSED,       // 
+    "tzst"           => Icons::COMPRESSED,       // 
     "ui"             => '\u{f2d0}',              // 
     "unity"          => Icons::UNITY,            // 
     "unity3d"        => Icons::UNITY,            // 
@@ -1421,6 +1422,17 @@ mod test {
             icon_for_name_ext("main.odin", Some("odin")),
             Icons::LANG_ODIN
         );
+    }
+
+    #[test]
+    fn test_tar_shorthand_icon_mapping() {
+        for shorthand in ["tbz", "tbz2", "tgz", "tlz", "txz", "tzst"] {
+            assert_eq!(
+                icon_for_name_ext(&format!("backup.{shorthand}"), Some(shorthand)),
+                Icons::COMPRESSED,
+                "{shorthand}"
+            );
+        }
     }
 
     #[test]

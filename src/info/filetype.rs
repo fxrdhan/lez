@@ -322,6 +322,7 @@ const EXTENSION_TYPES: Map<&'static str, FileType> = phf_map! {
     "tlz"        => FileType::Compressed,
     "txz"        => FileType::Compressed,
     "tz"         => FileType::Compressed,
+    "tzst"       => FileType::Compressed, // .tar.zst
     "xz"         => FileType::Compressed,
     "vdi"        => FileType::Compressed,
     "vhd"        => FileType::Compressed,
@@ -625,6 +626,19 @@ mod test {
         assert_eq!(EXTENSION_TYPES.get("adb"), Some(&FileType::Source));
         assert_eq!(EXTENSION_TYPES.get("ads"), Some(&FileType::Source));
         assert_eq!(EXTENSION_TYPES.get("gpr"), Some(&FileType::Build));
+    }
+
+    /// `.tzst` is the one-word name for `.tar.zst`, as `.tgz` and `.txz` are
+    /// for theirs, so it is compressed too.
+    #[test]
+    fn test_tar_shorthand_file_types() {
+        for shorthand in ["tbz", "tbz2", "tgz", "tlz", "txz", "tzst"] {
+            assert_eq!(
+                EXTENSION_TYPES.get(shorthand),
+                Some(&FileType::Compressed),
+                "{shorthand}"
+            );
+        }
     }
 
     #[test]
