@@ -183,7 +183,7 @@ Use `Path` and `PathBuf` methods instead of hardcoding `/` or `\`.
 
 ### Branches, commits and PRs
 
-- Do all work on branches off `dev` and open PRs against `dev`. `main` only receives release merges (`release-v*` or `dev`) with a clean changelog and a version tag.
+- Do all work on branches off `dev` and open PRs against `dev`. `main` only receives release merges (`release-v*` or `dev`) with a clean changelog and a version tag. A tag publishes only once CI, release-mode tests included, has passed on `main` for its commit.
 - Write commit titles as Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:` and so on).
 - Keep commits atomic. Each fix or feature gets its own commit with its tests, and unrelated changes don't share a commit.
 - Keep history clean. If CI fails or you spot a typo, amend the commit that caused it and `git push --force-with-lease`.
