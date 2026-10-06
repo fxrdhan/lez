@@ -256,6 +256,11 @@ jobs:
         with:
           name: code-coverage-lcov
           path: lcov.info
+      # The floor `just coverage-gate` defaults to. Without one, this job only
+      # ran the Linux suite a second time, under instrumentation, as part of
+      # the gate. After the upload, so a run below the floor keeps its report.
+      - name: Enforce the coverage floor
+        run: bash devtools/coverage.sh gate 70
   # Alongside the tests rather than after them. Waiting on the slowest test
   # row put a Windows release build behind a Windows test run, the longest
   # path through a run; `CI result` waits on both either way.
