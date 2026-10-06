@@ -232,7 +232,7 @@ To have `ls` run `lez` in bash, zsh or fish, add `alias ls=lez` to your shell's 
 - **--color-scale=(fields)**, **--colour-scale=(fields)**: highlight levels of `fields` distinctly (all, age, size)
 - **--color-scale-mode=(mode)**, **--colour-scale-mode=(mode)**: use gradient or fixed colors in `--color-scale` (`fixed` or `gradient`)
 - **--theme=(name)**: use the theme `name` from the `themes` folder of the configuration directory instead of `theme.yml` (also `LEZ_THEME`, or `name` under `[theme]` in the configuration file)
-- **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
+- **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided). The icons are Nerd Font glyphs, so the terminal has to use a [Nerd Font](https://www.nerdfonts.com/); with any other font they show as boxes or question marks
 - **--spacing=(spaces)**: number of spaces between columns (default: 2 in the grid views, 1 in the long view; at most 1000)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
 - **--quotes=(when)**: when to quote file names (always, auto, never; requires '=' if value provided)

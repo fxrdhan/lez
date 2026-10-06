@@ -156,6 +156,7 @@ The size gradient runs over orders of magnitude rather than bytes, so a single l
 
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
 When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--icons=WHEN`).
+The icons are Nerd Font glyphs, so the terminal has to use a Nerd Font (`https://www.nerdfonts.com`); with any other font they show as boxes or question marks.
 
 `automatic` or `auto` will display icons only when the standard output is connected to a real terminal; when it is redirected to a file or piped into another program, they are not used. Setting this option to ‘`always`’ causes `lez` to always display icons, while ‘`never`’ disables the use of icons.
 
