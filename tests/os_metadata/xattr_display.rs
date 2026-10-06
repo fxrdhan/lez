@@ -5,13 +5,17 @@
 //! the permissions, and one row per attribute showing its value as text,
 //! bytes, a length, or a decoded binary plist. Each file carries a single
 //! attribute, because the order `listxattr` returns several in depends on
-//! the filesystem.
+//! the filesystem; where every new file has one of the system's already,
+//! these tests skip themselves.
 
 #![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::path::Path;
 
-use crate::common::{TempTestDir, XATTR_NAME as NAME, lez_in, set_xattr, success_stdout};
+use crate::common::{
+    TempTestDir, XATTR_NAME as NAME, fresh_files_have_no_attributes, lez_in, set_xattr,
+    success_stdout,
+};
 
 fn attribute_rows(dir: &Path, args: &[&str]) -> String {
     success_stdout(
@@ -23,6 +27,9 @@ fn attribute_rows(dir: &Path, args: &[&str]) -> String {
 
 #[test]
 fn each_kind_of_value_is_shown_in_its_own_form() {
+    if !fresh_files_have_no_attributes() {
+        return;
+    }
     let dir = TempTestDir::new("xattr_values");
     let plist = {
         let mut buf = Vec::new();
@@ -60,6 +67,9 @@ fn each_kind_of_value_is_shown_in_its_own_form() {
 /// long form `--extended`, adds a row per attribute.
 #[test]
 fn the_at_sign_marks_files_with_attributes() {
+    if !fresh_files_have_no_attributes() {
+        return;
+    }
     let dir = TempTestDir::new("xattr_mark");
     for file in ["plain.txt", "tagged.txt"] {
         let path = dir.create_file(file, b"x");

@@ -117,6 +117,7 @@ fn the_long_view_is_an_object_of_columns() {
                 &dir,
                 &[
                     "-l",
+                    "--no-extended",
                     "--no-user",
                     "--no-time",
                     "-o",
@@ -200,6 +201,7 @@ fn a_link_carries_its_target() {
             &dir,
             &[
                 "-l",
+                "--no-extended",
                 "--no-user",
                 "--no-time",
                 "relative.txt",

@@ -567,7 +567,10 @@ fn the_last_of_long_and_oneline_wins() {
     assert_eq!(lez(dir.path(), &["-l", "-1"]), "a.txt\nb.txt\n");
     #[cfg(unix)]
     assert_eq!(
-        lez(dir.path(), &["-1", "-l", "--no-time", "--no-user"]),
+        lez(
+            dir.path(),
+            &["-1", "-l", "--no-extended", "--no-time", "--no-user"]
+        ),
         ".rw-r--r-- 1 a.txt\n.rw-r--r-- 1 b.txt\n"
     );
 }

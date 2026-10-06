@@ -54,6 +54,21 @@ at once. If a regeneration ever produces a full set of new names with unchanged
 contents, this is why — the `.stdout` and `.stderr` files have to be renamed
 alongside them.
 
+### Your test reads a long view
+
+macOS gives every file that a third-party app, or anything it starts, creates
+or writes a `com.apple.provenance` attribute, and SIP keeps it from being
+removed. Run from iTerm, VS Code or Claude, the suite therefore finds it on
+every fixture it makes, and the long view marks each one with `@`, as `ls -l@`
+does. Run from Apple's Terminal, or on CI, it does not.
+
+- A test that is not about extended attributes passes `--no-extended`, so the
+  marker stays out of its expected output wherever it runs.
+- A test that is about them starts with `fresh_files_have_no_attributes()`
+  from `tests/common`, which skips it where every new file already has one of
+  the system's, and fails it on CI, where a skip would hide that it proves
+  nothing.
+
 ### You changed the output of lez
 
 Please run `nix build -L trydump` or `just idump`

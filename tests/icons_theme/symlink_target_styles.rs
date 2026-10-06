@@ -165,7 +165,14 @@ fn the_long_view_styles_the_type_character_and_the_target() {
             &dir,
             "fi=33:di=34:ln=target;3",
             None,
-            &["-ld", "--no-filesize", "--no-user", "--no-time", link],
+            &[
+                "-ld",
+                "--no-extended",
+                "--no-filesize",
+                "--no-user",
+                "--no-time",
+                link,
+            ],
         )
     };
     assert_eq!(
