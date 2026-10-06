@@ -30,7 +30,7 @@ SPDX-License-Identifier: EUPL-1.2
 - **Rich Visuals:** Colors by file type, colored CLI help output, Nerd Font icons, and automatic luminance color scaling.
 - **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
 - **Built-in Tree View:** Hierarchical directory tree out of the box (`lez --tree`).
-- **Structured Data Export:** Full metadata serialization via `--json` in complete parity with the long view.
+- **Structured Data Export:** `--json` writes the listing, and with `-l` every long-view column, as JSON for scripts.
 - **Archive Inspection:** Inspect files inside `.tar` and `.zip` archives directly in the long view (`lez -l --inspect-archives`).
 - **Lines-of-Code Counter:** Comment-aware LOC breakdowns for 100+ programming languages (`lez --code`).
 - **Deep OS Integration:** Native macOS Finder color tags, Linux capability decoding (`security.capability`), and Windows `PATHEXT` executables.
@@ -205,7 +205,7 @@ nix run github:fxrdhan/lez
 - **-T**, **--tree**: recurse into directories as a tree
 - **--follow-symlinks**: drill down into symbolic links that point to directories
 - **--code[=MODE]**: print lines-of-code summary by language (modes: `lines`, `percent`, `both`)
-- **--json**: output file listing and metadata as structured JSON
+- **--json**: output file listing and metadata as structured JSON (the format is described under JSON OUTPUT in the [_`lez(1)` manual page_](man/lez.1.md))
 - **--explain**: list each entry with the rule that chose the color of its name (a glob in `LS_COLORS` or `LEZ_COLORS`, a theme entry, a built-in file type, `di`, `ex`...) and the one that chose its icon
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
