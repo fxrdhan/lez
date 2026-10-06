@@ -150,7 +150,7 @@ fn an_unreadable_file_still_has_its_metadata_listed() {
     let unreadable = dir.create_file("unreadable.bin", b"cannot read content");
     let _lock = Locked::new(&unreadable);
 
-    let output = run(&dir, &["-l", "--no-user", "--no-time"]);
+    let output = run(&dir, &["-l", "--no-extended", "--no-user", "--no-time"]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         text(&output.stdout),
@@ -158,7 +158,10 @@ fn an_unreadable_file_still_has_its_metadata_listed() {
     );
     assert_eq!(text(&output.stderr), "");
 
-    let output = run(&dir, &["--json", "-l", "--no-user", "--no-time"]);
+    let output = run(
+        &dir,
+        &["--json", "-l", "--no-extended", "--no-user", "--no-time"],
+    );
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         text(&output.stdout),

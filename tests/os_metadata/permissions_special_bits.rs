@@ -12,8 +12,16 @@ use std::path::Path;
 
 use crate::common::{TempTestDir, lez_in, success_stdout};
 
-/// The octal and permissions columns and the name, nothing else.
-const MODE_COLUMNS: [&str; 5] = ["-l", "-o", "--no-filesize", "--no-user", "--no-time"];
+/// The octal and permissions columns and the name, nothing else, not even
+/// the `@` of extended attributes.
+const MODE_COLUMNS: [&str; 6] = [
+    "-l",
+    "-o",
+    "--no-extended",
+    "--no-filesize",
+    "--no-user",
+    "--no-time",
+];
 
 /// Sets `mode` on `path`, failing the test if the filesystem keeps anything
 /// else.

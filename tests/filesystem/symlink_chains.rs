@@ -123,6 +123,7 @@ fn dereference_describes_the_end_of_a_chain_in_a_subdirectory() {
 
     let (code, stdout) = exit_and_stdout(lez_in(tmp.path()).args([
         "-ldX",
+        "--no-extended",
         "--no-filesize",
         "--no-user",
         "--no-time",

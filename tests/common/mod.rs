@@ -584,6 +584,43 @@ pub fn interleaved(cmd: &mut Command) -> (Option<i32>, String) {
     (status.code(), output)
 }
 
+/// Whether a file this process creates starts without extended attributes.
+///
+/// macOS gives every file that a third-party app, or anything it starts,
+/// creates or writes a `com.apple.provenance` attribute naming the app, and
+/// SIP keeps it from being removed. A suite run from iTerm, VS Code or
+/// Claude therefore finds it on every fixture, and one run from Apple's
+/// Terminal or on CI does not. The long view marks such files with `@`, as
+/// `ls -l@` does, so a test of which files carry attributes cannot tell its
+/// own from the system's: it skips itself there, saying so. On CI it fails
+/// instead, since it would prove nothing.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn fresh_files_have_no_attributes() -> bool {
+    use lez::fs::feature::xattr::FileAttributes;
+
+    let probe = TempTestDir::new("xattr_probe");
+    let fresh = probe.create_file("fresh", b"");
+    let names: Vec<String> = fresh
+        .symlink_attributes()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|attribute| attribute.name)
+        .collect();
+    if names.is_empty() {
+        return true;
+    }
+    assert!(
+        std::env::var_os("CI").is_none(),
+        "every new file on CI has extended attributes ({}), so a test of them proves nothing",
+        names.join(", ")
+    );
+    eprintln!(
+        "skipped: every new file here has extended attributes of its own ({})",
+        names.join(", ")
+    );
+    false
+}
+
 /// Linux keeps unprivileged attributes in the `user.` namespace; macOS has
 /// no namespaces.
 #[cfg(target_os = "linux")]

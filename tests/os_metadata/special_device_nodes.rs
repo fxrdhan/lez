@@ -95,7 +95,12 @@ fn sockets_and_fifos_have_a_type_character_and_no_size() {
     let nodes = SpecialNodes::new();
 
     assert_eq!(
-        success_stdout(lez_in(nodes.path()).args(["-l", "--no-user", "--no-time"])),
+        success_stdout(lez_in(nodes.path()).args([
+            "-l",
+            "--no-extended",
+            "--no-user",
+            "--no-time"
+        ])),
         "|rw-r--r-- - data_stream.pipe\n\
          .rw-r--r-- 7 regular.txt\n\
          srwxr-xr-x - test_service.sock\n"
@@ -105,6 +110,7 @@ fn sockets_and_fifos_have_a_type_character_and_no_size() {
         serde_json::from_str(&success_stdout(lez_in(nodes.path()).args([
             "--json",
             "-l",
+            "--no-extended",
             "--no-user",
             "--no-time",
         ])))

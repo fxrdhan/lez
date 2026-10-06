@@ -193,6 +193,7 @@ fn the_long_view_is_unaffected() {
         success_stdout(lez_in(dir.path()).args([
             "-l",
             "--color=never",
+            "--no-extended",
             "--no-user",
             "--no-time",
             "--no-filesize",

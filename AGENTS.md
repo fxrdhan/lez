@@ -97,6 +97,8 @@ Pin `cargo-nextest` to `0.9.128`. Later versions need rustc 1.91, which is above
 
 On macOS, add your terminal under System Settings > Privacy & Security > Developer Tools. Without this, `syspolicyd` can stall freshly linked test binaries.
 
+Also on macOS, a suite run from a third-party app (iTerm, VS Code, Claude) finds `com.apple.provenance` on every file it creates, which lists as `@` in the long view. A long-view test that isn't about extended attributes passes `--no-extended`; see [TESTING.md](TESTING.md#your-test-reads-a-long-view).
+
 | Layer | Location | Notes |
 |---|---|---|
 | Unit tests | `#[cfg(test)]` modules in `src/` | `cargo test --lib` |
