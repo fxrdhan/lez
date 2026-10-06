@@ -187,6 +187,25 @@ nix run github:fxrdhan/lez
 
 ---
 
+# Quick start
+
+`lez` takes the place of `ls`. A few everyday commands:
+
+```bash
+lez                     # the current directory, as a grid
+lez -la                 # the long view, hidden files included
+lez -lt                 # the long view, newest first, as `ls -lt` does
+lez -l --git            # the long view, with each file's Git status
+lez -T -L2              # a tree, two levels deep
+lez -l --sort=size -r   # the long view, largest first
+lez --icons             # icons beside the names (needs a Nerd Font)
+lez --code              # lines of code per language, across the tree
+```
+
+To have `ls` run `lez` in bash, zsh or fish, add `alias ls=lez` to your shell's startup file. Every option is listed below, and in the `lez(1)` man page (`man lez`).
+
+---
+
 <a id="options">
 <h1>Command-line options</h1>
 </a>
