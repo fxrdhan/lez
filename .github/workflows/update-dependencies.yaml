@@ -2,16 +2,25 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 name: "Automated Dependency Bump"
+# Updates Cargo.lock and flake.lock every Thursday, in one pull request.
+#
+# GitHub holds every workflow run on a pull request that GITHUB_TOKEN opens or
+# updates until someone with write access approves it, and no setting turns
+# that off. So the branch is pushed and the pull request opened with
+# DEPENDENCY_BUMP_TOKEN when that secret is set: a fine-grained personal access
+# token for this repository alone, with Contents and Pull requests read and
+# write. The pull request then starts CI on its own, and gets the `CI result`
+# check the dev ruleset requires. Without the secret, GITHUB_TOKEN opens it,
+# and its runs wait for "Approve workflows to run" in the merge box.
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * 4'
-# The default token is read-only, which cannot push the update branch, open
-# the pull request or start CI on it.
+# For GITHUB_TOKEN, read-only by default, to push the branch and open the pull
+# request when DEPENDENCY_BUMP_TOKEN is not set.
 permissions:
   contents: write
   pull-requests: write
-  actions: write
 jobs:
   update-and-create-pr:
     runs-on: ubuntu-latest
@@ -19,10 +28,12 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     steps:
+      # The token checkout keeps is the one `git push` uses below.
       - name: "Checkout repository"
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          token: ${{ secrets.DEPENDENCY_BUMP_TOKEN || github.token }}
       - name: "Install Nix"
         uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
         with:
@@ -41,7 +52,7 @@ jobs:
           echo "branch=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
       - name: "Push branch and create Pull Request"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPENDENCY_BUMP_TOKEN || secrets.GITHUB_TOKEN }}
           BRANCH: ${{ steps.run_script.outputs.branch }}
         run: |
           if [ "$(git rev-list --count origin/dev..HEAD)" -eq 0 ]; then
@@ -59,8 +70,3 @@ jobs:
               --base dev \
               --head "$BRANCH"
           fi
-
-          # Events caused by GITHUB_TOKEN do not start other workflows, so the
-          # pull request above gets no CI run of its own. workflow_dispatch is
-          # the exception.
-          gh workflow run ci.yml --ref "$BRANCH"
