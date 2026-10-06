@@ -104,7 +104,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Compress-Archive -Path "target/${{ matrix.target }}/release/lez.exe" -DestinationPath "dist/lez_${{ matrix.target }}.zip"
       - name: Upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.target }}
           path: dist/*
@@ -160,7 +160,7 @@ jobs:
           tar czf "dist/man-${version}.tar.gz" "man-${version}"
           tar czf "dist/completions-${version}.tar.gz" "completions-${version}"
       - name: Upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docs
           path: dist/*
