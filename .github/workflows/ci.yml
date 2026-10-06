@@ -67,8 +67,10 @@ jobs:
               # coverage job runs devtools/coverage.sh.
               - 'powertest.yaml'
               - 'devtools/**'
-              # The lint job checks that the fuzz targets compile.
+              # The lint job checks that the fuzz targets compile, and the
+              # dependency graph against deny.toml.
               - 'fuzz/**'
+              - 'deny.toml'
             nix:
               - 'flake.nix'
               - 'flake.lock'
@@ -100,7 +102,7 @@ jobs:
               - '**/*.toml'
               - '**/*.sh'
   lint-and-format:
-    name: Lint & Format (Rustfmt, Clippy & features)
+    name: Lint & Format (Rustfmt, cargo-deny, Clippy & features)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
@@ -123,6 +125,15 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Check formatting
         run: cargo fmt --all -- --check
+      # The licenses, bans and sources deny.toml allows. They change only
+      # with Cargo.lock or deny.toml, unlike the advisories, which the
+      # Dependency Advisories workflow checks outside this gate.
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+        with:
+          tool: cargo-deny
+      - name: Check licenses, bans and sources
+        run: cargo deny --locked check bans licenses sources
       - name: Run Clippy
         run: cargo clippy --locked --all-targets --features git,inspect-archives -- -D warnings
       # The fuzz targets are a crate of their own, outside the workspace, so
