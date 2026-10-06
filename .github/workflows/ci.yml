@@ -284,13 +284,60 @@ jobs:
           targets: ${{ matrix.target }}
       - name: Add target to active toolchain
         run: rustup target add ${{ matrix.target }}
+      # Shared with Release-mode Tests, which restores it on main.
       - name: Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          key: release-${{ matrix.target }}
+          shared-key: release-${{ matrix.target }}
           save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Build release binary
         run: cargo build --release --locked --target ${{ matrix.target }} --features git,inspect-archives
+  # The suite against the build users get: the release profile's
+  # optimizations and LTO, on the toolchain and target Release Build uses.
+  # Every other run of it is a debug build, where undefined behaviour in the
+  # unsafe code may never show. It takes minutes no pull request into dev
+  # should wait for, so it runs where a release is cut: on main, before the
+  # tag, and on a pull request into it.
+  release-tests:
+    name: Release-mode Tests (${{ matrix.target }})
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - name: Add target to active toolchain
+        run: rustup target add ${{ matrix.target }}
+      # Release Build's cache from dev: the same dependencies, built the same
+      # way. This job never runs on dev, so it never saves one of its own.
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: release-${{ matrix.target }}
+          save-if: false
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+        with:
+          tool: cargo-nextest@0.9.128
+      - name: Install zsh
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q zsh
+      - name: Run all tests
+        run: cargo nextest run --locked --profile ci --release --target ${{ matrix.target }} --all-targets --features git,inspect-archives
   nix-flake-check:
     name: Nix Flake Validation
     needs: changes
@@ -345,6 +392,7 @@ jobs:
       - unit-and-integration-tests
       - code-coverage
       - build-release
+      - release-tests
       - nix-flake-check
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
