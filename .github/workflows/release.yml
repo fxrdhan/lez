@@ -67,8 +67,12 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - name: Add target to active toolchain
-        run: rustup target add ${{ matrix.target }}
+      # rust-toolchain.toml pins the MSRV for every cargo command in the
+      # checkout. The binaries are built with stable, as CI's Release Build
+      # and Release-mode Tests are, and RUSTUP_TOOLCHAIN outranks that file.
+      - name: Use stable
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
       # Saved only by a dry run on dev, which a tag's run restores. A cache
       # saved under a tag, or a pull request's merge ref, serves no other run.
       - name: Rust Cache
@@ -273,6 +277,8 @@ jobs:
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: stable
+      - name: Use stable
+        run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
       - name: Check the package
         if: github.event_name != 'push'
         run: cargo publish --dry-run --locked

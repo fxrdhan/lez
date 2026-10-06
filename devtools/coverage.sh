@@ -70,16 +70,11 @@ case "$ACTION" in
     gate)
         THRESHOLD="${1:-70}"
         echo "==> Verifying code coverage gate (minimum: ${THRESHOLD}%)..."
-        REPORT="$(cargo llvm-cov report)"
-        TOTAL_LINE=$(echo "$REPORT" | grep -E '^TOTAL[[:space:]]+')
-        
-        if [ -z "$TOTAL_LINE" ]; then
-            echo "Error: Could not find TOTAL line in coverage report."
-            exit 1
-        fi
-        
-        # Extract the line coverage percentage (first percentage column)
-        PERCENT=$(echo "$TOTAL_LINE" | awk '{print $4}' | tr -d '%')
+        # The lines total, read by name from the JSON summary. The first
+        # percentage in the text report's TOTAL row, which this used to
+        # read, is the regions total.
+        PERCENT=$(cargo llvm-cov report --json --summary-only | python3 -c \
+            'import json, sys; print(round(json.load(sys.stdin)["data"][0]["totals"]["lines"]["percent"], 2))')
         echo "==> Current Total Line Coverage: ${PERCENT}% (Threshold: ${THRESHOLD}%)"
         
         # Compare using python or awk floating point comparison

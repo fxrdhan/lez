@@ -18,6 +18,12 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: --deny warnings
+  # rust-toolchain.toml pins the MSRV for every cargo command in the
+  # checkout, and left to itself rustup installs it with every component it
+  # lists, an auto-install rustup has deprecated. So each job installs the
+  # toolchain it needs and names it in RUSTUP_TOOLCHAIN, which outranks that
+  # file: the MSRV where it checks the code, stable where it builds what
+  # ships.
   MSRV: "1.90"
 jobs:
   changes:
@@ -56,6 +62,8 @@ jobs:
               - 'docs/**'
               - 'justfile'
               - 'README.md'
+              # The lint job checks that the fuzz targets compile.
+              - 'fuzz/**'
             nix:
               - 'flake.nix'
               - 'flake.lock'
@@ -79,8 +87,15 @@ jobs:
               # The generated suites run against fixtures these scripts make.
               - 'devtools/**'
               - '.github/workflows/ci.yml'
+              # The flake's formatting check runs yamlfmt, taplo and
+              # shellcheck over the whole tree, so any file of theirs counts:
+              # the other workflows, deny.toml, packaging scripts and the like.
+              - '**/*.yml'
+              - '**/*.yaml'
+              - '**/*.toml'
+              - '**/*.sh'
   lint-and-format:
-    name: Lint & Format (Rustfmt & Clippy)
+    name: Lint & Format (Rustfmt, Clippy & features)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
@@ -90,8 +105,10 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
-          toolchain: stable
+          toolchain: ${{ env.MSRV }}
           components: clippy, rustfmt
+      - name: Use the MSRV toolchain
+        run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
       # Every Rust cache is saved from dev alone. A pull request restores
       # dev's, and one it saved under its own merge ref would serve that pull
       # request only, while pushing dev's out of the repository's 10 GB.
@@ -115,43 +132,26 @@ jobs:
         run: |
           cp Cargo.lock fuzz/Cargo.lock
           cargo check --manifest-path fuzz/Cargo.toml --bins --target-dir target
-  feature-combinations:
-    name: Feature Combinations (${{ matrix.label }})
-    needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: none
-            features: ""
-          - label: git
-            features: git
-          - label: inspect-archives
-            features: inspect-archives
-          - label: git+inspect-archives
-            features: git,inspect-archives
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
-        with:
-          toolchain: stable
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: features-${{ matrix.label }}
-          save-if: ${{ github.ref == 'refs/heads/dev' }}
-      # The tests too: a suite that builds its Git or tar fixtures with an
-      # optional crate is gated on that crate's feature, and a packager who
-      # switches a feature off still runs the rest.
+      # Clippy above has checked both features on, which is the default set;
+      # these switch them off. The tests too: a suite that builds its Git or
+      # tar fixtures with an optional crate is gated on that crate's feature,
+      # and a packager who switches a feature off still runs the rest. Each
+      # check takes seconds, less than a job of its own took to set up.
       #
       # RUSTFLAGS carries --deny warnings from the workflow env, so an item
       # left behind by a switched-off feature fails here rather than rotting.
-      - name: Check
-        run: cargo check --locked --all-targets --no-default-features --features "${{ matrix.features }}"
+      - name: Check feature combinations
+        run: |
+          status=0
+          for features in "" git inspect-archives; do
+            echo "::group::--no-default-features --features '${features}'"
+            if ! cargo check --locked --all-targets --no-default-features --features "$features"; then
+              echo "::error::the check failed with --features '${features}'"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
@@ -232,8 +232,10 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
-          toolchain: stable
+          toolchain: ${{ env.MSRV }}
           components: llvm-tools-preview
+      - name: Use the MSRV toolchain
+        run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
       - name: Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -254,6 +256,11 @@ jobs:
         with:
           name: code-coverage-lcov
           path: lcov.info
+      # The floor `just coverage-gate` defaults to. Without one, this job only
+      # ran the Linux suite a second time, under instrumentation, as part of
+      # the gate. After the upload, so a run below the floor keeps its report.
+      - name: Enforce the coverage floor
+        run: bash devtools/coverage.sh gate 70
   # Alongside the tests rather than after them. Waiting on the slowest test
   # row put a Windows release build behind a Windows test run, the longest
   # path through a run; `CI result` waits on both either way.
@@ -282,8 +289,9 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - name: Add target to active toolchain
-        run: rustup target add ${{ matrix.target }}
+      - name: Use stable
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
       # Shared with Release-mode Tests, which restores it on main.
       - name: Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -320,8 +328,9 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - name: Add target to active toolchain
-        run: rustup target add ${{ matrix.target }}
+      - name: Use stable
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
       # Release Build's cache from dev: the same dependencies, built the same
       # way. This job never runs on dev, so it never saves one of its own.
       - name: Rust Cache
@@ -387,7 +396,6 @@ jobs:
     needs:
       - changes
       - lint-and-format
-      - feature-combinations
       - reuse-compliance
       - unit-and-integration-tests
       - code-coverage
