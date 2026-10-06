@@ -259,7 +259,7 @@ To have `ls` run `lez` in bash, zsh or fish, add `alias ls=lez` to your shell's 
 - **-L**, **--level=(depth)**: limit the depth of recursion
 - **-r**, **--reverse**: reverse the sort order
 - **-s**, **--sort=(field)**: which field to sort by; the path field accepts the aliases `relative-path`, `relpath`, and `relative_path` (capitalised variants sort uppercase first)
-- **-t**: sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`)
+- **-t**: sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`). Followed by a time field, as in `-t modified` or `-t=accessed`, it is the short form of `--time` instead, and picks the timestamp field to display
 - **--group-directories-first**: list directories before other files
 - **--group-directories-last**: list directories after other files
 - **--group-dotfiles-first**: list dotfiles before other files, within the directory groups
