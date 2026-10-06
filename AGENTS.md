@@ -53,7 +53,7 @@ Paired flags such as `--binary`/`--bytes` and `--blocks`/`--blocksize` use clap'
 |---|---|---|
 | Entry point | `src/main.rs`, `src/lib.rs`, `src/logger.rs` | Runs the CLI, logging (`LEZ_DEBUG`), signal handling, exit codes. |
 | Options | `src/options/` | Clap parsing, env vars, config discovery (`$LEZ_CONFIG_DIR`, `.lez.toml`), theme YAML, stdin input, option errors. |
-| Filesystem | `src/fs/` | File and directory model, metadata caching with `OnceLock`, traversal, sorting (`natord-plus-plus`), filtering, `.tar` inspection. |
+| Filesystem | `src/fs/` | File and directory model, metadata caching with `OnceLock`, traversal, sorting (`natord-plus-plus`), filtering, `.tar` and `.zip` inspection. |
 | OS features | `src/fs/feature/`, `src/fs/mounts/` | Git status (`git2`), xattrs, mount points, Linux capabilities (`capctl`), Linux file flags, SELinux MCS translation. |
 | File info | `src/info/` | File type classification (`FileType::Data`, `FileType::Image`, and so on). |
 | Output | `src/output/` | Grid, details, tree, lines and JSON renderers, Nerd Font icons, symlink targets, OSC 8 hyperlinks, column formatting. |
@@ -168,10 +168,10 @@ Never panic or `unwrap` on user input or runtime I/O. Option errors go through `
 Cargo features:
 
 - `git` (default): repository status via `git2`.
-- `inspect-archives` (default): listing `.tar` contents.
+- `inspect-archives` (default): listing the contents of `.tar` and `.zip` archives.
 - `vendored-openssl`, `vendored-libgit2`: for static builds.
 
-Build with `--no-default-features` to drop git and tar support.
+Build with `--no-default-features` to drop Git and archive support.
 
 Platform-specific code:
 
