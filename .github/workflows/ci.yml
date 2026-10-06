@@ -80,7 +80,7 @@ jobs:
               - 'devtools/**'
               - '.github/workflows/ci.yml'
   lint-and-format:
-    name: Lint & Format (Rustfmt & Clippy)
+    name: Lint & Format (Rustfmt, Clippy & features)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
@@ -115,43 +115,26 @@ jobs:
         run: |
           cp Cargo.lock fuzz/Cargo.lock
           cargo check --manifest-path fuzz/Cargo.toml --bins --target-dir target
-  feature-combinations:
-    name: Feature Combinations (${{ matrix.label }})
-    needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: none
-            features: ""
-          - label: git
-            features: git
-          - label: inspect-archives
-            features: inspect-archives
-          - label: git+inspect-archives
-            features: git,inspect-archives
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
-        with:
-          toolchain: stable
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: features-${{ matrix.label }}
-          save-if: ${{ github.ref == 'refs/heads/dev' }}
-      # The tests too: a suite that builds its Git or tar fixtures with an
-      # optional crate is gated on that crate's feature, and a packager who
-      # switches a feature off still runs the rest.
+      # Clippy above has checked both features on, which is the default set;
+      # these switch them off. The tests too: a suite that builds its Git or
+      # tar fixtures with an optional crate is gated on that crate's feature,
+      # and a packager who switches a feature off still runs the rest. Each
+      # check takes seconds, less than a job of its own took to set up.
       #
       # RUSTFLAGS carries --deny warnings from the workflow env, so an item
       # left behind by a switched-off feature fails here rather than rotting.
-      - name: Check
-        run: cargo check --locked --all-targets --no-default-features --features "${{ matrix.features }}"
+      - name: Check feature combinations
+        run: |
+          status=0
+          for features in "" git inspect-archives; do
+            echo "::group::--no-default-features --features '${features}'"
+            if ! cargo check --locked --all-targets --no-default-features --features "$features"; then
+              echo "::error::the check failed with --features '${features}'"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
@@ -387,7 +370,6 @@ jobs:
     needs:
       - changes
       - lint-and-format
-      - feature-combinations
       - reuse-compliance
       - unit-and-integration-tests
       - code-coverage
