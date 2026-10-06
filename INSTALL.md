@@ -32,6 +32,46 @@ Download and install the latest prebuilt binary to `~/.local/bin` in one step:
 curl -fsSL https://raw.githubusercontent.com/fxrdhan/lez/main/packaging/install.sh | bash
 ```
 
+It covers the platforms with a prebuilt binary: Linux on x86_64, and macOS on
+Apple silicon and Intel. To install somewhere else, set `INSTALL_DIR`, as in
+`curl ... | INSTALL_DIR="$HOME/bin" bash`.
+
+### Prebuilt Binaries
+
+Every [release](https://github.com/fxrdhan/lez/releases/latest) carries a build
+for each of these platforms, with their SHA-256 checksums in its notes:
+
+| Platform | File |
+| --- | --- |
+| Linux, x86_64 | `lez_x86_64-unknown-linux-gnu.tar.gz` |
+| Debian and Ubuntu, x86_64 | `lez_<version>-1_amd64.deb` |
+| macOS, Apple silicon | `lez_aarch64-apple-darwin.tar.gz` |
+| macOS, Intel | `lez_x86_64-apple-darwin.tar.gz` |
+| Windows, x86_64 | `lez_x86_64-pc-windows-msvc.zip` |
+| Windows, ARM64 | `lez_aarch64-pc-windows-msvc.zip` |
+
+Each archive holds the `lez` binary (`lez.exe` on Windows), to put in a
+directory on your `PATH`. The `.deb` also installs the man pages and the bash,
+zsh and fish completions:
+
+```bash
+sudo apt install ./lez_<version>-1_amd64.deb
+```
+
+The man pages and the completions for every shell are attached to each release
+as well, as `man-v<version>.tar.gz` and `completions-v<version>.tar.gz`.
+
+### Windows
+
+Download `lez_x86_64-pc-windows-msvc.zip`, or `lez_aarch64-pc-windows-msvc.zip`
+on ARM, from the [latest release](https://github.com/fxrdhan/lez/releases/latest).
+Extract `lez.exe` into a folder of your choice and add that folder to your
+`PATH`.
+
+`cargo install lez` builds it on Windows too, with the Visual Studio C++ build
+tools that Rust's MSVC toolchain needs. By default lez reads its configuration
+from `%APPDATA%\lez`. For PowerShell completions, see [PowerShell](#powershell).
+
 ### Cargo / crates.io
 
 Install `lez` from crates.io:
@@ -115,8 +155,10 @@ recipe builds them and `just mangen` writes them into the target directory.
 
 ### Completions
 
-Shell completions live in [`completions/`](completions/) and are installed for
-you by the Nix package. For a Cargo or manual install, wire them up yourself.
+Shell completions live in [`completions/`](completions/), and each release
+attaches them as `completions-v<version>.tar.gz`. Homebrew, the `.deb` and the
+Nix package install the bash, zsh and fish ones for you. For any other install,
+and for nushell and PowerShell, wire them up yourself.
 
 #### zsh
 
@@ -142,6 +184,27 @@ sudo install -m 644 completions/bash/lez /usr/share/bash-completion/completions/
 
 ```sh
 install -m 644 completions/fish/lez.fish ~/.config/fish/completions/lez.fish
+```
+
+#### nushell
+
+Add this line to your `config.nu`, replacing `<path_to_lez>` with wherever the
+file is:
+
+```nu
+source <path_to_lez>/completions/nush/lez.nu
+```
+
+Or copy `lez.nu` into one of the directories in `$nu.user-autoload-dirs`, whose
+files nushell loads at startup.
+
+#### PowerShell
+
+Add this line to your profile (the file `$PROFILE` names), replacing
+`<path_to_lez>` with wherever the file is:
+
+```powershell
+. <path_to_lez>\completions\pwsh\_lez.ps1
 ```
 
 #### zsh with homebrew
