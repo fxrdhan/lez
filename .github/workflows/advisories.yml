@@ -6,8 +6,9 @@ name: Dependency Advisories
 #
 # Not part of `CI result`: an advisory published today would otherwise turn
 # every pull request red, whatever it changes. It runs when the dependencies
-# change, on every push to main and dev, and weekly, for advisories published
-# against what is already locked.
+# or deny.toml, which can ignore an advisory, change; on every push to main
+# and dev; and weekly, for advisories published against what is already
+# locked.
 on:
   push:
     branches: [main, dev]
@@ -16,6 +17,7 @@ on:
     paths:
       - Cargo.toml
       - Cargo.lock
+      - deny.toml
       - .github/workflows/advisories.yml
   schedule:
     # Tuesdays 06:00 UTC, after the Thursday dependency bump and the

@@ -40,7 +40,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Classify changed files
-        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -62,8 +62,15 @@ jobs:
               - 'docs/**'
               - 'justfile'
               - 'README.md'
-              # The lint job checks that the fuzz targets compile.
+              # powertest_config reads powertest.yaml and
+              # devtools/generate-trycmd-test.sh from disk too, and the
+              # coverage job runs devtools/coverage.sh.
+              - 'powertest.yaml'
+              - 'devtools/**'
+              # The lint job checks that the fuzz targets compile, and the
+              # dependency graph against deny.toml.
               - 'fuzz/**'
+              - 'deny.toml'
             nix:
               - 'flake.nix'
               - 'flake.lock'
@@ -95,7 +102,7 @@ jobs:
               - '**/*.toml'
               - '**/*.sh'
   lint-and-format:
-    name: Lint & Format (Rustfmt, Clippy & features)
+    name: Lint & Format (Rustfmt, cargo-deny, Clippy & features)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
@@ -118,6 +125,15 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Check formatting
         run: cargo fmt --all -- --check
+      # The licenses, bans and sources deny.toml allows. They change only
+      # with Cargo.lock or deny.toml, unlike the advisories, which the
+      # Dependency Advisories workflow checks outside this gate.
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+        with:
+          tool: cargo-deny
+      - name: Check licenses, bans and sources
+        run: cargo deny --locked check bans licenses sources
       - name: Run Clippy
         run: cargo clippy --locked --all-targets --features git,inspect-archives -- -D warnings
       # The fuzz targets are a crate of their own, outside the workspace, so
@@ -176,6 +192,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         rust: [stable, msrv]
+        # The coverage job runs the suite on Linux with the MSRV, so a row
+        # of its own here only ran it a second time.
+        exclude:
+          - os: ubuntu-latest
+            rust: msrv
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -222,7 +243,7 @@ jobs:
       - name: Run doc tests
         run: cargo test --locked --doc --features git,inspect-archives
   code-coverage:
-    name: Code Coverage (LLVM-Cov)
+    name: Code Coverage (ubuntu-latest - Rust msrv)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
@@ -247,18 +268,23 @@ jobs:
           tool: cargo-llvm-cov,cargo-nextest@0.9.128
       - name: Install zsh
         run: sudo apt-get update -q && sudo apt-get install -y -q zsh
+      # This is the Linux MSRV test row too, so it runs what the rows run:
+      # every target, under nextest's ci profile, which NEXTEST_PROFILE names
+      # because `--profile` here could be taken for Cargo's. The doc tests
+      # run on the other MSRV rows and on Linux with stable.
       - name: Generate Code Coverage Report & Summary
+        env:
+          NEXTEST_PROFILE: ci
         run: |
-          cargo llvm-cov nextest --locked --features git,inspect-archives --workspace --lcov --output-path lcov.info
+          cargo llvm-cov nextest --locked --all-targets --features git,inspect-archives --workspace --lcov --output-path lcov.info
           bash devtools/coverage.sh summary
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-lcov
           path: lcov.info
-      # The floor `just coverage-gate` defaults to. Without one, this job only
-      # ran the Linux suite a second time, under instrumentation, as part of
-      # the gate. After the upload, so a run below the floor keeps its report.
+      # The floor `just coverage-gate` defaults to. After the upload, so a run
+      # below the floor keeps its report.
       - name: Enforce the coverage floor
         run: bash devtools/coverage.sh gate 70
   # Alongside the tests rather than after them. Waiting on the slowest test
