@@ -62,6 +62,11 @@ jobs:
               - 'docs/**'
               - 'justfile'
               - 'README.md'
+              # powertest_config reads powertest.yaml and
+              # devtools/generate-trycmd-test.sh from disk too, and the
+              # coverage job runs devtools/coverage.sh.
+              - 'powertest.yaml'
+              - 'devtools/**'
               # The lint job checks that the fuzz targets compile.
               - 'fuzz/**'
             nix:
