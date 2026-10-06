@@ -9,6 +9,8 @@
 //! same branches the listing itself runs, so an explanation cannot drift
 //! from what a listing prints. What is added here is only the detail of a
 //! branch: which glob, which theme entry, which built-in file type.
+//!
+//! [`FileName::name_colour`]: crate::output::file_name::FileName::name_colour
 
 use std::io::{self, Write};
 
