@@ -452,6 +452,8 @@ Full styling details are available in the [lez_colors-explanation(5) man page](m
 If you want to contribute to `lez`, please check out our:
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+- [AGENTS.md](AGENTS.md) for the architecture, the source layout, the conventions, and the steps for adding a flag, an environment variable, an icon or a language.
+- [TESTING.md](TESTING.md) for running and updating the tests.
 
 ---
 
