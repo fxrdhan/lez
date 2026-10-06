@@ -18,6 +18,12 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: --deny warnings
+  # rust-toolchain.toml pins the MSRV for every cargo command in the
+  # checkout, and left to itself rustup installs it with every component it
+  # lists, an auto-install rustup has deprecated. So each job installs the
+  # toolchain it needs and names it in RUSTUP_TOOLCHAIN, which outranks that
+  # file: the MSRV where it checks the code, stable where it builds what
+  # ships.
   MSRV: "1.90"
 jobs:
   changes:
@@ -90,8 +96,10 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
-          toolchain: stable
+          toolchain: ${{ env.MSRV }}
           components: clippy, rustfmt
+      - name: Use the MSRV toolchain
+        run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
       # Every Rust cache is saved from dev alone. A pull request restores
       # dev's, and one it saved under its own merge ref would serve that pull
       # request only, while pushing dev's out of the repository's 10 GB.
@@ -215,8 +223,10 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
-          toolchain: stable
+          toolchain: ${{ env.MSRV }}
           components: llvm-tools-preview
+      - name: Use the MSRV toolchain
+        run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
       - name: Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -265,8 +275,9 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - name: Add target to active toolchain
-        run: rustup target add ${{ matrix.target }}
+      - name: Use stable
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
       # Shared with Release-mode Tests, which restores it on main.
       - name: Rust Cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -303,8 +314,9 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - name: Add target to active toolchain
-        run: rustup target add ${{ matrix.target }}
+      - name: Use stable
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
       # Release Build's cache from dev: the same dependencies, built the same
       # way. This job never runs on dev, so it never saves one of its own.
       - name: Rust Cache
