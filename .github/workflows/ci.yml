@@ -62,6 +62,8 @@ jobs:
               - 'docs/**'
               - 'justfile'
               - 'README.md'
+              # The lint job checks that the fuzz targets compile.
+              - 'fuzz/**'
             nix:
               - 'flake.nix'
               - 'flake.lock'
@@ -85,6 +87,13 @@ jobs:
               # The generated suites run against fixtures these scripts make.
               - 'devtools/**'
               - '.github/workflows/ci.yml'
+              # The flake's formatting check runs yamlfmt, taplo and
+              # shellcheck over the whole tree, so any file of theirs counts:
+              # the other workflows, deny.toml, packaging scripts and the like.
+              - '**/*.yml'
+              - '**/*.yaml'
+              - '**/*.toml'
+              - '**/*.sh'
   lint-and-format:
     name: Lint & Format (Rustfmt, Clippy & features)
     needs: changes
