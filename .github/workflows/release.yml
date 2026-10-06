@@ -8,7 +8,8 @@
 # The justfile's `cross` recipe builds seven targets through Docker instead,
 # in containers on the maintainer's machine. This does not.
 #
-# The release is published as soon as every binary is built. Its notes are
+# The release is published once every binary is built and CI has passed on
+# main for the tagged commit, release-mode tests included. Its notes are
 # the version's section of CHANGELOG.md, the one written by hand: the commit
 # titles git-cliff would list say little once a pull request is squashed.
 #
@@ -160,9 +161,41 @@ jobs:
           name: docs
           path: dist/*
           if-no-files-found: error
+  # A tag publishes nothing CI has not passed on main: the release-mode tests
+  # run there alone, and pushing a tag waits for nothing. The binaries build
+  # meanwhile, so this costs only whatever time CI has left to run.
+  ci-on-main:
+    name: CI passed on main
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Wait for CI on main to pass for the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # main and the tag may be pushed together, so the run can still be
+          # on its way.
+          run=""
+          for _ in $(seq 1 20); do
+            run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
+              --branch main --commit "$GITHUB_SHA" --limit 1 \
+              --json databaseId --jq '.[0].databaseId // empty' || true)
+            [ -n "$run" ] && break
+            sleep 15
+          done
+          if [ -z "$run" ]; then
+            echo "::error::CI never ran on main for ${GITHUB_SHA}. Push the commit to main, then tag it."
+            exit 1
+          fi
+          if ! gh run watch "$run" --repo "$GITHUB_REPOSITORY" --exit-status --compact --interval 30; then
+            echo "::error::CI failed on main for ${GITHUB_SHA}, so nothing is published."
+            exit 1
+          fi
   publish:
     name: Publish the release
-    needs: [binaries, docs, notes]
+    needs: [binaries, docs, notes, ci-on-main]
     # Only a pushed tag publishes; run by hand, even on a tag, it is a dry run.
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
