@@ -32,9 +32,11 @@ Download and install the latest prebuilt binary to `~/.local/bin` in one step:
 curl -fsSL https://raw.githubusercontent.com/fxrdhan/lez/main/packaging/install.sh | bash
 ```
 
-It covers the platforms with a prebuilt binary: Linux on x86_64, and macOS on
-Apple silicon and Intel. To install somewhere else, set `INSTALL_DIR`, as in
-`curl ... | INSTALL_DIR="$HOME/bin" bash`.
+It downloads the release's prebuilt binary for Linux on x86_64 and for macOS on
+Apple silicon and Intel; to put it somewhere else, set `INSTALL_DIR`, as in
+`curl ... | INSTALL_DIR="$HOME/bin" bash`. Elsewhere, such as on Linux on
+ARM64, it builds the same release with Cargo if Cargo is installed, which puts
+`lez` in `~/.cargo/bin`.
 
 ### Prebuilt Binaries
 

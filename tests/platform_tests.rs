@@ -5,6 +5,8 @@
 
 mod common;
 
+#[path = "platform/install_script.rs"]
+mod install_script;
 #[path = "platform/portable_windows_invariants.rs"]
 mod portable_windows_invariants;
 #[path = "platform/windows_paths.rs"]
