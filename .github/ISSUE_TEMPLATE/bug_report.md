@@ -1,19 +1,19 @@
 ---
 name: Bug report
-about: Report a crash, runtime error, or invalid output in eza
+about: Report a crash, runtime error, or invalid output in lez
 title: 'bug: '
-labels: 'type: bug'
+labels: 'bug'
 assignees: ''
 
 ---
 
-If eza does something unexpected, or its output looks wrong, or it displays an error on the screen, or if it outright crashes, then please include the following information in your report:
+If lez does something unexpected, or its output looks wrong, or it displays an error on the screen, or if it outright crashes, then please include the following information in your report:
 
-- The version of eza being used (`eza --version`)
+- The version of lez being used (`lez --version`)
 - The command-line arguments you are using
 - Your shell and terminal
 - Your operating system and hardware platform
 
-If it’s a crash, please include the full text of the crash that gets printed to the screen. If you’re seeing unexpected behaviour, a screenshot of the issue will help a lot.
+If it’s a crash, please include the full text of the crash that gets printed to the screen. If you’re seeing unexpected behaviour, a screenshot of the issue will help a lot. Running the command again with `LEZ_DEBUG=1` set logs what lez is doing to standard error, which often shows where it goes wrong.
 
 ---

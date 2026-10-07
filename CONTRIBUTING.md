@@ -16,6 +16,9 @@ sure to familiarize yourself with first.
 - Requirement of conformance to [Semantic Versioning](https://semver.org/)
 - The [Security Policy](SECURITY.md)
 - [Free and Open Source (FOSS) software](https://www.gnu.org/philosophy/free-sw.en.html)
+- [AGENTS.md](AGENTS.md), which maps the architecture and source layout, sets
+  out the conventions, and gives the steps for adding a flag, an environment
+  variable, an icon or a language
 
 ## Hacking on lez
 
@@ -50,7 +53,9 @@ Some useful commands include:
 - `nix build .#clippy`: runs clippy on lez
 - `nix fmt`: automatically formats your code as required by flake checks and
   pre-commit-hooks.nix
-- `just itest`: runs integration tests
+- `just test`: runs the whole suite, `cargo nextest run --workspace` and then
+  `cargo test --doc`
+- `just itest`: runs the trycmd snapshot tests in the Nix sandbox
 
 **For non-nix users,**
 There are traditional `pre-commit` hooks, which you can install with your system package manager or
@@ -87,11 +92,16 @@ Please make sure that the thing you worked on... actually works. Make sure to
 also add how you ensured this in the PR description. Further, it's expected
 that you do your best to check for regressions.
 
-If your PR introduces a flag, you MUST:
-- Add completions for bash, zsh, fish, nushell, and powershell
+If your PR introduces a flag, you MUST follow the steps in
+[AGENTS.md](AGENTS.md#a-cli-flag). Among them:
+- Add completions for bash, zsh, fish, nushell, and powershell, then
+  regenerate their `eza` copies
 - Add documentation to the man page
 - Add your option to the help flag
 - Add your option to the README.md
+- If it can be set from the configuration file, handle it in
+  `src/options/file_config.rs` and add it to `docs/config.example.toml`
+- Add integration tests under the matching domain in `tests/`
 
 Before submitting, you SHOULD have run `nix flake check` and ensured that all
 issues are addressed. For formatting issues, `nix fmt` will format the code for
@@ -107,7 +117,7 @@ Here are the absolute basics:
 - your commit summary MUST follow conventional commits.
 - your commits SHOULD be separated into small, logical chunks.
 - reviewers may ask you to rebase your commits into more sensible chunks.
-- your PR will need to pass CI and local `cargo test`.
+- your PR will need to pass CI and `just test` locally.
 - you may be asked to refactor parts of your code by reviewers.
 
 Remember that no one here is an employee, and treat everyone with respect, as

@@ -147,3 +147,94 @@ fn every_flag_is_documented() {
         assert!(missing.is_empty(), "{page} does not document {missing:?}");
     }
 }
+
+/// The text of the `lez(1)` section headed `title`, up to the next heading.
+fn man_section(page: &str, title: &str) -> String {
+    let lines: Vec<&str> = page.lines().collect();
+    let heading_at = |i: usize| {
+        lines
+            .get(i + 1)
+            .is_some_and(|line| !line.is_empty() && line.chars().all(|c| c == '='))
+    };
+    let start = (0..lines.len())
+        .find(|&i| lines[i] == title && heading_at(i))
+        .unwrap_or_else(|| panic!("man/lez.1.md has no {title} section"));
+    let end = (start + 2..lines.len())
+        .find(|&i| heading_at(i))
+        .unwrap_or(lines.len());
+    lines[start..end].join("\n")
+}
+
+/// Every key `--json` writes is described under JSON OUTPUT in `lez(1)`:
+/// the keys that shape a recursive listing, a link's target, and the long
+/// view's column headers, which name a file's fields. The match stops
+/// compiling when a column is added, until it is listed here too.
+#[test]
+fn every_json_key_is_documented() {
+    use lez::options::parser::CodeContent;
+    use lez::output::table::{Column, TimeType};
+
+    #[allow(unused_mut)]
+    let mut columns = vec![
+        Column::Permissions,
+        Column::FileSize,
+        Column::Language,
+        Column::Loc(CodeContent::Lines),
+        Column::Loc(CodeContent::Percent),
+        Column::Loc(CodeContent::Both),
+        Column::Timestamp(TimeType::Modified),
+        Column::Timestamp(TimeType::Changed),
+        Column::Timestamp(TimeType::Accessed),
+        Column::Timestamp(TimeType::Created),
+        Column::GitStatus,
+        Column::SubdirGitRepo(true),
+        Column::SubdirGitRepo(false),
+        Column::SecurityContext,
+        Column::FileFlags,
+    ];
+    #[cfg(unix)]
+    columns.extend([
+        Column::Blocksize,
+        Column::Blocks,
+        Column::User,
+        Column::Group,
+        Column::HardLinks,
+        Column::Inode,
+        Column::Octal,
+    ]);
+    for column in &columns {
+        match column {
+            Column::Permissions
+            | Column::FileSize
+            | Column::Language
+            | Column::Loc(CodeContent::Lines | CodeContent::Percent | CodeContent::Both)
+            | Column::Timestamp(
+                TimeType::Modified | TimeType::Changed | TimeType::Accessed | TimeType::Created,
+            )
+            | Column::GitStatus
+            | Column::SubdirGitRepo(_)
+            | Column::SecurityContext
+            | Column::FileFlags => {}
+            #[cfg(unix)]
+            Column::Blocksize
+            | Column::Blocks
+            | Column::User
+            | Column::Group
+            | Column::HardLinks
+            | Column::Inode
+            | Column::Octal => {}
+        }
+    }
+
+    let section = man_section(&workspace_file("man/lez.1.md"), "JSON OUTPUT");
+    let missing: Vec<&str> = columns
+        .iter()
+        .map(|column| column.header())
+        .chain(["files", "directories", "Target"])
+        .filter(|key| !section.contains(&format!("`\"{key}\"`")))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "JSON OUTPUT does not document {missing:?}"
+    );
+}

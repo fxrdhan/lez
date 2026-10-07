@@ -12,6 +12,10 @@ SPDX-License-Identifier: EUPL-1.2
 **Scope**: All 6 Core Architectural Subsystems (CLI Options, Filesystem Traversal, Git Integration, LOC Engine, Output Rendering & ANSI Safety, Platform Abstractions & JSON)  
 **Audit Status**: **Complete — 14 Confirmed Defects (0 False Positives)**
 
+> **Resolution**: All 14 defects were fixed in v0.28.4 ([#131](https://github.com/fxrdhan/lez/pull/131), [#132](https://github.com/fxrdhan/lez/pull/132), [#133](https://github.com/fxrdhan/lez/pull/133)). `tests/adversarial/bug_remediations.rs` pins each fix, apart from Bug 7, which `tests/git/submodules.rs` covers. The report describes v0.28.3, so its line numbers, excerpts and remediation diffs show the code as it was then, not as it is now.
+>
+> **Correction**: The list of long-view options under Bug 6 named `--security-context`, `--permission-format` and `--case-sensitive`, which lez does not have (`security-context` is the internal name of `--context`). They have been removed from it.
+
 ---
 
 ## 1. Executive Summary
@@ -397,7 +401,7 @@ A total of **14 non-trivial defects** were discovered, empirically verified, and
       }
   }
   ```
-  Over time, new long-view options were added to `lez` (`--git-repos`, `--git-repos-no-status`, `--git-glyphs`, `--octal-permissions`, `--no-permissions`, `--total-size`, `--flags`, `--context`, `--security-context`, `--extended`, `--no-extended`, `--smart-group`, `--size-digits`, `--permission-format`, `--case-sensitive`), but none were added to `strict_check_long_flags`. Consequently, passing these flags in grid or line mode without `-l` is silently ignored under `LEZ_STRICT=1`.
+  Over time, new long-view options were added to `lez` (`--git-repos`, `--git-repos-no-status`, `--git-glyphs`, `--octal-permissions`, `--no-permissions`, `--total-size`, `--flags`, `--context`, `--extended`, `--no-extended`, `--smart-group`, `--size-digits`), but none were added to `strict_check_long_flags`. Consequently, passing these flags in grid or line mode without `-l` is silently ignored under `LEZ_STRICT=1`.
 - **Deterministic Reproduction Steps & PoC**:
   ```bash
   # Legacy flags trigger error as expected:

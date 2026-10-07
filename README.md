@@ -30,7 +30,7 @@ SPDX-License-Identifier: EUPL-1.2
 - **Rich Visuals:** Colors by file type, colored CLI help output, Nerd Font icons, and automatic luminance color scaling.
 - **Git Integration:** View file and repo status (`M`odified, `U`ntracked, `I`gnored, etc.) directly in the file listing.
 - **Built-in Tree View:** Hierarchical directory tree out of the box (`lez --tree`).
-- **Structured Data Export:** Full metadata serialization via `--json` in complete parity with the long view.
+- **Structured Data Export:** `--json` writes the listing, and with `-l` every long-view column, as JSON for scripts.
 - **Archive Inspection:** Inspect files inside `.tar` and `.zip` archives directly in the long view (`lez -l --inspect-archives`).
 - **Lines-of-Code Counter:** Comment-aware LOC breakdowns for 100+ programming languages (`lez --code`).
 - **Deep OS Integration:** Native macOS Finder color tags, Linux capability decoding (`security.capability`), and Windows `PATHEXT` executables.
@@ -187,6 +187,25 @@ nix run github:fxrdhan/lez
 
 ---
 
+# Quick start
+
+`lez` takes the place of `ls`. A few everyday commands:
+
+```bash
+lez                     # the current directory, as a grid
+lez -la                 # the long view, hidden files included
+lez -lt                 # the long view, newest first, as `ls -lt` does
+lez -l --git            # the long view, with each file's Git status
+lez -T -L2              # a tree, two levels deep
+lez -l --sort=size -r   # the long view, largest first
+lez --icons             # icons beside the names (needs a Nerd Font)
+lez --code              # lines of code per language, across the tree
+```
+
+To have `ls` run `lez` in bash, zsh or fish, add `alias ls=lez` to your shell's startup file. Every option is listed below, and in the `lez(1)` man page (`man lez`).
+
+---
+
 <a id="options">
 <h1>Command-line options</h1>
 </a>
@@ -205,7 +224,7 @@ nix run github:fxrdhan/lez
 - **-T**, **--tree**: recurse into directories as a tree
 - **--follow-symlinks**: drill down into symbolic links that point to directories
 - **--code[=MODE]**: print lines-of-code summary by language (modes: `lines`, `percent`, `both`)
-- **--json**: output file listing and metadata as structured JSON
+- **--json**: output file listing and metadata as structured JSON (the format is described under JSON OUTPUT in the [_`lez(1)` manual page_](man/lez.1.md))
 - **--explain**: list each entry with the rule that chose the color of its name (a glob in `LS_COLORS` or `LEZ_COLORS`, a theme entry, a built-in file type, `di`, `ex`...) and the one that chose its icon
 - **-x**, **--across**: sort the grid across, rather than downwards
 - **-F**, **--classify[=(when)]**: display type indicator by file names (always, auto, never)
@@ -213,7 +232,7 @@ nix run github:fxrdhan/lez
 - **--color-scale=(fields)**, **--colour-scale=(fields)**: highlight levels of `fields` distinctly (all, age, size)
 - **--color-scale-mode=(mode)**, **--colour-scale-mode=(mode)**: use gradient or fixed colors in `--color-scale` (`fixed` or `gradient`)
 - **--theme=(name)**: use the theme `name` from the `themes` folder of the configuration directory instead of `theme.yml` (also `LEZ_THEME`, or `name` under `[theme]` in the configuration file)
-- **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided)
+- **--icons[=(when)]**: when to display icons (always, auto, never; requires '=' if value provided). The icons are Nerd Font glyphs, so the terminal has to use a [Nerd Font](https://www.nerdfonts.com/); with any other font they show as boxes or question marks
 - **--spacing=(spaces)**: number of spaces between columns (default: 2 in the grid views, 1 in the long view; at most 1000)
 - **--no-symlink-targets**: do not show symlink targets (the `-> ...`)
 - **--quotes=(when)**: when to quote file names (always, auto, never; requires '=' if value provided)
@@ -240,7 +259,7 @@ nix run github:fxrdhan/lez
 - **-L**, **--level=(depth)**: limit the depth of recursion
 - **-r**, **--reverse**: reverse the sort order
 - **-s**, **--sort=(field)**: which field to sort by; the path field accepts the aliases `relative-path`, `relpath`, and `relative_path` (capitalised variants sort uppercase first)
-- **-t**: sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`)
+- **-t**: sort by modification time, newest first (GNU `ls` compatibility; shorthand for `--sort=age`). Followed by a time field, as in `-t modified` or `-t=accessed`, it is the short form of `--time` instead, and picks the timestamp field to display
 - **--group-directories-first**: list directories before other files
 - **--group-directories-last**: list directories after other files
 - **--group-dotfiles-first**: list dotfiles before other files, within the directory groups
@@ -433,6 +452,8 @@ Full styling details are available in the [lez_colors-explanation(5) man page](m
 If you want to contribute to `lez`, please check out our:
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+- [AGENTS.md](AGENTS.md) for the architecture, the source layout, the conventions, and the steps for adding a flag, an environment variable, an icon or a language.
+- [TESTING.md](TESTING.md) for running and updating the tests.
 
 ---
 

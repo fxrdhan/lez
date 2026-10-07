@@ -136,6 +136,13 @@ jobs:
         run: cargo deny --locked check bans licenses sources
       - name: Run Clippy
         run: cargo clippy --locked --all-targets --features git,inspect-archives -- -D warnings
+      # A broken intra-doc link, a link to a private item and a bare URL are
+      # rustdoc warnings, which RUSTFLAGS does not reach, so the API
+      # documentation is built with a flag of its own.
+      - name: Check the API documentation
+        env:
+          RUSTDOCFLAGS: --deny warnings
+        run: cargo doc --locked --no-deps --features git,inspect-archives
       # The fuzz targets are a crate of their own, outside the workspace, so
       # nothing above compiles them, and the Fuzz Canary runs only on pull
       # requests and pushes to main and dev. A change to an API they call

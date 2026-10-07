@@ -1121,7 +1121,7 @@ pub enum GitIgnore {
 }
 
 /// Whether to ignore directories that contain a `CACHEDIR.TAG` file with the
-/// correct signature, as defined by https://bford.info/cachedir/.
+/// correct signature, as defined by <https://bford.info/cachedir/>.
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum IgnoreCacheDir {
     CheckAndIgnore,

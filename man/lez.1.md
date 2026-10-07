@@ -115,7 +115,7 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 : It takes the place of every layout: `--long`, `--tree`, `--grid`, `--oneline` and `--json` given beside it change nothing, and strict mode refuses them. There is no JSON summary.
 
 `--json`
-: Output file listing and metadata as structured JSON for easy parsing and scripting.
+: Output file listing and metadata as structured JSON for easy parsing and scripting. With `--long`, each file's columns become its fields. See **JSON OUTPUT** below for the format.
 
 `--explain`
 : List each entry with the rule that chose the color of its name and the one that chose its icon: a glob, named with the variable it was given in, an entry of the theme file, a built-in file type, or a file kind such as `di` or `ex`, each with the codes it gives. The colors are worked out as a terminal would get them, even when the output is not one; `--color=never` and `NO_COLOR` still turn them off. It takes the place of every layout, and strict mode refuses one beside it. See **lez_colors**(5) for the rules and their order.
@@ -156,6 +156,7 @@ The size gradient runs over orders of magnitude rather than bytes, so a single l
 
 Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), and ‘`never`’.
 When used without a value, defaults to ‘`automatic`’. Note: when providing an explicit value, an equals sign is required (`--icons=WHEN`).
+The icons are Nerd Font glyphs, so the terminal has to use a Nerd Font (`https://www.nerdfonts.com`); with any other font they show as boxes or question marks.
 
 `automatic` or `auto` will display icons only when the standard output is connected to a real terminal; when it is redirected to a file or piped into another program, they are not used. Setting this option to ‘`always`’ causes `lez` to always display icons, while ‘`never`’ disables the use of icons.
 
@@ -588,6 +589,63 @@ Configuration is evaluated in the following precedence order:
 A file named by `--config` or `LEZ_CONFIG_FILE` is loaded instead of both discovered files. Passing `--no-config` disables loading both global and per-directory configuration files.
 
 For full schema and example configuration options, refer to `docs/config.example.toml`.
+
+
+JSON OUTPUT
+===========
+
+`--json` prints the listing as one JSON document, ended by a newline. Its shape follows what is listed:
+
+One directory, or files named on the command line
+: Without `--long`, an array of the file names, such as `["Cargo.toml","src"]`. With `--long`, an object that maps each name to an object of that file's fields, such as `{"Cargo.toml":{"Permissions":".rw-r--r--","Size":"4.8k","User":"root","Date Modified":"6 Oct 22:16"}}`. When two of the files share a name, their paths are the keys instead.
+
+Several directories
+: An object that maps each directory, as it was given, to its listing.
+
+Files and directories together
+: An object with the files under `"files"` and the directories under `"directories"`.
+
+`--recurse` or `--tree`
+: An object that maps each directory to an object with its files under `"files"` and its subdirectories, each in the same shape, under `"directories"`. The directories at the depth where `--level` stops are listed with the files.
+
+A field holds what the long view prints in a column, as a string, so the options that shape the long view shape it too: `--bytes` and `--binary` the size, `--time-style` and `--utc` the timestamps, and `--numeric` the user and group. A field the long view leaves empty, such as the size of a directory, is left out. What the long view prints under or beside a name, such as extended attributes, mount details or the files in an archive, is not part of the document.
+
+The fields are named after the columns, and the options that add a column add its field:
+
+`"Permissions"`
+: The file type and permissions. It is named `"Mode"` on Windows, and `--no-permissions` leaves it out.
+
+`"Octal"`
+: The permissions in octal, with `--octal-permissions`.
+
+`"Size"`
+: The size, unless `--no-filesize` is given.
+
+`"Blocksize"`, `"Blocks"`
+: The allocated size, in bytes with `--blocksize` or in blocks with `--blocks`.
+
+`"User"`, `"Group"`
+: The owner, unless `--no-user` is given, and the group, with `--group` or `--smart-group`.
+
+`"Links"`, `"inode"`
+: The number of hard links, with `--links`, and the inode number, with `--inode`.
+
+`"Date Modified"`, `"Date Changed"`, `"Date Accessed"`, `"Date Created"`
+: The timestamps chosen with `--modified`, `--changed`, `--accessed`, `--created` or `--time`. Without any of them the modified time is shown, unless `--no-time` is given.
+
+`"Git"`, `"Git Repo"`
+: The Git status of a file, with `--git`, and of the repository a directory holds, with `--git-repos` or `--git-repos-no-status`.
+
+`"Security Context"`, `"Flags"`
+: The security context, with `--context`, and the file flags, with `--flags`.
+
+`"Language"`, `"Code"`, `"Code %"`
+: With `--loc`, the language, unless `--no-language` is given, and the lines of code as a count, a share of the listing's total, or both.
+
+`"Target"`
+: Where a symbolic link points, unless `--no-symlink-targets` is given.
+
+Later versions may add fields, so a program that reads the document should pass over those it does not know.
 
 
 EXIT STATUSES

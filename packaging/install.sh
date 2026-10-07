@@ -29,7 +29,8 @@ esac
 TARGET="${ARCH_TARGET}-${PLATFORM}"
 
 echo "==> Fetching latest release for ${TARGET}..."
-LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || echo "")
+RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" || echo "")
+LATEST_TAG=$(grep '"tag_name":' <<< "${RELEASE_JSON}" | sed -E 's/.*"([^"]+)".*/\1/' || echo "")
 
 if [ -z "${LATEST_TAG}" ]; then
     # Fallback to Cargo if no releases found yet
@@ -46,6 +47,22 @@ fi
 
 ARCHIVE_NAME="lez_${TARGET}.${EXT}"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${ARCHIVE_NAME}"
+
+# A release carries prebuilt binaries for some targets only (see INSTALL.md);
+# Linux on ARM64, for one, has none. Build the release's tag with Cargo there,
+# rather than fail on a download that is not there.
+if ! grep -qF "\"${DOWNLOAD_URL}\"" <<< "${RELEASE_JSON}"; then
+    if command -v cargo >/dev/null 2>&1; then
+        echo "==> ${LATEST_TAG} has no prebuilt binary for ${TARGET}, building it via cargo install..."
+        cargo install --git "https://github.com/${REPO}.git" --tag "${LATEST_TAG}" --locked
+        echo "==> Successfully installed lez via cargo!"
+        exit 0
+    fi
+    echo "Error: ${LATEST_TAG} has no prebuilt binary for ${TARGET}, and cargo is not installed." >&2
+    echo "Install Rust from https://rustup.rs and run this installer again, or see" >&2
+    echo "https://github.com/${REPO}/blob/main/INSTALL.md for other ways to install lez." >&2
+    exit 1
+fi
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT

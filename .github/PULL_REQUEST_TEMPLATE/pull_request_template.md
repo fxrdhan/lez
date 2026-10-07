@@ -21,7 +21,7 @@
 - Upstream: 
 
 ## Feature / Flag Checklist (if adding or modifying CLI flags)
-<!-- Leave blank or delete if not applicable -->
+<!-- Leave blank or delete if not applicable. The full steps are under "A CLI flag" in AGENTS.md. -->
 - [ ] Added CLI flag in `src/options/parser.rs`
 - [ ] Updated completions for all 5 shells:
   - [ ] `completions/bash/lez`
@@ -29,6 +29,8 @@
   - [ ] `completions/fish/lez.fish`
   - [ ] `completions/nush/lez.nu`
   - [ ] `completions/pwsh/_lez.ps1`
+  - [ ] Regenerated the `eza` copies with `sed 's/lez/eza/g'`
+- [ ] If it can be set from the configuration file: handled in `src/options/file_config.rs` and added to `docs/config.example.toml`
 - [ ] Updated man pages (`man/lez.1.md`)
 - [ ] Updated `README.md` and `--help` output
 

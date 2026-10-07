@@ -998,7 +998,7 @@ impl<'dir> File<'dir> {
     /// we got when we tried to read it.
     ///
     /// A chain that comes back to a link it already passed through, or that
-    /// is longer than [`MAX_SYMLINK_HOPS`], is reported as broken.
+    /// is longer than `MAX_SYMLINK_HOPS`, is reported as broken.
     pub fn link_target_recurse(&self) -> FileTarget<'static> {
         let mut visited = HashSet::new();
         visited.insert(self.fs_path().to_path_buf());
