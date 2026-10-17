@@ -419,7 +419,7 @@ jobs:
       - name: Nix Flake Check
         run: nix flake check -L
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.actor != 'dependabot[bot]' && secrets.GITHUB_TOKEN || '' }}
           NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
           SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
   # The one check to require before merging. The jobs above are skipped when
