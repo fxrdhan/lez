@@ -120,7 +120,7 @@ jobs:
       # dev's, and one it saved under its own merge ref would serve that pull
       # request only, while pushing dev's out of the repository's 10 GB.
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Check formatting
@@ -219,7 +219,7 @@ jobs:
         shell: bash
         run: echo "RUSTUP_TOOLCHAIN=${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}" >> "$GITHUB_ENV"
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
           save-if: ${{ github.ref == 'refs/heads/dev' }}
@@ -265,7 +265,7 @@ jobs:
       - name: Use the MSRV toolchain
         run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: llvm-cov
           save-if: ${{ github.ref == 'refs/heads/dev' }}
@@ -327,7 +327,7 @@ jobs:
         run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
       # Shared with Release-mode Tests, which restores it on main.
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: release-${{ matrix.target }}
           save-if: ${{ github.ref == 'refs/heads/dev' }}
@@ -367,7 +367,7 @@ jobs:
       # Release Build's cache from dev: the same dependencies, built the same
       # way. This job never runs on dev, so it never saves one of its own.
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: release-${{ matrix.target }}
           save-if: false
