@@ -110,7 +110,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: ${{ env.MSRV }}
           components: clippy, rustfmt
@@ -120,7 +120,7 @@ jobs:
       # dev's, and one it saved under its own merge ref would serve that pull
       # request only, while pushing dev's out of the repository's 10 GB.
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Check formatting
@@ -129,7 +129,7 @@ jobs:
       # with Cargo.lock or deny.toml, unlike the advisories, which the
       # Dependency Advisories workflow checks outside this gate.
       - name: Install cargo-deny
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-deny
       - name: Check licenses, bans and sources
@@ -208,7 +208,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: ${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}
           components: clippy
@@ -219,7 +219,7 @@ jobs:
         shell: bash
         run: echo "RUSTUP_TOOLCHAIN=${{ matrix.rust == 'msrv' && env.MSRV || matrix.rust }}" >> "$GITHUB_ENV"
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}
           save-if: ${{ github.ref == 'refs/heads/dev' }}
@@ -230,7 +230,7 @@ jobs:
       # Pinned: nextest 0.9.129 and later require rustc 1.91, above this
       # crate's MSRV.
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.128
       # The zsh completion files are parsed by zsh itself, which a Linux
@@ -258,19 +258,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: ${{ env.MSRV }}
           components: llvm-tools-preview
       - name: Use the MSRV toolchain
         run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: llvm-cov
           save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Install cargo-llvm-cov & cargo-nextest
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-llvm-cov,cargo-nextest@0.9.128
       - name: Install zsh
@@ -318,7 +318,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
@@ -327,7 +327,7 @@ jobs:
         run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
       # Shared with Release-mode Tests, which restores it on main.
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: release-${{ matrix.target }}
           save-if: ${{ github.ref == 'refs/heads/dev' }}
@@ -357,7 +357,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
@@ -367,12 +367,12 @@ jobs:
       # Release Build's cache from dev: the same dependencies, built the same
       # way. This job never runs on dev, so it never saves one of its own.
       - name: Rust Cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: release-${{ matrix.target }}
           save-if: false
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.128
       - name: Install zsh
