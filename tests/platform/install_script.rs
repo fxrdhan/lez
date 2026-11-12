@@ -60,22 +60,39 @@ const CARGO: &str = r#"#!/bin/sh
 echo "cargo $*" >> "$STUB_LOG"
 "#;
 
+/// The release the API answers with.
+#[derive(Clone, Copy)]
+enum Release {
+    /// One with a prebuilt binary for Linux on ARM64, as the release workflow
+    /// now builds.
+    WithLinuxArm64,
+    /// One as they were up to v0.29.0, with none.
+    WithoutLinuxArm64,
+}
+
 /// The latest release as the GitHub API prints it, cut down to what the
-/// installer reads. Like every release so far, it has prebuilt binaries for
-/// Linux on x86_64 and for macOS, and none for Linux on ARM64.
-fn release_json() -> String {
+/// installer reads: prebuilt binaries for Linux on x86_64, for macOS and for
+/// Windows, and for Linux on ARM64 if the release has one.
+fn release_json(release: Release) -> String {
+    let linux_arm64 = match release {
+        Release::WithLinuxArm64 => Some("lez_aarch64-unknown-linux-gnu.tar.gz"),
+        Release::WithoutLinuxArm64 => None,
+    };
     let assets = [
         "lez_x86_64-unknown-linux-gnu.tar.gz",
         "lez_aarch64-apple-darwin.tar.gz",
         "lez_x86_64-apple-darwin.tar.gz",
         "lez_x86_64-pc-windows-msvc.zip",
     ]
+    .into_iter()
+    .chain(linux_arm64)
     .map(|name| {
         format!(
             "    {{\n      \"name\": \"{name}\",\n      \"browser_download_url\": \
              \"https://github.com/fxrdhan/lez/releases/download/{TAG}/{name}\"\n    }}"
         )
     })
+    .collect::<Vec<_>>()
     .join(",\n");
     format!("{{\n  \"tag_name\": \"{TAG}\",\n  \"assets\": [\n{assets}\n  ]\n}}\n")
 }
@@ -98,7 +115,7 @@ impl Run {
     }
 }
 
-fn run_installer(os: &str, arch: &str, with_cargo: bool) -> Run {
+fn run_installer(release: Release, os: &str, arch: &str, with_cargo: bool) -> Run {
     let dir = TempTestDir::new("install_sh");
     let bin = dir.create_dir("bin");
     let stand_ins = [("uname", UNAME), ("curl", CURL)]
@@ -111,7 +128,7 @@ fn run_installer(os: &str, arch: &str, with_cargo: bool) -> Run {
             .expect("failed to make a stand-in executable");
     }
 
-    let release = dir.create_file("release.json", release_json().as_bytes());
+    let release = dir.create_file("release.json", release_json(release).as_bytes());
     let staged = dir.create_file("staged/lez", STAND_IN_LEZ.as_bytes());
     let archive = dir.path().join("archive.tar.gz");
     let tar = Command::new("tar")
@@ -155,17 +172,19 @@ fn run_installer(os: &str, arch: &str, with_cargo: bool) -> Run {
     }
 }
 
-/// Linux on x86_64 and macOS on either architecture install the release's
-/// binary, whichever name `uname -m` gives the architecture.
+/// Linux and macOS on either architecture install the release's binary,
+/// whichever name `uname -m` gives the architecture.
 #[test]
 fn a_platform_with_a_prebuilt_binary_downloads_it() {
     for (os, arch, target) in [
         ("Linux", "x86_64", "x86_64-unknown-linux-gnu"),
         ("Linux", "amd64", "x86_64-unknown-linux-gnu"),
+        ("Linux", "aarch64", "aarch64-unknown-linux-gnu"),
+        ("Linux", "arm64", "aarch64-unknown-linux-gnu"),
         ("Darwin", "arm64", "aarch64-apple-darwin"),
         ("Darwin", "x86_64", "x86_64-apple-darwin"),
     ] {
-        let run = run_installer(os, arch, true);
+        let run = run_installer(Release::WithLinuxArm64, os, arch, true);
         assert!(run.output.status.success(), "{os} {arch}: {}", run.stderr());
         let download = format!(
             "curl https://github.com/fxrdhan/lez/releases/download/{TAG}/lez_{target}.tar.gz"
@@ -176,12 +195,13 @@ fn a_platform_with_a_prebuilt_binary_downloads_it() {
     }
 }
 
-/// No release has a binary for Linux on ARM64. The installer used to ask for
-/// one anyway and stop at the 404; it builds the release's tag with Cargo.
+/// No release up to v0.29.0 has a binary for Linux on ARM64. The installer
+/// used to ask for one anyway and stop at the 404; where the latest release
+/// has none for the platform, it builds the release's tag with Cargo.
 #[test]
-fn linux_on_arm64_builds_the_release_with_cargo() {
+fn a_release_without_a_binary_for_the_platform_is_built_with_cargo() {
     for arch in ["aarch64", "arm64"] {
-        let run = run_installer("Linux", arch, true);
+        let run = run_installer(Release::WithoutLinuxArm64, "Linux", arch, true);
         assert!(run.output.status.success(), "{arch}: {}", run.stderr());
         let fetched: Vec<&str> = run
             .log
@@ -202,8 +222,8 @@ fn linux_on_arm64_builds_the_release_with_cargo() {
 
 /// Without Cargo it cannot build one either, and says what to do instead.
 #[test]
-fn linux_on_arm64_without_cargo_says_how_to_install() {
-    let run = run_installer("Linux", "aarch64", false);
+fn a_release_without_a_binary_and_no_cargo_says_how_to_install() {
+    let run = run_installer(Release::WithoutLinuxArm64, "Linux", "aarch64", false);
     assert_eq!(run.output.status.code(), Some(1), "{}", run.stderr());
     let stderr = run.stderr();
     assert!(
@@ -225,7 +245,7 @@ fn an_unknown_platform_is_refused() {
         ("FreeBSD", "x86_64", "Unsupported operating system: FreeBSD"),
         ("Linux", "riscv64", "Unsupported CPU architecture: riscv64"),
     ] {
-        let run = run_installer(os, arch, true);
+        let run = run_installer(Release::WithLinuxArm64, os, arch, true);
         assert_eq!(run.output.status.code(), Some(1), "{os} {arch}");
         assert!(
             run.stderr().contains(message),

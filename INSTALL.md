@@ -32,11 +32,11 @@ Download and install the latest prebuilt binary to `~/.local/bin` in one step:
 curl -fsSL https://raw.githubusercontent.com/fxrdhan/lez/main/packaging/install.sh | bash
 ```
 
-It downloads the release's prebuilt binary for Linux on x86_64 and for macOS on
-Apple silicon and Intel; to put it somewhere else, set `INSTALL_DIR`, as in
-`curl ... | INSTALL_DIR="$HOME/bin" bash`. Elsewhere, such as on Linux on
-ARM64, it builds the same release with Cargo if Cargo is installed, which puts
-`lez` in `~/.cargo/bin`.
+It downloads the release's prebuilt binary for Linux on x86_64 and ARM64 and for
+macOS on Apple silicon and Intel; to put it somewhere else, set `INSTALL_DIR`,
+as in `curl ... | INSTALL_DIR="$HOME/bin" bash`. Where the release has no
+binary for the platform, it builds the same release with Cargo if Cargo is
+installed, which puts `lez` in `~/.cargo/bin`.
 
 ### Prebuilt Binaries
 
@@ -46,7 +46,9 @@ for each of these platforms, with their SHA-256 checksums in its notes:
 | Platform | File |
 | --- | --- |
 | Linux, x86_64 | `lez_x86_64-unknown-linux-gnu.tar.gz` |
+| Linux, ARM64 | `lez_aarch64-unknown-linux-gnu.tar.gz` |
 | Debian and Ubuntu, x86_64 | `lez_<version>-1_amd64.deb` |
+| Debian and Ubuntu, ARM64 | `lez_<version>-1_arm64.deb` |
 | macOS, Apple silicon | `lez_aarch64-apple-darwin.tar.gz` |
 | macOS, Intel | `lez_x86_64-apple-darwin.tar.gz` |
 | Windows, x86_64 | `lez_x86_64-pc-windows-msvc.zip` |
@@ -54,7 +56,7 @@ for each of these platforms, with their SHA-256 checksums in its notes:
 
 Each archive holds the `lez` binary (`lez.exe` on Windows), to put in a
 directory on your `PATH`. The `.deb` also installs the man pages and the bash,
-zsh and fish completions:
+zsh and fish completions; on ARM64, it is the one ending in `_arm64.deb`:
 
 ```bash
 sudo apt install ./lez_<version>-1_amd64.deb

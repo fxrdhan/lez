@@ -49,8 +49,9 @@ ARCHIVE_NAME="lez_${TARGET}.${EXT}"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${ARCHIVE_NAME}"
 
 # A release carries prebuilt binaries for some targets only (see INSTALL.md);
-# Linux on ARM64, for one, has none. Build the release's tag with Cargo there,
-# rather than fail on a download that is not there.
+# those up to v0.29.0, for one, have none for Linux on ARM64. Build the
+# release's tag with Cargo there, rather than fail on a download that is not
+# there.
 if ! grep -qF "\"${DOWNLOAD_URL}\"" <<< "${RELEASE_JSON}"; then
     if command -v cargo >/dev/null 2>&1; then
         echo "==> ${LATEST_TAG} has no prebuilt binary for ${TARGET}, building it via cargo install..."
