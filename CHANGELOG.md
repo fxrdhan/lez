@@ -8,6 +8,34 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.29.1] - 2026-11-12
+
+### Features & Enhancements
+
+- **Linux ARM64 Binaries**: Every release now carries `lez_aarch64-unknown-linux-gnu.tar.gz` and `lez_<version>-1_arm64.deb`, built natively on a GitHub ARM64 runner. The standalone installer takes the archive on its own, and still builds the release with Cargo where a release has no binary for the platform ([#193](https://github.com/fxrdhan/lez/issues/193), [#196](https://github.com/fxrdhan/lez/pull/196)).
+
+### Bug Fixes & Hardening
+
+- **`cargo binstall lez`**: It failed on v0.29.0, because the manifest's `pkg-fmt = "tar.gz"` is not a format cargo-binstall reads, and it refused the whole manifest. The format is now `tgz`, which finds the same archive. `bin-dir` also looks for `lez.exe` in the Windows archives, where it had looked for `lez`. Tests hold the table to the formats cargo-binstall reads and to the archives the release workflow uploads. crates.io keeps the manifest v0.29.0 was published with, so the fix reaches users with this release ([#194](https://github.com/fxrdhan/lez/issues/194), [#197](https://github.com/fxrdhan/lez/pull/197)).
+- **Installer on Linux ARM64**: `packaging/install.sh` asked for an archive no release carried and stopped at a 404. Where a release lists no binary for the platform, it now builds that release's tag with Cargo, or says how to install lez ([#177](https://github.com/fxrdhan/lez/pull/177)).
+
+### Documentation
+
+- **Docs Checked Against the Binary**: A JSON OUTPUT section in `lez(1)` gives the document's shape for each kind of listing and every field name, and a test fails when a column is added without it. The README gains a quick start, says which flags need a Nerd Font, and no longer claims the JSON matches the long view. `INSTALL.md` gains a Windows section, a table of the release assets and the nushell and PowerShell completion steps, and README and CONTRIBUTING.md link AGENTS.md. The issue templates name lez and use this repository's labels, the demo tape records lez, the audit report says v0.28.4 fixed every defect it lists, and `cargo doc` runs warning-free in CI ([#177](https://github.com/fxrdhan/lez/pull/177)).
+
+### Testing & Quality Assurance
+
+- **Tagged Files on macOS**: The suite passes where macOS tags every new file with `com.apple.provenance`, as a third-party terminal makes it ([#161](https://github.com/fxrdhan/lez/pull/161)).
+- **Generated Suites**: The generated trycmd suites run in CI again ([#159](https://github.com/fxrdhan/lez/pull/159)).
+
+### Distribution & CI Automation
+
+- **Publish Gate**: A tag publishes nothing until CI has passed on `main` for its commit ([#162](https://github.com/fxrdhan/lez/pull/162)).
+- **Release-Mode Tests**: The suite runs against release builds where a release is cut, on `main` and on pull requests into it, on Linux ARM64 as well ([#160](https://github.com/fxrdhan/lez/pull/160), [#196](https://github.com/fxrdhan/lez/pull/196)).
+- **CI Gates**: Each job installs the toolchain it needs, releases build with stable Rust, `deny.toml` is enforced, the actions have moved off Node 20, the Linux MSRV row is folded into coverage, several path-filter gaps are closed, and the longest paths through a run are shorter ([#159](https://github.com/fxrdhan/lez/pull/159), [#163](https://github.com/fxrdhan/lez/pull/163), [#165](https://github.com/fxrdhan/lez/pull/165)).
+- **Nix**: The sandbox no longer mounts `/etc/ssl/certs`, which broke every crate download ([#166](https://github.com/fxrdhan/lez/pull/166)). `convco`, which the pre-commit check and the dev shell build, is built with the libgit2 it vendors, since nixpkgs now links the system one into packages that give it none ([#195](https://github.com/fxrdhan/lez/pull/195)).
+- **Dependency Bumps**: The weekly bump opens its pull request with a token whose runs start CI, and `Cargo.lock` and `flake.lock` are current ([#176](https://github.com/fxrdhan/lez/pull/176), [#185](https://github.com/fxrdhan/lez/pull/185), [#190](https://github.com/fxrdhan/lez/pull/190), [#192](https://github.com/fxrdhan/lez/pull/192), [#195](https://github.com/fxrdhan/lez/pull/195)).
+
 ## [0.29.0] - 2026-10-05
 
 ### Behaviour Changes
