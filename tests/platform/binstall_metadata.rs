@@ -196,3 +196,43 @@ fn each_release_archive_is_one_cargo_binstall_asks_for() {
         );
     }
 }
+
+/// `bin-dir` is where cargo-binstall looks for the binary inside the archive
+/// it has unpacked. The workflow packs it at the top of each: `lez`, and
+/// `lez.exe` in the two for Windows, which `bin-dir = "lez"` never found.
+#[test]
+fn the_binary_is_looked_for_under_the_name_each_archive_gives_it() {
+    let manifest = manifest();
+    let binstall = binstall(&manifest);
+    let package = |key: &str| {
+        manifest["package"][key]
+            .as_str()
+            .unwrap_or_else(|| panic!("[package] should give `{key}`"))
+    };
+    let workflow = workspace_file(".github/workflows/release.yml");
+    for packed in [
+        r#"-C "target/${{ matrix.target }}/release" lez"#,
+        r#"-Path "target/${{ matrix.target }}/release/lez.exe""#,
+    ] {
+        assert!(
+            workflow.contains(packed),
+            "the workflow no longer packs the binary with `{packed}`"
+        );
+    }
+
+    for (target, _) in release_archives() {
+        let windows = target.contains("windows");
+        let path = render(
+            setting(binstall, &target, "bin-dir"),
+            &[
+                ("repo", package("repository")),
+                ("name", package("name")),
+                ("version", package("version")),
+                ("target", &target),
+                ("bin", "lez"),
+                ("binary-ext", if windows { ".exe" } else { "" }),
+            ],
+        );
+        assert_eq!(path, if windows { "lez.exe" } else { "lez" }, "{target}");
+    }
+}
