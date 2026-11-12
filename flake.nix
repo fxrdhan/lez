@@ -90,6 +90,18 @@
         ];
 
         buildInputs = [ pkgs.zlib ] ++ darwinBuildInputs;
+
+        # nixpkgs' cargoSetupHook now tells libgit2-sys to link the system
+        # libgit2, and convco, which is given none, no longer builds:
+        # NixOS/nixpkgs#570939 tracks the packages this broke. The hook
+        # exports the variable before configuring, so it is set back after
+        # that, and convco builds the libgit2 it vendors, as it did before.
+        # Drop this once convco is fixed there.
+        convco = pkgs.convco.overrideAttrs (old: {
+          preBuild = (old.preBuild or "") + ''
+            export LIBGIT2_NO_VENDOR=0
+          '';
+        });
       in
       rec {
         # For `nix fmt`
@@ -140,6 +152,7 @@
               toolchain
               just
               pandoc
+              # The one bound above, which a `let` puts ahead of `with pkgs`.
               convco
               zip
               reuse
@@ -177,7 +190,10 @@
               src = ./.;
               hooks = treefmtFormatters // {
                 nixfmt.enable = true;
-                convco.enable = true;
+                convco = {
+                  enable = true;
+                  package = convco;
+                };
                 reuse = {
                   enable = true;
                   name = "reuse";
