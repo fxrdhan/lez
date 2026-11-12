@@ -5,6 +5,8 @@
 
 mod common;
 
+#[path = "platform/binstall_metadata.rs"]
+mod binstall_metadata;
 #[path = "platform/install_script.rs"]
 mod install_script;
 #[path = "platform/portable_windows_invariants.rs"]
