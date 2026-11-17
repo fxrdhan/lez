@@ -310,6 +310,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: windows-latest
@@ -327,6 +331,16 @@ jobs:
       - name: Use stable
         shell: bash
         run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
+      # A musl binary is static, so the C in it, libgit2 and zlib, is built
+      # from the crates' own sources with musl's compiler, which CC_<target>
+      # names for the cc crate.
+      - name: Install the musl toolchain
+        if: endsWith(matrix.target, '-linux-musl')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
       # Shared with Release-mode Tests, which restores it on main.
       - name: Rust Cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -353,6 +367,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: windows-latest
@@ -368,6 +386,16 @@ jobs:
       - name: Use stable
         shell: bash
         run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
+      # A musl binary is static, so the C in it, libgit2 and zlib, is built
+      # from the crates' own sources with musl's compiler, which CC_<target>
+      # names for the cc crate.
+      - name: Install the musl toolchain
+        if: endsWith(matrix.target, '-linux-musl')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
       # Release Build's cache from dev: the same dependencies, built the same
       # way. This job never runs on dev, so it never saves one of its own.
       - name: Rust Cache

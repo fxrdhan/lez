@@ -47,6 +47,8 @@ for each of these platforms, with their SHA-256 checksums in its notes:
 | --- | --- |
 | Linux, x86_64 | `lez_x86_64-unknown-linux-gnu.tar.gz` |
 | Linux, ARM64 | `lez_aarch64-unknown-linux-gnu.tar.gz` |
+| Linux, x86_64, static (musl) | `lez_x86_64-unknown-linux-musl.tar.gz` |
+| Linux, ARM64, static (musl) | `lez_aarch64-unknown-linux-musl.tar.gz` |
 | Debian and Ubuntu, x86_64 | `lez_<version>-1_amd64.deb` |
 | Debian and Ubuntu, ARM64 | `lez_<version>-1_arm64.deb` |
 | macOS, Apple silicon | `lez_aarch64-apple-darwin.tar.gz` |
@@ -64,6 +66,17 @@ sudo apt install ./lez_<version>-1_amd64.deb
 
 The man pages and the completions for every shell are attached to each release
 as well, as `man-v<version>.tar.gz` and `completions-v<version>.tar.gz`.
+
+#### The static musl binaries
+
+The `-musl` archives hold a statically linked binary, which asks the system for
+no C library. It is the one for Alpine, where the `-gnu` binary does not start,
+and for a distribution whose glibc is older than the `-gnu` binary asks for.
+
+Elsewhere, prefer the `-gnu` binary. A static binary cannot load the system's
+NSS modules, so it reads user and group names from `/etc/passwd` and
+`/etc/group` alone: an owner known only through LDAP, SSSD or systemd-homed is
+listed by number. It is also the slower of the two on a large listing.
 
 ### Windows
 

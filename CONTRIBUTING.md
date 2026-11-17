@@ -76,10 +76,12 @@ features.  If you’re unable to compile libgit2, you can opt out of Git support
 by running `cargo build --no-default-features`. Again, the nix flake should
 have taken care of this for you, if not, please file an issue.
 
-If you intend to compile for musl, you will need to use the flag
-`vendored-openssl` if you want to get the Git feature working.  The full command
-is `cargo build --release --target=x86_64-unknown-linux-musl --features
-vendored-openssl,git`.
+To compile for musl, install musl's C compiler (`musl-tools` on Debian and
+Ubuntu) and the target (`rustup target add x86_64-unknown-linux-musl`), then
+run `cargo build --release --target=x86_64-unknown-linux-musl`.  libgit2 and
+zlib are built from the sources their crates carry, and Git support needs no
+other feature: `vendored-openssl` is not required.  The release workflow builds
+the musl binaries this way.
 
 If you want more information on the tests please read [TESTING.md](TESTING.md).
 

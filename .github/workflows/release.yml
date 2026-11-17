@@ -50,6 +50,12 @@ jobs:
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             archive: tar.gz
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            archive: tar.gz
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            archive: tar.gz
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: tar.gz
@@ -76,6 +82,16 @@ jobs:
       - name: Use stable
         shell: bash
         run: echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
+      # A musl binary is static, so the C in it, libgit2 and zlib, is built
+      # from the crates' own sources with musl's compiler, which CC_<target>
+      # names for the cc crate.
+      - name: Install the musl toolchain
+        if: endsWith(matrix.target, '-linux-musl')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
       # Saved only by a dry run on dev, which a tag's run restores. A cache
       # saved under a tag, or a pull request's merge ref, serves no other run.
       - name: Rust Cache
@@ -85,15 +101,23 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Build
         run: cargo build --release --locked --target ${{ matrix.target }} --features git,inspect-archives
+      # What INSTALL.md says of the musl archives, and what lets the binary
+      # start where there is no glibc.
+      - name: Check that the musl binary is static
+        if: endsWith(matrix.target, '-linux-musl')
+        run: |
+          file "target/${{ matrix.target }}/release/lez" | tee /dev/stderr \
+            | grep -Eq 'static(ally|-pie) linked'
       - name: Package (tar.gz)
         if: matrix.archive == 'tar.gz'
         run: |
           mkdir -p dist
           tar czf "dist/lez_${{ matrix.target }}.tar.gz" -C "target/${{ matrix.target }}/release" lez
-      # One for each Linux target: cargo-deb names the package's architecture
-      # after the target, amd64 or arm64.
+      # One for each glibc target: cargo-deb names the package's architecture
+      # after the target, amd64 or arm64. A musl target would give a second
+      # package of the same name, so it gets none.
       - name: Package (.deb)
-        if: runner.os == 'Linux'
+        if: endsWith(matrix.target, '-linux-gnu')
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq pandoc
           for page in lez.1 lez_colors.5 lez_colors-explanation.5; do
