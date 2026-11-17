@@ -217,7 +217,12 @@ fn format_with_tz(time: &DateTime<FixedOffset>, format: &str, use_utc: bool) -> 
 struct TimezoneHandler;
 
 impl TimezoneHandler {
+    // libc deprecates `time_t` under musl, where it is to become 64-bit on
+    // 32-bit targets as well. Until it does, it is the type the
+    // `localtime_r` linked here takes, and a build that denies warnings
+    // would otherwise stop at it.
     #[cfg(unix)]
+    #[cfg_attr(target_env = "musl", allow(deprecated))]
     fn get_abbreviation(&self, timestamp: i64) -> String {
         unsafe {
             unsafe extern "C" {

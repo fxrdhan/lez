@@ -744,7 +744,15 @@ impl<'dir> File<'dir> {
         // SAFETY: `out` is a valid, correctly-sized location for statfs to
         // initialise; errno is the only error channel.
         let result = unsafe { libc::statfs(path.as_ptr(), out.as_mut_ptr()) };
-        result == 0 && unsafe { out.assume_init() }.f_type == libc::BTRFS_SUPER_MAGIC
+
+        // The constant is a signed word. So is `f_type` under glibc, but
+        // under musl it is an unsigned one, and the two do not compare.
+        #[cfg(target_env = "musl")]
+        let btrfs = libc::BTRFS_SUPER_MAGIC.cast_unsigned();
+        #[cfg(not(target_env = "musl"))]
+        let btrfs = libc::BTRFS_SUPER_MAGIC;
+
+        result == 0 && unsafe { out.assume_init() }.f_type == btrfs
     }
 
     /// Whether this file carries Linux file capabilities, which `LS_COLORS`
