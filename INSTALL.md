@@ -34,9 +34,10 @@ curl -fsSL https://raw.githubusercontent.com/fxrdhan/lez/main/packaging/install.
 
 It downloads the release's prebuilt binary for Linux on x86_64 and ARM64 and for
 macOS on Apple silicon and Intel; to put it somewhere else, set `INSTALL_DIR`,
-as in `curl ... | INSTALL_DIR="$HOME/bin" bash`. Where the release has no
-binary for the platform, it builds the same release with Cargo if Cargo is
-installed, which puts `lez` in `~/.cargo/bin`.
+as in `curl ... | INSTALL_DIR="$HOME/bin" bash`. On a Linux system whose C
+library is musl, such as Alpine, it takes the static musl binary. Where the
+release has no binary for the platform, it builds the same release with Cargo
+if Cargo is installed, which puts `lez` in `~/.cargo/bin`.
 
 ### Prebuilt Binaries
 
