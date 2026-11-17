@@ -634,7 +634,7 @@ impl Lez<'_> {
             if !is_only_dir {
                 let mut bits = Vec::new();
                 escape::escape_with_quote_style(
-                    dir.path.display().to_string(),
+                    &dir.path,
                     &mut bits,
                     Style::default(),
                     Style::default(),

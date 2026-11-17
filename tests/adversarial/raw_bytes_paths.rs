@@ -27,11 +27,14 @@ fn run(dir: &TempTestDir, args: &[&str]) -> String {
 }
 
 /// Linux filesystems store arbitrary bytes; APFS rejects invalid UTF-8, so
-/// the test is limited to where the fixture can exist. Undecodable bytes are
-/// shown as U+FFFD, in the listing and in JSON alike.
+/// the test is limited to where the fixture can exist. A listing writes each
+/// undecodable byte as its octal escape inside ANSI-C quotes, where a shell
+/// reads it back as that byte. It used to show U+FFFD for each, which gave
+/// no way back to the name (eza#585). JSON still does: a JSON string
+/// cannot hold the bytes.
 #[test]
 #[cfg(target_os = "linux")]
-fn undecodable_bytes_in_names_are_shown_as_replacement_characters() {
+fn undecodable_bytes_in_names_are_written_as_escapes() {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
 
@@ -45,19 +48,23 @@ fn undecodable_bytes_in_names_are_shown_as_replacement_characters() {
         std::fs::write(dir.path().join(OsStr::from_bytes(raw)), b"x").expect("create raw name");
     }
 
-    let [base, high, mixed, raw] = [
-        "baseline.txt",
-        "high_ascii_\u{fffd}\u{fffd}\u{fffd}.txt",
-        "mixed_\u{fffd}_test.bin",
-        "raw_byte_\u{fffd}\u{fffd}.dat",
+    let base = "baseline.txt";
+    assert_eq!(
+        run(&dir, &["--json"]),
+        format!(
+            "[\"{base}\",\"high_ascii_\u{fffd}\u{fffd}\u{fffd}.txt\",\
+             \"mixed_\u{fffd}_test.bin\",\"raw_byte_\u{fffd}\u{fffd}.dat\"]\n"
+        )
+    );
+
+    let [high, mixed, raw] = [
+        r"$'high_ascii_\200\201\202.txt'",
+        r"$'mixed_\357\273_test.bin'",
+        r"$'raw_byte_\377\376.dat'",
     ];
     assert_eq!(
         run(&dir, &["-1"]),
         format!("{base}\n{high}\n{mixed}\n{raw}\n")
-    );
-    assert_eq!(
-        run(&dir, &["--json"]),
-        format!("[\"{base}\",\"{high}\",\"{mixed}\",\"{raw}\"]\n")
     );
     assert_eq!(
         run(&dir, &["-l", "--no-permissions", "--no-user", "--no-time"]),

@@ -7,6 +7,7 @@
 //! Files, and methods and fields to access their metadata.
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fs::FileType;
 use std::io;
 #[cfg(unix)]
@@ -436,6 +437,26 @@ impl<'dir> File<'dir> {
             // use the path as fallback
             error!("Path {path:?} has no last component");
             path.display().to_string()
+        }
+    }
+
+    /// This file's name as the filesystem has it, for printing.
+    ///
+    /// `name` holds U+FFFD in place of each byte that is part of no
+    /// character. That is right for sorting and for matching, and wrong for
+    /// printing, since the bytes cannot be had back from it. The path still
+    /// holds them, so a name that lost some is taken from there.
+    #[must_use]
+    pub fn name_os(&self) -> &OsStr {
+        if self.name.contains(char::REPLACEMENT_CHARACTER)
+            && let Some(raw) = self.path.components().next_back()
+            && let raw = raw.as_os_str()
+            && raw.to_str().is_none()
+            && raw.to_string_lossy() == self.name
+        {
+            raw
+        } else {
+            OsStr::new(&self.name)
         }
     }
 
