@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Two Windows-only defects, both confirmed on a `windows-latest` runner
+//! Three Windows-only defects, each confirmed on a `windows-latest` runner
 //! before being fixed here (see issue #57):
 //!
+//! - `cmd` and Windows PowerShell 5.1 pass `"with space\"` as it is written,
+//!   and the `\"` reached the binary as a quote at the end of the path, which
+//!   failed with `os error 123` (eza#874).
 //! - `cmd` and PowerShell do not expand wildcards, so `lez t*` reached the
 //!   binary as the literal `t*` and failed with `os error 123`.
 //! - Windows has no `.` entry on disk, so listing from inside a directory
@@ -109,6 +112,50 @@ fn a_pattern_matching_nothing_is_still_reported() {
     // The reason is the system's own words; the pattern comes first.
     assert!(stderr.starts_with("\"zzz*\": "), "{stderr}");
     assert_eq!(stderr.lines().count(), 1, "{stderr}");
+}
+
+/// `"with space\"`, as tab completion writes it in PowerShell 5.1, is
+/// `with space"` once the program has read its command line. The quote is put
+/// back as the separator that was typed.
+#[test]
+fn a_quote_in_place_of_a_trailing_separator_is_read_as_the_separator() {
+    let dir = Fixture::new("quote");
+    fs::create_dir_all(dir.path.join("with space")).unwrap();
+    fs::write(dir.path.join("with space").join("inside.txt"), b"x").unwrap();
+
+    let typed = run_in(&dir.path, &["with space\\"]);
+    assert_eq!(typed, (0, "inside.txt\n".to_owned(), String::new()));
+    assert_eq!(run_in(&dir.path, &["with space\""]), typed);
+}
+
+/// With anything after it on the line, the quote took that into the path
+/// too, and there is no telling where the path was meant to end. It is
+/// reported as it came, with what happened to it.
+#[test]
+fn a_quote_that_took_the_rest_of_the_line_is_explained() {
+    let dir = Fixture::new("quote_rest");
+    fs::create_dir_all(dir.path.join("with space")).unwrap();
+
+    let (code, stdout, stderr) = run_in(&dir.path, &["with space\" -l"]);
+    assert_eq!(code, 2, "a path that cannot be read exits 2");
+    assert_eq!(stdout, "");
+    let mut lines = stderr.lines();
+    assert!(
+        lines
+            .next()
+            .is_some_and(|line| line.starts_with("\"with space\\\" -l\": ")),
+        "{stderr}"
+    );
+    assert_eq!(
+        lines.next(),
+        Some(
+            "lez: a file name cannot hold a quote. If the path was quoted and ended in a \
+             backslash, the shell handed over \\\" as a quote: leave the backslash off, or \
+             double it."
+        ),
+        "{stderr}"
+    );
+    assert_eq!(lines.next(), None, "{stderr}");
 }
 
 /// `[` is legal in a Windows file name, so it must not be read as the start of
