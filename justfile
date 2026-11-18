@@ -6,6 +6,11 @@ _default:
 all: build test
 all-release: build-release test-release
 
+# regenerate the terminal screenshots in README.md (needs Docker and Nix)
+[group('house-keeping')]
+@screenshots:
+    bash devtools/screenshots/render.sh
+
 [group('house-keeping')]
 genDemo:
     fish_prompt="> " fish_history="lez_history" vhs < docs/tapes/demo.tape

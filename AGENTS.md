@@ -88,6 +88,7 @@ Paired flags such as `--binary`/`--bytes` and `--blocks`/`--blocksize` use clap'
 | Benchmarks | `cargo bench` |
 | Man pages | `just man` |
 | Refresh snapshots | `just idump` (trycmd dumps), `just regen` (powertests) |
+| README screenshots | `just screenshots` (needs Docker and Nix) |
 
 ### Testing
 
