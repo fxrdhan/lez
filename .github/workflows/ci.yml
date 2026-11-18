@@ -254,6 +254,8 @@ jobs:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      lines: ${{ steps.floor.outputs.lines }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -293,7 +295,47 @@ jobs:
       # The floor `just coverage-gate` defaults to. After the upload, so a run
       # below the floor keeps its report.
       - name: Enforce the coverage floor
+        id: floor
         run: bash devtools/coverage.sh gate 70
+  # The line coverage of dev, for the badge at the top of README.md: a
+  # shields.io endpoint file, the one commit of the badges branch. Its own
+  # job, so the one that builds and runs the suite keeps a read-only token.
+  coverage-badge:
+    name: Publish the coverage badge
+    needs: code-coverage
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Push coverage.json to the badges branch
+        env:
+          PERCENT: ${{ needs.code-coverage.outputs.lines }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$PERCENT" in
+            [0-9]*) ;;
+            *) echo "No line coverage from the coverage job: '$PERCENT'" >&2; exit 1 ;;
+          esac
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # A later push publishes its own number, which this one would undo.
+          head=$(git ls-remote "$remote" refs/heads/dev | cut -f1)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "dev is at $head now, so its run publishes the badge."
+            exit 0
+          fi
+          color=$(awk -v percent="$PERCENT" 'BEGIN {
+            print (percent >= 90 ? "brightgreen" : percent >= 80 ? "green" : percent >= 70 ? "yellowgreen" : percent >= 60 ? "yellow" : "red")
+          }')
+          git init -q -b badges badges
+          cd badges
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' \
+            "$PERCENT" "$color" > coverage.json
+          git add coverage.json
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Line coverage of $GITHUB_SHA: $PERCENT%"
+          git push -q --force "$remote" HEAD:refs/heads/badges
   # Alongside the tests rather than after them. Waiting on the slowest test
   # row put a Windows release build behind a Windows test run, the longest
   # path through a run; `CI result` waits on both either way.

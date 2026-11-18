@@ -76,7 +76,11 @@ case "$ACTION" in
         PERCENT=$(cargo llvm-cov report --json --summary-only | python3 -c \
             'import json, sys; print(round(json.load(sys.stdin)["data"][0]["totals"]["lines"]["percent"], 2))')
         echo "==> Current Total Line Coverage: ${PERCENT}% (Threshold: ${THRESHOLD}%)"
-        
+        # For the job that publishes the coverage badge.
+        if [ -n "${GITHUB_OUTPUT:-}" ]; then
+            echo "lines=${PERCENT}" >> "$GITHUB_OUTPUT"
+        fi
+
         # Compare using python or awk floating point comparison
         PASSED=$(python3 -c "print(1 if float('${PERCENT}') >= float('${THRESHOLD}') else 0)")
         if [ "$PASSED" -eq 1 ]; then
