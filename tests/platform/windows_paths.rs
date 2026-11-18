@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Three Windows-only defects, each confirmed on a `windows-latest` runner
+//! Four Windows-only defects, each confirmed on a `windows-latest` runner
 //! before being fixed here (see issue #57):
 //!
+//! - A path under the root of a drive was printed with two separators,
+//!   `C:\\Users`, and one relative to a drive with one it did not have,
+//!   `C:\notes.txt` for `C:notes.txt`.
 //! - `cmd` and Windows PowerShell 5.1 pass `"with space\"` as it is written,
 //!   and the `\"` reached the binary as a quote at the end of the path, which
 //!   failed with `os error 123` (eza#874).
@@ -156,6 +159,40 @@ fn a_quote_that_took_the_rest_of_the_line_is_explained() {
         "{stderr}"
     );
     assert_eq!(lines.next(), None, "{stderr}");
+}
+
+/// The root of a drive ends in its own separator, and a second one was
+/// written after it: `C:\\Users`.
+#[test]
+fn a_path_under_the_root_of_a_drive_has_one_separator() {
+    let dir = Fixture::new("drive_root");
+    // The last ancestor is the root, `C:\`, and the one before it is a
+    // directory in it.
+    let ancestors: Vec<&Path> = dir.path.ancestors().collect();
+    let under_root = ancestors[ancestors.len() - 2]
+        .to_str()
+        .expect("the temporary directory should be Unicode");
+
+    let (code, stdout, stderr) = run_in(&dir.path, &["-d", under_root]);
+    assert_eq!(code, 0, "stderr was: {stderr}");
+    assert_eq!(stdout, format!("{under_root}\n"));
+}
+
+/// `C:notes.txt` is a file in the current directory of drive `C:`. Printed
+/// with a separator after the drive it would be one in the drive's root.
+#[test]
+fn a_path_relative_to_a_drive_is_given_no_separator() {
+    let dir = Fixture::new("drive_relative");
+    dir.file("notes.txt");
+    let drive = &dir
+        .path
+        .to_str()
+        .expect("the temporary directory should be Unicode")[..2];
+    let relative = format!("{drive}notes.txt");
+
+    let (code, stdout, stderr) = run_in(&dir.path, &[&relative]);
+    assert_eq!(code, 0, "stderr was: {stderr}");
+    assert_eq!(stdout, format!("{relative}\n"));
 }
 
 /// `[` is legal in a Windows file name, so it must not be read as the start of

@@ -94,6 +94,18 @@ fn trailing_separator(path: &OsStr) -> Option<char> {
         .filter(|&last| std::path::is_separator(last))
 }
 
+/// Whether a separator has to be written between `parent` and a name after
+/// it.
+///
+/// Not where the parent ends in one already, as the root of a drive does:
+/// `C:\` and `Program Files` are `C:\Program Files`, which used to be printed
+/// with two. Nor after a drive alone: `C:` and `notes.txt` are `C:notes.txt`,
+/// a file in that drive's current directory, and a separator would name one
+/// in its root. `Path::join` knows both, so it is asked what it would add.
+fn needs_separator(parent: &Path) -> bool {
+    parent.join("x").as_os_str().len() > parent.as_os_str().len() + 1
+}
+
 /// Split a display name (which may be a whole path) into segments, replacing
 /// every path component’s leading Nix store hash with its abbreviation.
 fn shorten_nix_segments(name: &str) -> Vec<NameSegment> {
@@ -577,10 +589,13 @@ impl<C: Colours> FileName<'_, '_, C> {
         // not UTF-8 is escaped byte for byte further down, where its lossy
         // form would have lost the bytes. A Nix store path is ASCII, so
         // only what is UTF-8 is looked at for a hash to shorten.
+        //
+        // Beside the parent goes whether a separator follows it. None
+        // follows the root, which is one, or a parent that ends in one.
         let parent_info = if let Some(parent) = parent_opt {
             let coconut = parent.components().count();
             if coconut == 1 && parent.has_root() {
-                Some((OsString::from(&separator), true))
+                Some((OsString::from(&separator), false))
             } else if coconut >= 1 {
                 let shortened = parent
                     .to_str()
@@ -595,7 +610,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     });
                 Some((
                     shortened.map_or_else(|| parent.as_os_str().to_owned(), OsString::from),
-                    false,
+                    needs_separator(parent),
                 ))
             } else {
                 None
@@ -605,9 +620,9 @@ impl<C: Colours> FileName<'_, '_, C> {
         };
 
         let mut full_path_for_quoting = OsString::new();
-        if let Some((parent, is_root)) = &parent_info {
+        if let Some((parent, separated)) = &parent_info {
             full_path_for_quoting.push(parent);
-            if !*is_root {
+            if *separated {
                 full_path_for_quoting.push(&separator);
             }
         }
@@ -619,17 +634,15 @@ impl<C: Colours> FileName<'_, '_, C> {
             bits.push(opening);
         }
 
-        if let Some((parent, is_root)) = parent_info {
-            if is_root {
-                bits.push(self.colours.symlink_path().paint(separator));
-            } else {
-                escape::escape_inner_name(
-                    &parent,
-                    bits,
-                    self.colours.symlink_path(),
-                    self.colours.control_char(),
-                    quoting,
-                );
+        if let Some((parent, separated)) = parent_info {
+            escape::escape_inner_name(
+                &parent,
+                bits,
+                self.colours.symlink_path(),
+                self.colours.control_char(),
+                quoting,
+            );
+            if separated {
                 bits.push(self.colours.symlink_path().paint(separator));
             }
         }
@@ -1009,6 +1022,28 @@ mod test {
     use super::*;
 
     const HASH: &str = "vlkia5wk0svsikwv50554mh06iayg2m2";
+
+    /// One separator between a parent and the name after it, and the root
+    /// is that separator already.
+    #[test]
+    fn a_separator_follows_a_parent_that_does_not_end_in_one() {
+        assert!(needs_separator(Path::new("usr")));
+        assert!(needs_separator(Path::new("/usr/lib")));
+        assert!(!needs_separator(Path::new("/")));
+    }
+
+    /// The root of a drive ends in its separator, as that of a share does,
+    /// and a drive alone takes none: what follows it is relative to the
+    /// drive's current directory.
+    #[test]
+    #[cfg(windows)]
+    fn no_separator_follows_the_root_of_a_drive_or_a_drive_alone() {
+        assert!(!needs_separator(Path::new(r"C:\")));
+        assert!(!needs_separator(Path::new("C:")));
+        assert!(!needs_separator(Path::new(r"\\server\share\")));
+        assert!(needs_separator(Path::new(r"C:\Windows")));
+        assert!(needs_separator(Path::new(r"\\server\share\dir")));
+    }
 
     #[test]
     fn splits_a_store_file_name() {
