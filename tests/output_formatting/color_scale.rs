@@ -7,8 +7,22 @@
 //! variables reach it in the order `LEZ_`, `EZA_`, `EXA_`, that a value
 //! outside -100..=100 or not a number leaves the default, and that only
 //! the files listed set the ends of the scale.
+//!
+//! The shades are 24-bit colours only where the terminal says it takes
+//! them, so the runs that compare shades say so for it with `COLORTERM`.
+//! The last tests are about the terminal that does not.
+
+use std::path::Path;
+use std::process::Command;
 
 use crate::common::{TempTestDir, lez_in, success_stdout};
+
+/// `lez` in `dir`, on a terminal that takes 24-bit colour.
+fn lez_in_truecolor(dir: &Path) -> Command {
+    let mut cmd = lez_in(dir);
+    cmd.env("COLORTERM", "truecolor");
+    cmd
+}
 
 /// Two files whose sizes sit at the two ends of the scale.
 fn fixture(prefix: &str) -> TempTestDir {
@@ -29,7 +43,7 @@ const SCALED: [&str; 7] = [
 ];
 
 fn scaled(dir: &TempTestDir, envs: &[(&str, &str)], extra: &[&str]) -> String {
-    let mut cmd = lez_in(dir.path());
+    let mut cmd = lez_in_truecolor(dir.path());
     for (key, value) in envs {
         cmd.env(key, value);
     }
@@ -84,7 +98,7 @@ fn a_luminance_out_of_range_is_an_option_error() {
             ("-300", "-300 is not in -100..=100".to_owned()),
             ("", "cannot parse integer from empty string".to_owned()),
         ] {
-            let output = lez_in(dir.path())
+            let output = lez_in_truecolor(dir.path())
                 .env(var, value)
                 .args(SCALED)
                 .arg("*.iso")
@@ -139,7 +153,7 @@ fn only_the_files_listed_set_the_ends_of_the_scale() {
             .map(str::to_owned)
             .expect("a row for large.txt")
     };
-    let unfiltered = success_stdout(lez_in(with.path()).args(&SCALED[..6]));
+    let unfiltered = success_stdout(lez_in_truecolor(with.path()).args(&SCALED[..6]));
     assert_ne!(large(unfiltered), large(scaled(&without, &[], &[])));
 }
 
@@ -172,7 +186,13 @@ fn a_tree_is_scaled_over_all_of_it_whatever_its_root_is_called() {
         )
     };
     let run = |cwd: &std::path::Path, root: &[&str]| {
-        success_stdout(lez_in(cwd).args(SCALED).arg("*.iso").arg("-T").args(root))
+        success_stdout(
+            lez_in_truecolor(cwd)
+                .args(SCALED)
+                .arg("*.iso")
+                .arg("-T")
+                .args(root),
+        )
     };
     let root = dir.path().join("root");
     assert_eq!(run(dir.path(), &["root"]), tree("root"));
@@ -213,7 +233,7 @@ fn each_time_column_is_scaled_over_its_own_times() {
             .expect("set the times");
     }
     let shaded = |time: &str, listed: &str| {
-        success_stdout(lez_in(dir.path()).args([
+        success_stdout(lez_in_truecolor(dir.path()).args([
             "-l",
             "--no-permissions",
             "--no-filesize",
@@ -228,4 +248,73 @@ fn each_time_column_is_scaled_over_its_own_times() {
     };
 
     assert_eq!(shaded("--accessed", "a"), shaded("--modified", "b"));
+}
+
+/// The two rows of `fixture` as each kind of terminal is given them.
+const IN_24_BIT: &str = "\x1b[1;38;2;99;255;91m50k\x1b[0m \x1b[32mlarge.txt\x1b[0m\n\
+                         \x1b[38;2;0;104;0m100\x1b[0m \x1b[32msmall.txt\x1b[0m\n";
+#[cfg(not(windows))]
+const IN_THE_PALETTE: &str = "\x1b[1;38;5;83m50k\x1b[0m \x1b[32mlarge.txt\x1b[0m\n\
+                              \x1b[38;5;22m100\x1b[0m \x1b[32msmall.txt\x1b[0m\n";
+
+fn scaled_on(dir: &TempTestDir, envs: &[(&str, &str)]) -> String {
+    let mut cmd = lez_in(dir.path());
+    for (key, value) in envs {
+        cmd.env(key, value);
+    }
+    success_stdout(cmd.args(SCALED).arg("*.iso"))
+}
+
+/// Every shade used to be written `38;2;r;g;b` whatever the terminal, and
+/// one without 24-bit colour may read those numbers as codes of their own
+/// and show colours that have nothing to do with the scale (eza#755). A
+/// terminal is given 24-bit colour only where it says it takes it, and the
+/// nearest of the 256-colour palette anywhere else.
+#[cfg(not(windows))]
+#[test]
+fn a_terminal_that_does_not_say_it_takes_24_bit_colour_is_given_the_palette() {
+    let dir = fixture("palette");
+    for envs in [
+        &[][..],
+        &[("TERM", "xterm-256color")],
+        &[("COLORTERM", "")],
+        &[("COLORTERM", "rxvt"), ("TERM", "rxvt-unicode-256color")],
+    ] {
+        assert_eq!(scaled_on(&dir, envs), IN_THE_PALETTE, "{envs:?}");
+    }
+    for envs in [
+        &[("COLORTERM", "truecolor")][..],
+        &[("COLORTERM", "24bit")],
+        &[("TERM", "xterm-direct")],
+        &[("COLORTERM", "truecolor"), ("TERM", "xterm-256color")],
+    ] {
+        assert_eq!(scaled_on(&dir, envs), IN_24_BIT, "{envs:?}");
+    }
+}
+
+/// Sizes and dates, in either mode: nothing a scale writes is a 24-bit
+/// colour on such a terminal. Dates in `fixed` mode are shaded on a path of
+/// their own.
+#[cfg(not(windows))]
+#[test]
+fn no_scale_writes_a_24_bit_colour_to_such_a_terminal() {
+    let dir = fixture("palette_all");
+    for mode in ["gradient", "fixed"] {
+        let listed = success_stdout(lez_in(dir.path()).args([
+            "-l",
+            "--color=always",
+            "--color-scale=all",
+            &format!("--color-scale-mode={mode}"),
+        ]));
+        assert!(listed.contains("\x1b[38;5;"), "{mode}: {listed:?}");
+        assert!(!listed.contains("38;2;"), "{mode}: {listed:?}");
+    }
+}
+
+/// A Windows console sets neither variable and takes 24-bit colour all the
+/// same, so it is given it without being told.
+#[cfg(windows)]
+#[test]
+fn a_windows_console_is_given_24_bit_colour() {
+    assert_eq!(scaled_on(&fixture("console"), &[]), IN_24_BIT);
 }

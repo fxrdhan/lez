@@ -57,7 +57,7 @@ fn setting<'a>(binstall: &'a toml::Table, target: &str, key: &str) -> &'a str {
 }
 
 /// Each target the release workflow builds, with the archive it packs it in.
-fn release_archives() -> Vec<(String, String)> {
+pub(super) fn release_archives() -> Vec<(String, String)> {
     let workflow: serde_norway::Value =
         serde_norway::from_str(&workspace_file(".github/workflows/release.yml"))
             .expect("release.yml should be valid YAML");

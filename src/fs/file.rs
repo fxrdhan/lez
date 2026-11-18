@@ -7,6 +7,7 @@
 //! Files, and methods and fields to access their metadata.
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fs::FileType;
 use std::io;
 #[cfg(unix)]
@@ -439,6 +440,26 @@ impl<'dir> File<'dir> {
         }
     }
 
+    /// This file's name as the filesystem has it, for printing.
+    ///
+    /// `name` holds U+FFFD in place of each byte that is part of no
+    /// character. That is right for sorting and for matching, and wrong for
+    /// printing, since the bytes cannot be had back from it. The path still
+    /// holds them, so a name that lost some is taken from there.
+    #[must_use]
+    pub fn name_os(&self) -> &OsStr {
+        if self.name.contains(char::REPLACEMENT_CHARACTER)
+            && let Some(raw) = self.path.components().next_back()
+            && let raw = raw.as_os_str()
+            && raw.to_str().is_none()
+            && raw.to_string_lossy() == self.name
+        {
+            raw
+        } else {
+            OsStr::new(&self.name)
+        }
+    }
+
     /// Extract an extension from a file path, if one is present, in lowercase.
     ///
     /// The extension is the series of characters after the last dot. This
@@ -744,7 +765,15 @@ impl<'dir> File<'dir> {
         // SAFETY: `out` is a valid, correctly-sized location for statfs to
         // initialise; errno is the only error channel.
         let result = unsafe { libc::statfs(path.as_ptr(), out.as_mut_ptr()) };
-        result == 0 && unsafe { out.assume_init() }.f_type == libc::BTRFS_SUPER_MAGIC
+
+        // The constant is a signed word. So is `f_type` under glibc, but
+        // under musl it is an unsigned one, and the two do not compare.
+        #[cfg(target_env = "musl")]
+        let btrfs = libc::BTRFS_SUPER_MAGIC.cast_unsigned();
+        #[cfg(not(target_env = "musl"))]
+        let btrfs = libc::BTRFS_SUPER_MAGIC;
+
+        result == 0 && unsafe { out.assume_init() }.f_type == btrfs
     }
 
     /// Whether this file carries Linux file capabilities, which `LS_COLORS`

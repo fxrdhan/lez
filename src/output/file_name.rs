@@ -4,8 +4,9 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
+use std::ffi::{OsStr, OsString};
 use std::fmt::Debug;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nu_ansi_term::{AnsiString as ANSIString, Style};
 use path_clean;
@@ -83,6 +84,26 @@ fn split_nix_hash(component: &str) -> Option<(&str, &str)> {
 enum NameSegment {
     Hash(String),
     Text(String),
+}
+
+/// The separator a path ends in as it is written, as `dir/` does, if any.
+fn trailing_separator(path: &OsStr) -> Option<char> {
+    path.as_encoded_bytes()
+        .last()
+        .map(|&byte| char::from(byte))
+        .filter(|&last| std::path::is_separator(last))
+}
+
+/// Whether a separator has to be written between `parent` and a name after
+/// it.
+///
+/// Not where the parent ends in one already, as the root of a drive does:
+/// `C:\` and `Program Files` are `C:\Program Files`, which used to be printed
+/// with two. Nor after a drive alone: `C:` and `notes.txt` are `C:notes.txt`,
+/// a file in that drive's current directory, and a separator would name one
+/// in its root. `Path::join` knows both, so it is asked what it would add.
+fn needs_separator(parent: &Path) -> bool {
+    parent.join("x").as_os_str().len() > parent.as_os_str().len() + 1
 }
 
 /// Split a display name (which may be a whole path) into segments, replacing
@@ -473,7 +494,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     // directory-coloured `/dev/` followed by the node name.
                     let (target_parent, target_display_name) =
                         if target.is_char_device() || target.is_block_device() {
-                            (None, target.path.to_string_lossy().to_string())
+                            (None, target.path.as_os_str().to_owned())
                         } else {
                             (target.path.parent(), Self::link_text_name(target))
                         };
@@ -490,7 +511,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     // already shows it is a directory.
                     if should_add_classify_char
                         && let Some(class) = Self::classify_char(target)
-                        && !(class == "/" && target_display_name.ends_with(std::path::is_separator))
+                        && !(class == "/" && trailing_separator(&target_display_name).is_some())
                     {
                         bits.push(self.colours.classify_char().paint(class));
                     }
@@ -502,7 +523,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     bits.push(Style::default().paint(" "));
 
                     escape::escape_with_quote_style(
-                        broken_path.display().to_string(),
+                        broken_path,
                         &mut bits,
                         self.colours.broken_filename(),
                         self.colours.broken_control_char(),
@@ -558,25 +579,39 @@ impl<C: Colours> FileName<'_, '_, C> {
         &self,
         bits: &mut Vec<ANSIString<'unused>>,
         parent_opt: Option<&Path>,
-        display_name: &str,
+        display_name: &OsStr,
         file_style: Style,
         quote_style: QuoteStyle,
     ) {
+        let separator = std::path::MAIN_SEPARATOR.to_string();
+
+        // A path or a name is kept as the filesystem has it: one that is
+        // not UTF-8 is escaped byte for byte further down, where its lossy
+        // form would have lost the bytes. A Nix store path is ASCII, so
+        // only what is UTF-8 is looked at for a hash to shorten.
+        //
+        // Beside the parent goes whether a separator follows it. None
+        // follows the root, which is one, or a parent that ends in one.
         let parent_info = if let Some(parent) = parent_opt {
             let coconut = parent.components().count();
             if coconut == 1 && parent.has_root() {
-                Some((std::path::MAIN_SEPARATOR.to_string(), true))
+                Some((OsString::from(&separator), false))
             } else if coconut >= 1 {
-                let mut parent_str = parent.to_string_lossy().to_string();
-                if self.options.short_nix {
-                    parent_str = shorten_nix_segments(&parent_str)
-                        .into_iter()
-                        .map(|segment| match segment {
-                            NameSegment::Hash(s) | NameSegment::Text(s) => s,
-                        })
-                        .collect();
-                }
-                Some((parent_str, false))
+                let shortened = parent
+                    .to_str()
+                    .filter(|_| self.options.short_nix)
+                    .map(|parent| {
+                        shorten_nix_segments(parent)
+                            .into_iter()
+                            .map(|segment| match segment {
+                                NameSegment::Hash(s) | NameSegment::Text(s) => s,
+                            })
+                            .collect::<String>()
+                    });
+                Some((
+                    shortened.map_or_else(|| parent.as_os_str().to_owned(), OsString::from),
+                    needs_separator(parent),
+                ))
             } else {
                 None
             }
@@ -584,44 +619,38 @@ impl<C: Colours> FileName<'_, '_, C> {
             None
         };
 
-        let full_path_for_quoting = match &parent_info {
-            Some((parent_str, is_root)) => {
-                if *is_root {
-                    format!("{parent_str}{display_name}")
-                } else {
-                    format!("{parent_str}{}{display_name}", std::path::MAIN_SEPARATOR)
-                }
+        let mut full_path_for_quoting = OsString::new();
+        if let Some((parent, separated)) = &parent_info {
+            full_path_for_quoting.push(parent);
+            if *separated {
+                full_path_for_quoting.push(&separator);
             }
-            None => display_name.to_string(),
-        };
+        }
+        full_path_for_quoting.push(display_name);
 
-        let quoting = escape::Quoting::for_string(&full_path_for_quoting, quote_style);
+        let quoting = escape::Quoting::for_name(&full_path_for_quoting, quote_style);
 
         if let Some(opening) = quoting.opening_bit(self.colours.quote()) {
             bits.push(opening);
         }
 
-        if let Some((parent_str, is_root)) = parent_info {
-            if is_root {
-                bits.push(self.colours.symlink_path().paint(parent_str));
-            } else {
-                escape::escape_inner_chars(
-                    &parent_str,
-                    bits,
-                    self.colours.symlink_path(),
-                    self.colours.control_char(),
-                    quoting,
-                );
-                bits.push(
-                    self.colours
-                        .symlink_path()
-                        .paint(std::path::MAIN_SEPARATOR.to_string()),
-                );
+        if let Some((parent, separated)) = parent_info {
+            escape::escape_inner_name(
+                &parent,
+                bits,
+                self.colours.symlink_path(),
+                self.colours.control_char(),
+                quoting,
+            );
+            if separated {
+                bits.push(self.colours.symlink_path().paint(separator));
             }
         }
 
         if !display_name.is_empty() {
-            if self.options.short_nix {
+            if self.options.short_nix
+                && let Some(display_name) = display_name.to_str()
+            {
                 for segment in shorten_nix_segments(display_name) {
                     match segment {
                         NameSegment::Hash(hash) => {
@@ -637,7 +666,7 @@ impl<C: Colours> FileName<'_, '_, C> {
                     }
                 }
             } else {
-                escape::escape_inner_chars(
+                escape::escape_inner_name(
                     display_name,
                     bits,
                     file_style,
@@ -654,14 +683,15 @@ impl<C: Colours> FileName<'_, '_, C> {
 
     /// The name of a symlink target as the link spells it. `File::name`
     /// drops a trailing slash (`ln -s dir/ link`), which is put back here.
-    fn link_text_name(target: &File<'_>) -> String {
-        let text = target.path.to_string_lossy();
-        match text.chars().last() {
-            Some(last) if text.len() > 1 && std::path::is_separator(last) => {
-                format!("{}{last}", target.name)
-            }
-            _ => target.name.clone(),
+    fn link_text_name(target: &File<'_>) -> OsString {
+        let mut name = target.name_os().to_owned();
+        let text = target.path.as_os_str();
+        if text.len() > 1
+            && let Some(separator) = trailing_separator(text)
+        {
+            name.push(separator.to_string());
         }
+        name
     }
 
     /// The character to be displayed after a file when classifying is on, if
@@ -702,13 +732,11 @@ impl<C: Colours> FileName<'_, '_, C> {
     }
 
     /// Returns the string that should be displayed as the file's name.
-    fn display_name(&self) -> String {
+    fn display_name(&self) -> OsString {
         match self.options.absolute {
-            Absolute::On => std::env::current_dir().ok().and_then(|p| {
-                path_clean::clean(p.join(&self.file.path))
-                    .to_str()
-                    .map(std::borrow::ToOwned::to_owned)
-            }),
+            Absolute::On => std::env::current_dir()
+                .ok()
+                .map(|p| path_clean::clean(p.join(&self.file.path)).into_os_string()),
             // When the row is about the link itself (its target is shown after
             // the arrow, or `--dereference` describes the target in the other
             // columns), resolve the directories leading to it but keep the
@@ -719,16 +747,12 @@ impl<C: Colours> FileName<'_, '_, C> {
             {
                 self.file
                     .path_with_resolved_parent()
-                    .and_then(|p| p.to_str().map(std::borrow::ToOwned::to_owned))
+                    .map(PathBuf::into_os_string)
             }
-            Absolute::Follow => self
-                .file
-                .absolute_path()
-                .and_then(|p| p.to_str())
-                .map(std::borrow::ToOwned::to_owned),
+            Absolute::Follow => self.file.absolute_path().map(|p| p.as_os_str().to_owned()),
             Absolute::Off => None,
         }
-        .unwrap_or(self.file.name.clone())
+        .unwrap_or_else(|| self.file.name_os().to_owned())
     }
 
     /// Resolves the complete display style for any given file entry,
@@ -998,6 +1022,28 @@ mod test {
     use super::*;
 
     const HASH: &str = "vlkia5wk0svsikwv50554mh06iayg2m2";
+
+    /// One separator between a parent and the name after it, and the root
+    /// is that separator already.
+    #[test]
+    fn a_separator_follows_a_parent_that_does_not_end_in_one() {
+        assert!(needs_separator(Path::new("usr")));
+        assert!(needs_separator(Path::new("/usr/lib")));
+        assert!(!needs_separator(Path::new("/")));
+    }
+
+    /// The root of a drive ends in its separator, as that of a share does,
+    /// and a drive alone takes none: what follows it is relative to the
+    /// drive's current directory.
+    #[test]
+    #[cfg(windows)]
+    fn no_separator_follows_the_root_of_a_drive_or_a_drive_alone() {
+        assert!(!needs_separator(Path::new(r"C:\")));
+        assert!(!needs_separator(Path::new("C:")));
+        assert!(!needs_separator(Path::new(r"\\server\share\")));
+        assert!(needs_separator(Path::new(r"C:\Windows")));
+        assert!(needs_separator(Path::new(r"\\server\share\dir")));
+    }
 
     #[test]
     fn splits_a_store_file_name() {

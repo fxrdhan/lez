@@ -215,6 +215,16 @@ pub struct Lez<'args> {
     pub git_repos: bool,
 }
 
+/// Reports a path given on the command line that could not be read, and
+/// what a Windows shell may have done to it if that is why.
+fn report_unreadable(path: &OsStr, error: &io::Error) -> io::Result<()> {
+    writeln!(io::stderr(), "{path:?}: {error}")?;
+    if let Some(hint) = shell_globs::stray_quote_hint(path) {
+        writeln!(io::stderr(), "lez: {hint}")?;
+    }
+    Ok(())
+}
+
 /// The “real” environment variables type.
 /// Instead of just calling `var_os` from within the options module,
 /// the method of looking up environment variables has to be passed in.
@@ -238,6 +248,10 @@ impl Vars for LiveVars {
 
     fn platform_home_dir(&self) -> Option<PathBuf> {
         dirs::home_dir()
+    }
+
+    fn console_is_truecolor(&self) -> bool {
+        cfg!(windows)
     }
 }
 
@@ -407,7 +421,7 @@ impl Lez<'_> {
                     } else {
                         exit_status = exits::MISSING_INPUT_PATH;
                     }
-                    writeln!(io::stderr(), "{file_path:?}: {e}")?;
+                    report_unreadable(file_path, &e)?;
                 } else {
                     roots.push(path);
                 }
@@ -506,7 +520,7 @@ impl Lez<'_> {
                 } else {
                     exit_status = exits::MISSING_INPUT_PATH;
                 }
-                writeln!(io::stderr(), "{file_path:?}: {e}")?;
+                report_unreadable(file_path, e)?;
                 continue;
             }
 
@@ -634,7 +648,7 @@ impl Lez<'_> {
             if !is_only_dir {
                 let mut bits = Vec::new();
                 escape::escape_with_quote_style(
-                    dir.path.display().to_string(),
+                    &dir.path,
                     &mut bits,
                     Style::default(),
                     Style::default(),

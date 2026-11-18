@@ -7,6 +7,7 @@
 use super::file_name::QuoteStyle;
 use nu_ansi_term::{AnsiString as ANSIString, Style};
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
+use std::ffi::OsStr;
 
 /// How a name has to be wrapped for a shell to read it back as one word.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -34,7 +35,8 @@ pub enum Quoting {
     /// name, which no other quoting can say, and `\'` and `\\` are an
     /// apostrophe and a backslash. `new<newline>line` prints as
     /// `$'new\nline'`, which bash, zsh and ksh read back as the name, as
-    /// GNU `ls` prints it.
+    /// GNU `ls` prints it. A name that is not UTF-8 takes them too, for its
+    /// bytes that are part of no character: `\337` is that byte.
     Ansi,
 }
 
@@ -83,6 +85,20 @@ impl Quoting {
             }
         } else {
             Self::None
+        }
+    }
+
+    /// Determines the quoting strategy for a name as the filesystem has it,
+    /// which need not be UTF-8. One that is not holds bytes that are part of
+    /// no character, and only ANSI-C quotes can say those; Windows shells
+    /// have no such quotes, so there the name is quoted as its lossy form is.
+    #[must_use]
+    pub fn for_name(name: &OsStr, quote_style: QuoteStyle) -> Self {
+        match name.to_str() {
+            Some(name) => Self::for_string(name, quote_style),
+            None if cfg!(not(unix)) => Self::for_string(&name.to_string_lossy(), quote_style),
+            None if quote_style.quotes_needed(true) => Self::Ansi,
+            None => Self::None,
         }
     }
 
@@ -170,18 +186,63 @@ pub fn escape_inner_chars(
     }
 }
 
+/// Escapes a name as the filesystem has it, without adding outer quotation
+/// marks. A name that is UTF-8 is escaped as `escape_inner_chars` escapes it.
+///
+/// One that is not used to be printed as its lossy form, U+FFFD in place of
+/// each byte that is part of no character, and the name could not be had
+/// back from the listing. Each such byte is written as itself instead: in
+/// octal inside ANSI-C quotes, `\337`, which a shell reads back as the byte,
+/// and as `\xdf` where there are no quotes to read it in.
+pub fn escape_inner_name(
+    name: &OsStr,
+    bits: &mut Vec<ANSIString<'_>>,
+    good: Style,
+    bad: Style,
+    quoting: Quoting,
+) {
+    if let Some(name) = name.to_str() {
+        escape_inner_chars(name, bits, good, bad, quoting);
+        return;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        for chunk in name.as_bytes().utf8_chunks() {
+            if !chunk.valid().is_empty() {
+                escape_inner_chars(chunk.valid(), bits, good, bad, quoting);
+            }
+            for byte in chunk.invalid() {
+                bits.push(bad.paint(if quoting == Quoting::Ansi {
+                    format!("\\{byte:03o}")
+                } else {
+                    byte.escape_ascii().to_string()
+                }));
+            }
+        }
+    }
+
+    // A Windows name that is not Unicode holds half of a surrogate pair,
+    // which no shell there has a way to write.
+    #[cfg(not(unix))]
+    escape_inner_chars(&name.to_string_lossy(), bits, good, bad, quoting);
+}
+
 pub fn escape_with_quote_style(
-    string: String,
+    name: impl AsRef<OsStr>,
     bits: &mut Vec<ANSIString<'_>>,
     good: Style,
     bad: Style,
     quote_colour: Style,
     quote_style: QuoteStyle,
 ) {
+    let name = name.as_ref();
     let bits_starting_length = bits.len();
-    let quoting = Quoting::for_string(&string, quote_style);
+    let quoting = Quoting::for_name(name, quote_style);
 
-    escape_inner_chars(&string, bits, good, bad, quoting);
+    escape_inner_name(name, bits, good, bad, quoting);
 
     if let Some(opening) = quoting.opening_bit(quote_colour) {
         bits.insert(bits_starting_length, opening);
@@ -192,13 +253,13 @@ pub fn escape_with_quote_style(
 }
 
 pub fn escape(
-    string: String,
+    name: impl AsRef<OsStr>,
     bits: &mut Vec<ANSIString<'_>>,
     good: Style,
     bad: Style,
     quote_style: QuoteStyle,
 ) {
-    escape_with_quote_style(string, bits, good, bad, good, quote_style);
+    escape_with_quote_style(name, bits, good, bad, good, quote_style);
 }
 
 const HYPERLINK_ESCAPE_CHARS: &AsciiSet = &CONTROLS
@@ -328,13 +389,7 @@ mod test {
     /// assertion is about the quoting alone.
     fn quoted(name: &str, style: QuoteStyle) -> String {
         let mut bits = Vec::new();
-        escape(
-            name.to_string(),
-            &mut bits,
-            Style::default(),
-            Style::default(),
-            style,
-        );
+        escape(name, &mut bits, Style::default(), Style::default(), style);
         bits.iter().map(ToString::to_string).collect()
     }
 
@@ -511,8 +566,92 @@ mod test {
             Style::new().italic(),
         );
         let mut bits = Vec::new();
+        escape_with_quote_style("a'\n", &mut bits, good, bad, quote, QuoteStyle::Auto);
+        assert_eq!(
+            bits,
+            vec![
+                quote.paint("$'"),
+                good.paint("a"),
+                good.paint(r"\'"),
+                bad.paint(r"\n"),
+                quote.paint("'"),
+            ]
+        );
+    }
+
+    /// Render a name given as bytes, as a filesystem that does not ask for
+    /// UTF-8 hands them over.
+    #[cfg(unix)]
+    fn quoted_bytes(name: &[u8], style: QuoteStyle) -> String {
+        use std::os::unix::ffi::OsStrExt;
+
+        let mut bits = Vec::new();
+        escape(
+            OsStr::from_bytes(name),
+            &mut bits,
+            Style::default(),
+            Style::default(),
+            style,
+        );
+        bits.iter().map(ToString::to_string).collect()
+    }
+
+    /// A name that is not UTF-8 used to be printed as U+FFFD for each byte
+    /// that is part of no character, so the listing could not give the name
+    /// back (eza#585). Each such byte is written in octal inside ANSI-C
+    /// quotes, where a shell reads it as that byte, and what is text around
+    /// it stays text. The first name is "Βίντεο" in ISO-8859-7.
+    #[test]
+    #[cfg(unix)]
+    fn bytes_that_are_part_of_no_character_are_written_in_octal() {
+        for (name, expected) in [
+            (
+                &b"\xc2\xdf\xed\xf4\xe5\xef"[..],
+                r"$'\302\337\355\364\345\357'",
+            ),
+            (b"caf\xe9 \xc3\xa9t\xc3\xa9", "$'caf\\351 été'"),
+            (b"it's\xff", r"$'it\'s\377'"),
+            (b"tab\there\xfe", r"$'tab\there\376'"),
+            // A character cut short: its lead byte alone.
+            (b"cut\xe2\x82", r"$'cut\342\202'"),
+        ] {
+            assert_eq!(quoted_bytes(name, QuoteStyle::Auto), expected, "{name:?}");
+            assert_eq!(quoted_bytes(name, QuoteStyle::Always), expected, "{name:?}");
+            assert!(
+                !quoted_bytes(name, QuoteStyle::Auto).contains(char::REPLACEMENT_CHARACTER),
+                "{name:?}"
+            );
+        }
+    }
+
+    /// Without quotes there is nothing to read an octal escape in, so such a
+    /// byte is shown as the escape Rust writes it with, as a control
+    /// character is.
+    #[test]
+    #[cfg(unix)]
+    fn bytes_that_are_part_of_no_character_are_escaped_without_quotes() {
+        assert_eq!(
+            quoted_bytes(b"\xc2\xdf\xed", QuoteStyle::Never),
+            r"\xc2\xdf\xed"
+        );
+        assert_eq!(quoted_bytes(b"caf\xe9 x", QuoteStyle::Never), r"caf\xe9 x");
+    }
+
+    /// Such a byte takes the style for what cannot be printed, and the text
+    /// around it the name's own.
+    #[test]
+    #[cfg(unix)]
+    fn bytes_that_are_part_of_no_character_take_the_control_style() {
+        use std::os::unix::ffi::OsStrExt;
+
+        let (good, bad, quote) = (
+            Style::new().bold(),
+            Style::new().underline(),
+            Style::new().italic(),
+        );
+        let mut bits = Vec::new();
         escape_with_quote_style(
-            "a'\n".to_owned(),
+            OsStr::from_bytes(b"a\xffb"),
             &mut bits,
             good,
             bad,
@@ -524,11 +663,26 @@ mod test {
             vec![
                 quote.paint("$'"),
                 good.paint("a"),
-                good.paint(r"\'"),
-                bad.paint(r"\n"),
+                bad.paint(r"\377"),
+                good.paint("b"),
                 quote.paint("'"),
             ]
         );
+    }
+
+    /// A name that is UTF-8 is quoted exactly as before, whichever way it
+    /// is handed over.
+    #[test]
+    fn a_utf8_name_is_quoted_the_same_as_text_or_as_a_name() {
+        for name in ["plain", "with space", "it's", "café", "new\nline"] {
+            for style in [QuoteStyle::Auto, QuoteStyle::Always, QuoteStyle::Never] {
+                assert_eq!(
+                    Quoting::for_name(OsStr::new(name), style),
+                    Quoting::for_string(name, style),
+                    "{name:?}"
+                );
+            }
+        }
     }
 
     #[test]

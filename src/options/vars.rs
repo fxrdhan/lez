@@ -25,6 +25,14 @@ pub static TIME_STYLE: &str = "TIME_STYLE";
 /// See: <https://no-color.org/>
 pub static NO_COLOR: &str = "NO_COLOR";
 
+/// Environment variable a terminal sets to `truecolor` or `24bit` to say it
+/// takes 24-bit colours. Nothing else about it is read.
+pub static COLORTERM: &str = "COLORTERM";
+
+/// Environment variable naming the terminal's terminfo entry, read only for
+/// whether it is a direct-colour one.
+pub static TERM: &str = "TERM";
+
 /// Environment variable GNU `ls` reads for its quoting style, consulted after
 /// `LEZ_QUOTING_STYLE` and `EZA_QUOTING_STYLE`.
 pub static QUOTING_STYLE: &str = "QUOTING_STYLE";
@@ -193,6 +201,13 @@ pub trait Vars {
         None
     }
 
+    /// Whether the console takes 24-bit colours whatever the variables say.
+    /// That of every Windows this is built for does, and sets neither
+    /// `COLORTERM` nor `TERM` to say so.
+    fn console_is_truecolor(&self) -> bool {
+        false
+    }
+
     /// Get the variable `name` and if not set get the variable `fallback`.
     fn get_with_fallback(&self, name: &'static str, fallback: &'static str) -> Option<OsString> {
         self.get(name).or_else(|| self.get(fallback))
@@ -277,6 +292,8 @@ pub mod test {
         pub lc_collate: OsString,
         pub lc_time: OsString,
         pub lang: OsString,
+        pub colorterm: OsString,
+        pub term: OsString,
         pub lez_flags_format: OsString,
         pub eza_flags_format: OsString,
         pub flags_format: OsString,
@@ -452,6 +469,8 @@ pub mod test {
                 "LC_COLLATE" if !self.lc_collate.is_empty() => Some(self.lc_collate.clone()),
                 "LC_TIME" if !self.lc_time.is_empty() => Some(self.lc_time.clone()),
                 "LANG" if !self.lang.is_empty() => Some(self.lang.clone()),
+                "COLORTERM" if !self.colorterm.is_empty() => Some(self.colorterm.clone()),
+                "TERM" if !self.term.is_empty() => Some(self.term.clone()),
                 _ => None,
             }
         }
@@ -511,6 +530,8 @@ pub mod test {
                 "LC_COLLATE" => self.lc_collate = value.clone(),
                 "LC_TIME" => self.lc_time = value.clone(),
                 "LANG" => self.lang = value.clone(),
+                "COLORTERM" => self.colorterm = value.clone(),
+                "TERM" => self.term = value.clone(),
                 "LEZ_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON" => {
                     self.no_empty_dir_icon = value.clone();
                 }

@@ -13,14 +13,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Locates the `lez` binary for running CLI integration tests.
+///
+/// Cargo gives each integration test the path of the binary it built for it.
+/// Working the path out from the test's own, as this used to, holds only
+/// while a test binary sits in `deps` beside `lez`, and cargo 1.100 keeps it
+/// elsewhere: every test that ran the binary failed to find it there.
+///
+/// On Windows the path is given without its `.exe`, which Windows adds
+/// again to run it. A program's usage message names it as it was started,
+/// and the tests expect `lez` there, as they got from the path worked out.
 pub fn bin_path() -> PathBuf {
-    let mut path = std::env::current_exe().expect("failed to get current_exe");
-    path.pop(); // Remove test binary name
-    if path.ends_with("deps") {
-        path.pop(); // Remove deps
+    let path = PathBuf::from(env!("CARGO_BIN_EXE_lez"));
+    if cfg!(windows) {
+        path.with_extension("")
+    } else {
+        path
     }
-    path.push("lez");
-    path
 }
 
 /// Checks whether git is available on the system.

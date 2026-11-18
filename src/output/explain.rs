@@ -12,13 +12,14 @@
 //!
 //! [`FileName::name_colour`]: crate::output::file_name::FileName::name_colour
 
+use std::ffi::OsStr;
 use std::io::{self, Write};
 
 use nu_ansi_term::Style;
 
 use crate::fs::File;
 use crate::info::filetype::FileType;
-use crate::output::escape::{Quoting, escape_inner_chars};
+use crate::output::escape::{Quoting, escape_inner_name};
 use crate::output::file_name::{ColourRule, Options as FileStyle};
 use crate::output::icons::{IconSource, icon_with_source, iconify_style};
 use crate::theme::{GlobRule, GlobSource, NameOverride, Theme, ThemeEntry};
@@ -41,7 +42,7 @@ pub struct Render<'a> {
 impl Render<'_> {
     pub fn render<W: Write>(self, w: &mut W) -> io::Result<()> {
         for file in &self.files {
-            writeln!(w, "{}", plain_name(&file.name))?;
+            writeln!(w, "{}", plain_name(file.name_os()))?;
             writeln!(w, "    colour: {}", self.colour(file))?;
             writeln!(w, "    icon:   {}", self.icon(file))?;
         }
@@ -158,10 +159,11 @@ impl Render<'_> {
     }
 }
 
-/// The name as text, with any control character in it shown as an escape.
-fn plain_name(name: &str) -> String {
+/// The name as text, with any control character in it, and any byte that is
+/// part of no character, shown as an escape.
+fn plain_name(name: &OsStr) -> String {
     let mut bits = Vec::new();
-    escape_inner_chars(
+    escape_inner_name(
         name,
         &mut bits,
         Style::default(),

@@ -1,9 +1,15 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Two Windows-only defects, both confirmed on a `windows-latest` runner
+//! Four Windows-only defects, each confirmed on a `windows-latest` runner
 //! before being fixed here (see issue #57):
 //!
+//! - A path under the root of a drive was printed with two separators,
+//!   `C:\\Users`, and one relative to a drive with one it did not have,
+//!   `C:\notes.txt` for `C:notes.txt`.
+//! - `cmd` and Windows PowerShell 5.1 pass `"with space\"` as it is written,
+//!   and the `\"` reached the binary as a quote at the end of the path, which
+//!   failed with `os error 123` (eza#874).
 //! - `cmd` and PowerShell do not expand wildcards, so `lez t*` reached the
 //!   binary as the literal `t*` and failed with `os error 123`.
 //! - Windows has no `.` entry on disk, so listing from inside a directory
@@ -109,6 +115,84 @@ fn a_pattern_matching_nothing_is_still_reported() {
     // The reason is the system's own words; the pattern comes first.
     assert!(stderr.starts_with("\"zzz*\": "), "{stderr}");
     assert_eq!(stderr.lines().count(), 1, "{stderr}");
+}
+
+/// `"with space\"`, as tab completion writes it in PowerShell 5.1, is
+/// `with space"` once the program has read its command line. The quote is put
+/// back as the separator that was typed.
+#[test]
+fn a_quote_in_place_of_a_trailing_separator_is_read_as_the_separator() {
+    let dir = Fixture::new("quote");
+    fs::create_dir_all(dir.path.join("with space")).unwrap();
+    fs::write(dir.path.join("with space").join("inside.txt"), b"x").unwrap();
+
+    let typed = run_in(&dir.path, &["with space\\"]);
+    assert_eq!(typed, (0, "inside.txt\n".to_owned(), String::new()));
+    assert_eq!(run_in(&dir.path, &["with space\""]), typed);
+}
+
+/// With anything after it on the line, the quote took that into the path
+/// too, and there is no telling where the path was meant to end. It is
+/// reported as it came, with what happened to it.
+#[test]
+fn a_quote_that_took_the_rest_of_the_line_is_explained() {
+    let dir = Fixture::new("quote_rest");
+    fs::create_dir_all(dir.path.join("with space")).unwrap();
+
+    let (code, stdout, stderr) = run_in(&dir.path, &["with space\" -l"]);
+    assert_eq!(code, 2, "a path that cannot be read exits 2");
+    assert_eq!(stdout, "");
+    let mut lines = stderr.lines();
+    assert!(
+        lines
+            .next()
+            .is_some_and(|line| line.starts_with("\"with space\\\" -l\": ")),
+        "{stderr}"
+    );
+    assert_eq!(
+        lines.next(),
+        Some(
+            "lez: a file name cannot hold a quote. If the path was quoted and ended in a \
+             backslash, the shell handed over \\\" as a quote: leave the backslash off, or \
+             double it."
+        ),
+        "{stderr}"
+    );
+    assert_eq!(lines.next(), None, "{stderr}");
+}
+
+/// The root of a drive ends in its own separator, and a second one was
+/// written after it: `C:\\Users`.
+#[test]
+fn a_path_under_the_root_of_a_drive_has_one_separator() {
+    let dir = Fixture::new("drive_root");
+    // The last ancestor is the root, `C:\`, and the one before it is a
+    // directory in it.
+    let ancestors: Vec<&Path> = dir.path.ancestors().collect();
+    let under_root = ancestors[ancestors.len() - 2]
+        .to_str()
+        .expect("the temporary directory should be Unicode");
+
+    let (code, stdout, stderr) = run_in(&dir.path, &["-d", under_root]);
+    assert_eq!(code, 0, "stderr was: {stderr}");
+    assert_eq!(stdout, format!("{under_root}\n"));
+}
+
+/// `C:notes.txt` is a file in the current directory of drive `C:`. Printed
+/// with a separator after the drive it would be one in the drive's root.
+#[test]
+fn a_path_relative_to_a_drive_is_given_no_separator() {
+    let dir = Fixture::new("drive_relative");
+    dir.file("notes.txt");
+    let drive = &dir
+        .path
+        .to_str()
+        .expect("the temporary directory should be Unicode")[..2];
+    let relative = format!("{drive}notes.txt");
+
+    let (code, stdout, stderr) = run_in(&dir.path, &[&relative]);
+    assert_eq!(code, 0, "stderr was: {stderr}");
+    assert_eq!(stdout, format!("{relative}\n"));
 }
 
 /// `[` is legal in a Windows file name, so it must not be read as the start of

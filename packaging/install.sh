@@ -13,7 +13,17 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 # Detect OS
 OS="$(uname -s)"
 case "${OS}" in
-    Linux*)     PLATFORM="unknown-linux-gnu"; EXT="tar.gz" ;;
+    Linux*)
+        # A glibc binary does not start where the C library is musl, as on
+        # Alpine: the loader it names is not there. The static musl binary
+        # is the one for such a system. musl's ldd names itself, on stderr
+        # and with a failing status, so its output is read whatever it
+        # returns; a system with no ldd is taken for glibc.
+        case "$(ldd --version 2>&1 || true)" in
+            *musl*) PLATFORM="unknown-linux-musl" ;;
+            *)      PLATFORM="unknown-linux-gnu" ;;
+        esac
+        EXT="tar.gz" ;;
     Darwin*)    PLATFORM="apple-darwin"; EXT="tar.gz" ;;
     *)          echo "Error: Unsupported operating system: ${OS}" >&2; exit 1 ;;
 esac
@@ -49,9 +59,9 @@ ARCHIVE_NAME="lez_${TARGET}.${EXT}"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${ARCHIVE_NAME}"
 
 # A release carries prebuilt binaries for some targets only (see INSTALL.md);
-# those up to v0.29.0, for one, have none for Linux on ARM64. Build the
-# release's tag with Cargo there, rather than fail on a download that is not
-# there.
+# those up to v0.29.0, for one, have none for Linux on ARM64, and those up to
+# v0.29.1 none for musl. Build the release's tag with Cargo there, rather than
+# fail on a download that is not there.
 if ! grep -qF "\"${DOWNLOAD_URL}\"" <<< "${RELEASE_JSON}"; then
     if command -v cargo >/dev/null 2>&1; then
         echo "==> ${LATEST_TAG} has no prebuilt binary for ${TARGET}, building it via cargo install..."

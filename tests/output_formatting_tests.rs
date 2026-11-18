@@ -17,6 +17,8 @@ mod grid_layout;
 mod grid_width;
 #[path = "output_formatting/hyperlinks.rs"]
 mod hyperlinks;
+#[path = "output_formatting/non_utf8_names.rs"]
+mod non_utf8_names;
 #[path = "output_formatting/number_locale.rs"]
 mod number_locale;
 #[path = "output_formatting/owner_width.rs"]

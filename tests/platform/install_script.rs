@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 //! `packaging/install.sh`, the `curl | bash` installer, run offline against
-//! stand-ins for `uname`, `curl` and `cargo`. A platform it recognises either
-//! downloads the release's prebuilt binary or, where the release has none,
-//! builds that release with Cargo; anything else is refused.
+//! stand-ins for `uname`, `ldd`, `curl` and `cargo`. A platform it recognises
+//! either downloads the release's prebuilt binary or, where the release has
+//! none, builds that release with Cargo; anything else is refused.
 
 #![cfg(unix)]
 
@@ -27,6 +27,19 @@ case "$1" in
     -s) echo "$STUB_OS" ;;
     -m) echo "$STUB_ARCH" ;;
     *) exit 1 ;;
+esac
+"#;
+
+/// Names the C library the test names, each the way its own `ldd` does:
+/// glibc's on stdout, musl's on stderr and with a failing status.
+const LDD: &str = r#"#!/bin/sh
+case "$STUB_LIBC" in
+    musl)
+        echo "musl libc (x86_64)" >&2
+        echo "Version 1.2.5" >&2
+        exit 1
+        ;;
+    *) echo "ldd (GNU libc) 2.39" ;;
 esac
 "#;
 
@@ -63,37 +76,65 @@ echo "cargo $*" >> "$STUB_LOG"
 /// The release the API answers with.
 #[derive(Clone, Copy)]
 enum Release {
-    /// One with a prebuilt binary for Linux on ARM64, as the release workflow
-    /// now builds.
+    /// The one the release workflow builds, read from its matrix of targets.
+    AsTheWorkflowBuilds,
+    /// One as the release workflow now builds them: for Linux, a glibc and a
+    /// static musl binary on each of x86_64 and ARM64.
+    WithMusl,
+    /// One as v0.29.1 was: Linux on ARM64, and nothing for musl.
     WithLinuxArm64,
-    /// One as they were up to v0.29.0, with none.
+    /// One as they were up to v0.29.0, with neither.
     WithoutLinuxArm64,
+}
+
+/// The C library `ldd` reports on the system the installer runs on.
+#[derive(Clone, Copy, Debug)]
+enum Libc {
+    Glibc,
+    Musl,
 }
 
 /// The latest release as the GitHub API prints it, cut down to what the
 /// installer reads: prebuilt binaries for Linux on x86_64, for macOS and for
-/// Windows, and for Linux on ARM64 if the release has one.
+/// Windows, and whichever other Linux binaries the release has.
 fn release_json(release: Release) -> String {
-    let linux_arm64 = match release {
-        Release::WithLinuxArm64 => Some("lez_aarch64-unknown-linux-gnu.tar.gz"),
-        Release::WithoutLinuxArm64 => None,
+    let more_linux: &[&str] = match release {
+        Release::AsTheWorkflowBuilds => &[],
+        Release::WithMusl => &[
+            "lez_aarch64-unknown-linux-gnu.tar.gz",
+            "lez_x86_64-unknown-linux-musl.tar.gz",
+            "lez_aarch64-unknown-linux-musl.tar.gz",
+        ],
+        Release::WithLinuxArm64 => &["lez_aarch64-unknown-linux-gnu.tar.gz"],
+        Release::WithoutLinuxArm64 => &[],
     };
-    let assets = [
-        "lez_x86_64-unknown-linux-gnu.tar.gz",
-        "lez_aarch64-apple-darwin.tar.gz",
-        "lez_x86_64-apple-darwin.tar.gz",
-        "lez_x86_64-pc-windows-msvc.zip",
-    ]
-    .into_iter()
-    .chain(linux_arm64)
-    .map(|name| {
-        format!(
-            "    {{\n      \"name\": \"{name}\",\n      \"browser_download_url\": \
-             \"https://github.com/fxrdhan/lez/releases/download/{TAG}/{name}\"\n    }}"
-        )
-    })
-    .collect::<Vec<_>>()
-    .join(",\n");
+    let names: Vec<String> = if matches!(release, Release::AsTheWorkflowBuilds) {
+        super::binstall_metadata::release_archives()
+            .into_iter()
+            .map(|(target, archive)| format!("lez_{target}.{archive}"))
+            .collect()
+    } else {
+        [
+            "lez_x86_64-unknown-linux-gnu.tar.gz",
+            "lez_aarch64-apple-darwin.tar.gz",
+            "lez_x86_64-apple-darwin.tar.gz",
+            "lez_x86_64-pc-windows-msvc.zip",
+        ]
+        .into_iter()
+        .chain(more_linux.iter().copied())
+        .map(str::to_owned)
+        .collect()
+    };
+    let assets = names
+        .iter()
+        .map(|name| {
+            format!(
+                "    {{\n      \"name\": \"{name}\",\n      \"browser_download_url\": \
+                 \"https://github.com/fxrdhan/lez/releases/download/{TAG}/{name}\"\n    }}"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
     format!("{{\n  \"tag_name\": \"{TAG}\",\n  \"assets\": [\n{assets}\n  ]\n}}\n")
 }
 
@@ -115,10 +156,15 @@ impl Run {
     }
 }
 
+/// On a glibc system, which every platform but the musl ones is tested as.
 fn run_installer(release: Release, os: &str, arch: &str, with_cargo: bool) -> Run {
+    run_installer_on(release, os, arch, Libc::Glibc, with_cargo)
+}
+
+fn run_installer_on(release: Release, os: &str, arch: &str, libc: Libc, with_cargo: bool) -> Run {
     let dir = TempTestDir::new("install_sh");
     let bin = dir.create_dir("bin");
-    let stand_ins = [("uname", UNAME), ("curl", CURL)]
+    let stand_ins = [("uname", UNAME), ("ldd", LDD), ("curl", CURL)]
         .into_iter()
         .chain(with_cargo.then_some(("cargo", CARGO)));
     for (name, script) in stand_ins {
@@ -158,6 +204,13 @@ fn run_installer(release: Release, os: &str, arch: &str, with_cargo: bool) -> Ru
         .env("PATH", path)
         .env("STUB_OS", os)
         .env("STUB_ARCH", arch)
+        .env(
+            "STUB_LIBC",
+            match libc {
+                Libc::Glibc => "glibc",
+                Libc::Musl => "musl",
+            },
+        )
         .env("STUB_LOG", &log)
         .env("STUB_RELEASE", &release)
         .env("STUB_ARCHIVE", &archive)
@@ -173,7 +226,8 @@ fn run_installer(release: Release, os: &str, arch: &str, with_cargo: bool) -> Ru
 }
 
 /// Linux and macOS on either architecture install the release's binary,
-/// whichever name `uname -m` gives the architecture.
+/// whichever name `uname -m` gives the architecture. A glibc system takes the
+/// glibc binary though the release has a musl one too.
 #[test]
 fn a_platform_with_a_prebuilt_binary_downloads_it() {
     for (os, arch, target) in [
@@ -184,7 +238,7 @@ fn a_platform_with_a_prebuilt_binary_downloads_it() {
         ("Darwin", "arm64", "aarch64-apple-darwin"),
         ("Darwin", "x86_64", "x86_64-apple-darwin"),
     ] {
-        let run = run_installer(Release::WithLinuxArm64, os, arch, true);
+        let run = run_installer(Release::WithMusl, os, arch, true);
         assert!(run.output.status.success(), "{os} {arch}: {}", run.stderr());
         let download = format!(
             "curl https://github.com/fxrdhan/lez/releases/download/{TAG}/lez_{target}.tar.gz"
@@ -192,6 +246,87 @@ fn a_platform_with_a_prebuilt_binary_downloads_it() {
         assert!(run.log.contains(&download), "{os} {arch}: {}", run.log);
         assert!(!run.ran_cargo(), "{os} {arch}: {}", run.log);
         assert_eq!(run.installed.as_deref(), Some(STAND_IN_LEZ), "{os} {arch}");
+    }
+}
+
+/// Where the C library is musl, as on Alpine, the glibc binary cannot start:
+/// the loader it names is not there. Such a system takes the static musl
+/// binary, on either architecture. `ldd` is not what names the system, so
+/// macOS takes its own binary whatever an `ldd` there would say.
+#[test]
+fn a_musl_system_downloads_the_musl_binary() {
+    for (os, arch, target) in [
+        ("Linux", "x86_64", "x86_64-unknown-linux-musl"),
+        ("Linux", "amd64", "x86_64-unknown-linux-musl"),
+        ("Linux", "aarch64", "aarch64-unknown-linux-musl"),
+        ("Linux", "arm64", "aarch64-unknown-linux-musl"),
+        ("Darwin", "arm64", "aarch64-apple-darwin"),
+    ] {
+        let run = run_installer_on(Release::WithMusl, os, arch, Libc::Musl, true);
+        assert!(run.output.status.success(), "{os} {arch}: {}", run.stderr());
+        let download = format!(
+            "curl https://github.com/fxrdhan/lez/releases/download/{TAG}/lez_{target}.tar.gz"
+        );
+        assert!(run.log.contains(&download), "{os} {arch}: {}", run.log);
+        assert!(!run.log.contains("linux-gnu"), "{os} {arch}: {}", run.log);
+        assert!(!run.ran_cargo(), "{os} {arch}: {}", run.log);
+        assert_eq!(run.installed.as_deref(), Some(STAND_IN_LEZ), "{os} {arch}");
+    }
+}
+
+/// Each platform the installer has a name for gets a binary from the release
+/// the workflow builds, under the name the installer asks for: with no Cargo
+/// to fall back on, it still installs. `INSTALL.md` lists the archive it took.
+#[test]
+fn every_platform_the_installer_names_is_one_the_release_workflow_builds() {
+    let install_md = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("INSTALL.md"))
+        .expect("failed to read INSTALL.md");
+    for (os, arch, libc) in [
+        ("Linux", "x86_64", Libc::Glibc),
+        ("Linux", "aarch64", Libc::Glibc),
+        ("Linux", "x86_64", Libc::Musl),
+        ("Linux", "aarch64", Libc::Musl),
+        ("Darwin", "arm64", Libc::Glibc),
+        ("Darwin", "x86_64", Libc::Glibc),
+    ] {
+        let run = run_installer_on(Release::AsTheWorkflowBuilds, os, arch, libc, false);
+        assert!(
+            run.output.status.success(),
+            "{os} {arch} {libc:?}: {}",
+            run.stderr()
+        );
+        assert_eq!(
+            run.installed.as_deref(),
+            Some(STAND_IN_LEZ),
+            "{os} {arch} {libc:?}"
+        );
+        let archive = run
+            .log
+            .lines()
+            .filter_map(|line| line.rsplit('/').next())
+            .find(|name| name.starts_with("lez_"))
+            .unwrap_or_else(|| panic!("{os} {arch} {libc:?}: no archive fetched: {}", run.log));
+        assert!(
+            install_md.contains(&format!("`{archive}`")),
+            "{os} {arch} {libc:?}: INSTALL.md does not list {archive}"
+        );
+    }
+}
+
+/// No release up to v0.29.1 has a musl binary. The installer used to put the
+/// glibc one on a musl system all the same, where it cannot run; it builds
+/// the release's tag with Cargo instead, as for any platform a release has
+/// no binary for.
+#[test]
+fn a_musl_system_is_not_given_the_glibc_binary() {
+    for arch in ["x86_64", "aarch64"] {
+        let run = run_installer_on(Release::WithLinuxArm64, "Linux", arch, Libc::Musl, true);
+        assert!(run.output.status.success(), "{arch}: {}", run.stderr());
+        assert!(!run.log.contains("linux-gnu"), "{arch}: {}", run.log);
+        let build =
+            format!("cargo install --git https://github.com/fxrdhan/lez.git --tag {TAG} --locked");
+        assert!(run.log.contains(&build), "{arch}: {}", run.log);
+        assert_eq!(run.installed, None, "{arch}");
     }
 }
 
@@ -245,7 +380,7 @@ fn an_unknown_platform_is_refused() {
         ("FreeBSD", "x86_64", "Unsupported operating system: FreeBSD"),
         ("Linux", "riscv64", "Unsupported CPU architecture: riscv64"),
     ] {
-        let run = run_installer(Release::WithLinuxArm64, os, arch, true);
+        let run = run_installer(Release::WithMusl, os, arch, true);
         assert_eq!(run.output.status.code(), Some(1), "{os} {arch}");
         assert!(
             run.stderr().contains(message),

@@ -550,6 +550,27 @@ fn code_wins_over_json_in_either_order() {
     assert_eq!(lez(dir.path(), &["--code", "--json"]), code);
 }
 
+/// What `lez(1)` says of `--oneline` beside the other layouts: it has the
+/// grid's place wherever it is given, and a tree stays a tree.
+#[test]
+fn oneline_takes_the_place_of_a_grid_and_leaves_a_tree_alone() {
+    let dir = TempTestDir::new("oneline_grid_tree");
+    for name in ["a.txt", "b.txt"] {
+        dir.create_file(name, b"a");
+    }
+
+    for flags in [["-1", "-G"], ["-G", "-1"]] {
+        assert_eq!(lez(dir.path(), &flags), "a.txt\nb.txt\n", "{flags:?}");
+    }
+    for flags in [["-1", "-T"], ["-T", "-1"]] {
+        assert_eq!(
+            lez(dir.path(), &flags),
+            ".\n├── a.txt\n└── b.txt\n",
+            "{flags:?}"
+        );
+    }
+}
+
 #[test]
 fn the_last_of_long_and_oneline_wins() {
     let dir = TempTestDir::new("long_oneline");

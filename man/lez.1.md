@@ -77,6 +77,8 @@ DISPLAY OPTIONS
 
 Symbolic link targets are not displayed in this mode, so output stays clean when piped into other commands such as `xargs`; use a details view (`-l`) to see them.
 
+`--oneline` and `--long` take each other's place: of the two, the one given last decides the view, so `-l -1` lists one name per line and `-1 -l` gives the long view. Beside `--grid` it wins wherever it is given, and beside `--tree` it changes nothing.
+
 `--absolute[=WHEN]`
 : Display entries with their absolute path.
 
@@ -100,6 +102,8 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 
 `-l`, `--long`
 : Display extended file metadata as a table.
+
+Given with `--oneline`, the later of the two decides the view. With `--grid` it makes a grid of long entries, and with `--tree` a tree of them.
 
 `-R`, `--recurse`
 : Recurse into directories.
@@ -140,6 +144,8 @@ Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), a
 Valid fields are ‘`all`’, ‘`age`’, and ‘`size`’.
 When used without a value, defaults to ‘`all`’. Note: when providing an explicit value, an equals sign is required (`--color-scale=FIELD`).
 
+The shades are 24-bit colors where the terminal says it takes them: `COLORTERM` set to `truecolor` or `24bit`, a `TERM` ending in `-direct` or `-truecolor`, or a Windows console. Anywhere else they are the nearest colors of the 256-color palette, since a terminal that does not take a 24-bit color may show another one altogether. See `COLORTERM` below.
+
 `--color-scale-mode=MODE`, `--colour-scale-mode=MODE`
 : Mode of color scale.
 
@@ -161,9 +167,9 @@ The icons are Nerd Font glyphs, so the terminal has to use a Nerd Font (`https:/
 `automatic` or `auto` will display icons only when the standard output is connected to a real terminal; when it is redirected to a file or piped into another program, they are not used. Setting this option to ‘`always`’ causes `lez` to always display icons, while ‘`never`’ disables the use of icons.
 
 `--quotes=WHEN`
-: When to quote file names. The default, `auto`, quotes names holding anything a shell gives a meaning to, the same characters `ls` quotes for: a space, `` ! " $ & ' ( ) * ; < = > ? [ \ ^ ` | ``, a control character, or a leading `#` or `~` (on Windows, where `\` separates paths, `\` and `[` are left bare, as are `?` and `*`, which a name there cannot hold and which appear only in a `\\?\` path prefix); `always` quotes every name; `never` quotes nothing (like `ls -N`).
+: When to quote file names. The default, `auto`, quotes names holding anything a shell gives a meaning to, the same characters `ls` quotes for: a space, `` ! " $ & ' ( ) * ; < = > ? [ \ ^ ` | ``, a control character, a byte that is not UTF-8, or a leading `#` or `~` (on Windows, where `\` separates paths, `\` and `[` are left bare, as are `?` and `*`, which a name there cannot hold and which appear only in a `\\?\` path prefix); `always` quotes every name; `never` quotes nothing (like `ls -N`).
 
-A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe and nothing double quotes would still expand (`` " $ ` \ ! ``), and otherwise the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`. A name holding a control character, such as a newline, is written in ANSI-C quotes, which bash, zsh and ksh read: the character as `\n`, `\t`, `\r`, `\a`, `\b`, `\v` or `\f`, or else as the octal escapes of its bytes, with `\'` and `\\` for an apostrophe and a backslash, so `new<newline>line` prints as `$'new\nline'`. With `never`, and on Windows, whose shells have no such quotes, a control character is shown as an escape such as `\n` or `\u{85}` that is not read back.
+A quoted name is written so a shell reads back the name on disk. Single quotes are used by default, double quotes for a name holding an apostrophe and nothing double quotes would still expand (`` " $ ` \ ! ``), and otherwise the single quotes are broken out of for each apostrophe, as `ls` does: `julia's "file".txt` prints as `'julia'\''s "file".txt'`. A name holding a control character, such as a newline, is written in ANSI-C quotes, which bash, zsh and ksh read: the character as `\n`, `\t`, `\r`, `\a`, `\b`, `\v` or `\f`, or else as the octal escapes of its bytes, with `\'` and `\\` for an apostrophe and a backslash, so `new<newline>line` prints as `$'new\nline'`. A name that is not UTF-8, which Linux allows, is written in the same quotes, with each byte that is part of no character as its octal escape: the bytes `C2 DF` print as `$'\302\337'`, and the shell reads them back as those bytes. With `never`, and on Windows, whose shells have no such quotes, a control character is shown as an escape such as `\n` or `\u{85}` that is not read back, and such a byte as `\xc2`.
 
 `-N`, `--literal`
 : Print file names without quoting, as `ls -N` does: the same as `--quotes=never`. Of `--quotes`, `--no-quotes` and `--literal`, the last one given wins.
@@ -536,6 +542,12 @@ Specifies the minimum luminance to use when color-scale is active. Its value can
 ## `LEZ_MAX_LUMINANCE`, `EZA_MAX_LUMINANCE`
 
 Specifies the maximum luminance to use when color-scale is active. Its value can be between -100 to 100; anything else is an error.
+
+## `COLORTERM`, `TERM`
+
+Read for one thing: whether `--color-scale` may write 24-bit colors. It does when `COLORTERM` is `truecolor` or `24bit`, or when `TERM` ends in `-direct` or `-truecolor`, and keeps to the 256-color palette otherwise.
+
+A terminal that takes 24-bit color sets `COLORTERM` itself, but the variable is not carried into a session over `ssh` or through `sudo`. Set it there to have the finer scale back.
 
 ## `LEZ_ICONS_AUTO`, `EZA_ICONS_AUTO`
 
