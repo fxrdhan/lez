@@ -500,8 +500,9 @@ jobs:
   # a pull request does not touch what they test, and a skipped matrix job
   # never reports under its expanded name, so requiring them one by one would
   # leave such a pull request waiting for checks that never come. This job
-  # runs unless the whole run is cancelled, and fails if any job it needs
-  # failed or was cancelled; a skipped one counts as passed.
+  # runs unless the whole run is cancelled, and passes only when every job it
+  # needs succeeded or was skipped — catching not just `failure` and
+  # `cancelled`, but runner-infrastructure outcomes such as `abandoned`.
   ci-result:
     name: CI result
     needs:
@@ -521,6 +522,17 @@ jobs:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "Results: $RESULTS"
-          case " $RESULTS " in
-            *" failure "* | *" cancelled "*) exit 1 ;;
-          esac
+          read -ra results <<< "$RESULTS"
+          if [ "${#results[@]}" -eq 0 ]; then
+            echo "::error::no job results reported"
+            exit 1
+          fi
+          for result in "${results[@]}"; do
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "::error::a required job did not pass (result: $result)"
+                exit 1
+                ;;
+            esac
+          done
