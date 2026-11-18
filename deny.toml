@@ -73,6 +73,11 @@ yanked = "warn"
 # output a note when they are encountered.
 ignore = [
   #"RUSTSEC-0000-0000",
+  #
+  # An unmaintained notice, not a vulnerability. lez no longer uses humantime,
+  # but trycmd 1.2.1, the latest release of the snapshot-test dev-dependency,
+  # still does, so it stays in Cargo.lock. Drop this entry once it is gone.
+  { id = "RUSTSEC-2026-0542", reason = "humantime is unmaintained; trycmd, a dev-dependency, still needs it" },
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
