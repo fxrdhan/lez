@@ -14,8 +14,8 @@ SPDX-License-Identifier: EUPL-1.2
 **A modern alternative to ls. Oh, and ofc it's faster than [eza](https://github.com/eza-community/eza) tbh.**
 
 [![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.txt)
-[![Rust](https://img.shields.io/badge/Rust-1.90%2B-orange.svg)](https://www.rust-lang.org/)
-[![binary cache](https://img.shields.io/endpoint?url=https%3A%2F%2Flez.cachix.org%2Fapi%2Fv1%2Fcache%2Fbadges%2Fshield.svg)](https://app.cachix.org/cache/lez)
+[![Rust](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Ffxrdhan%2Flez%2Fdev%2FCargo.toml&query=%24.package%5B%27rust-version%27%5D&label=Rust&suffix=%2B&color=orange)](https://www.rust-lang.org/)
+[![binary cache](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapp.cachix.org%2Fapi%2Fv1%2Fcache%2Flez&query=%24.name&label=binary%20cache&suffix=.cachix.org&color=blue)](https://app.cachix.org/cache/lez)
 [![Coverage](https://img.shields.io/badge/coverage-llvm--cov-brightgreen.svg)](https://github.com/fxrdhan/lez/actions/workflows/ci.yml)
 
 </div>
