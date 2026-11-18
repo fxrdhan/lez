@@ -55,8 +55,8 @@ jobs:
             "exit=$LASTEXITCODE"
           }
           $global:LASTEXITCODE = 0
-      # eza#404 / eza#874 — a path with a trailing separator raises os error
-      # 123. This is what tab completion in PowerShell produces.
+      # eza#404 — a path with a trailing separator raises os error 123. This
+      # is what tab completion in PowerShell produces.
       - name: 'eza#404 — a path with a trailing separator'
         run: |
           $exe = Join-Path $PWD 'target\debug\lez.exe'
@@ -65,6 +65,44 @@ jobs:
             (& $exe $path 2>&1 | Select-Object -First 4 | Out-String).Trim()
             "exit=$LASTEXITCODE"
           }
+          $global:LASTEXITCODE = 0
+      # eza#874 — the same path as `cmd.exe` and Windows PowerShell 5.1 hand it
+      # over. The step above runs under PowerShell 7, which doubles the last
+      # backslash before the closing quote. These two do not, and a program
+      # reads `\"` as a quote that is part of the argument.
+      - name: 'eza#874 — a quoted path with a trailing separator, from cmd.exe'
+        shell: cmd
+        run: |
+          set EXE=%CD%\target\debug\lez.exe
+          echo --- lez -d "C:\Program Files\" ---
+          "%EXE%" -d "C:\Program Files\"
+          echo exit=%ERRORLEVEL%
+          echo --- lez -d "C:\Program Files\\" ---
+          "%EXE%" -d "C:\Program Files\\"
+          echo exit=%ERRORLEVEL%
+          echo --- lez "C:\Program Files\" -d ---
+          "%EXE%" "C:\Program Files\" -d
+          echo exit=%ERRORLEVEL%
+          echo --- lez -d "C:\Program Files\" "C:\Windows\" ---
+          "%EXE%" -d "C:\Program Files\" "C:\Windows\"
+          echo exit=%ERRORLEVEL%
+          exit /b 0
+      - name: 'eza#874 — the same, from Windows PowerShell 5.1'
+        shell: powershell
+        run: |
+          # Under 5.1 a native command's stderr, once redirected, is an error
+          # record, and the runner's `Stop` would end the step at the first.
+          $ErrorActionPreference = 'Continue'
+          "PowerShell $($PSVersionTable.PSVersion)"
+          $exe = Join-Path $PWD 'target\debug\lez.exe'
+          foreach ($path in @('C:\Program Files\', 'C:\Program Files\\', 'C:\Program Files')) {
+            "--- lez -d '$path' ---"
+            (& $exe -d $path 2>&1 | ForEach-Object { "$_" } | Out-String).Trim()
+            "exit=$LASTEXITCODE"
+          }
+          "--- lez 'C:\Program Files\' -d ---"
+          (& $exe 'C:\Program Files\' -d 2>&1 | ForEach-Object { "$_" } | Out-String).Trim()
+          "exit=$LASTEXITCODE"
           $global:LASTEXITCODE = 0
       # eza#853 — a relative symlink pointing up and back down is listed as a
       # broken link, and its contents never appear.
