@@ -385,7 +385,15 @@ These options are available when running with `--long` (`-l`):
 
 ‘`relative-recent`’ writes a time from the last 7 days as ‘`relative`’ does (‘`3 hours`’) and an older one in the default style. ‘`relative-recent:DAYS`’ sets the window, as in ‘`relative-recent:30`’.
 
-`<FORMAT>` should be a chrono format string. For details on the chrono format syntax, please read: https://docs.rs/chrono/latest/chrono/format/strftime/index.html .
+`<FORMAT>` is a strftime format. These are its specifiers, with what each writes for 00:34:59.02649 on Sunday 8 July 2001, nine and a half hours ahead of UTC:
+
+- Date: `%Y` year (`2001`), `%C` century (`20`), `%y` year in two digits (`01`), `%q` quarter (`3`), `%m` month (`07`), `%b` or `%h` month name (`Jul`), `%B` full month name (`July`), `%d` day (`08`), `%e` space-padded day (` 8`), `%a` weekday (`Sun`), `%A` full weekday (`Sunday`), `%w` weekday counted from Sunday as 0 (`0`), `%u` weekday counted from Monday as 1 (`7`), `%U` and `%W` week of the year counted from its first Sunday or first Monday (`27`), `%G`, `%g` and `%V` ISO 8601 week-based year, its last two digits and its week (`2001`, `01`, `27`), `%j` day of the year (`189`).
+- Time: `%H` hour (`00`), `%k` space-padded hour (` 0`), `%I` and `%l` hour on the 12-hour clock, zero- and space-padded (`12`), `%p` and `%P` (`AM`, `am`), `%M` minute (`34`), `%S` second (`59`), `%f` nanoseconds (`026490000`), `%.f` fraction of a second in 3, 6 or 9 digits, as many as it needs (`.026490`), `%.3f`, `%.6f` and `%.9f` the fraction in that many digits (`.026`), `%3f`, `%6f` and `%9f` the same without the point (`026`).
+- Zone: `%Z` abbreviation (`ACST`), `%z` offset (`+0930`), `%:z` (`+09:30`), `%::z` (`+09:30:00`), `%:::z` (`+09`).
+- Combinations: `%D` and `%x` (`07/08/01`), `%F` (`2001-07-08`), `%v` (` 8-Jul-2001`), `%R` (`00:34`), `%T` and `%X` (`00:34:59`), `%r` (`12:34:59 AM`), `%c` (`Sun Jul  8 00:34:59 2001`), `%+` RFC 3339 (`2001-07-08T00:34:59.026490+09:30`), `%s` seconds since 1970 began in UTC (`994518299`).
+- `%t` a tab, `%n` a newline, `%%` a percent sign.
+
+Between the `%` and the letter of a number, `-` drops its padding, `_` pads it with spaces and `0` with zeroes: `%-d` writes `8` and `%_m` writes ` 7`.
 
 Alternatively, `<FORMAT>` can be a two line string, the first line will be used for non-recent files and the second for recent files. E.g., if `<FORMAT>` is "`%Y-%m-%d %H<newline>--%m-%d %H:%M`", non-recent files => "`2022-12-30 13`", recent files => "`--09-30 13:34`".
 

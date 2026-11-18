@@ -100,7 +100,7 @@ name = "lez"
 
 [dependencies]
 rayon = "1.10.0"
-chrono = { version = "0.4.40", default-features = false, features = ["clock"] }
+jiff = "1.0.1"
 nu-ansi-term = { version = "0.50.1", features = [
   "serde",
   "derive_serde_style",
@@ -161,7 +161,7 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [build-dependencies]
-chrono = { version = "0.4.40", default-features = false, features = ["clock"] }
+jiff = "1.0.1"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }

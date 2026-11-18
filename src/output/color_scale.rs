@@ -227,7 +227,7 @@ impl ColorScaleInformation {
             return style;
         };
 
-        let file_time_ms = file_time.and_utc().timestamp_millis() as f32;
+        let file_time_ms = file_time.as_millisecond() as f32;
 
         match self.options.mode {
             ColorScaleMode::Gradient => {
@@ -241,7 +241,7 @@ impl ColorScaleInformation {
             }
             ColorScaleMode::Fixed => {
                 if let Some(fg) = style.foreground {
-                    let now_ms = chrono::Utc::now().timestamp_millis() as f32;
+                    let now_ms = jiff::Timestamp::now().as_millisecond() as f32;
                     let age_secs = ((now_ms - file_time_ms).max(0.0)) / 1000.0;
 
                     let ratio = if age_secs < 3600.0 {
@@ -284,23 +284,19 @@ fn update_information_recursively(
         if filter.is_file_included(file) {
             if information.options.age {
                 Extremes::update(
-                    file.created_time()
-                        .map(|x| x.and_utc().timestamp_millis() as f32),
+                    file.created_time().map(|x| x.as_millisecond() as f32),
                     &mut information.created,
                 );
                 Extremes::update(
-                    file.modified_time()
-                        .map(|x| x.and_utc().timestamp_millis() as f32),
+                    file.modified_time().map(|x| x.as_millisecond() as f32),
                     &mut information.modified,
                 );
                 Extremes::update(
-                    file.accessed_time()
-                        .map(|x| x.and_utc().timestamp_millis() as f32),
+                    file.accessed_time().map(|x| x.as_millisecond() as f32),
                     &mut information.accessed,
                 );
                 Extremes::update(
-                    file.changed_time()
-                        .map(|x| x.and_utc().timestamp_millis() as f32),
+                    file.changed_time().map(|x| x.as_millisecond() as f32),
                     &mut information.changed,
                 );
             }
@@ -657,9 +653,7 @@ mod test {
         // Cargo.toml is excluded because OnlyDirs is set; dir_src without total_size has Size::None
         assert!(info.size.is_none());
         // Modified time should only reflect dir_src
-        let dir_time = files[1]
-            .modified_time()
-            .map(|t| t.and_utc().timestamp_millis() as f32);
+        let dir_time = files[1].modified_time().map(|t| t.as_millisecond() as f32);
         assert_eq!(info.modified, dir_time.map(|t| Extremes { min: t, max: t }));
     }
 

@@ -795,7 +795,7 @@ impl TimeFormat {
                 let error_middle = format!(
                     "{}{}",
                     "Custom timestamp format is empty, ",
-                    "please supply a chrono format string after the +."
+                    "please supply a strftime format string after the +."
                 );
                 return Err(format!("{error_header}{error_middle}{error_footer}"));
             }
@@ -809,16 +809,15 @@ impl TimeFormat {
                 let error_middle = format!(
                     "{}{}",
                     "Custom timestamp format for recent files is empty, ",
-                    "please supply a chrono format string at the second line."
+                    "please supply a strftime format string at the second line."
                 );
                 return Err(format!("{error_header}{error_middle}{error_footer}"));
             }
             recent => recent.map(std::string::ToString::to_string),
         };
 
-        // chrono only errors when lazily formatting a DateTime, which happens
-        // inside the rayon pool and surfaces as a context-free panic; iterate
-        // the items up front to reject invalid directives during parsing.
+        // Times are formatted inside the rayon pool, too late to report a bad
+        // specifier with any context, so formats are checked here.
         validate_custom_format(non_recent)
             .map_err(|error_middle| format!("{error_header}{error_middle}{error_footer}"))?;
         if let Some(recent) = &recent {
@@ -833,18 +832,15 @@ impl TimeFormat {
     }
 }
 
-/// Checks that a custom strftime format string contains no directives chrono
-/// would reject at formatting time.
+/// Checks that a custom strftime format string has only specifiers lez can
+/// format.
 fn validate_custom_format(fmt: &str) -> Result<(), String> {
-    use chrono::format::{Item, StrftimeItems};
-
-    if StrftimeItems::new(fmt).any(|item| matches!(item, Item::Error)) {
-        return Err(format!(
+    crate::output::strftime::validate(fmt).map_err(|_| {
+        format!(
             "Invalid custom timestamp format \"{fmt}\", \
-             please supply a valid chrono format string after the +."
-        ));
-    }
-    Ok(())
+             please supply a valid strftime format string after the +."
+        )
+    })
 }
 
 impl TimeFormat {

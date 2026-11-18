@@ -20,8 +20,6 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use chrono::prelude::*;
-
 /// The build script entry point.
 fn main() -> io::Result<()> {
     #![allow(clippy::write_with_newline)]
@@ -136,6 +134,5 @@ fn nonstandard_features_string() -> String {
 
 /// Formats the current date as an ISO 8601 string.
 fn build_date() -> String {
-    let now = Local::now();
-    now.date_naive().format("%Y-%m-%d").to_string()
+    jiff::ZonedDateTime::now().date().to_string()
 }

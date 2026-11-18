@@ -320,7 +320,7 @@ These options are available when running with `--long` (`-l`):
 - **--git-repos**: list each directory’s Git status, if tracked
 - **--git-repos-no-status**: list whether a directory is a Git repository, but not its status (faster)
 - **--no-git**: suppress all Git fields and `.gitignore` handling (overrides `--git`, `--git-repos`, `--git-repos-no-status`, `--git-ignore`)
-- **--time-style**: how to format timestamps. Valid styles: `default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or custom `+<FORMAT>` (e.g., `+%Y-%m-%d %H:%M`; see [_`lez(1)` manual page_](man/lez.1.md) and [chrono format](https://docs.rs/chrono/latest/chrono/format/strftime/index.html)).
+- **--time-style**: how to format timestamps. Valid styles: `default`, `iso`, `long-iso`, `full-iso`, `relative`, `relative-recent`, or custom `+<FORMAT>` (e.g., `+%Y-%m-%d %H:%M`; the [_`lez(1)` manual page_](man/lez.1.md) lists the specifiers).
 - **--total-size**: show recursive directory size
 - **-o**, **--octal-permissions**: list each file's permission in octal format
 - **--no-permissions**: suppress the permissions field
