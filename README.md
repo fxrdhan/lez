@@ -217,7 +217,7 @@ To have `ls` run `lez` in bash, zsh or fish, add `alias ls=lez` to your shell's 
 <details>
 <summary>Click to expand</summary>
 
-- **-1**, **--oneline**: display one entry per line
+- **-1**, **--oneline**: display one entry per line (given with `--long`, the later of the two wins)
 - **-G**, **--grid**: display entries as a grid (default)
 - **-l**, **--long**: display extended details and attributes
 - **-R**, **--recurse**: recurse into directories

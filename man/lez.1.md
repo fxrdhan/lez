@@ -77,6 +77,8 @@ DISPLAY OPTIONS
 
 Symbolic link targets are not displayed in this mode, so output stays clean when piped into other commands such as `xargs`; use a details view (`-l`) to see them.
 
+`--oneline` and `--long` take each other's place: of the two, the one given last decides the view, so `-l -1` lists one name per line and `-1 -l` gives the long view. Beside `--grid` it wins wherever it is given, and beside `--tree` it changes nothing.
+
 `--absolute[=WHEN]`
 : Display entries with their absolute path.
 
@@ -100,6 +102,8 @@ When used without a value, defaults to ‘`automatic`’. Note: when providing a
 
 `-l`, `--long`
 : Display extended file metadata as a table.
+
+Given with `--oneline`, the later of the two decides the view. With `--grid` it makes a grid of long entries, and with `--tree` a tree of them.
 
 `-R`, `--recurse`
 : Recurse into directories.
