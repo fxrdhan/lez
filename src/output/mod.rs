@@ -21,6 +21,7 @@ pub mod json;
 pub mod lines;
 pub mod numbers;
 pub mod render;
+pub mod strftime;
 pub mod summary;
 pub mod table;
 pub mod time;

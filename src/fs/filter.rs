@@ -13,11 +13,11 @@ use std::iter::FromIterator;
 use std::os::unix::fs::MetadataExt;
 use std::sync::Arc;
 
-use chrono::Utc;
 use icu_collator::options::{CollatorOptions, Strength};
 use icu_collator::preferences::CollationNumericOrdering;
 use icu_collator::{Collator, CollatorBorrowed, CollatorPreferences};
 use icu_locale::Locale;
+use jiff::{SignedDuration, Timestamp};
 
 use crate::fs::DotFilter;
 use crate::fs::File;
@@ -290,25 +290,28 @@ pub struct FileFilter {
 }
 
 impl FileFilter {
+    /// The first and last times the `--since` window keeps, or `None` when
+    /// there is no window or it reaches back past the earliest time there
+    /// is, so that it keeps everything.
+    fn since_window(&self) -> Option<(Timestamp, Timestamp)> {
+        let since = SignedDuration::try_from(self.since?).ok()?;
+        let now = Timestamp::now();
+        let cutoff = now.checked_sub(since).ok()?;
+        // Allow timestamps slightly in the future (up to 1 hour) due to clock skew or NTP drift
+        let future_bound = now
+            .checked_add(SignedDuration::from_hours(1))
+            .unwrap_or(now);
+        Some((cutoff, future_bound))
+    }
+
     /// Determines whether a file matches the `--since` duration filter window.
     /// Returns true if `since` is None or if the file was created or modified
     /// within the duration window ending at the current time.
     #[must_use]
     pub fn matches_since(&self, file: &File<'_>) -> bool {
-        let Some(since) = self.since else {
+        let Some((cutoff, future_bound)) = self.since_window() else {
             return true;
         };
-        let Ok(duration) = chrono::Duration::from_std(since) else {
-            return false;
-        };
-        let now = Utc::now().naive_utc();
-        let Some(cutoff) = now.checked_sub_signed(duration) else {
-            return true;
-        };
-        // Allow timestamps slightly in the future (up to 1 hour) due to clock skew or NTP drift
-        let future_bound = now
-            .checked_add_signed(chrono::Duration::hours(1))
-            .unwrap_or(now);
 
         if let Some(mtime) = file.modified_time() {
             mtime >= cutoff && mtime <= future_bound
@@ -322,28 +325,18 @@ impl FileFilter {
     /// Determines whether a filesystem metadata timestamp matches the `--since` duration filter window.
     #[must_use]
     pub fn matches_since_metadata(&self, metadata: &std::fs::Metadata) -> bool {
-        let Some(since) = self.since else {
+        let Some((cutoff, future_bound)) = self.since_window() else {
             return true;
         };
-        let Ok(duration) = chrono::Duration::from_std(since) else {
-            return false;
-        };
-        let now = Utc::now().naive_utc();
-        let Some(cutoff) = now.checked_sub_signed(duration) else {
-            return true;
-        };
-        let future_bound = now
-            .checked_add_signed(chrono::Duration::hours(1))
-            .unwrap_or(now);
 
         let mtime = metadata
             .modified()
             .ok()
-            .and_then(File::systemtime_to_naivedatetime);
+            .and_then(File::systemtime_to_timestamp);
         let ctime = metadata
             .created()
             .ok()
-            .and_then(File::systemtime_to_naivedatetime);
+            .and_then(File::systemtime_to_timestamp);
 
         if let Some(mtime) = mtime {
             mtime >= cutoff && mtime <= future_bound

@@ -9,7 +9,7 @@ use std::ops::Deref;
 #[cfg(unix)]
 use std::sync::{Mutex, MutexGuard};
 
-use chrono::prelude::*;
+use jiff::Timestamp;
 
 use log::debug;
 use std::sync::LazyLock;
@@ -356,7 +356,7 @@ impl TimeType {
     }
 
     /// Returns the corresponding time from [File]
-    pub fn get_corresponding_time(self, file: &File<'_>) -> Option<NaiveDateTime> {
+    pub fn get_corresponding_time(self, file: &File<'_>) -> Option<Timestamp> {
         match self {
             TimeType::Modified => file.modified_time(),
             TimeType::Changed => file.changed_time(),

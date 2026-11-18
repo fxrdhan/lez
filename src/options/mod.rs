@@ -84,6 +84,7 @@ use crate::output::{Mode, View, details, grid_details, json};
 use crate::theme::Options as ThemeOptions;
 
 mod dir_action;
+mod duration;
 mod error;
 mod file_name;
 mod filter;

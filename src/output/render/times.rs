@@ -5,9 +5,10 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 use crate::output::cell::TextCell;
-use crate::output::time::TimeFormat;
+use crate::output::time::{LOCAL_ZONE, TimeFormat};
 
-use chrono::prelude::*;
+use jiff::tz::TimeZone;
+use jiff::{Timestamp, ZonedDateTime};
 use nu_ansi_term::Style;
 
 pub trait Render {
@@ -15,25 +16,23 @@ pub trait Render {
     fn render_json(self, time_format: &TimeFormat, use_utc: bool) -> Option<String>;
 }
 
-/// Resolves the zone offset that was in effect at this very timestamp, so
-/// DST transitions render with their historical wall-clock time instead of
-/// whatever offset "now" happens to have.
-fn local_offset_for(time: chrono::NaiveDateTime, use_utc: bool) -> FixedOffset {
-    if use_utc {
-        FixedOffset::east_opt(0).unwrap_or_else(|| Utc.fix())
+/// Puts a timestamp in the zone it is shown in: UTC under `--utc`, the local
+/// zone otherwise. The zone gives the offset that was in effect at this very
+/// timestamp, so DST transitions render with their historical wall-clock
+/// time instead of whatever offset "now" happens to have.
+fn zoned(time: Timestamp, use_utc: bool) -> ZonedDateTime {
+    let zone = if use_utc {
+        TimeZone::UTC
     } else {
-        *Local.from_utc_datetime(&time).offset()
-    }
+        LOCAL_ZONE.clone()
+    };
+    time.to_zoned_datetime(zone)
 }
 
-impl Render for Option<NaiveDateTime> {
+impl Render for Option<Timestamp> {
     fn render(self, style: Style, time_format: &TimeFormat, use_utc: bool) -> TextCell {
         let datestamp = if let Some(time) = self {
-            let offset = local_offset_for(time, use_utc);
-            time_format.format(
-                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, offset),
-                use_utc,
-            )
+            time_format.format(&zoned(time, use_utc))
         } else {
             String::from("-")
         };
@@ -43,11 +42,7 @@ impl Render for Option<NaiveDateTime> {
 
     fn render_json(self, time_format: &TimeFormat, use_utc: bool) -> Option<String> {
         self.map(|time| {
-            let offset = local_offset_for(time, use_utc);
-            let formatted = time_format.format(
-                &DateTime::<FixedOffset>::from_naive_utc_and_offset(time, offset),
-                use_utc,
-            );
+            let formatted = time_format.format(&zoned(time, use_utc));
             // The built-in formats pad the day and the year so a column of
             // them lines up, which a JSON value has no use for. A custom
             // format is printed as the user wrote it.
@@ -64,9 +59,13 @@ impl Render for Option<NaiveDateTime> {
 mod test {
     use super::*;
 
+    fn utc(text: &str) -> Option<Timestamp> {
+        Some(text.parse().unwrap())
+    }
+
     #[test]
     fn test_render_time_none() {
-        let none_time: Option<NaiveDateTime> = None;
+        let none_time: Option<Timestamp> = None;
         let time_format = TimeFormat::DefaultFormat;
         let cell = none_time.render(Style::default(), &time_format, true);
         assert_eq!(cell.strings().to_string(), "-");
@@ -75,11 +74,7 @@ mod test {
 
     #[test]
     fn test_render_time_utc() {
-        let dt = NaiveDate::from_ymd_opt(2026, 9, 1)
-            .unwrap()
-            .and_hms_opt(12, 0, 0)
-            .unwrap();
-        let time = Some(dt);
+        let time = utc("2026-09-01T12:00:00Z");
         let time_format = TimeFormat::LongISO;
         let cell = time.render(Style::default(), &time_format, true);
         assert_eq!(cell.strings().to_string(), "2026-09-01 12:00");
@@ -93,12 +88,7 @@ mod test {
     /// its rows line up; JSON gives the same words with single spaces.
     #[test]
     fn json_drops_the_padding_the_table_lines_up_with() {
-        let time = Some(
-            NaiveDate::from_ymd_opt(2001, 10, 2)
-                .unwrap()
-                .and_hms_opt(21, 43, 0)
-                .unwrap(),
-        );
+        let time = utc("2001-10-02T21:43:00Z");
         let format = TimeFormat::DefaultFormat;
         let table = time
             .render(Style::default(), &format, true)
@@ -113,12 +103,7 @@ mod test {
     /// A custom format is the user's own, padding and all.
     #[test]
     fn json_keeps_a_custom_format_as_written() {
-        let time = Some(
-            NaiveDate::from_ymd_opt(2001, 10, 2)
-                .unwrap()
-                .and_hms_opt(21, 43, 0)
-                .unwrap(),
-        );
+        let time = utc("2001-10-02T21:43:00Z");
         let format = TimeFormat::Custom {
             non_recent: "%e  %m".to_owned(),
             recent: None,

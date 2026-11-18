@@ -22,7 +22,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{self, AtomicU8};
 use std::time::SystemTime;
 
-use chrono::prelude::*;
+use jiff::Timestamp;
 
 use log::{debug, error, trace};
 use std::sync::LazyLock;
@@ -1338,85 +1338,61 @@ impl<'dir> File<'dir> {
         }
     }
 
-    /// Converts a `SystemTime` to a `NaiveDateTime` without panicking.
+    /// Converts a `SystemTime` to a `Timestamp` without panicking, or to
+    /// `None` when it falls outside the years -9999 to 9999.
     ///
     /// Fixes #655 and #667 in `Self::modified_time`, `Self::accessed_time` and
-    /// `Self::created_time`.
-    pub fn systemtime_to_naivedatetime(st: SystemTime) -> Option<NaiveDateTime> {
-        let (secs, nanos) = match st.duration_since(SystemTime::UNIX_EPOCH) {
-            // Time at or after the UNIX epoch.
-            Ok(duration) => (
-                duration.as_secs().try_into().ok()?,
-                (duration.as_nanos() % 1_000_000_000).try_into().ok()?,
-            ),
-            // Time before the UNIX epoch (#1668): `duration_since` returns an
-            // `Err` whose duration is the absolute distance back to the epoch.
-            // Negate it, and when there is a sub-second part floor towards
-            // negative infinity so the timestamp matches how Unix counts time
-            // before 1970 (otherwise these files render their date as `-`).
-            Err(err) => {
-                let duration = err.duration();
-                let mut secs: i64 = -i64::try_from(duration.as_secs()).ok()?;
-                let mut nanos = duration.subsec_nanos();
-                if nanos > 0 {
-                    secs -= 1;
-                    nanos = 1_000_000_000 - nanos;
-                }
-                (secs, nanos)
-            }
-        };
-
-        DateTime::from_timestamp(secs, nanos).map(|dt| dt.naive_local())
+    /// `Self::created_time`. A time before the UNIX epoch converts too
+    /// (#1668), so those files show their date rather than `-`.
+    pub fn systemtime_to_timestamp(st: SystemTime) -> Option<Timestamp> {
+        Timestamp::try_from(st).ok()
     }
 
     /// This file’s last modified timestamp, if available on this platform.
-    pub fn modified_time(&self) -> Option<NaiveDateTime> {
+    pub fn modified_time(&self) -> Option<Timestamp> {
         if self.is_link() && self.deref_links {
             return self.dereferenced().and_then(File::modified_time);
         }
         self.metadata()
             .ok()
             .and_then(|md| md.modified().ok())
-            .and_then(Self::systemtime_to_naivedatetime)
+            .and_then(Self::systemtime_to_timestamp)
     }
 
     /// This file’s last changed timestamp, if available on this platform.
     #[cfg(unix)]
-    pub fn changed_time(&self) -> Option<NaiveDateTime> {
+    pub fn changed_time(&self) -> Option<Timestamp> {
         if self.is_link() && self.deref_links {
             return self.dereferenced().and_then(File::changed_time);
         }
         let md = self.metadata();
-        DateTime::from_timestamp(
-            md.map_or(0, MetadataExt::ctime),
-            md.map_or(0, |md| md.ctime_nsec() as u32),
-        )
-        .map(|dt| dt.naive_local())
+        let nanos = i32::try_from(md.map_or(0, MetadataExt::ctime_nsec)).ok()?;
+        Timestamp::new(md.map_or(0, MetadataExt::ctime), nanos).ok()
     }
 
     #[cfg(windows)]
-    pub fn changed_time(&self) -> Option<NaiveDateTime> {
+    pub fn changed_time(&self) -> Option<Timestamp> {
         self.modified_time()
     }
 
     /// This file’s last accessed timestamp, if available on this platform.
-    pub fn accessed_time(&self) -> Option<NaiveDateTime> {
+    pub fn accessed_time(&self) -> Option<Timestamp> {
         if self.is_link() && self.deref_links {
             return self.dereferenced().and_then(File::accessed_time);
         }
         self.metadata()
             .ok()
             .and_then(|md| md.accessed().ok())
-            .and_then(Self::systemtime_to_naivedatetime)
+            .and_then(Self::systemtime_to_timestamp)
     }
 
     /// This file’s created timestamp, if available on this platform.
-    pub fn created_time(&self) -> Option<NaiveDateTime> {
+    pub fn created_time(&self) -> Option<Timestamp> {
         if self.is_link() && self.deref_links {
             return self.dereferenced().and_then(File::created_time);
         }
         let btime = self.metadata().ok()?.created().ok()?;
-        Self::systemtime_to_naivedatetime(btime)
+        Self::systemtime_to_timestamp(btime)
     }
 
     /// This file’s ‘type’.
@@ -1865,26 +1841,33 @@ mod length_test {
 }
 
 #[cfg(test)]
-mod systemtime_to_naivedatetime_test {
+mod systemtime_to_timestamp_test {
     use super::File;
-    use chrono::Datelike;
+    use jiff::ZonedDateTime;
+    use jiff::tz::TimeZone;
     use std::time::{Duration, SystemTime};
+
+    fn utc(st: SystemTime) -> ZonedDateTime {
+        File::systemtime_to_timestamp(st)
+            .expect("a time jiff holds")
+            .to_zoned_datetime(TimeZone::UTC)
+    }
 
     #[test]
     fn post_epoch() {
         // 2001-09-09T01:46:40 UTC == 1_000_000_000 seconds after the epoch.
         let st = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
-        let dt = File::systemtime_to_naivedatetime(st).expect("post-epoch time");
-        assert_eq!(dt.and_utc().timestamp(), 1_000_000_000);
-        assert_eq!(dt.and_utc().timestamp_subsec_nanos(), 0);
-        assert_eq!(dt.year(), 2001);
+        let time = utc(st);
+        assert_eq!(time.timestamp().as_second(), 1_000_000_000);
+        assert_eq!(time.subsec_nanosecond(), 0);
+        assert_eq!(time.year(), 2001);
     }
 
     #[test]
     fn epoch() {
-        let dt = File::systemtime_to_naivedatetime(SystemTime::UNIX_EPOCH).expect("epoch time");
-        assert_eq!(dt.and_utc().timestamp(), 0);
-        assert_eq!(dt.year(), 1970);
+        let time = utc(SystemTime::UNIX_EPOCH);
+        assert_eq!(time.timestamp().as_second(), 0);
+        assert_eq!(time.year(), 1970);
     }
 
     #[test]
@@ -1892,23 +1875,30 @@ mod systemtime_to_naivedatetime_test {
         // #1668: a time before the UNIX epoch must still yield a real date
         // rather than `None` (which renders as `-`).
         let st = SystemTime::UNIX_EPOCH - Duration::from_secs(2_147_483_648);
-        let dt = File::systemtime_to_naivedatetime(st).expect("pre-epoch time");
-        assert_eq!(dt.and_utc().timestamp(), -2_147_483_648);
-        assert_eq!(dt.and_utc().timestamp_subsec_nanos(), 0);
-        assert!(dt.year() < 1970);
-        assert_eq!(dt.year(), 1901);
+        let time = utc(st);
+        assert_eq!(time.timestamp().as_second(), -2_147_483_648);
+        assert_eq!(time.subsec_nanosecond(), 0);
+        assert_eq!(time.year(), 1901);
     }
 
     #[test]
     fn pre_epoch_subsecond() {
-        // A pre-epoch time with a sub-second component must floor towards
-        // negative infinity so the whole-seconds value and nanos line up.
+        // A pre-epoch time with a sub-second component reads on the clock as
+        // the second before it plus a fraction: -10.25s is 23:59:49.75.
         let st = SystemTime::UNIX_EPOCH - Duration::new(10, 250_000_000);
-        let dt = File::systemtime_to_naivedatetime(st).expect("pre-epoch subsecond time");
-        // -10.25s == -11s + 0.75s.
-        assert_eq!(dt.and_utc().timestamp(), -11);
-        assert_eq!(dt.and_utc().timestamp_subsec_nanos(), 750_000_000);
-        assert!(dt.year() < 1970);
+        let time = utc(st);
+        assert_eq!(time.timestamp().as_nanosecond(), -10_250_000_000);
+        assert_eq!(
+            (time.year(), time.hour(), time.minute(), time.second()),
+            (1969, 23, 59, 49)
+        );
+        assert_eq!(time.subsec_nanosecond(), 750_000_000);
+    }
+
+    #[test]
+    fn beyond_the_years_jiff_holds() {
+        let st = SystemTime::UNIX_EPOCH + Duration::from_secs(400_000_000_000);
+        assert_eq!(File::systemtime_to_timestamp(st), None);
     }
 }
 

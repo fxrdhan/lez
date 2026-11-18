@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-use chrono::Datelike;
+use jiff::ZonedDateTime;
+use jiff::civil::date;
+use jiff::tz::TimeZone;
 use lez::fs::File;
 use lez::options::Options;
 use lez::options::parser::get_command;
@@ -11,7 +13,7 @@ use lez::output::time::TimeFormat;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::process::Command;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // Mock environment for testing variable deductions
 #[derive(Default, Clone)]
@@ -50,96 +52,108 @@ fn parse_cli_args(args: &[&str]) -> clap::ArgMatches {
 // PRE-UNIX EPOCH TIMESTAMP HANDLING
 // =========================================================================
 
-#[test]
-fn test_systemtime_to_naivedatetime_exact_epoch() {
-    let dt = File::systemtime_to_naivedatetime(UNIX_EPOCH).expect("epoch conversion");
-    assert_eq!(dt.and_utc().timestamp(), 0);
-    assert_eq!(dt.and_utc().timestamp_subsec_nanos(), 0);
-    assert_eq!(dt.year(), 1970);
-    assert_eq!(dt.month(), 1);
-    assert_eq!(dt.day(), 1);
+/// The time `st` converts to, read on the UTC clock.
+fn utc(st: SystemTime, what: &str) -> ZonedDateTime {
+    File::systemtime_to_timestamp(st)
+        .expect(what)
+        .to_zoned_datetime(TimeZone::UTC)
 }
 
 #[test]
-fn test_systemtime_to_naivedatetime_pre_epoch_one_second() {
+fn test_systemtime_to_timestamp_exact_epoch() {
+    let time = utc(UNIX_EPOCH, "epoch conversion");
+    assert_eq!(time.timestamp().as_second(), 0);
+    assert_eq!(time.subsec_nanosecond(), 0);
+    assert_eq!((time.year(), time.month(), time.day()), (1970, 1, 1));
+}
+
+#[test]
+fn test_systemtime_to_timestamp_pre_epoch_one_second() {
     // 1969-12-31 23:59:59 UTC == -1s
-    let st = UNIX_EPOCH - Duration::from_secs(1);
-    let dt = File::systemtime_to_naivedatetime(st).expect("pre-epoch 1s conversion");
-    assert_eq!(dt.and_utc().timestamp(), -1);
-    assert_eq!(dt.and_utc().timestamp_subsec_nanos(), 0);
-    assert_eq!(dt.year(), 1969);
-    assert_eq!(dt.month(), 12);
-    assert_eq!(dt.day(), 31);
+    let time = utc(
+        UNIX_EPOCH - Duration::from_secs(1),
+        "pre-epoch 1s conversion",
+    );
+    assert_eq!(time.timestamp().as_second(), -1);
+    assert_eq!(time.subsec_nanosecond(), 0);
+    assert_eq!(time.datetime(), date(1969, 12, 31).at(23, 59, 59, 0));
 }
 
 #[test]
-fn test_systemtime_to_naivedatetime_subsecond_flooring() {
-    // Test 1: 0.25s before epoch (-0.25s) => secs = -1, nanos = 750_000_000
-    let st1 = UNIX_EPOCH - Duration::from_millis(250);
-    let dt1 = File::systemtime_to_naivedatetime(st1).expect("pre-epoch 250ms conversion");
-    assert_eq!(dt1.and_utc().timestamp(), -1);
-    assert_eq!(dt1.and_utc().timestamp_subsec_nanos(), 750_000_000);
-    assert_eq!(dt1.year(), 1969);
+fn test_systemtime_to_timestamp_subsecond_clock() {
+    // A time before the epoch with a fraction reads on the clock as the
+    // second before it plus that fraction: -0.25s is 23:59:59.75.
+    let time = utc(UNIX_EPOCH - Duration::from_millis(250), "pre-epoch 250ms");
+    assert_eq!(time.timestamp().as_nanosecond(), -250_000_000);
+    assert_eq!(
+        time.datetime(),
+        date(1969, 12, 31).at(23, 59, 59, 750_000_000)
+    );
 
-    // Test 2: 10.5s before epoch (-10.5s) => secs = -11, nanos = 500_000_000
-    let st2 = UNIX_EPOCH - Duration::new(10, 500_000_000);
-    let dt2 = File::systemtime_to_naivedatetime(st2).expect("pre-epoch 10.5s conversion");
-    assert_eq!(dt2.and_utc().timestamp(), -11);
-    assert_eq!(dt2.and_utc().timestamp_subsec_nanos(), 500_000_000);
-    assert_eq!(dt2.year(), 1969);
+    // -10.5s is 23:59:49.5.
+    let time = utc(
+        UNIX_EPOCH - Duration::new(10, 500_000_000),
+        "pre-epoch 10.5s",
+    );
+    assert_eq!(time.timestamp().as_nanosecond(), -10_500_000_000);
+    assert_eq!(
+        time.datetime(),
+        date(1969, 12, 31).at(23, 59, 49, 500_000_000)
+    );
 
-    // Test 3: subsecond before epoch
     #[cfg(unix)]
     {
-        let st3 = UNIX_EPOCH - Duration::from_nanos(1);
-        let dt3 = File::systemtime_to_naivedatetime(st3).expect("pre-epoch 1ns conversion");
-        assert_eq!(dt3.and_utc().timestamp(), -1);
-        assert_eq!(dt3.and_utc().timestamp_subsec_nanos(), 999_999_999);
-        assert_eq!(dt3.year(), 1969);
+        let time = utc(UNIX_EPOCH - Duration::from_nanos(1), "pre-epoch 1ns");
+        assert_eq!(
+            time.datetime(),
+            date(1969, 12, 31).at(23, 59, 59, 999_999_999)
+        );
 
-        let st4 = UNIX_EPOCH - Duration::from_nanos(999_999_999);
-        let dt4 = File::systemtime_to_naivedatetime(st4).expect("pre-epoch 999999999ns conversion");
-        assert_eq!(dt4.and_utc().timestamp(), -1);
-        assert_eq!(dt4.and_utc().timestamp_subsec_nanos(), 1);
-        assert_eq!(dt4.year(), 1969);
+        let time = utc(
+            UNIX_EPOCH - Duration::from_nanos(999_999_999),
+            "pre-epoch 999999999ns",
+        );
+        assert_eq!(time.datetime(), date(1969, 12, 31).at(23, 59, 59, 1));
     }
     #[cfg(windows)]
     {
-        let st3 = UNIX_EPOCH - Duration::from_micros(1);
-        let dt3 = File::systemtime_to_naivedatetime(st3).expect("pre-epoch 1us conversion");
-        assert_eq!(dt3.and_utc().timestamp(), -1);
-        assert_eq!(dt3.and_utc().timestamp_subsec_nanos(), 999_999_000);
-        assert_eq!(dt3.year(), 1969);
+        let time = utc(UNIX_EPOCH - Duration::from_micros(1), "pre-epoch 1us");
+        assert_eq!(
+            time.datetime(),
+            date(1969, 12, 31).at(23, 59, 59, 999_999_000)
+        );
     }
 }
 
 #[test]
-fn test_systemtime_to_naivedatetime_far_past_dates() {
+fn test_systemtime_to_timestamp_far_past_dates() {
     // 1901-12-13 20:45:52 UTC (i32 min: -2_147_483_648s)
-    let st_1901 = UNIX_EPOCH - Duration::from_secs(2_147_483_648);
-    let dt_1901 = File::systemtime_to_naivedatetime(st_1901).expect("1901 date");
-    assert_eq!(dt_1901.and_utc().timestamp(), -2_147_483_648);
-    assert_eq!(dt_1901.year(), 1901);
+    let time = utc(UNIX_EPOCH - Duration::from_secs(2_147_483_648), "1901 date");
+    assert_eq!(time.timestamp().as_second(), -2_147_483_648);
+    assert_eq!(time.year(), 1901);
 
     // 62092.5 days before the epoch, across the 1800 non-leap year.
-    let st_1799 = UNIX_EPOCH - Duration::from_secs(5_364_792_000);
-    let dt_1799 = File::systemtime_to_naivedatetime(st_1799).expect("1799 date");
-    assert_eq!(dt_1799.to_string(), "1799-12-30 12:00:00");
+    let time = utc(UNIX_EPOCH - Duration::from_secs(5_364_792_000), "1799 date");
+    assert_eq!(time.datetime(), date(1799, 12, 30).at(12, 0, 0, 0));
 
     // 135140 days before the epoch, across the 1600 leap year. Windows keeps
     // time from the start of 1601 and cannot hold an earlier instant, so
     // there that start, the earliest it can, stands in for it.
     #[cfg(not(windows))]
     {
-        let st_1600 = UNIX_EPOCH - Duration::from_secs(11_676_096_000);
-        let dt_1600 = File::systemtime_to_naivedatetime(st_1600).expect("1600 date");
-        assert_eq!(dt_1600.to_string(), "1600-01-01 00:00:00");
+        let time = utc(
+            UNIX_EPOCH - Duration::from_secs(11_676_096_000),
+            "1600 date",
+        );
+        assert_eq!(time.datetime(), date(1600, 1, 1).at(0, 0, 0, 0));
     }
     #[cfg(windows)]
     {
-        let st_1601 = UNIX_EPOCH - Duration::from_secs(11_644_473_600);
-        let dt_1601 = File::systemtime_to_naivedatetime(st_1601).expect("1601 date");
-        assert_eq!(dt_1601.to_string(), "1601-01-01 00:00:00");
+        let time = utc(
+            UNIX_EPOCH - Duration::from_secs(11_644_473_600),
+            "1601 date",
+        );
+        assert_eq!(time.datetime(), date(1601, 1, 1).at(0, 0, 0, 0));
     }
 }
 
@@ -147,19 +161,19 @@ fn test_systemtime_to_naivedatetime_far_past_dates() {
 fn test_pre_epoch_leap_year_dates() {
     // 1968-02-29 12:00:00 UTC (1968 was a leap year: 671.5 days before epoch)
     // 672 * 86400 - 43200 = 58,017,600 seconds
-    let st_1968 = UNIX_EPOCH - Duration::from_secs(58_017_600);
-    let dt_1968 = File::systemtime_to_naivedatetime(st_1968).expect("1968 leap year");
-    assert_eq!(dt_1968.year(), 1968);
-    assert_eq!(dt_1968.month(), 2);
-    assert_eq!(dt_1968.day(), 29);
+    let time = utc(
+        UNIX_EPOCH - Duration::from_secs(58_017_600),
+        "1968 leap year",
+    );
+    assert_eq!((time.year(), time.month(), time.day()), (1968, 2, 29));
 
     // 1964-02-29 12:00:00 UTC (1964 was a leap year: 2,132.5 days before epoch)
     // 2133 * 86400 - 43200 = 184,248,000 seconds
-    let st_1964 = UNIX_EPOCH - Duration::from_secs(184_248_000);
-    let dt_1964 = File::systemtime_to_naivedatetime(st_1964).expect("1964 leap year");
-    assert_eq!(dt_1964.year(), 1964);
-    assert_eq!(dt_1964.month(), 2);
-    assert_eq!(dt_1964.day(), 29);
+    let time = utc(
+        UNIX_EPOCH - Duration::from_secs(184_248_000),
+        "1964 leap year",
+    );
+    assert_eq!((time.year(), time.month(), time.day()), (1964, 2, 29));
 }
 
 // =========================================================================
@@ -217,7 +231,7 @@ fn test_invalid_time_style_string_returns_invalid_value_error() {
         ("%Y-%m-%d", NEEDS_A_PLUS.to_owned()),
         (
             "+",
-            "Custom timestamp format is empty, please supply a chrono format string after \
+            "Custom timestamp format is empty, please supply a strftime format string after \
              the +."
                 .to_owned(),
         ),
