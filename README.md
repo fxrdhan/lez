@@ -406,6 +406,7 @@ An annotated sample configuration is provided in [`docs/config.example.toml`](do
 | `LEZ_THEME` / `EZA_THEME` | Name of a theme in the `themes` folder of the configuration directory, used instead of `theme.yml` (`--theme` overrides it). |
 | `LEZ_COLORS` / `EZA_COLORS` / `LS_COLORS` | Specifies color styles and file extensions styling using standard terminal ANSI escape codes. `LS_COLORS` is not read when a `theme.yml` is. |
 | `LEZ_MIN_LUMINANCE` / `LEZ_MAX_LUMINANCE` | Minimum and maximum luminance values (-100..=100) for color scaling on dates and sizes. |
+| `COLORTERM` / `TERM` | `--color-scale` writes 24-bit colors when `COLORTERM` is `truecolor` or `24bit`, or `TERM` ends in `-direct` or `-truecolor`, and the nearest of the 256-color palette otherwise. |
 | `LEZ_QUOTING_STYLE` / `EZA_QUOTING_STYLE` | Default quoting style for filenames with spaces/special characters (`always`, `auto`, `never`). |
 | `QUOTING_STYLE` | GNU `ls`'s quoting style, read when neither variable above is set: `literal` is `never`, `shell` and `shell-escape` are `auto`, and `shell-always` and `shell-escape-always` are `always`. Its other styles are passed over. |
 | `LEZ_ICON_SPACING` / `EZA_ICON_SPACING` | Number of spaces to insert after Nerd Font icons (default: `1`). |

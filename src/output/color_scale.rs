@@ -33,6 +33,7 @@ pub struct ColorScaleOptions {
     pub max_luminance: isize,
     pub size: bool,
     pub age: bool,
+    pub depth: ColorDepth,
 }
 
 impl Default for ColorScaleOptions {
@@ -43,7 +44,87 @@ impl Default for ColorScaleOptions {
             max_luminance: 100,
             size: false,
             age: false,
+            depth: ColorDepth::default(),
         }
+    }
+}
+
+/// How many colours the terminal can be asked for.
+///
+/// A scale works its shades out as 24-bit colours. A terminal that does not
+/// take those may read the numbers after `38;2` as codes of their own, and
+/// then the column comes out in colours that have nothing to do with the
+/// scale (eza#755). Such a terminal is given the nearest of the 256-colour
+/// palette instead.
+///
+/// # Examples
+/// ```
+/// use lez::output::color_scale::ColorDepth;
+///
+/// assert_eq!(ColorDepth::default(), ColorDepth::TrueColor);
+/// ```
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
+pub enum ColorDepth {
+    /// Any colour, written `38;2;r;g;b`.
+    #[default]
+    TrueColor,
+    /// One of the 256-colour palette, written `38;5;n`.
+    Palette,
+}
+
+impl ColorDepth {
+    /// `colour` as a terminal of this depth can be asked for it.
+    fn fit(self, colour: Colour) -> Colour {
+        match (self, colour) {
+            (Self::Palette, Colour::Rgb(r, g, b)) => Colour::Fixed(nearest_in_palette(r, g, b)),
+            _ => colour,
+        }
+    }
+}
+
+/// The levels a channel takes in the 6×6×6 cube that makes up entries 16 to
+/// 231 of the 256-colour palette.
+const CUBE: [u8; 6] = [0, 95, 135, 175, 215, 255];
+
+/// The entry of the 256-colour palette nearest to a colour.
+///
+/// Entries 0 to 15 are left out, being whatever the terminal's theme makes
+/// of them. The rest are the same everywhere: the cube, then 24 greys from 8
+/// in steps of 10.
+fn nearest_in_palette(r: u8, g: u8, b: u8) -> u8 {
+    let distance = |(x, y, z): (u8, u8, u8)| -> u32 {
+        [(r, x), (g, y), (b, z)]
+            .into_iter()
+            .map(|(here, there)| u32::from(here.abs_diff(there)).pow(2))
+            .sum()
+    };
+
+    // The distance is a sum over the channels, so the nearest corner of the
+    // cube is the nearest level of each of them.
+    let level = |value: u8| {
+        (0..6u8)
+            .min_by_key(|&i| CUBE[usize::from(i)].abs_diff(value))
+            .unwrap_or_default()
+    };
+    let (red, green, blue) = (level(r), level(g), level(b));
+    let corner = (
+        CUBE[usize::from(red)],
+        CUBE[usize::from(green)],
+        CUBE[usize::from(blue)],
+    );
+
+    // And the nearest grey is the one nearest the mean of the three, which
+    // is compared threefold to stay in whole numbers.
+    let sum = u16::from(r) + u16::from(g) + u16::from(b);
+    let step = (0..24u8)
+        .min_by_key(|&i| (3 * (8 + 10 * u16::from(i))).abs_diff(sum))
+        .unwrap_or_default();
+    let grey = 8 + 10 * step;
+
+    if distance((grey, grey, grey)) < distance(corner) {
+        232 + step
+    } else {
+        16 + 36 * red + 6 * green + blue
     }
 }
 
@@ -121,12 +202,12 @@ impl ColorScaleInformation {
         scale: Scale,
     ) -> Style {
         if let (Some(fg), Some(range)) = (style.foreground, range) {
-            style.foreground = Some(adjust_luminance(
+            style.foreground = Some(self.options.depth.fit(adjust_luminance(
                 fg,
                 scale.ratio(value, range),
                 self.options.min_luminance as f32 / 100.0,
                 self.options.max_luminance as f32 / 100.0,
-            ));
+            )));
         }
 
         style
@@ -177,12 +258,12 @@ impl ColorScaleInformation {
                         0.0
                     };
 
-                    style.foreground = Some(adjust_luminance(
+                    style.foreground = Some(self.options.depth.fit(adjust_luminance(
                         fg,
                         ratio,
                         self.options.min_luminance as f32 / 100.0,
                         self.options.max_luminance as f32 / 100.0,
-                    ));
+                    )));
                 }
                 style
             }
@@ -434,6 +515,7 @@ mod test {
             max_luminance: 100,
             size: false,
             age: false,
+            depth: ColorDepth::TrueColor,
         };
         let filter = make_test_filter(vec![], vec![]);
         let info = ColorScaleInformation::from_color_scale(opts, &[], &filter, None, false, None);
@@ -448,6 +530,7 @@ mod test {
             max_luminance: 100,
             size: false,
             age: true,
+            depth: ColorDepth::TrueColor,
         };
         let filter = make_test_filter(vec![], vec![]);
         let info = ColorScaleInformation::from_color_scale(opts, &[], &filter, None, false, None);
@@ -479,6 +562,7 @@ mod test {
             max_luminance: 100,
             size: true,
             age: true,
+            depth: ColorDepth::TrueColor,
         };
         let filter = make_test_filter(vec![], vec![]);
         let info =
@@ -498,6 +582,7 @@ mod test {
             max_luminance: 100,
             size: true,
             age: true,
+            depth: ColorDepth::TrueColor,
         };
         // Use real existing files in repo to test size extraction
         let file_cargo = File::from_args(
@@ -549,6 +634,7 @@ mod test {
             max_luminance: 100,
             size: true,
             age: true,
+            depth: ColorDepth::TrueColor,
         };
         let file_cargo = File::from_args(
             PathBuf::from("Cargo.toml"),
@@ -585,6 +671,7 @@ mod test {
             max_luminance: 100,
             size: true,
             age: true,
+            depth: ColorDepth::TrueColor,
         };
         let file_cargo = File::from_args(
             PathBuf::from("Cargo.toml"),
@@ -626,6 +713,7 @@ mod test {
             max_luminance: 100,
             size: true,
             age: true,
+            depth: ColorDepth::TrueColor,
         };
         let info = ColorScaleInformation {
             options: opts,
@@ -728,6 +816,162 @@ mod test {
         assert!(
             (logarithmic - linear).abs() < 0.02,
             "a logarithm moves a timestamp almost nowhere: {linear} vs {logarithmic}"
+        );
+    }
+
+    /// Entry `n` of the 256-colour palette, from 16 up, as every terminal
+    /// has it.
+    fn palette_entry(n: u8) -> (u8, u8, u8) {
+        if n >= 232 {
+            let grey = 8 + 10 * (n - 232);
+            (grey, grey, grey)
+        } else {
+            let n = usize::from(n - 16);
+            (CUBE[n / 36], CUBE[n / 6 % 6], CUBE[n % 6])
+        }
+    }
+
+    #[test]
+    fn known_colours_land_on_their_palette_entries() {
+        for ((r, g, b), entry) in [
+            ((0, 0, 0), 16),
+            ((255, 255, 255), 231),
+            ((255, 0, 0), 196),
+            // A grey the cube has is taken from the cube.
+            ((95, 95, 95), 59),
+            // One it has not is taken from the ramp, at either end of it too.
+            ((128, 128, 128), 244),
+            ((8, 8, 8), 232),
+            ((238, 238, 238), 255),
+            // The two ends of a scale over green.
+            ((0, 104, 0), 22),
+            ((99, 255, 91), 83),
+        ] {
+            assert_eq!(nearest_in_palette(r, g, b), entry, "{:?}", (r, g, b));
+        }
+    }
+
+    /// The entry is worked out from the nearest level of each channel and
+    /// the nearest grey, not by trying all 240. Trying them all must find
+    /// nothing nearer.
+    #[test]
+    fn the_palette_entry_chosen_is_the_nearest_there_is() {
+        let distance = |(r, g, b): (u8, u8, u8), (x, y, z): (u8, u8, u8)| -> u32 {
+            [(r, x), (g, y), (b, z)]
+                .into_iter()
+                .map(|(here, there)| u32::from(here.abs_diff(there)).pow(2))
+                .sum()
+        };
+        // Evenly spread, and the values either side of where a level or a
+        // grey gives way to the next.
+        let samples: Vec<u8> = (0..=255)
+            .step_by(17)
+            .chain([8, 13, 47, 48, 115, 135, 238, 247])
+            .collect();
+
+        for &r in &samples {
+            for &g in &samples {
+                for &b in &samples {
+                    let chosen = nearest_in_palette(r, g, b);
+                    assert!(chosen >= 16, "{:?} went to a theme colour", (r, g, b));
+                    let nearest = (16..=255)
+                        .map(|n| distance((r, g, b), palette_entry(n)))
+                        .min();
+                    assert_eq!(
+                        Some(distance((r, g, b), palette_entry(chosen))),
+                        nearest,
+                        "{:?} went to {chosen}",
+                        (r, g, b)
+                    );
+                }
+            }
+        }
+    }
+
+    /// The report (eza#755): every shade was written `38;2;r;g;b` whatever
+    /// the terminal, and one that does not take 24-bit colour showed
+    /// something else. Such a terminal is given the palette, and the scale
+    /// still has its steps there.
+    #[test]
+    fn a_terminal_without_24_bit_colour_is_given_the_palette() {
+        let shades = |depth| {
+            let info = ColorScaleInformation {
+                options: ColorScaleOptions {
+                    mode: ColorScaleMode::Gradient,
+                    min_luminance: 40,
+                    max_luminance: 100,
+                    size: true,
+                    age: false,
+                    depth,
+                },
+                accessed: None,
+                changed: None,
+                created: None,
+                modified: None,
+                size: Some(Extremes {
+                    min: 100.0,
+                    max: 50_000.0,
+                }),
+            };
+            [100.0, 3_000.0, 50_000.0].map(|size| {
+                info.adjust_style(Colour::Green.normal(), size, info.size, Scale::Logarithmic)
+                    .foreground
+            })
+        };
+
+        assert_eq!(
+            shades(ColorDepth::TrueColor),
+            [
+                Some(Colour::Rgb(0, 104, 0)),
+                Some(Colour::Rgb(0, 132, 0)),
+                Some(Colour::Rgb(99, 255, 91)),
+            ]
+        );
+        assert_eq!(
+            shades(ColorDepth::Palette),
+            [
+                Some(Colour::Fixed(22)),
+                Some(Colour::Fixed(28)),
+                Some(Colour::Fixed(83)),
+            ]
+        );
+    }
+
+    /// A date in `fixed` mode is shaded by its age without a range, on a
+    /// path of its own, and is fitted to the terminal there too.
+    #[test]
+    fn a_date_in_fixed_mode_is_given_the_palette_too() {
+        let info = ColorScaleInformation::from_color_scale(
+            ColorScaleOptions {
+                mode: ColorScaleMode::Fixed,
+                min_luminance: 40,
+                max_luminance: 100,
+                size: false,
+                age: true,
+                depth: ColorDepth::Palette,
+            },
+            &[],
+            &make_test_filter(vec![], vec![]),
+            None,
+            false,
+            None,
+        )
+        .expect("a scale over age");
+        let file = File::from_args(
+            PathBuf::from("Cargo.toml"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+
+        let shaded = info.apply_time_scale(Colour::Blue.normal(), &file, TimeType::Modified);
+        assert!(
+            matches!(shaded.foreground, Some(Colour::Fixed(16..))),
+            "{:?}",
+            shaded.foreground
         );
     }
 

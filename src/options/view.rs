@@ -13,7 +13,7 @@ use crate::fs::feature::xattr;
 use crate::options::parser::{CodeContent, ColorScaleModeArgs};
 use crate::options::{NumberSource, OptionsError, Vars, vars};
 use crate::output::TerminalWidth::Set;
-use crate::output::color_scale::{ColorScaleMode, ColorScaleOptions};
+use crate::output::color_scale::{ColorDepth, ColorScaleMode, ColorScaleOptions};
 use crate::output::file_name::Options as FileStyle;
 use crate::output::grid_details::{self, RowThreshold};
 use crate::output::table::{
@@ -982,6 +982,31 @@ impl TimeTypes {
     }
 }
 
+impl ColorDepth {
+    /// 24-bit colour where the terminal says it takes it, and the 256-colour
+    /// palette anywhere else.
+    ///
+    /// A terminal cannot be asked, so this goes by what it sets: `COLORTERM`
+    /// to `truecolor` or `24bit`, or a `TERM` that names a direct-colour
+    /// entry. One that sets neither is given the palette, which costs a
+    /// terminal that would have taken more a coarser scale, where guessing
+    /// the other way costs one that would not its colours altogether.
+    pub fn deduce<V: Vars>(vars: &V) -> Self {
+        let text = |name: &'static str| vars.get(name).and_then(|value| value.into_string().ok());
+        let colorterm = text(vars::COLORTERM).is_some_and(|value| {
+            value.eq_ignore_ascii_case("truecolor") || value.eq_ignore_ascii_case("24bit")
+        });
+        let term = text(vars::TERM)
+            .is_some_and(|value| value.ends_with("-direct") || value.ends_with("-truecolor"));
+
+        if colorterm || term || vars.console_is_truecolor() {
+            Self::TrueColor
+        } else {
+            Self::Palette
+        }
+    }
+}
+
 impl ColorScaleOptions {
     pub fn deduce<V: Vars>(
         matches: &ArgMatches,
@@ -1010,6 +1035,7 @@ impl ColorScaleOptions {
             max_luminance: 100,
             size: false,
             age: false,
+            depth: ColorDepth::deduce(vars),
         };
 
         if let Some(words) = matches.get_many("color-scale") {
@@ -1797,6 +1823,7 @@ mod tests {
                 max_luminance: 100,
                 size: true,
                 age: true,
+                depth: ColorDepth::Palette,
             })
         );
     }
@@ -1817,6 +1844,7 @@ mod tests {
                 max_luminance: 100,
                 size: true,
                 age: false,
+                depth: ColorDepth::Palette,
             })
         );
     }
@@ -1837,6 +1865,7 @@ mod tests {
                 max_luminance: 100,
                 size: false,
                 age: true,
+                depth: ColorDepth::Palette,
             })
         );
     }
@@ -1862,6 +1891,7 @@ mod tests {
                 max_luminance: 100,
                 size: true,
                 age: true,
+                depth: ColorDepth::Palette,
             })
         );
     }
@@ -1882,7 +1912,65 @@ mod tests {
                 max_luminance: 80,
                 size: true,
                 age: false,
+                depth: ColorDepth::Palette,
             })
+        );
+    }
+
+    /// A terminal says it takes 24-bit colour by `COLORTERM` or by the name
+    /// of its terminfo entry. One that says nothing, or something else, is
+    /// given the palette (eza#755).
+    #[test]
+    fn deduce_color_depth_from_what_the_terminal_sets() {
+        for (colorterm, term, depth) in [
+            ("", "", ColorDepth::Palette),
+            ("", "dumb", ColorDepth::Palette),
+            ("", "xterm-256color", ColorDepth::Palette),
+            ("rxvt", "rxvt-unicode-256color", ColorDepth::Palette),
+            ("yes", "", ColorDepth::Palette),
+            ("truecolor", "xterm-256color", ColorDepth::TrueColor),
+            ("24bit", "", ColorDepth::TrueColor),
+            ("TrueColor", "", ColorDepth::TrueColor),
+            ("", "xterm-direct", ColorDepth::TrueColor),
+            ("", "xterm-truecolor", ColorDepth::TrueColor),
+            // The name has to end so: this one is no direct-colour entry.
+            ("", "direct-256color", ColorDepth::Palette),
+        ] {
+            let mut vars = MockVars::default();
+            vars.set(vars::COLORTERM, &OsString::from(colorterm));
+            vars.set(vars::TERM, &OsString::from(term));
+            assert_eq!(
+                ColorDepth::deduce(&vars),
+                depth,
+                "COLORTERM={colorterm:?} TERM={term:?}"
+            );
+        }
+    }
+
+    /// A Windows console sets neither variable and takes 24-bit colour all
+    /// the same, which the live variables say for it.
+    #[test]
+    fn deduce_color_depth_of_a_console_that_takes_24_bit_colour() {
+        struct Console;
+        impl Vars for Console {
+            fn get(&self, _name: &'static str) -> Option<OsString> {
+                None
+            }
+
+            fn console_is_truecolor(&self) -> bool {
+                true
+            }
+        }
+
+        assert_eq!(ColorDepth::deduce(&Console), ColorDepth::TrueColor);
+        assert_eq!(
+            ColorScaleOptions::deduce(
+                &mock_cli(vec!["--color-scale=size"]),
+                &Console,
+                &FileConfig::default()
+            )
+            .map(|options| options.depth),
+            Ok(ColorDepth::TrueColor)
         );
     }
 
@@ -1903,6 +1991,7 @@ mod tests {
                 max_luminance: 75,
                 size: true,
                 age: false,
+                depth: ColorDepth::Palette,
             })
         );
     }
@@ -1924,6 +2013,7 @@ mod tests {
                 max_luminance: 100,
                 size: true,
                 age: false,
+                depth: ColorDepth::Palette,
             })
         );
     }
@@ -1945,6 +2035,7 @@ mod tests {
                 max_luminance: 70,
                 size: true,
                 age: true,
+                depth: ColorDepth::Palette,
             })
         );
     }
@@ -2005,6 +2096,7 @@ mod tests {
                 max_luminance: 100,
                 size: true,
                 age: true,
+                depth: ColorDepth::Palette,
             })
         );
     }

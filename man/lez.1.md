@@ -144,6 +144,8 @@ Valid settings are ‘`always`’, ‘`automatic`’ (‘`auto`’ for short), a
 Valid fields are ‘`all`’, ‘`age`’, and ‘`size`’.
 When used without a value, defaults to ‘`all`’. Note: when providing an explicit value, an equals sign is required (`--color-scale=FIELD`).
 
+The shades are 24-bit colors where the terminal says it takes them: `COLORTERM` set to `truecolor` or `24bit`, a `TERM` ending in `-direct` or `-truecolor`, or a Windows console. Anywhere else they are the nearest colors of the 256-color palette, since a terminal that does not take a 24-bit color may show another one altogether. See `COLORTERM` below.
+
 `--color-scale-mode=MODE`, `--colour-scale-mode=MODE`
 : Mode of color scale.
 
@@ -540,6 +542,12 @@ Specifies the minimum luminance to use when color-scale is active. Its value can
 ## `LEZ_MAX_LUMINANCE`, `EZA_MAX_LUMINANCE`
 
 Specifies the maximum luminance to use when color-scale is active. Its value can be between -100 to 100; anything else is an error.
+
+## `COLORTERM`, `TERM`
+
+Read for one thing: whether `--color-scale` may write 24-bit colors. It does when `COLORTERM` is `truecolor` or `24bit`, or when `TERM` ends in `-direct` or `-truecolor`, and keeps to the 256-color palette otherwise.
+
+A terminal that takes 24-bit color sets `COLORTERM` itself, but the variable is not carried into a session over `ssh` or through `sudo`. Set it there to have the finer scale back.
 
 ## `LEZ_ICONS_AUTO`, `EZA_ICONS_AUTO`
 

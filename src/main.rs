@@ -239,6 +239,10 @@ impl Vars for LiveVars {
     fn platform_home_dir(&self) -> Option<PathBuf> {
         dirs::home_dir()
     }
+
+    fn console_is_truecolor(&self) -> bool {
+        cfg!(windows)
+    }
 }
 
 /// Create a Git cache populated with the arguments that are going to be
