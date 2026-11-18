@@ -20,7 +20,7 @@ SPDX-License-Identifier: EUPL-1.2
 
 </div>
 
-![lez demo](docs/images/screenshots.png)
+![Two terminal windows running lez with icons. A dark one lists repositories with their branch and status, then a tree with Git status. A light one shows octal permissions, grid-details with relative times, and the plain grid.](docs/images/screenshots.png)
 
 ---
 
