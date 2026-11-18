@@ -832,7 +832,6 @@ dependencies = [
  "dirs",
  "git2",
  "glob",
- "humantime",
  "icu_collator",
  "icu_locale",
  "icu_provider",

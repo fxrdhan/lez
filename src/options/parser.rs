@@ -219,7 +219,7 @@ fn filtering_options(command: clap::Command) -> clap::Command {
             .action(clap::ArgAction::Count))
         .arg(arg!(--"ignore-submodule-contents" "do not list contents of submodules"))
         .arg(arg!(--since <DURATION> "filter and display only files created or modified within the specified duration window")
-            .value_parser(humantime::parse_duration))
+            .value_parser(super::duration::parse_duration))
 }
 
 fn sorting_options(command: clap::Command) -> clap::Command {
