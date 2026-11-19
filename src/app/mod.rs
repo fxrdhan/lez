@@ -224,7 +224,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
                 &self.options.view,
             );
 
-            let render_exit = r.render(files, dirs, &mut self.writer)?;
+            let render_exit = r.render(files, dirs, &mut self.writer, &mut self.err_writer)?;
             let final_exit = if exit_status != exits::SUCCESS {
                 exit_status
             } else {
@@ -689,7 +689,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
                     summary,
                     total_entries: *total_entries,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer, &mut self.err_writer)
             }
 
             (ListingMode::GridDetails(opts), Some(console_width)) => {
@@ -716,7 +716,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
                     console_width,
                     git_repos,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer, &mut self.err_writer)
             }
 
             (ListingMode::GridDetails(opts), None) => {
@@ -741,7 +741,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
                     summary,
                     total_entries: *total_entries,
                 };
-                r.render(&mut self.writer)
+                r.render(&mut self.writer, &mut self.err_writer)
             }
         };
         let render_status = result?;
@@ -1057,6 +1057,49 @@ mod tests {
             String::from_utf8(stderr)
                 .unwrap()
                 .contains("does-not-exist")
+        );
+    }
+
+    #[test]
+    fn tree_warn_hidden_writes_diagnostics_to_injected_err_writer() {
+        let dir = temp_workdir("tree-warn-hidden");
+        fs::write(dir.path().join("visible.txt"), b"ok").unwrap();
+        fs::write(dir.path().join(".secret"), b"hidden").unwrap();
+
+        let cmd = get_command();
+        let args = normalize_args(
+            [
+                OsString::from("lez"),
+                OsString::from("--tree"),
+                OsString::from("--warn-hidden"),
+                OsString::from("--color=never"),
+                OsString::from("--icons=never"),
+            ],
+            &cmd,
+        );
+        let matches = cmd.try_get_matches_from(args).unwrap();
+        let options =
+            Options::deduce_with_config(&matches, &MockVars::default(), &FileConfig::default())
+                .unwrap();
+
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let app = App::from_options(
+            options,
+            vec![dir.path().as_os_str()],
+            false,
+            &mut stdout,
+            &mut stderr,
+        );
+        let code = app.run().unwrap();
+        assert_eq!(code, exits::SUCCESS);
+        let out_str = String::from_utf8(stdout).unwrap();
+        let err_str = String::from_utf8(stderr).unwrap();
+        assert!(out_str.contains("visible.txt"));
+        assert!(!out_str.contains(".secret"));
+        assert!(
+            err_str.contains("1 hidden"),
+            "expected hidden warning on injected err_writer, got: {err_str:?}"
         );
     }
 }

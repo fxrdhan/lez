@@ -194,7 +194,7 @@ struct TreeWalk<'a, 'b> {
 }
 
 impl<'a> Render<'a> {
-    pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<i32> {
+    pub fn render<W: Write, E: Write>(mut self, w: &mut W, err: &mut E) -> io::Result<i32> {
         let mut exit_status = crate::exits::SUCCESS;
         let mut hidden_count =
             crate::output::hidden_count::HiddenCount::new(self.filter.warn_hidden);
@@ -310,7 +310,7 @@ impl<'a> Render<'a> {
         {
             // The tree goes out first, so the tally follows it.
             w.flush()?;
-            let _ = writeln!(io::stderr(), "{warn_line}");
+            let _ = writeln!(err, "{warn_line}");
         }
 
         Ok(exit_status)

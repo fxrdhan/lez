@@ -191,16 +191,17 @@ impl<'a> Render<'a> {
         }
     }
 
-    pub fn render<W: Write>(
+    pub fn render<W: Write, E: Write>(
         &self,
         files: Vec<File<'a>>,
         mut dirs: Vec<Dir>,
         w: &mut W,
+        err: &mut E,
     ) -> io::Result<i32> {
         let recurse = self.dir_action.recurse_options().is_some();
         let (doc, status) = match (files.is_empty(), dirs.as_mut_slice(), recurse) {
             (true, [dir], false) => {
-                let (dir_files, status) = self.build_directory(dir);
+                let (dir_files, status) = self.build_directory(dir, err);
                 (JsonDocument::Files(dir_files), status)
             }
             (_, [], _) => (
@@ -213,11 +214,11 @@ impl<'a> Render<'a> {
                     dirs_slice.iter().map(|d| d.path.as_path()),
                 );
                 let (tree, status) =
-                    self.build_recursive_directories(dirs_slice, false, 0, &visited, None);
+                    self.build_recursive_directories(dirs_slice, 0, &visited, None, err);
                 (JsonDocument::RecursiveDirectories(tree), status)
             }
             (true, dirs_slice, false) => {
-                let (entries, status) = self.build_directories(dirs_slice);
+                let (entries, status) = self.build_directories(dirs_slice, err);
                 (JsonDocument::Directories(entries), status)
             }
             (false, dirs_slice, true) => {
@@ -227,7 +228,7 @@ impl<'a> Render<'a> {
                     dirs_slice.iter().map(|d| d.path.as_path()),
                 );
                 let (directories, status) =
-                    self.build_recursive_directories(dirs_slice, false, 0, &visited, None);
+                    self.build_recursive_directories(dirs_slice, 0, &visited, None, err);
                 (
                     JsonDocument::FilesAndRecursiveDirectories {
                         files: rendered_files,
@@ -238,7 +239,7 @@ impl<'a> Render<'a> {
             }
             (false, dirs_slice, false) => {
                 let rendered_files = self.build_files(&files);
-                let (directories, status) = self.build_directories(dirs_slice);
+                let (directories, status) = self.build_directories(dirs_slice, err);
                 (
                     JsonDocument::FilesAndDirectories {
                         files: rendered_files,
@@ -316,12 +317,12 @@ impl<'a> Render<'a> {
         }
     }
 
-    fn build_directory(&self, dir: &mut Dir) -> (JsonFiles, i32) {
+    fn build_directory<E: Write>(&self, dir: &mut Dir, err: &mut E) -> (JsonFiles, i32) {
         let dir_path = dir.path.clone();
         let dir = match dir.read() {
             Ok(d) => d,
             Err(e) => {
-                let status = report_dir_read_error(&dir_path, &e);
+                let status = report_dir_read_error(&dir_path, &e, err);
                 return (JsonFiles::Short(Vec::new()), status);
             }
         };
@@ -332,12 +333,16 @@ impl<'a> Render<'a> {
         )
     }
 
-    fn build_directories(&self, dirs: &mut [Dir]) -> (OrderedMap<JsonFiles>, i32) {
+    fn build_directories<E: Write>(
+        &self,
+        dirs: &mut [Dir],
+        err: &mut E,
+    ) -> (OrderedMap<JsonFiles>, i32) {
         let mut entries = Vec::with_capacity(dirs.len());
         let mut exit_status = crate::exits::SUCCESS;
         for dir in dirs {
             let key = dir.path.display().to_string();
-            let (dir_files, status) = self.build_directory(dir);
+            let (dir_files, status) = self.build_directory(dir, err);
             entries.push((key, dir_files));
             if status != crate::exits::SUCCESS {
                 exit_status = status;
@@ -346,13 +351,13 @@ impl<'a> Render<'a> {
         (OrderedMap(entries), exit_status)
     }
 
-    fn build_recursive_directories(
+    fn build_recursive_directories<E: Write>(
         &self,
         dirs: &mut [Dir],
-        sub_dir: bool,
         depth: usize,
         ancestors: &AncestorSet,
         tree_root: Option<&Path>,
+        err: &mut E,
     ) -> (OrderedMap<JsonDirNode>, i32) {
         let mut entries = Vec::with_capacity(dirs.len());
         let mut exit_status = crate::exits::SUCCESS;
@@ -376,7 +381,7 @@ impl<'a> Render<'a> {
                 Some(root) if is_tree => root.to_path_buf(),
                 _ => dir_path.clone(),
             };
-            let key = if sub_dir || has_name_collision {
+            let key = if has_name_collision {
                 dir_path.display().to_string()
             } else {
                 dir_path
@@ -388,7 +393,7 @@ impl<'a> Render<'a> {
             let dir_r = match dir.read() {
                 Ok(r) => r,
                 Err(e) => {
-                    let status = report_dir_read_error(&dir_path, &e);
+                    let status = report_dir_read_error(&dir_path, &e, err);
                     if status == crate::exits::PERMISSION_DENIED
                         || exit_status == crate::exits::SUCCESS
                     {
@@ -450,10 +455,10 @@ impl<'a> Render<'a> {
                         self.build_files_under(&leaf_files, std::slice::from_ref(&loc_root));
                     let (sub_dirs, child_status) = self.build_recursive_directories(
                         &mut child_dirs,
-                        false,
                         child_depth,
                         &next_ancestors,
                         Some(&loc_root),
+                        err,
                     );
                     if child_status != crate::exits::SUCCESS {
                         exit_status = child_status;
@@ -533,17 +538,17 @@ impl<'a> Render<'a> {
     }
 }
 
-fn report_dir_read_error(dir_path: &Path, e: &io::Error) -> i32 {
+fn report_dir_read_error<E: Write>(dir_path: &Path, e: &io::Error, err: &mut E) -> i32 {
     if e.kind() == io::ErrorKind::PermissionDenied {
         let _ = writeln!(
-            io::stderr(),
+            err,
             "Permission denied: {} - code: {}",
             dir_path.display(),
             crate::exits::PERMISSION_DENIED
         );
         crate::exits::PERMISSION_DENIED
     } else {
-        let _ = writeln!(io::stderr(), "{}: {}", dir_path.display(), e);
+        let _ = writeln!(err, "{}: {}", dir_path.display(), e);
         crate::exits::RUNTIME_ERROR
     }
 }
@@ -762,5 +767,22 @@ mod tests {
             .map_err(io::Error::from)
             .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+    }
+
+    #[test]
+    fn dir_read_errors_write_to_injected_err_sink() {
+        let mut err_buf = Vec::new();
+        let denied = io::Error::new(io::ErrorKind::PermissionDenied, "denied");
+        let code = report_dir_read_error(Path::new("/secret"), &denied, &mut err_buf);
+        assert_eq!(code, crate::exits::PERMISSION_DENIED);
+        let msg = String::from_utf8(err_buf).unwrap();
+        assert!(msg.contains("Permission denied: /secret"));
+
+        let mut err_buf = Vec::new();
+        let other = io::Error::other("disk error");
+        let code = report_dir_read_error(Path::new("/broken"), &other, &mut err_buf);
+        assert_eq!(code, crate::exits::RUNTIME_ERROR);
+        let msg = String::from_utf8(err_buf).unwrap();
+        assert!(msg.contains("/broken: disk error"));
     }
 }

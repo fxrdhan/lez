@@ -45,10 +45,6 @@ const LEGACY_DIRECT_ENV_FILES: &[&str] = &[
     "src/output/escape.rs",
 ];
 
-/// Legacy library files outside `src/main.rs` and `src/logger.rs` writing
-/// directly to `io::stderr()`.
-const LEGACY_DIRECT_STDERR_FILES: &[&str] = &["src/output/details.rs", "src/output/json.rs"];
-
 /// Legacy process-wide runtime `LazyLock` / `OnceLock` singletons in
 /// production `src/` scheduled for scoping into `RunContext` in Phase 3.
 const LEGACY_RUNTIME_STATICS: &[(&str, &str)] = &[
@@ -874,27 +870,23 @@ fn direct_env_var_access_is_ratcheted() {
 }
 
 #[test]
-fn direct_stderr_writes_in_library_are_ratcheted() {
-    let mut actual = BTreeSet::new();
+fn direct_stderr_writes_in_library_are_zero() {
+    let mut violations = BTreeSet::new();
     for (rel, raw) in src_files() {
         if rel == "src/main.rs" || rel == "src/logger.rs" {
             continue;
         }
         let prod = strip_cfg_test_items(&strip_comments_and_literals(&raw));
         if contains_token_sequence(&prod, &["stderr", "("]) {
-            actual.insert(rel);
+            violations.insert(rel);
         }
     }
 
-    let expected: BTreeSet<String> = LEGACY_DIRECT_STDERR_FILES
-        .iter()
-        .map(|s| (*s).to_owned())
-        .collect();
-    assert_ratchet_set(
-        "direct_stderr_writes",
-        &actual,
-        &expected,
-        "Library code should emit diagnostics through an injected sink rather than `io::stderr()` directly (ADR-0001).",
+    assert!(
+        violations.is_empty(),
+        "ARCHITECTURAL REGRESSION (direct_stderr_writes): library file(s) write directly \
+         to `io::stderr()`: {violations:#?}\n\
+         Emit diagnostics through an injected `Write` sink instead (ADR-0001)."
     );
 }
 
