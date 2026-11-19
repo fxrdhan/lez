@@ -5,7 +5,7 @@ SPDX-License-Identifier: EUPL-1.2
 
 # ADR-0001: Layered Architecture, Dependency Boundaries, and Automated Fitness Functions
 
-- **Status:** Accepted (Phase 0–3 complete — strict acyclic DAG, zero `clap` leaks, zero `too_many_arguments`, unified traversal policy, typed `serde_json` output, thin `main.rs` + `app` layer, zero library `stderr()` writes, zero direct `env::var` bypasses, injectable `Environment`/`TimeContext`, and inline renderer unit tests enforced; only Phase 4 optional workspace-split evaluation remains)
+- **Status:** Accepted (Phase 0–4 complete — strict acyclic DAG, zero `clap` leaks, zero `too_many_arguments`, unified traversal policy, typed `serde_json` output, thin `main.rs` + `app` layer, zero library `stderr()` writes, zero direct `env::var` bypasses, injectable `Environment`/`TimeContext`, inline renderer unit tests, and zero-dep `build.rs` guard enforced; single-crate decision recorded in [ADR-0002](0002-single-crate-vs-workspace-evaluation.md))
 - **Date:** 2026-11-19
 
 ## Context
