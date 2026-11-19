@@ -790,3 +790,254 @@ pub fn show_xattr_hint(indicate_xattr: bool, secattr: bool, file: &File<'_>) -> 
     };
     xattr_count > 1 || (xattr_count == 1 && !selinux_ctx_shown)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fs::DotFilter;
+    use crate::fs::filter::{
+        FileFilterFlags, GitIgnore, IgnoreCacheDir, IgnorePatterns, SortCase, SortField,
+    };
+    use crate::fs::hidden_count::WarnHiddenMode;
+    use crate::output::file_name::{Options as FileNameOptions, QuoteStyle};
+    use crate::output::time::TimeContext;
+    use crate::theme::{Definitions, Options as ThemeOptions, UseColours};
+    use std::fs;
+
+    fn plain_theme() -> Theme {
+        ThemeOptions {
+            use_colours: UseColours::Never,
+            colour_scale: ColorScaleOptions::default(),
+            definitions: Definitions::default(),
+            theme_config: None,
+        }
+        .to_theme(false)
+    }
+
+    fn base_filter() -> FileFilter {
+        FileFilter {
+            sort_field: SortField::Name(SortCase::AaBbCc),
+            flags: Vec::new(),
+            dot_filter: DotFilter::JustFiles,
+            ignore_patterns: IgnorePatterns::empty(),
+            ignore_patterns_caseins: IgnorePatterns::empty(),
+            git_ignore: GitIgnore::Off,
+            ignore_cachedir: IgnoreCacheDir::Off,
+            warn_hidden: WarnHiddenMode::Never,
+            ignore_submodule_contents: false,
+            since: None,
+            no_symlinks: false,
+            show_symlinks: false,
+            no_system: false,
+            no_hidden_attrib: false,
+            no_hidden_links: false,
+            collator: None,
+            is_explicit_sort: false,
+        }
+    }
+
+    fn tree_options() -> Options {
+        Options {
+            table: None,
+            header: false,
+            xattr: false,
+            tags: false,
+            secattr: false,
+            indicate_xattr: false,
+            inspect_archives: false,
+            mounts: false,
+            color_scale: ColorScaleOptions::default(),
+            follow_links: false,
+        }
+    }
+
+    fn test_env() -> Environment {
+        Environment::for_tests(
+            locale::Numeric::english(),
+            TimeContext::utc_fixed("2026-06-15T12:00:00Z".parse().unwrap()),
+        )
+    }
+
+    #[test]
+    fn tree_render_emits_hierarchy_summary_and_total_entries() {
+        let temp = tempfile::Builder::new()
+            .prefix("lez_details_tree_")
+            .tempdir()
+            .unwrap();
+        fs::write(temp.path().join("alpha.txt"), b"hello").unwrap();
+        fs::create_dir(temp.path().join("sub")).unwrap();
+        fs::write(temp.path().join("sub/beta.txt"), b"world").unwrap();
+
+        let root_file = File::from_args(
+            temp.path().to_path_buf(),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let theme = plain_theme();
+        let file_style = FileNameOptions {
+            quote_style: QuoteStyle::Never,
+            ..FileNameOptions::default()
+        };
+        let opts = tree_options();
+        let filter = base_filter();
+        let env = test_env();
+
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let status = Render {
+            dir: None,
+            files: vec![root_file],
+            theme: &theme,
+            file_style: &file_style,
+            opts: &opts,
+            recurse: Some(RecurseOptions {
+                tree: true,
+                max_depth: None,
+            }),
+            filter: &filter,
+            git_ignoring: false,
+            git: None,
+            git_repos: false,
+            summary: true,
+            total_entries: true,
+            env: &env,
+        }
+        .render(&mut stdout, &mut stderr)
+        .unwrap();
+
+        assert_eq!(status, crate::exits::SUCCESS);
+        assert!(stderr.is_empty(), "unexpected stderr: {:?}", stderr);
+        let out = String::from_utf8(stdout).unwrap();
+        assert!(out.contains("├── alpha.txt"), "out:\n{out}");
+        assert!(out.contains("└── sub"), "out:\n{out}");
+        assert!(out.contains("    └── beta.txt"), "out:\n{out}");
+        assert!(out.contains("total: 4"), "out:\n{out}");
+        assert!(out.contains("2 directories, 2 files"), "out:\n{out}");
+    }
+
+    #[test]
+    fn tree_only_files_hides_directory_rows_while_preserving_children() {
+        let temp = tempfile::Builder::new()
+            .prefix("lez_details_only_files_")
+            .tempdir()
+            .unwrap();
+        fs::create_dir(temp.path().join("nested")).unwrap();
+        fs::write(temp.path().join("nested/leaf.txt"), b"x").unwrap();
+        fs::write(temp.path().join("top.txt"), b"y").unwrap();
+
+        let root_file = File::from_args(
+            temp.path().to_path_buf(),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let theme = plain_theme();
+        let file_style = FileNameOptions {
+            quote_style: QuoteStyle::Never,
+            ..FileNameOptions::default()
+        };
+        let opts = tree_options();
+        let mut filter = base_filter();
+        filter.flags.push(FileFilterFlags::OnlyFiles);
+        let env = test_env();
+
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        Render {
+            dir: None,
+            files: vec![root_file],
+            theme: &theme,
+            file_style: &file_style,
+            opts: &opts,
+            recurse: Some(RecurseOptions {
+                tree: true,
+                max_depth: None,
+            }),
+            filter: &filter,
+            git_ignoring: false,
+            git: None,
+            git_repos: false,
+            summary: false,
+            total_entries: false,
+            env: &env,
+        }
+        .render(&mut stdout, &mut stderr)
+        .unwrap();
+
+        let out = String::from_utf8(stdout).unwrap();
+        assert!(out.contains("leaf.txt"), "out:\n{out}");
+        assert!(out.contains("top.txt"), "out:\n{out}");
+        assert!(
+            !out.lines().any(|line| line.trim_end().ends_with("nested")),
+            "directory row should be hidden under OnlyFiles:\n{out}"
+        );
+    }
+
+    #[test]
+    fn tree_warn_hidden_routes_warning_to_injected_err_sink() {
+        let temp = tempfile::Builder::new()
+            .prefix("lez_details_hidden_")
+            .tempdir()
+            .unwrap();
+        fs::write(temp.path().join("visible.txt"), b"v").unwrap();
+        fs::write(temp.path().join(".secret"), b"s").unwrap();
+
+        let root_file = File::from_args(
+            temp.path().to_path_buf(),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+        );
+        let theme = plain_theme();
+        let file_style = FileNameOptions {
+            quote_style: QuoteStyle::Never,
+            ..FileNameOptions::default()
+        };
+        let opts = tree_options();
+        let mut filter = base_filter();
+        filter.warn_hidden = WarnHiddenMode::Always;
+        let env = test_env();
+
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        Render {
+            dir: None,
+            files: vec![root_file],
+            theme: &theme,
+            file_style: &file_style,
+            opts: &opts,
+            recurse: Some(RecurseOptions {
+                tree: true,
+                max_depth: None,
+            }),
+            filter: &filter,
+            git_ignoring: false,
+            git: None,
+            git_repos: false,
+            summary: false,
+            total_entries: false,
+            env: &env,
+        }
+        .render(&mut stdout, &mut stderr)
+        .unwrap();
+
+        let out = String::from_utf8(stdout).unwrap();
+        let err = String::from_utf8(stderr).unwrap();
+        assert!(out.contains("visible.txt"), "out:\n{out}");
+        assert!(!out.contains(".secret"), "out:\n{out}");
+        assert!(
+            err.contains("1 hidden"),
+            "expected hidden warning in injected err buffer, got: {err:?}"
+        );
+    }
+}

@@ -787,3 +787,171 @@ impl TableWidths {
             .unwrap_or(usize::MAX)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::{Definitions, Options as ThemeOptions, UseColours};
+    use std::fs;
+
+    fn plain_theme() -> Theme {
+        ThemeOptions {
+            use_colours: UseColours::Never,
+            colour_scale: crate::output::color_scale::ColorScaleOptions::default(),
+            definitions: Definitions::default(),
+            theme_config: None,
+        }
+        .to_theme(false)
+    }
+
+    fn test_env(numeric: locale::Numeric) -> Environment {
+        let fixed_now: Timestamp = "2026-06-15T12:00:00Z".parse().unwrap();
+        Environment::for_tests(numeric, TimeContext::utc_fixed(fixed_now))
+    }
+
+    fn minimal_columns() -> Columns {
+        Columns {
+            time_types: TimeTypes {
+                modified: false,
+                changed: false,
+                accessed: false,
+                created: false,
+            },
+            inode: false,
+            links: false,
+            blocksize: false,
+            group: false,
+            git: false,
+            git_glyphs: false,
+            subdir_git_repos: false,
+            subdir_git_repos_no_stat: false,
+            octal: false,
+            security_context: false,
+            file_flags: false,
+            permissions: false,
+            filesize: true,
+            user: false,
+            language: false,
+            loc: None,
+        }
+    }
+
+    fn table_options(columns: Columns) -> Options {
+        Options {
+            size_format: SizeFormat::JustBytes,
+            size_digits: 0,
+            percent_digits: 1,
+            time_format: TimeFormat::LongISO,
+            user_format: UserFormat::Numeric,
+            group_format: GroupFormat::Regular,
+            owner_width: None,
+            flags_format: FlagsFormat::Short,
+            allocated_size_mode: AllocatedSizeMode::Bytes,
+            columns,
+            use_utc: true,
+            spaces: 2,
+        }
+    }
+
+    #[test]
+    fn header_and_row_alignment_use_injected_environment() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_table_unit_")
+            .tempdir()
+            .unwrap();
+        let small_path = dir.path().join("small.txt");
+        let big_path = dir.path().join("big.txt");
+        fs::write(&small_path, vec![b'a'; 5]).unwrap();
+        fs::write(&big_path, vec![b'b'; 1234]).unwrap();
+
+        let small = File::from_args(small_path, None, None, false, false, false, None);
+        let big = File::from_args(big_path, None, None, false, false, false, None);
+
+        let mut cols = minimal_columns();
+        cols.time_types.modified = true;
+        let opts = table_options(cols);
+        let theme = plain_theme();
+        let env = test_env(locale::Numeric::english());
+        let mut table = Table::new(&opts, None, &theme, false, &env);
+
+        let header = table.header_row();
+        let row_small = table.row_for_file(&small, false, None);
+        let row_big = table.row_for_file(&big, false, None);
+        table.add_widths(&header);
+        table.add_widths(&row_small);
+        table.add_widths(&row_big);
+
+        let rendered_header = table.render(header).strings().to_string();
+        let rendered_small = table.render(row_small).strings().to_string();
+        let rendered_big = table.render(row_big).strings().to_string();
+
+        assert!(rendered_header.starts_with(" Size  Date Modified"));
+        assert!(
+            rendered_small.starts_with("    5  "),
+            "small size should be right-aligned to widest value (1,234): {rendered_small:?}"
+        );
+        assert!(
+            rendered_big.starts_with("1,234  "),
+            "big size should use injected English grouping: {rendered_big:?}"
+        );
+    }
+
+    #[test]
+    fn custom_numeric_separator_flows_through_injected_environment() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_table_locale_")
+            .tempdir()
+            .unwrap();
+        let path = dir.path().join("data.bin");
+        fs::write(&path, vec![0u8; 1500]).unwrap();
+        let file = File::from_args(path, None, None, false, false, false, None);
+
+        let opts = table_options(minimal_columns());
+        let theme = plain_theme();
+        let german = locale::Numeric {
+            decimal_sep: ",".into(),
+            thousands_sep: ".".into(),
+        };
+        let env = test_env(german);
+        let mut table = Table::new(&opts, None, &theme, false, &env);
+
+        let row = table.row_for_file(&file, false, None);
+        table.add_widths(&row);
+        assert_eq!(table.render(row).strings().to_string(), "1.500  ");
+    }
+
+    #[test]
+    fn loc_both_computes_lines_and_percentage_from_injected_denominator() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_table_loc_")
+            .tempdir()
+            .unwrap();
+        let rs_path = dir.path().join("sample.rs");
+        fs::write(&rs_path, "fn main() {}\n// a comment\nlet x = 1;\n").unwrap();
+        let file = File::from_args(rs_path, None, None, false, false, false, None);
+
+        let mut cols = minimal_columns();
+        cols.filesize = false;
+        cols.language = true;
+        cols.loc = Some(CodeContent::Both);
+        let opts = table_options(cols);
+        let theme = plain_theme();
+        let env = test_env(locale::Numeric::english());
+        let mut table = Table::new(&opts, None, &theme, false, &env);
+        table.set_loc_total(Some(4));
+
+        let header = table.header_row();
+        let row = table.row_for_file(&file, false, None);
+        table.add_widths(&header);
+        table.add_widths(&row);
+
+        let rendered_header = table.render(header).strings().to_string();
+        let rendered_row = table.render(row).strings().to_string();
+        assert!(rendered_header.contains("Language"));
+        assert!(rendered_header.contains("Code"));
+        assert!(rendered_header.contains("Code %"));
+        assert!(rendered_row.contains("Rust"), "row: {rendered_row:?}");
+        assert!(rendered_row.contains("2"), "row: {rendered_row:?}");
+        assert!(rendered_row.contains("50.0%"), "row: {rendered_row:?}");
+    }
+}

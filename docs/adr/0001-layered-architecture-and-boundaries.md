@@ -5,7 +5,7 @@ SPDX-License-Identifier: EUPL-1.2
 
 # ADR-0001: Layered Architecture, Dependency Boundaries, and Automated Fitness Functions
 
-- **Status:** Accepted (Phase 1–2 complete — strict acyclic DAG, zero `clap` leaks, zero `too_many_arguments`, unified traversal policy, typed `serde_json` output, and thin `main.rs` enforced; Phase 3 ratchets active)
+- **Status:** Accepted (Phase 0–3 complete — strict acyclic DAG, zero `clap` leaks, zero `too_many_arguments`, unified traversal policy, typed `serde_json` output, thin `main.rs` + `app` layer, zero library `stderr()` writes, zero direct `env::var` bypasses, injectable `Environment`/`TimeContext`, and inline renderer unit tests enforced; only Phase 4 optional workspace-split evaluation remains)
 - **Date:** 2026-11-19
 
 ## Context
@@ -34,13 +34,13 @@ Every top-level module belongs to a fixed rank. A module at rank `R` may only im
 
 | Rank | Layer | Modules | Responsibility |
 |---:|---|---|---|
-| 0 | Foundation & Ports | `exits`, `logger` *(future: `core`/`ports`)* | Exit codes, logging, runtime ports (`Vars`, `RunContext`, shared value types). Zero internal dependencies. |
+| 0 | Foundation & Ports | `exits`, `logger` | Exit codes and logging. Zero internal dependencies. |
 | 1 | Domain Engines (siblings) | `fs`, `loc` | Filesystem model/metadata/filter/sort and independent LOC engine. Neither may import the other. |
 | 2 | Classification | `info` | File-type classification over `fs`. |
 | 3 | Styling | `theme` | Theme resolution (`LS_COLORS`, `LEZ_COLORS`, YAML themes) over `fs` and `info`. No `output` or `options` imports. |
-| 4 | Presentation | `output` | Pure renderers (`grid`, `lines`, `details`, `table`, `json`, `code`, `explain`) writing to injected sinks. No `options`, `clap`, or direct `stderr()`. |
+| 4 | Presentation | `output` | Pure renderers (`grid`, `lines`, `details`, `table`, `json`, `code`, `explain`) over injected `Environment`/`TimeContext` and `Write` sinks. No `options`, `clap`, or direct `stderr()`. |
 | 5 | Inbound CLI & Config Adapter | `options` | Parses `clap`, env vars (`Vars`), `.lez.toml`, and theme files into typed domain/theme/output structs. |
-| 6 | Composition Root & App Orchestration | `main` *(future: `app`)* | Thin CLI bootstrap, unified directory traversal engine, Git pre-scan, and wiring live OS adapters. |
+| 6 | Application Orchestration & Composition Root | `app`, `main` | Thin CLI bootstrap (`main.rs` <= 200 lines), application driver (`app`), unified traversal orchestration, Git pre-scan, and wiring live OS adapters. |
 
 ### 2. Core Design Rules
 
