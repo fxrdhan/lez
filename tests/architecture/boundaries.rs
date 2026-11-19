@@ -47,10 +47,6 @@ const LEGACY_DIRECT_ENV_FILES: &[&str] = &[
 /// directly to `io::stderr()`.
 const LEGACY_DIRECT_STDERR_FILES: &[&str] = &["src/output/details.rs", "src/output/json.rs"];
 
-/// Legacy production files suppressing `clippy::too_many_arguments`.
-const LEGACY_TOO_MANY_ARGS_FILES: &[&str] =
-    &["src/fs/dir.rs", "src/fs/file.rs", "src/output/details.rs"];
-
 /// Legacy process-wide runtime `LazyLock` / `OnceLock` singletons in
 /// production `src/` scheduled for scoping into `RunContext` in Phase 3.
 const LEGACY_RUNTIME_STATICS: &[(&str, &str)] = &[
@@ -901,24 +897,20 @@ fn direct_stderr_writes_in_library_are_ratcheted() {
 }
 
 #[test]
-fn too_many_arguments_suppressions_are_ratcheted() {
-    let mut actual = BTreeSet::new();
+fn too_many_arguments_suppressions_are_zero() {
+    let mut violations = BTreeSet::new();
     for (rel, raw) in src_files() {
         let prod = strip_cfg_test_items(&strip_comments_and_literals(&raw));
         if contains_token_sequence(&prod, &["clippy", "::", "too_many_arguments"]) {
-            actual.insert(rel);
+            violations.insert(rel);
         }
     }
 
-    let expected: BTreeSet<String> = LEGACY_TOO_MANY_ARGS_FILES
-        .iter()
-        .map(|s| (*s).to_owned())
-        .collect();
-    assert_ratchet_set(
-        "too_many_arguments",
-        &actual,
-        &expected,
-        "Group parameter lists into typed option structs instead of suppressing `clippy::too_many_arguments` (ADR-0001).",
+    assert!(
+        violations.is_empty(),
+        "ARCHITECTURAL REGRESSION (too_many_arguments): `clippy::too_many_arguments` \
+         suppressed in production code: {violations:#?}\n\
+         Group parameter lists into typed option structs (ADR-0001)."
     );
 }
 

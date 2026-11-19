@@ -17,6 +17,7 @@ use crate::fs::dir_action::DirAction;
 use crate::fs::feature::git::GitCache;
 use crate::fs::fields as f;
 use crate::fs::filter::{FileFilter, FileFilterFlags, GitIgnore};
+use crate::fs::traversal::{AncestorSet, TraversalPolicy};
 use crate::fs::{Dir, DotFilter, File};
 use crate::loc::{CodeContent, LocCounts};
 use crate::output::View;
@@ -76,6 +77,19 @@ impl<'a> Render<'a> {
         }
     }
 
+    fn traversal_policy(&self, recursing: bool) -> TraversalPolicy<'a> {
+        TraversalPolicy {
+            filter: self.file_filter,
+            git: self.git,
+            git_ignoring: self.git_ignoring,
+            deref_links: self.deref_links,
+            follow_links: self.view.follow_links,
+            total_size: self.total_size,
+            mime_read_contents: self.view.mime_read_contents,
+            recursing,
+        }
+    }
+
     pub fn render<W: Write>(
         &self,
         files: Vec<File<'a>>,
@@ -97,12 +111,10 @@ impl<'a> Render<'a> {
                 crate::exits::SUCCESS
             }
             (0, _, true) => {
-                let mut visited = std::collections::HashSet::new();
-                for d in &dirs {
-                    if let Ok(canon) = std::fs::canonicalize(&d.path) {
-                        visited.insert(canon);
-                    }
-                }
+                let visited = AncestorSet::from_dirs(
+                    self.view.follow_links,
+                    dirs.iter().map(|d| d.path.as_path()),
+                );
                 self.render_recursive_directories(&mut dirs, false, w, 0, &visited, None)?
             }
             (0, _, _) => self.render_directories(dirs, w)?,
@@ -208,23 +220,7 @@ impl<'a> Render<'a> {
                 return Ok(status);
             }
         };
-        let mut files: Vec<File<'a>> = dir
-            .files(
-                self.dots,
-                self.git,
-                self.git_ignoring,
-                self.deref_links,
-                self.total_size,
-                self.view.mime_read_contents,
-                None,
-                self.file_filter.no_system,
-                self.file_filter.no_hidden_attrib,
-                self.file_filter.no_hidden_links,
-            )
-            .collect();
-
-        self.file_filter.filter_child_files(false, &mut files);
-        self.file_filter.sort_files(&mut files);
+        let files = self.traversal_policy(false).read_children(dir, None);
 
         self.render_files_under(files, &[dir_path], w)?;
 
@@ -237,7 +233,7 @@ impl<'a> Render<'a> {
         sub_dir: bool,
         w: &mut W,
         depth: usize,
-        ancestors: &std::collections::HashSet<PathBuf>,
+        ancestors: &AncestorSet,
         tree_root: Option<&Path>,
     ) -> io::Result<i32> {
         write!(w, "{{")?;
@@ -303,35 +299,14 @@ impl<'a> Render<'a> {
                 }
             };
 
-            let mut files: Vec<File<'a>> = dir_r
-                .files(
-                    self.dots,
-                    self.git,
-                    self.git_ignoring,
-                    self.deref_links,
-                    self.total_size,
-                    self.view.mime_read_contents,
-                    None,
-                    self.file_filter.no_system,
-                    self.file_filter.no_hidden_attrib,
-                    self.file_filter.no_hidden_links,
-                )
-                .collect();
-
-            self.file_filter.filter_child_files(true, &mut files);
-            self.file_filter.sort_files(&mut files);
+            let policy = self.traversal_policy(true);
+            let files = policy.read_children(dir_r, None);
             let recurse_opts = self.dir_action.recurse_options();
             let child_depth = depth + 1;
 
-            let follow_links = self.view.follow_links;
-            let (child_dir_files, mut leaf_files): (Vec<File<'a>>, Vec<File<'a>>) =
-                files.into_iter().partition(|f| {
-                    (if follow_links {
-                        f.points_to_directory()
-                    } else {
-                        f.is_directory()
-                    }) && !f.is_all_all
-                });
+            let (child_dir_files, mut leaf_files): (Vec<File<'a>>, Vec<File<'a>>) = files
+                .into_iter()
+                .partition(|f| policy.is_descendable_dir(f));
 
             if self.file_filter.flags.contains(&FileFilterFlags::OnlyDirs) {
                 leaf_files.clear();
@@ -344,21 +319,25 @@ impl<'a> Render<'a> {
             if let Some(recurse_opts) = recurse_opts {
                 if !recurse_opts.is_too_deep(child_depth) {
                     let mut child_dirs = Vec::new();
-                    let mut next_ancestors = ancestors.clone();
-                    if let Ok(canon) = std::fs::canonicalize(&dir_path) {
-                        next_ancestors.insert(canon);
-                    }
+                    let next_ancestors = ancestors.with_dir(&dir_path);
 
+                    let mut kept_pruned_dirs = false;
                     for f in child_dir_files {
-                        if follow_links
-                            && f.is_link()
-                            && let Ok(canon) = std::fs::canonicalize(&f.path)
-                            && next_ancestors.contains(&canon)
-                        {
+                        if next_ancestors.contains_cycle(&f) {
                             debug!("Skipping symlink cycle for {:?}", f.path);
                             continue;
                         }
+                        if policy.is_pruned_submodule(&f) {
+                            if !self.file_filter.flags.contains(&FileFilterFlags::OnlyFiles) {
+                                leaf_files.push(f);
+                                kept_pruned_dirs = true;
+                            }
+                            continue;
+                        }
                         child_dirs.push(f.to_dir());
+                    }
+                    if kept_pruned_dirs {
+                        self.file_filter.sort_files(&mut leaf_files);
                     }
 
                     write!(w, "\"files\":")?;
@@ -435,12 +414,10 @@ impl<'a> Render<'a> {
         self.render_files(files, w)?;
         write!(w, ",\"directories\":")?;
         let status = if recurse {
-            let mut visited = std::collections::HashSet::new();
-            for d in &dirs {
-                if let Ok(canon) = std::fs::canonicalize(&d.path) {
-                    visited.insert(canon);
-                }
-            }
+            let visited = AncestorSet::from_dirs(
+                self.view.follow_links,
+                dirs.iter().map(|d| d.path.as_path()),
+            );
             self.render_recursive_directories(&mut dirs, false, w, 0, &visited, None)?
         } else {
             self.render_directories(dirs, w)?

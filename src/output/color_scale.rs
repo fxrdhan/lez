@@ -11,6 +11,7 @@ use palette::{FromColor, LinSrgb, Oklab, Srgb};
 use crate::{
     fs::{
         File, dir_action::RecurseOptions, feature::git::GitCache, fields::Size, filter::FileFilter,
+        traversal::TraversalPolicy,
     },
     output::{table::TimeType, tree::TreeDepth},
 };
@@ -243,30 +244,26 @@ fn update_information_recursively(
         // not walked; a tree's root, `.` itself when lez is run without a
         // path, is walked like any other directory. Nor into a directory the
         // ignore patterns leave out.
+        let policy = TraversalPolicy {
+            filter,
+            git,
+            git_ignoring,
+            deref_links: false,
+            follow_links: false,
+            total_size: false,
+            mime_read_contents: false,
+            recursing: r.is_some(),
+        };
         if file.is_directory()
             && !filter.ignore_patterns.is_ignored(&file.name)
             && !filter.ignore_patterns_caseins.is_ignored(&file.name)
             && r.is_some_and(|x| !x.is_too_deep(depth.0))
             && !file.is_all_all
+            && !policy.is_pruned_submodule(file)
         {
             match file.read_dir() {
                 Ok(dir) => {
-                    let mut child_files: Vec<File<'_>> = dir
-                        .files(
-                            filter.dot_filter,
-                            git,
-                            git_ignoring,
-                            false,
-                            false,
-                            false,
-                            None,
-                            filter.no_system,
-                            filter.no_hidden_attrib,
-                            filter.no_hidden_links,
-                        )
-                        .collect();
-
-                    filter.filter_child_files(r.is_some(), &mut child_files);
+                    let child_files = policy.read_children_unsorted(&dir);
 
                     update_information_recursively(
                         information,

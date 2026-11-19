@@ -11,7 +11,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::undocumented_unsafe_blocks)]
 
-use std::collections::HashSet;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs as stdfs;
@@ -28,7 +27,8 @@ use lez::fs::filter::{
     FileFilterFlags::{OnlyDirs, OnlyFiles},
     GitIgnore,
 };
-use lez::fs::{Dir, File, shell_globs};
+use lez::fs::traversal::{AncestorSet, TraversalPolicy};
+use lez::fs::{Dir, File, FileOptions, shell_globs};
 use lez::logger;
 use lez::options::parser::{get_command, normalize_args};
 use lez::options::stdin::FilesInput;
@@ -504,15 +504,17 @@ impl Lez<'_> {
         let mut exit_status = exits::SUCCESS;
 
         for file_path in &self.input_paths {
-            let f = File::from_args_with_filter(
+            let f = File::with_options(
                 PathBuf::from(file_path),
                 None,
                 None,
-                self.options.view.deref_links,
-                self.options.view.total_size,
-                self.options.view.mime_read_contents,
-                None,
-                Some(self.options.filter.dot_filter),
+                FileOptions {
+                    deref_links: self.options.view.deref_links,
+                    total_size: self.options.view.total_size,
+                    mime_read_contents: self.options.view.mime_read_contents,
+                    filetype: None,
+                    dot_filter: Some(self.options.filter.dot_filter),
+                },
             );
 
             // We don't know whether this file exists, so we have to try to get
@@ -592,7 +594,7 @@ impl Lez<'_> {
             exit_status = print_files_status;
         }
 
-        let ancestors = HashSet::new();
+        let ancestors = AncestorSet::new(self.options.view.follow_links);
         self.print_dirs(dirs, no_files, is_only_dir, exit_status, 0, &ancestors)
     }
 
@@ -603,7 +605,7 @@ impl Lez<'_> {
         is_only_dir: bool,
         exit_status: i32,
         depth: usize,
-        ancestors: &HashSet<PathBuf>,
+        ancestors: &AncestorSet,
     ) -> io::Result<i32> {
         let View {
             file_style: file_name::Options { quote_style, .. },
@@ -663,69 +665,33 @@ impl Lez<'_> {
                 writeln!(&mut self.writer, "{}:", ANSIStrings(&bits))?;
             }
 
-            let mut children = Vec::new();
-            let git_ignore = self.options.filter.git_ignore == GitIgnore::CheckAndIgnore;
-            let mut hidden_count = HiddenCount::new(self.options.filter.warn_hidden);
-            for file in dir.files(
-                self.options.filter.dot_filter,
-                self.git.as_ref(),
-                git_ignore,
-                self.options.view.deref_links,
-                self.options.view.total_size,
-                self.options.view.mime_read_contents,
-                hidden_count.as_mut(),
-                self.options.filter.no_system,
-                self.options.filter.no_hidden_attrib,
-                self.options.filter.no_hidden_links,
-            ) {
-                children.push(file);
-            }
             let recursing = self.options.dir_action.recurse_options().is_some();
-            self.options
-                .filter
-                .filter_child_files(recursing, &mut children);
-            self.options.filter.filter_cachedirs(&mut children);
-            self.options.filter.sort_files(&mut children);
+            let policy = TraversalPolicy {
+                filter: &self.options.filter,
+                git: self.git.as_ref(),
+                git_ignoring: self.options.filter.git_ignore == GitIgnore::CheckAndIgnore,
+                deref_links: self.options.view.deref_links,
+                follow_links: self.options.view.follow_links,
+                total_size: self.options.view.total_size,
+                mime_read_contents: self.options.view.mime_read_contents,
+                recursing,
+            };
+            let mut hidden_count = HiddenCount::new(self.options.filter.warn_hidden);
+            let children = policy.read_children(dir, hidden_count.as_mut());
 
             if let Some(recurse_opts) = self.options.dir_action.recurse_options() {
                 let child_depth = depth + 1;
-                let follow_links = self.options.view.follow_links;
                 if !recurse_opts.tree && !recurse_opts.is_too_deep(child_depth) {
-                    let mut next_ancestors = ancestors.clone();
-                    if let Ok(canon) = std::fs::canonicalize(&dir.path) {
-                        next_ancestors.insert(canon);
-                    }
-                    let ignore_submodules = self.options.filter.ignore_submodule_contents;
+                    let next_ancestors = ancestors.with_dir(&dir.path);
                     let child_dirs = children
                         .iter()
                         .filter(|f| {
-                            if f.is_all_all {
-                                return false;
-                            }
-                            let is_dir = if follow_links {
-                                f.points_to_directory()
-                            } else {
-                                f.is_directory()
-                            };
-                            if !is_dir {
-                                return false;
-                            }
-                            if follow_links
-                                && f.is_link()
-                                && std::fs::canonicalize(&f.path)
-                                    .is_ok_and(|canon| next_ancestors.contains(&canon))
-                            {
-                                return false;
-                            }
-                            if ignore_submodules
-                                && self
-                                    .git
-                                    .as_ref()
-                                    .is_some_and(|git| git.is_submodule_path(&f.path))
-                            {
-                                return false;
-                            }
-                            true
+                            policy.should_descend(
+                                f,
+                                child_depth,
+                                Some(recurse_opts),
+                                &next_ancestors,
+                            )
                         })
                         .map(File::to_dir)
                         .collect::<Vec<Dir>>();

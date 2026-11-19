@@ -80,6 +80,7 @@ use crate::fs::feature::xattr::Attribute;
 use crate::fs::fields::SecurityContextType;
 use crate::fs::filter::FileFilter;
 use crate::fs::filter::FileFilterFlags::OnlyFiles;
+use crate::fs::traversal::{AncestorSet, TraversalPolicy};
 use crate::fs::{Dir, File};
 use crate::loc::CodeContent;
 use crate::output::cell::TextCell;
@@ -182,6 +183,16 @@ impl<'a> AsRef<File<'a>> for Egg<'a> {
     }
 }
 
+/// Mutable state threaded through recursive tree-row construction.
+struct TreeWalk<'a, 'b> {
+    table: &'b mut Option<Table<'a>>,
+    rows: &'b mut Vec<Row>,
+    color_scale_info: Option<ColorScaleInformation>,
+    summary: &'b mut Option<crate::output::summary::Summary>,
+    hidden_count: Option<&'b mut crate::output::hidden_count::HiddenCount>,
+    exit_status: &'b mut i32,
+}
+
 impl<'a> Render<'a> {
     pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<i32> {
         let mut exit_status = crate::exits::SUCCESS;
@@ -242,48 +253,39 @@ impl<'a> Render<'a> {
                 rows.push(self.render_header(header));
             }
 
-            // This is weird, but I can’t find a way around it:
-            // https://internals.rust-lang.org/t/should-option-mut-t-implement-copy/3715/6
-            let mut ancestors = std::collections::HashSet::new();
-            if let Some(dir) = self.dir
-                && let Ok(canon) = std::fs::canonicalize(&dir.path)
-            {
-                ancestors.insert(canon);
+            let mut ancestors = AncestorSet::new(self.opts.follow_links);
+            if let Some(dir) = self.dir {
+                ancestors.insert_dir(&dir.path);
             }
             let mut table = Some(table);
-            self.add_files_to_table(
-                &mut table,
-                &mut rows,
-                &self.files,
-                TreeDepth::root(),
+            let mut walk = TreeWalk {
+                table: &mut table,
+                rows: &mut rows,
                 color_scale_info,
-                &mut summary,
-                hidden_count.as_mut(),
-                &mut exit_status,
-                &ancestors,
-            );
+                summary: &mut summary,
+                hidden_count: hidden_count.as_mut(),
+                exit_status: &mut exit_status,
+            };
+            self.add_files_to_table(&mut walk, &self.files, TreeDepth::root(), &ancestors);
 
             for row in self.iterate_with_table(table.unwrap(), rows) {
                 writeln!(w, "{}", row.strings())?;
             }
         } else {
-            let mut ancestors = std::collections::HashSet::new();
-            if let Some(dir) = self.dir
-                && let Ok(canon) = std::fs::canonicalize(&dir.path)
-            {
-                ancestors.insert(canon);
+            let mut ancestors = AncestorSet::new(self.opts.follow_links);
+            if let Some(dir) = self.dir {
+                ancestors.insert_dir(&dir.path);
             }
-            self.add_files_to_table(
-                &mut None,
-                &mut rows,
-                &self.files,
-                TreeDepth::root(),
+            let mut no_table = None;
+            let mut walk = TreeWalk {
+                table: &mut no_table,
+                rows: &mut rows,
                 color_scale_info,
-                &mut summary,
-                hidden_count.as_mut(),
-                &mut exit_status,
-                &ancestors,
-            );
+                summary: &mut summary,
+                hidden_count: hidden_count.as_mut(),
+                exit_status: &mut exit_status,
+            };
+            self.add_files_to_table(&mut walk, &self.files, TreeDepth::root(), &ancestors);
 
             for row in self.iterate(rows) {
                 writeln!(w, "{}", row.strings())?;
@@ -323,23 +325,36 @@ impl<'a> Render<'a> {
         }
     }
 
+    fn traversal_policy(
+        &self,
+        deref_links: bool,
+        total_size: bool,
+        mime_read_contents: bool,
+    ) -> TraversalPolicy<'a> {
+        TraversalPolicy {
+            filter: self.filter,
+            git: self.git,
+            git_ignoring: self.git_ignoring,
+            deref_links,
+            follow_links: self.opts.follow_links,
+            total_size,
+            mime_read_contents,
+            recursing: self.recurse.is_some(),
+        }
+    }
+
     /// Adds files to the table, possibly recursively. This is easily
     /// parallelisable, and uses a pool of threads.
-    #[allow(clippy::too_many_arguments)]
     fn add_files_to_table<'dir>(
         &self,
-        table: &mut Option<Table<'a>>,
-        rows: &mut Vec<Row>,
+        walk: &mut TreeWalk<'a, '_>,
         src: &[File<'dir>],
         depth: TreeDepth,
-        color_scale_info: Option<ColorScaleInformation>,
-        summary: &mut Option<crate::output::summary::Summary>,
-        mut hidden_count: Option<&mut crate::output::hidden_count::HiddenCount>,
-        exit_status: &mut i32,
-        ancestors: &std::collections::HashSet<std::path::PathBuf>,
+        ancestors: &AncestorSet,
     ) {
         use crate::fs::feature::xattr;
 
+        let descent_policy = self.traversal_policy(false, false, false);
         let file_eggs: Vec<_> = src
             .par_iter()
             .map(|file| {
@@ -373,35 +388,18 @@ impl<'a> Render<'a> {
                     &[]
                 };
 
-                let table_row = table.as_ref().map(|t| {
+                let table_row = walk.table.as_ref().map(|t| {
                     t.row_for_file(
                         file,
                         show_xattr_hint(self.opts.indicate_xattr, self.opts.secattr, file),
-                        color_scale_info,
+                        walk.color_scale_info,
                     )
                 });
 
                 let mut dir = None;
-                let follow_links = self.opts.follow_links;
-                let in_submodule = self.filter.ignore_submodule_contents
-                    && self
-                        .git
-                        .is_some_and(|git| git.is_submodule_path(&file.path));
-                let is_cycle = follow_links
-                    && file.is_link()
-                    && std::fs::canonicalize(&file.path)
-                        .is_ok_and(|canon| ancestors.contains(&canon));
                 if let Some(r) = self.recurse
-                    && (if follow_links {
-                        file.points_to_directory()
-                    } else {
-                        file.is_directory()
-                    })
                     && r.tree
-                    && !r.is_too_deep(depth.0)
-                    && !file.is_all_all
-                    && !in_submodule
-                    && !is_cycle
+                    && descent_policy.should_descend(file, depth.0, Some(r), ancestors)
                 {
                     trace!("matching on read_dir");
                     match file.read_dir() {
@@ -425,14 +423,13 @@ impl<'a> Render<'a> {
             .collect();
 
         for (tree_params, egg) in depth.iterate_over(file_eggs.into_iter()) {
-            let mut files = Vec::new();
             let errors = egg.errors;
 
             for (error, _) in &errors {
                 if error.kind() == io::ErrorKind::PermissionDenied {
-                    *exit_status = crate::exits::PERMISSION_DENIED;
-                } else if *exit_status == crate::exits::SUCCESS {
-                    *exit_status = crate::exits::RUNTIME_ERROR;
+                    *walk.exit_status = crate::exits::PERMISSION_DENIED;
+                } else if *walk.exit_status == crate::exits::SUCCESS {
+                    *walk.exit_status = crate::exits::RUNTIME_ERROR;
                 }
             }
 
@@ -440,11 +437,11 @@ impl<'a> Render<'a> {
             // not listed themselves; skipping before add_widths keeps the
             // table columns aligned.
             if !(egg.file.is_directory() && self.filter.flags.contains(&OnlyFiles)) {
-                if let Some(s) = summary {
+                if let Some(s) = walk.summary.as_mut() {
                     s.record_file(egg.file);
                 }
 
-                if let (Some(ref mut t), Some(row)) = (table.as_mut(), egg.table_row.as_ref()) {
+                if let (Some(t), Some(row)) = (walk.table.as_mut(), egg.table_row.as_ref()) {
                     t.add_widths(row);
                 }
 
@@ -466,7 +463,7 @@ impl<'a> Render<'a> {
                     hidden: false,
                 };
 
-                rows.push(row);
+                walk.rows.push(row);
 
                 #[cfg(feature = "inspect-archives")]
                 if self.opts.inspect_archives
@@ -482,14 +479,14 @@ impl<'a> Render<'a> {
                             // The final row closes the branch. Passing `false`
                             // unconditionally left every row on an edge, so the
                             // listing never terminated: "├──" all the way down.
-                            rows.push(self.render_archive_entry(
+                            walk.rows.push(self.render_archive_entry(
                                 egg.file,
                                 entry,
                                 TreeParams::new(depth.deeper(), index + 1 == count),
                             ));
                         }
                         if listing.truncated {
-                            rows.push(
+                            walk.rows.push(
                                 self.render_archive_truncation(TreeParams::new(
                                     depth.deeper(),
                                     true,
@@ -502,7 +499,7 @@ impl<'a> Render<'a> {
                 // The hidden directory still takes its place in the tree, so
                 // what is listed under and after it gets the same edges as
                 // without `--only-files`.
-                rows.push(Row {
+                walk.rows.push(Row {
                     tree: tree_params,
                     cells: None,
                     name: TextCell::default(),
@@ -511,55 +508,29 @@ impl<'a> Render<'a> {
             }
 
             if let Some(ref dir) = egg.dir {
-                for file_to_add in dir.files(
-                    self.filter.dot_filter,
-                    self.git,
-                    self.git_ignoring,
+                let policy = self.traversal_policy(
                     egg.file.deref_links,
                     egg.file.is_recursive_size(),
                     egg.file.mime_read_contents,
-                    hidden_count.as_deref_mut(),
-                    self.filter.no_system,
-                    self.filter.no_hidden_attrib,
-                    self.filter.no_hidden_links,
-                ) {
-                    files.push(file_to_add);
-                }
-
-                self.filter
-                    .filter_child_files(self.recurse.is_some(), &mut files);
-                self.filter.filter_cachedirs(&mut files);
-                self.filter.sort_files(&mut files);
+                );
+                let files = policy.read_children(dir, walk.hidden_count.as_deref_mut());
 
                 if !files.is_empty() {
                     for xattr in egg.xattrs {
-                        rows.push(self.render_xattr(xattr, TreeParams::new(depth.deeper(), false)));
+                        walk.rows
+                            .push(self.render_xattr(xattr, TreeParams::new(depth.deeper(), false)));
                     }
 
                     for (error, path) in errors {
-                        rows.push(self.render_error(
+                        walk.rows.push(self.render_error(
                             &error,
                             TreeParams::new(depth.deeper(), false),
                             path,
                         ));
                     }
 
-                    let mut next_ancestors = ancestors.clone();
-                    if let Ok(canon) = std::fs::canonicalize(&egg.file.path) {
-                        next_ancestors.insert(canon);
-                    }
-
-                    self.add_files_to_table(
-                        table,
-                        rows,
-                        &files,
-                        depth.deeper(),
-                        color_scale_info,
-                        summary,
-                        hidden_count.as_deref_mut(),
-                        exit_status,
-                        &next_ancestors,
-                    );
+                    let next_ancestors = ancestors.with_dir(&egg.file.path);
+                    self.add_files_to_table(walk, &files, depth.deeper(), &next_ancestors);
                     continue;
                 }
             }
@@ -569,14 +540,14 @@ impl<'a> Render<'a> {
                 let params =
                     TreeParams::new(depth.deeper(), errors.is_empty() && index == count - 1);
                 let r = self.render_xattr(xattr, params);
-                rows.push(r);
+                walk.rows.push(r);
             }
 
             let count = errors.len();
             for (index, (error, path)) in errors.into_iter().enumerate() {
                 let params = TreeParams::new(depth.deeper(), index == count - 1);
                 let r = self.render_error(&error, params, path);
-                rows.push(r);
+                walk.rows.push(r);
             }
         }
     }

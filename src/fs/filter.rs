@@ -361,6 +361,14 @@ impl FileFilter {
         }
     }
 
+    /// Whether `dir` should be skipped because `--cachedir-ignore` is active
+    /// and `dir` directly contains a valid `CACHEDIR.TAG`.
+    #[must_use]
+    pub fn is_ignored_cachedir(&self, dir: &std::path::Path) -> bool {
+        self.ignore_cachedir == IgnoreCacheDir::CheckAndIgnore
+            && Self::dir_contains_cachedir_tag(dir)
+    }
+
     /// Checks whether a directory directly contains a valid `CACHEDIR.TAG`.
     fn dir_contains_cachedir_tag(dir: &std::path::Path) -> bool {
         let Ok(entries) = std::fs::read_dir(dir) else {

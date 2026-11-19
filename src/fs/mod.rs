@@ -5,12 +5,12 @@
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
 mod dir;
-pub use self::dir::{Dir, DotFilter};
+pub use self::dir::{Dir, DotFilter, ReadDirOptions};
 
 #[cfg(feature = "inspect-archives")]
 pub mod archives;
 mod file;
-pub use self::file::{File, FileTarget};
+pub use self::file::{File, FileOptions, FileTarget};
 
 pub mod dir_action;
 pub mod feature;
@@ -20,3 +20,4 @@ pub mod hidden_count;
 pub mod mounts;
 pub mod recursive_size;
 pub mod shell_globs;
+pub mod traversal;

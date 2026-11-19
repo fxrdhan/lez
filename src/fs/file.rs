@@ -244,6 +244,16 @@ fn follow_instead_of_stating_the_link(path: &std::path::Path) -> bool {
     )
 }
 
+/// Construction options for [`File::with_options`].
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FileOptions {
+    pub deref_links: bool,
+    pub total_size: bool,
+    pub mime_read_contents: bool,
+    pub filetype: Option<std::fs::FileType>,
+    pub dot_filter: Option<super::DotFilter>,
+}
+
 impl<'dir> File<'dir> {
     pub fn from_args<PD, FN>(
         path: PathBuf,
@@ -258,33 +268,37 @@ impl<'dir> File<'dir> {
         PD: Into<Option<&'dir Dir>>,
         FN: Into<Option<String>>,
     {
-        Self::from_args_with_filter(
+        Self::with_options(
             path,
             parent_dir,
             filename,
-            deref_links,
-            total_size,
-            mime_read_contents,
-            filetype,
-            None,
+            FileOptions {
+                deref_links,
+                total_size,
+                mime_read_contents,
+                filetype,
+                dot_filter: None,
+            },
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_args_with_filter<PD, FN>(
+    pub fn with_options<PD, FN>(
         path: PathBuf,
         parent_dir: PD,
         filename: FN,
-        deref_links: bool,
-        total_size: bool,
-        mime_read_contents: bool,
-        filetype: Option<std::fs::FileType>,
-        dot_filter: Option<super::DotFilter>,
+        opts: FileOptions,
     ) -> File<'dir>
     where
         PD: Into<Option<&'dir Dir>>,
         FN: Into<Option<String>>,
     {
+        let FileOptions {
+            deref_links,
+            total_size,
+            mime_read_contents,
+            filetype,
+            dot_filter,
+        } = opts;
         let parent_dir = parent_dir.into();
         let name = filename.into().unwrap_or_else(|| File::filename(&path));
         let ext = File::ext_from_name(&name);
@@ -2082,28 +2096,28 @@ mod recursive_size_test {
         fs::write(hidden_subdir.join("nested.bin"), vec![0u8; 16384]).unwrap();
 
         // Without dotfiles (DotFilter::JustFiles)
-        let file_no_dots = File::from_args_with_filter(
+        let file_no_dots = File::with_options(
             root.clone(),
             None,
             None,
-            false,
-            true,
-            false,
-            None,
-            Some(DotFilter::JustFiles),
+            super::FileOptions {
+                total_size: true,
+                dot_filter: Some(DotFilter::JustFiles),
+                ..Default::default()
+            },
         );
         assert_eq!(file_no_dots.length(), 4096);
 
         // With dotfiles (DotFilter::Dotfiles)
-        let file_with_dots = File::from_args_with_filter(
+        let file_with_dots = File::with_options(
             root.clone(),
             None,
             None,
-            false,
-            true,
-            false,
-            None,
-            Some(DotFilter::Dotfiles),
+            super::FileOptions {
+                total_size: true,
+                dot_filter: Some(DotFilter::Dotfiles),
+                ..Default::default()
+            },
         );
         assert_eq!(file_with_dots.length(), 4096 + 8192 + 16384);
     }
@@ -2128,15 +2142,15 @@ mod recursive_size_test {
         let file2 = root.join("file2.bin");
         fs::write(&file2, vec![0u8; 5000]).unwrap();
 
-        let file = File::from_args_with_filter(
+        let file = File::with_options(
             root.clone(),
             None,
             None,
-            false,
-            true,
-            false,
-            None,
-            Some(DotFilter::JustFiles),
+            super::FileOptions {
+                total_size: true,
+                dot_filter: Some(DotFilter::JustFiles),
+                ..Default::default()
+            },
         );
         assert_eq!(file.length(), 15000);
     }
