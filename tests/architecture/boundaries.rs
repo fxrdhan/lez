@@ -31,6 +31,8 @@ fn layer_rank(module: &str) -> Option<u8> {
         "output" => Some(4),
         // Rank 5: Inbound CLI / env / config adapter
         "options" => Some(5),
+        // Rank 6: Application orchestration
+        "app" => Some(6),
         _ => None,
     }
 }

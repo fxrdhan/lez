@@ -8,6 +8,7 @@
 #![deny(clippy::undocumented_unsafe_blocks)]
 
 #[allow(unused_variables, unused_imports)]
+pub mod app;
 pub mod exits;
 pub mod fs;
 pub mod info;
