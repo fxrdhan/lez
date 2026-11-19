@@ -9,6 +9,8 @@ mod common;
 mod buffered_output;
 #[path = "cli_options/config_file.rs"]
 mod config_file;
+#[path = "cli_options/cross_mode_differential.rs"]
+mod cross_mode_differential;
 #[path = "cli_options/exit_codes.rs"]
 mod exit_codes;
 #[path = "cli_options/feature_combinations.rs"]

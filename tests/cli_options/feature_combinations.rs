@@ -595,3 +595,53 @@ fn the_last_of_long_and_oneline_wins() {
         ".rw-r--r-- 1 a.txt\n.rw-r--r-- 1 b.txt\n"
     );
 }
+
+#[cfg(not(feature = "git"))]
+#[test]
+fn no_git_feature_build_rejects_git_flags_cleanly_and_runs_core_views() {
+    let dir = TempTestDir::new("no_git_feature");
+    dir.create_file("main.rs", b"fn main() {}\n");
+    dir.create_file("sub/note.txt", b"hi\n");
+
+    for flag in ["--git", "--git-ignore"] {
+        let out = lez_in(dir.path()).arg(flag).output().expect("run lez");
+        assert_eq!(
+            out.status.code(),
+            Some(3),
+            "{flag} without `git` feature must return exit 3, stderr: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&out.stderr).contains("git"),
+            "expected informative unsupported-feature message for {flag}"
+        );
+    }
+
+    for args in [
+        &["-1"][..],
+        &["-l", "--no-extended", "--no-time"],
+        &["-T"],
+        &["--json"],
+        &["--json", "-l", "--no-extended"],
+        &["--code"],
+    ] {
+        let stdout = lez(dir.path(), args);
+        assert!(
+            stdout.contains("main.rs") || stdout.contains("Rust"),
+            "core view {args:?} failed without git feature:\n{stdout}"
+        );
+    }
+}
+
+#[cfg(not(feature = "inspect-archives"))]
+#[test]
+fn no_inspect_archives_feature_build_lists_archive_files_normally() {
+    let dir = TempTestDir::new("no_archives_feature");
+    dir.create_file("bundle.tar", b"not-parsed-when-feature-disabled");
+    dir.create_file("bundle.zip", b"not-parsed-when-feature-disabled");
+
+    let out = lez(dir.path(), &["-l", "--no-extended", "--no-time"]);
+    assert!(out.contains("bundle.tar") && out.contains("bundle.zip"));
+    let json = lez(dir.path(), &["--json"]);
+    assert_eq!(json, "[\"bundle.tar\",\"bundle.zip\"]\n");
+}

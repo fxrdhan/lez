@@ -30,6 +30,8 @@ mod path_quoting;
 #[cfg(unix)]
 #[path = "output_formatting/pty_terminal.rs"]
 mod pty_terminal;
+#[path = "output_formatting/short_nix.rs"]
+mod short_nix;
 #[path = "output_formatting/size_digits.rs"]
 mod size_digits;
 #[path = "output_formatting/smart_group.rs"]

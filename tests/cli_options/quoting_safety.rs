@@ -208,3 +208,96 @@ fn never_still_prints_the_bare_name() {
     names.sort();
     assert_eq!(lines, names);
 }
+
+/// Deterministic PRNG generating 64 adversarial printable filenames (combining
+/// quotes, command substitution, globs, spaces, backslashes, leading dashes,
+/// `#`, `~`, and Unicode) and verifying byte-for-byte lossless roundtrip
+/// through POSIX `sh` under both `--quotes=auto` and `--quotes=always`.
+#[test]
+fn randomized_adversarial_names_roundtrip_byte_for_byte_through_sh() {
+    use std::collections::BTreeSet;
+
+    const ALPHABET: &[char] = &[
+        '\'', '"', '`', '$', ';', '&', '|', '*', '?', '[', ']', '(', ')', '{', '}', '\\', '#', '~',
+        '!', '=', '<', '>', ' ', '-', 'a', 'Z', '0', '日', 'é',
+    ];
+
+    let mut state: u64 = 0x5EED_CAFE_BABE_1234;
+    let mut next_u64 = || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+
+    let mut generated = BTreeSet::new();
+    // Explicit high-risk shell-injection / expansion probes.
+    for probe in [
+        "$(echo pwned)",
+        "`uname`",
+        "$HOME$PATH",
+        "''\"\"''",
+        "-rf",
+        "--help",
+        "~root",
+        "#comment",
+        "a\\b\\c\"d'e",
+        "日本語 'quoted' \"$HOME\"",
+    ] {
+        generated.insert(probe.to_owned());
+    }
+    while generated.len() < 64 {
+        let len = 3 + (next_u64() % 14) as usize;
+        let mut s = String::with_capacity(len + 4);
+        for _ in 0..len {
+            let idx = (next_u64() as usize) % ALPHABET.len();
+            s.push(ALPHABET[idx]);
+        }
+        // Avoid `.` / `..` or leading `.` (hidden) so every entry is listed without `-a`.
+        if s.starts_with('.') {
+            s.insert(0, 'x');
+        }
+        generated.insert(s);
+    }
+
+    let dir = crate::common::TempTestDir::new("quoting_prop");
+    for name in &generated {
+        dir.create_file(name, b"");
+    }
+
+    for args in [
+        &["-1", "--color=never"][..],
+        &["-1", "--color=never", "--quotes=always"],
+    ] {
+        let lines = listing(&dir.path().to_path_buf(), args);
+        assert_eq!(
+            lines.len(),
+            generated.len(),
+            "expected {} lines for {args:?}, got {}",
+            generated.len(),
+            lines.len()
+        );
+
+        let mut recovered = BTreeSet::new();
+        for printed in &lines {
+            let out = Command::new("sh")
+                .current_dir(dir.path())
+                .env("HOME", "/SHOULD_NOT_EXPAND")
+                .arg("-c")
+                .arg(format!("printf -- '%s' {printed}"))
+                .output()
+                .expect("run sh");
+            assert!(
+                out.status.success(),
+                "sh failed on {printed} ({args:?}): {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            let value = String::from_utf8(out.stdout).expect("UTF-8 roundtrip");
+            recovered.insert(value);
+        }
+        assert_eq!(
+            recovered, generated,
+            "shell roundtrip diverged from disk filenames for {args:?}"
+        );
+    }
+}

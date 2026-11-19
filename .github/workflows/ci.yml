@@ -175,6 +175,12 @@ jobs:
             echo "::endgroup::"
           done
           exit "$status"
+      - name: Run feature-disabled runtime E2E tests
+        run: |
+          cargo test --locked --no-default-features --test cli_options_tests no_git_feature
+          cargo test --locked --no-default-features --test cli_options_tests no_inspect_archives_feature
+          cargo test --locked --no-default-features --features git --test cli_options_tests no_inspect_archives_feature
+          cargo test --locked --no-default-features --features inspect-archives --test cli_options_tests no_git_feature
   reuse-compliance:
     name: REUSE 3.3 License Compliance
     runs-on: ubuntu-latest
@@ -249,6 +255,13 @@ jobs:
       # nextest does not run doc tests; this covers them.
       - name: Run doc tests
         run: cargo test --locked --doc --features git,inspect-archives
+      # Guard against O(N) stat/getdents64 regressions on flat listings (PR #87).
+      - name: Enforce Linux syscall budget
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq strace
+          cargo build --locked --features git,inspect-archives
+          bash devtools/syscall-budget.sh target/debug/lez
   code-coverage:
     name: Code Coverage (ubuntu-latest - Rust msrv)
     needs: changes
@@ -296,7 +309,7 @@ jobs:
       # below the floor keeps its report.
       - name: Enforce the coverage floor
         id: floor
-        run: bash devtools/coverage.sh gate 70
+        run: bash devtools/coverage.sh gate 90
   # The line coverage of dev, for the badge at the top of README.md: a
   # shields.io endpoint file, the one commit of the badges branch. Its own
   # job, so the one that builds and runs the suite keeps a read-only token.

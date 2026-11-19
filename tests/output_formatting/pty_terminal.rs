@@ -244,3 +244,109 @@ fn no_color_turns_auto_off_unless_empty() {
     }
     assert_eq!(on_a_terminal(path, &["--color=never"], 80, &[]), plain);
 }
+
+#[test]
+fn classify_and_hyperlink_auto_turn_on_in_pty_and_stay_off_on_pipe() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = TempTestDir::new("pty_classify_hyperlink");
+    dir.create_dir("sub");
+    let exe = dir.create_file("run.sh", b"#!/bin/sh\n");
+    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    // `--classify=auto`: appends `/` and `*` on a real PTY, nothing on a pipe.
+    let pipe_classify = on_a_pipe(dir.path(), &["-1", "--color=never", "--classify=auto"]);
+    assert!(!pipe_classify.contains("sub/") && !pipe_classify.contains("run.sh*"));
+    let pty_classify = on_a_terminal(
+        dir.path(),
+        &["-1", "--color=never", "--classify=auto"],
+        80,
+        &[],
+    );
+    assert!(
+        pty_classify.contains("sub/") && pty_classify.contains("run.sh*"),
+        "expected classify indicators on PTY:\n{pty_classify:?}"
+    );
+
+    // `--hyperlink=auto`: emits OSC 8 on a real PTY, none on a pipe.
+    let pipe_link = on_a_pipe(dir.path(), &["-1", "--color=never", "--hyperlink=auto"]);
+    assert!(!pipe_link.contains("\x1b]8;;"));
+    let pty_link = on_a_terminal(
+        dir.path(),
+        &["-1", "--color=never", "--hyperlink=auto"],
+        80,
+        &[],
+    );
+    assert!(
+        pty_link.contains("\x1b]8;;file://"),
+        "expected OSC 8 hyperlinks on PTY:\n{pty_link:?}"
+    );
+}
+
+#[test]
+fn lez_icons_auto_env_enables_icons_in_pty_only() {
+    let dir = ten_files();
+    let path = dir.path();
+
+    let with_icons = on_a_pipe(
+        path,
+        &["--grid", "--width=80", "--icons=always", "--color=never"],
+    );
+    let plain_grid = on_a_pipe(path, &["--grid", "--width=80", "--color=never"]);
+
+    // `LEZ_ICONS_AUTO=1` enables icons on a real PTY without `--icons`.
+    assert_eq!(
+        on_a_terminal(path, &["--color=never"], 80, &[("LEZ_ICONS_AUTO", "1")]),
+        with_icons
+    );
+    // Explicit `--icons=never` still overrides `LEZ_ICONS_AUTO=1`.
+    assert_eq!(
+        on_a_terminal(
+            path,
+            &["--color=never", "--icons=never"],
+            80,
+            &[("LEZ_ICONS_AUTO", "1")]
+        ),
+        plain_grid
+    );
+    // On a pipe, `LEZ_ICONS_AUTO=1` leaves icons off.
+    let pipe_out = success_stdout(
+        lez_in(path)
+            .env("LEZ_ICONS_AUTO", "1")
+            .args(["-1", "--color=never"]),
+    );
+    assert!(
+        !pipe_out.contains('\u{f15c}'),
+        "LEZ_ICONS_AUTO must stay off on a pipe:\n{pipe_out:?}"
+    );
+}
+
+#[test]
+fn grid_details_adapts_to_pty_width_and_grid_rows_threshold() {
+    let dir = ten_files();
+    let path = dir.path();
+    let base = [
+        "-lG",
+        "--no-permissions",
+        "--no-filesize",
+        "--no-user",
+        "--no-time",
+        "--no-extended",
+        "--color=never",
+    ];
+
+    // Wide PTY (160 cols) lays out `-lG` in multiple columns (< 10 lines).
+    let wide = on_a_terminal(path, &base, 160, &[]);
+    assert!(
+        wide.lines().count() < 10,
+        "expected multi-column grid-details in 160-col PTY:\n{wide}"
+    );
+
+    // High `LEZ_GRID_ROWS` threshold forces fallback to single-column details (10 lines).
+    let fallback = on_a_terminal(path, &base, 160, &[("LEZ_GRID_ROWS", "20")]);
+    assert_eq!(
+        fallback.lines().count(),
+        10,
+        "expected fallback to 10-row details view when LEZ_GRID_ROWS=20:\n{fallback}"
+    );
+}

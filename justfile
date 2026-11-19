@@ -75,7 +75,7 @@ genDemo:
 
 # check automated code coverage gate
 [group('testing')]
-@coverage-gate threshold="70":
+@coverage-gate threshold="90":
     bash devtools/coverage.sh gate {{ threshold }}
 
 #-----------------------#
