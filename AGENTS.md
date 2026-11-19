@@ -92,7 +92,7 @@ Paired flags such as `--binary`/`--bytes` and `--blocks`/`--blocksize` use clap'
 
 ### Testing
 
-Use `cargo nextest run` rather than `cargo test`. The suite is split into 11 runner binaries, and nextest runs them in parallel without relinking. Nextest skips doc tests, so run `cargo test --doc` separately.
+Use `cargo nextest run` rather than `cargo test`. The suite is split into 12 runner binaries, and nextest runs them in parallel without relinking. Nextest skips doc tests, so run `cargo test --doc` separately.
 
 Pin `cargo-nextest` to `0.9.128`. Later versions need rustc 1.91, which is above our MSRV.
 
@@ -103,7 +103,7 @@ Also on macOS, a suite run from a third-party app (iTerm, VS Code, Claude) finds
 | Layer | Location | Notes |
 |---|---|---|
 | Unit tests | `#[cfg(test)]` modules in `src/` | `cargo test --lib` |
-| Integration tests | `tests/*.rs` runners, `tests/<domain>/` modules | Domains: `adversarial`, `cli`, `cli_options`, `filesystem`, `git`, `icons_theme`, `loc_engine`, `os_metadata`, `output_formatting`, `platform`, `sorting`. Shared helpers live in `tests/common/mod.rs`. |
+| Integration tests | `tests/*.rs` runners, `tests/<domain>/` modules | Domains: `adversarial`, `architecture`, `cli`, `cli_options`, `filesystem`, `git`, `icons_theme`, `loc_engine`, `os_metadata`, `output_formatting`, `platform`, `sorting`. Shared helpers live in `tests/common/mod.rs`. |
 | CLI snapshots | `tests/cmd/`, `tests/gen/`, fixtures in `tests/itest/` | trycmd. Refresh with `just idump`. |
 | Line counting | `tests/itest-loc/` | Language fixtures for the LOC engine. |
 | Powertests | `tests/ptests/`, `powertest.yaml` | Generated flag permutations. Refresh with `just regen`. |
