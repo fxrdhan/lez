@@ -28,6 +28,7 @@ pub mod time;
 
 pub mod cell;
 pub mod escape;
+mod theme_impls;
 mod tree;
 
 /// The **view** contains all information about how to format output.
