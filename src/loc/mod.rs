@@ -33,6 +33,9 @@ use rayon::prelude::*;
 /// walking roots for line counting, keeping `loc` independent of `fs`.
 pub trait PathFilter {
     fn is_ignored_path(&self, path: &Path, name: &str) -> bool;
+    fn is_ignored_dir(&self, _path: &Path) -> bool {
+        false
+    }
     fn only_dirs(&self) -> bool;
     fn no_symlinks(&self) -> bool;
     fn has_since_filter(&self) -> bool;
@@ -886,6 +889,10 @@ fn collect_entry<F>(
             let Ok(child_ft) = entry.file_type() else {
                 continue;
             };
+
+            if child_ft.is_dir() && filter.is_some_and(|f| f.is_ignored_dir(&child)) {
+                continue;
+            }
 
             collect_entry(
                 &child,

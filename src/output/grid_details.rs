@@ -275,7 +275,8 @@ impl<'a> Render<'a> {
             } else {
                 self.files.iter().map(|f| f.path.clone()).collect()
             };
-            let filter_adapter = crate::output::loc_adapter::FileFilterAdapter(self.filter);
+            let filter_adapter =
+                crate::output::loc_adapter::FileFilterAdapter::new(self.filter, self.git);
             let report = crate::loc::count_roots_filtered(
                 &roots,
                 self.filter.dot_filter.shows_dotfiles(),

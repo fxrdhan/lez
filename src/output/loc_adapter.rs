@@ -6,32 +6,51 @@
 
 use std::path::Path;
 
+use crate::fs::feature::git::GitCache;
 use crate::fs::filter::{FileFilter, FileFilterFlags};
 use crate::fs::{File, FileTarget};
 use crate::loc::{Language, LocCounts, PathFilter, language_for};
 
-/// Adapts a [`FileFilter`] to [`PathFilter`] for LOC tree walks.
-pub(crate) struct FileFilterAdapter<'a>(pub(crate) &'a FileFilter);
+/// Adapts a [`FileFilter`] (and optional [`GitCache`]) to [`PathFilter`] for
+/// LOC tree walks so `--cachedir-ignore` and `--ignore-submodule-contents`
+/// match directory listings.
+pub(crate) struct FileFilterAdapter<'a> {
+    filter: &'a FileFilter,
+    git: Option<&'a GitCache>,
+}
+
+impl<'a> FileFilterAdapter<'a> {
+    pub(crate) fn new(filter: &'a FileFilter, git: Option<&'a GitCache>) -> Self {
+        Self { filter, git }
+    }
+}
 
 impl PathFilter for FileFilterAdapter<'_> {
     fn is_ignored_path(&self, path: &Path, name: &str) -> bool {
-        self.0.is_ignored_path(path, name)
+        self.filter.is_ignored_path(path, name)
+    }
+
+    fn is_ignored_dir(&self, path: &Path) -> bool {
+        if self.filter.is_ignored_cachedir(path) {
+            return true;
+        }
+        self.filter.ignore_submodule_contents && self.git.is_some_and(|g| g.is_submodule_path(path))
     }
 
     fn only_dirs(&self) -> bool {
-        self.0.flags.contains(&FileFilterFlags::OnlyDirs)
+        self.filter.flags.contains(&FileFilterFlags::OnlyDirs)
     }
 
     fn no_symlinks(&self) -> bool {
-        self.0.no_symlinks || self.0.flags.contains(&FileFilterFlags::NoSymlinks)
+        self.filter.no_symlinks || self.filter.flags.contains(&FileFilterFlags::NoSymlinks)
     }
 
     fn has_since_filter(&self) -> bool {
-        self.0.since.is_some()
+        self.filter.since.is_some()
     }
 
     fn matches_since_metadata(&self, metadata: &std::fs::Metadata) -> bool {
-        self.0.matches_since_metadata(metadata)
+        self.filter.matches_since_metadata(metadata)
     }
 }
 

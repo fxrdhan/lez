@@ -154,7 +154,8 @@ impl<'a> Render<'a> {
                             t.columns.loc,
                             Some(CodeContent::Percent | CodeContent::Both)
                         ) {
-                            let filter_adapter = loc_adapter::FileFilterAdapter(self.file_filter);
+                            let filter_adapter =
+                                loc_adapter::FileFilterAdapter::new(self.file_filter, self.git);
                             let report = crate::loc::count_roots_filtered(
                                 roots,
                                 self.dots.shows_dotfiles(),

@@ -492,6 +492,7 @@ impl Lez<'_> {
                 is_explicit_sort: self.options.filter.is_explicit_sort,
                 reverse: self.options.filter.is_reverse(),
                 filter: Some(&self.options.filter),
+                git: self.git.as_ref(),
                 no_git: self.options.no_git,
                 deref_links: self.options.view.deref_links,
             };

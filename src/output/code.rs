@@ -21,6 +21,7 @@ use std::path::PathBuf;
 
 use nu_ansi_term::Style;
 
+use crate::fs::feature::git::GitCache;
 use crate::fs::filter::SortField;
 use crate::loc::{CodeContent, LangStat, LocCounts};
 use crate::output::icons::{icon_for_name_ext, iconify_style};
@@ -80,6 +81,9 @@ pub struct Render<'a> {
     /// Optional file filter for glob patterns and timestamps.
     pub filter: Option<&'a crate::fs::filter::FileFilter>,
 
+    /// Optional Git cache used for submodule pruning (`--ignore-submodule-contents`).
+    pub git: Option<&'a GitCache>,
+
     /// Whether Git operations should be completely suppressed.
     pub no_git: bool,
 
@@ -116,7 +120,7 @@ impl Render<'_> {
     pub fn render<W: Write>(self, w: &mut W) -> io::Result<()> {
         let filter_adapter = self
             .filter
-            .map(crate::output::loc_adapter::FileFilterAdapter);
+            .map(|f| crate::output::loc_adapter::FileFilterAdapter::new(f, self.git));
         let report = crate::loc::count_roots_filtered(
             &self.roots,
             self.show_hidden,
