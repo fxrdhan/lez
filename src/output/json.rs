@@ -9,6 +9,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use log::debug;
+use serde::ser::{Serialize, SerializeMap, Serializer};
 
 #[cfg(unix)]
 use crate::output::render::{GroupRender, OctalPermissionsRender, UserRender};
@@ -30,6 +31,106 @@ use crate::output::table::{Column, ENVIRONMENT, Environment, Options as TableOpt
 pub struct Options {
     /// Options for the --long option itself
     pub details: Option<details::Options>,
+}
+
+/// Serializes `(key, value)` pairs as a JSON object while preserving exact
+/// insertion/sort order (without requiring `serde_json/preserve_order`).
+struct OrderedMap<V>(Vec<(String, V)>);
+
+impl<V: Serialize> Serialize for OrderedMap<V> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (key, value) in &self.0 {
+            map.serialize_entry(key, value)?;
+        }
+        map.end()
+    }
+}
+
+/// A single long-format entry's ordered `(column_header, value)` pairs.
+struct JsonFileFields(Vec<(&'static str, String)>);
+
+impl Serialize for JsonFileFields {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (header, value) in &self.0 {
+            map.serialize_entry(header, value)?;
+        }
+        map.end()
+    }
+}
+
+/// Either a flat array of file names (`--json`) or an ordered object mapping
+/// each entry name to its column fields (`--json -l`).
+enum JsonFiles {
+    Short(Vec<String>),
+    Long(OrderedMap<JsonFileFields>),
+}
+
+impl Serialize for JsonFiles {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Short(names) => names.serialize(serializer),
+            Self::Long(entries) => entries.serialize(serializer),
+        }
+    }
+}
+
+/// A directory node in recursive/tree JSON output.
+struct JsonDirNode {
+    files: JsonFiles,
+    /// `None` at `-R --level=N` cutoff (omits `"directories"`);
+    /// `Some(map)` when descended or at `--tree --level=N` cutoff (`"directories":{}`).
+    directories: Option<OrderedMap<JsonDirNode>>,
+}
+
+impl Serialize for JsonDirNode {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let len = if self.directories.is_some() { 2 } else { 1 };
+        let mut map = serializer.serialize_map(Some(len))?;
+        map.serialize_entry("files", &self.files)?;
+        if let Some(dirs) = &self.directories {
+            map.serialize_entry("directories", dirs)?;
+        }
+        map.end()
+    }
+}
+
+/// Top-level JSON document shapes written by `lez --json`.
+enum JsonDocument {
+    Files(JsonFiles),
+    Directories(OrderedMap<JsonFiles>),
+    RecursiveDirectories(OrderedMap<JsonDirNode>),
+    FilesAndDirectories {
+        files: JsonFiles,
+        directories: OrderedMap<JsonFiles>,
+    },
+    FilesAndRecursiveDirectories {
+        files: JsonFiles,
+        directories: OrderedMap<JsonDirNode>,
+    },
+}
+
+impl Serialize for JsonDocument {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Files(files) => files.serialize(serializer),
+            Self::Directories(dirs) => dirs.serialize(serializer),
+            Self::RecursiveDirectories(dirs) => dirs.serialize(serializer),
+            Self::FilesAndDirectories { files, directories } => {
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("files", files)?;
+                map.serialize_entry("directories", directories)?;
+                map.end()
+            }
+            Self::FilesAndRecursiveDirectories { files, directories } => {
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("files", files)?;
+                map.serialize_entry("directories", directories)?;
+                map.end()
+            }
+        }
+    }
 }
 
 pub struct Render<'a> {
@@ -96,57 +197,78 @@ impl<'a> Render<'a> {
         mut dirs: Vec<Dir>,
         w: &mut W,
     ) -> io::Result<i32> {
-        let status = match (
-            files.len(),
-            dirs.len(),
-            self.dir_action.recurse_options().is_some(),
-        ) {
-            (0, 1, false) => {
-                // Safe unwrap as we verify before that the len is at least one.
-                let dir = dirs.get_mut(0).unwrap();
-                self.render_directory(dir, w)?
+        let recurse = self.dir_action.recurse_options().is_some();
+        let (doc, status) = match (files.is_empty(), dirs.as_mut_slice(), recurse) {
+            (true, [dir], false) => {
+                let (dir_files, status) = self.build_directory(dir);
+                (JsonDocument::Files(dir_files), status)
             }
-            (_, 0, _) => {
-                self.render_files(files, w)?;
-                crate::exits::SUCCESS
-            }
-            (0, _, true) => {
+            (_, [], _) => (
+                JsonDocument::Files(self.build_files(&files)),
+                crate::exits::SUCCESS,
+            ),
+            (true, dirs_slice, true) => {
                 let visited = AncestorSet::from_dirs(
                     self.view.follow_links,
-                    dirs.iter().map(|d| d.path.as_path()),
+                    dirs_slice.iter().map(|d| d.path.as_path()),
                 );
-                self.render_recursive_directories(&mut dirs, false, w, 0, &visited, None)?
+                let (tree, status) =
+                    self.build_recursive_directories(dirs_slice, false, 0, &visited, None);
+                (JsonDocument::RecursiveDirectories(tree), status)
             }
-            (0, _, _) => self.render_directories(dirs, w)?,
-            (_, _, recurse) => self.render_files_directories(files, dirs, recurse, w)?,
+            (true, dirs_slice, false) => {
+                let (entries, status) = self.build_directories(dirs_slice);
+                (JsonDocument::Directories(entries), status)
+            }
+            (false, dirs_slice, true) => {
+                let rendered_files = self.build_files(&files);
+                let visited = AncestorSet::from_dirs(
+                    self.view.follow_links,
+                    dirs_slice.iter().map(|d| d.path.as_path()),
+                );
+                let (directories, status) =
+                    self.build_recursive_directories(dirs_slice, false, 0, &visited, None);
+                (
+                    JsonDocument::FilesAndRecursiveDirectories {
+                        files: rendered_files,
+                        directories,
+                    },
+                    status,
+                )
+            }
+            (false, dirs_slice, false) => {
+                let rendered_files = self.build_files(&files);
+                let (directories, status) = self.build_directories(dirs_slice);
+                (
+                    JsonDocument::FilesAndDirectories {
+                        files: rendered_files,
+                        directories,
+                    },
+                    status,
+                )
+            }
         };
+
+        serde_json::to_writer(&mut *w, &doc).map_err(io::Error::from)?;
         // A document ends its line, as text output does, so a shell prompt
         // after it starts on a line of its own.
         writeln!(w)?;
         Ok(status)
     }
 
-    /// Renders files named on the command line, whose code share is taken
-    /// of their own total.
-    fn render_files<W: Write>(&self, files: Vec<File<'a>>, w: &mut W) -> io::Result<()> {
+    /// Builds JSON entries for files named on the command line, whose code
+    /// share is taken of their own total.
+    fn build_files(&self, files: &[File<'_>]) -> JsonFiles {
         let roots: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
-        self.render_files_under(files, &roots, w)
+        self.build_files_under(files, &roots)
     }
 
-    /// Renders files whose code share is taken of everything under `roots`,
-    /// counted as the long view counts it: the listed directory, walked
-    /// once, with links followed only under `--follow-symlinks`.
-    fn render_files_under<W: Write>(
-        &self,
-        files: Vec<File<'a>>,
-        roots: &[PathBuf],
-        w: &mut W,
-    ) -> io::Result<()> {
+    /// Builds JSON entries whose code share is taken of everything under
+    /// `roots`, counted as the long view counts it: the listed directory,
+    /// walked once, with links followed only under `--follow-symlinks`.
+    fn build_files_under(&self, files: &[File<'_>], roots: &[PathBuf]) -> JsonFiles {
         match &self.opts.details {
-            None => {
-                let fnames: Vec<String> = files.iter().map(|f| self.render_file(f, None)).collect();
-                write!(w, "[{}]", fnames.join(","))?;
-            }
+            None => JsonFiles::Short(files.iter().map(|f| f.name.clone()).collect()),
             Some(details) => {
                 let code_loc = match &details.table {
                     Some(t) => {
@@ -177,8 +299,8 @@ impl<'a> Render<'a> {
                     files.iter().any(|f| !set.insert(&f.name))
                 };
                 let mut seen_keys = std::collections::HashSet::new();
-                let mut fnames = Vec::new();
-                for f in &files {
+                let mut entries = Vec::with_capacity(files.len());
+                for f in files {
                     let key_str = if has_name_collision {
                         f.path.display().to_string()
                     } else {
@@ -187,58 +309,52 @@ impl<'a> Render<'a> {
                     if !seen_keys.insert(key_str.clone()) {
                         continue;
                     }
-                    let fname_json = serde_json::to_string(&key_str)
-                        .unwrap_or_else(|_| format!("\"{}\"", key_str));
-                    fnames.push(format!(
-                        "{fname_json}:{{{}}}",
-                        self.render_file(f, code_loc)
-                    ));
+                    entries.push((key_str, self.build_file_long(f, details, code_loc)));
                 }
-                write!(w, "{{{}}}", fnames.join(","))?;
+                JsonFiles::Long(OrderedMap(entries))
             }
         }
-        Ok(())
     }
 
-    fn render_directory<W: Write>(&self, dir: &'a mut Dir, w: &mut W) -> io::Result<i32> {
+    fn build_directory(&self, dir: &mut Dir) -> (JsonFiles, i32) {
         let dir_path = dir.path.clone();
         let dir = match dir.read() {
             Ok(d) => d,
             Err(e) => {
-                write!(w, "[]")?;
-                let status = if e.kind() == io::ErrorKind::PermissionDenied {
-                    let _ = writeln!(
-                        io::stderr(),
-                        "Permission denied: {} - code: {}",
-                        dir_path.display(),
-                        crate::exits::PERMISSION_DENIED
-                    );
-                    crate::exits::PERMISSION_DENIED
-                } else {
-                    let _ = writeln!(io::stderr(), "{}: {}", dir_path.display(), e);
-                    crate::exits::RUNTIME_ERROR
-                };
-                return Ok(status);
+                let status = report_dir_read_error(&dir_path, &e);
+                return (JsonFiles::Short(Vec::new()), status);
             }
         };
         let files = self.traversal_policy(false).read_children(dir, None);
-
-        self.render_files_under(files, &[dir_path], w)?;
-
-        Ok(crate::exits::SUCCESS)
+        (
+            self.build_files_under(&files, &[dir_path]),
+            crate::exits::SUCCESS,
+        )
     }
 
-    fn render_recursive_directories<W: Write>(
+    fn build_directories(&self, dirs: &mut [Dir]) -> (OrderedMap<JsonFiles>, i32) {
+        let mut entries = Vec::with_capacity(dirs.len());
+        let mut exit_status = crate::exits::SUCCESS;
+        for dir in dirs {
+            let key = dir.path.display().to_string();
+            let (dir_files, status) = self.build_directory(dir);
+            entries.push((key, dir_files));
+            if status != crate::exits::SUCCESS {
+                exit_status = status;
+            }
+        }
+        (OrderedMap(entries), exit_status)
+    }
+
+    fn build_recursive_directories(
         &self,
-        dirs: &'a mut Vec<Dir>,
+        dirs: &mut [Dir],
         sub_dir: bool,
-        w: &mut W,
         depth: usize,
         ancestors: &AncestorSet,
         tree_root: Option<&Path>,
-    ) -> io::Result<i32> {
-        write!(w, "{{")?;
-        let mut first = true;
+    ) -> (OrderedMap<JsonDirNode>, i32) {
+        let mut entries = Vec::with_capacity(dirs.len());
         let mut exit_status = crate::exits::SUCCESS;
         let has_name_collision = {
             let mut set = std::collections::HashSet::new();
@@ -260,42 +376,31 @@ impl<'a> Render<'a> {
                 Some(root) if is_tree => root.to_path_buf(),
                 _ => dir_path.clone(),
             };
-            if first {
-                first = false;
+            let key = if sub_dir || has_name_collision {
+                dir_path.display().to_string()
             } else {
-                write!(w, ",")?;
-            }
-            if sub_dir || has_name_collision {
-                let key = serde_json::to_string(&dir_path.display().to_string())
-                    .unwrap_or_else(|_| format!("\"{}\"", dir_path.display()));
-                write!(w, "{key}:{{")?;
-            } else {
-                let name = dir_path
+                dir_path
                     .file_name()
                     .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| dir_path.display().to_string());
-                let key = serde_json::to_string(&name).unwrap_or_else(|_| format!("\"{}\"", name));
-                write!(w, "{key}:{{")?;
-            }
+                    .unwrap_or_else(|| dir_path.display().to_string())
+            };
 
             let dir_r = match dir.read() {
                 Ok(r) => r,
                 Err(e) => {
-                    if e.kind() == io::ErrorKind::PermissionDenied {
-                        let _ = writeln!(
-                            io::stderr(),
-                            "Permission denied: {} - code: {}",
-                            dir_path.display(),
-                            crate::exits::PERMISSION_DENIED
-                        );
-                        exit_status = crate::exits::PERMISSION_DENIED;
-                    } else {
-                        let _ = writeln!(io::stderr(), "{}: {}", dir_path.display(), e);
-                        if exit_status == crate::exits::SUCCESS {
-                            exit_status = crate::exits::RUNTIME_ERROR;
-                        }
+                    let status = report_dir_read_error(&dir_path, &e);
+                    if status == crate::exits::PERMISSION_DENIED
+                        || exit_status == crate::exits::SUCCESS
+                    {
+                        exit_status = status;
                     }
-                    write!(w, "\"files\":[],\"directories\":{{}}}}")?;
+                    entries.push((
+                        key,
+                        JsonDirNode {
+                            files: JsonFiles::Short(Vec::new()),
+                            directories: Some(OrderedMap(Vec::new())),
+                        },
+                    ));
                     continue;
                 }
             };
@@ -305,7 +410,7 @@ impl<'a> Render<'a> {
             let recurse_opts = self.dir_action.recurse_options();
             let child_depth = depth + 1;
 
-            let (child_dir_files, mut leaf_files): (Vec<File<'a>>, Vec<File<'a>>) = files
+            let (child_dir_files, mut leaf_files): (Vec<File<'_>>, Vec<File<'_>>) = files
                 .into_iter()
                 .partition(|f| policy.is_descendable_dir(f));
 
@@ -317,7 +422,7 @@ impl<'a> Render<'a> {
                 leaf_files.retain(|f| !f.points_to_directory());
             }
 
-            if let Some(recurse_opts) = recurse_opts {
+            let node = if let Some(recurse_opts) = recurse_opts {
                 if !recurse_opts.is_too_deep(child_depth) {
                     let mut child_dirs = Vec::new();
                     let next_ancestors = ancestors.with_dir(&dir_path);
@@ -341,138 +446,105 @@ impl<'a> Render<'a> {
                         self.file_filter.sort_files(&mut leaf_files);
                     }
 
-                    write!(w, "\"files\":")?;
-                    self.render_files_under(leaf_files, std::slice::from_ref(&loc_root), w)?;
-                    write!(w, ",\"directories\":")?;
-                    let child_status = self.render_recursive_directories(
+                    let rendered_files =
+                        self.build_files_under(&leaf_files, std::slice::from_ref(&loc_root));
+                    let (sub_dirs, child_status) = self.build_recursive_directories(
                         &mut child_dirs,
                         false,
-                        w,
                         child_depth,
                         &next_ancestors,
                         Some(&loc_root),
-                    )?;
+                    );
                     if child_status != crate::exits::SUCCESS {
                         exit_status = child_status;
                     }
+                    JsonDirNode {
+                        files: rendered_files,
+                        directories: Some(sub_dirs),
+                    }
                 } else {
-                    write!(w, "\"files\":")?;
                     let mut cutoff_files = leaf_files;
                     if !self.file_filter.flags.contains(&FileFilterFlags::OnlyFiles) {
                         cutoff_files.extend(child_dir_files);
                         self.file_filter.sort_files(&mut cutoff_files);
                     }
-                    self.render_files_under(cutoff_files, std::slice::from_ref(&loc_root), w)?;
-                    if recurse_opts.tree {
-                        write!(w, ",\"directories\":{{}}")?;
+                    let rendered_files =
+                        self.build_files_under(&cutoff_files, std::slice::from_ref(&loc_root));
+                    JsonDirNode {
+                        files: rendered_files,
+                        directories: recurse_opts.tree.then(|| OrderedMap(Vec::new())),
                     }
                 }
             } else {
-                write!(w, "\"files\":")?;
                 let mut cutoff_files = leaf_files;
                 if !self.file_filter.flags.contains(&FileFilterFlags::OnlyFiles) {
                     cutoff_files.extend(child_dir_files);
                     self.file_filter.sort_files(&mut cutoff_files);
                 }
-                self.render_files_under(cutoff_files, std::slice::from_ref(&loc_root), w)?;
-            }
-            write!(w, "}}")?;
+                JsonDirNode {
+                    files: self.build_files_under(&cutoff_files, std::slice::from_ref(&loc_root)),
+                    directories: None,
+                }
+            };
+            entries.push((key, node));
         }
-        write!(w, "}}")?;
-        Ok(exit_status)
+
+        (OrderedMap(entries), exit_status)
     }
 
-    fn render_directories<W: Write>(&self, dirs: Vec<Dir>, w: &mut W) -> io::Result<i32> {
-        write!(w, "{{")?;
-        let mut first = true;
-        let mut exit_status = crate::exits::SUCCESS;
-        for mut dir in dirs {
-            if first {
-                first = false;
-            } else {
-                write!(w, ",")?;
-            }
-            let key = serde_json::to_string(&dir.path.display().to_string())
-                .unwrap_or_else(|_| format!("\"{}\"", dir.path.display()));
-            write!(w, "{key}:")?;
-            let status = self.render_directory(&mut dir, w)?;
-            if status != crate::exits::SUCCESS {
-                exit_status = status;
-            }
-        }
-        write!(w, "}}")?;
-        Ok(exit_status)
-    }
-
-    fn render_files_directories<W: Write>(
+    fn build_file_long(
         &self,
-        files: Vec<File<'a>>,
-        mut dirs: Vec<Dir>,
-        recurse: bool,
-        w: &mut W,
-    ) -> io::Result<i32> {
-        write!(w, "{{\"files\":")?;
-        self.render_files(files, w)?;
-        write!(w, ",\"directories\":")?;
-        let status = if recurse {
-            let visited = AncestorSet::from_dirs(
-                self.view.follow_links,
-                dirs.iter().map(|d| d.path.as_path()),
-            );
-            self.render_recursive_directories(&mut dirs, false, w, 0, &visited, None)?
-        } else {
-            self.render_directories(dirs, w)?
-        };
-        write!(w, "}}")?;
-        Ok(status)
-    }
-
-    fn render_file(&self, f: &File<'a>, code_loc: Option<usize>) -> String {
-        match &self.opts.details {
-            None => serde_json::to_string(&f.name).unwrap_or_else(|_| format!("\"{}\"", f.name)),
-            Some(o) => self.render_file_long(f, o, code_loc),
-        }
-    }
-
-    fn render_file_long(
-        &self,
-        f: &File<'a>,
+        f: &File<'_>,
         o: &details::Options,
         code_loc: Option<usize>,
-    ) -> String {
-        if let Some(table_opts) = &o.table {
-            let columns = table_opts.columns.collect(
-                self.git.is_some(),
-                self.git_repos,
-                table_opts.allocated_size_mode,
-            );
+    ) -> JsonFileFields {
+        let Some(table_opts) = &o.table else {
+            return JsonFileFields(Vec::new());
+        };
+        let columns = table_opts.columns.collect(
+            self.git.is_some(),
+            self.git_repos,
+            table_opts.allocated_size_mode,
+        );
 
-            let mut fobj = JsonFileObject::create_for_file(
+        let mut fobj = JsonFileObject::create_for_file(
+            f,
+            table_opts,
+            columns,
+            self.environment,
+            show_xattr_hint(
+                self.opts.details.as_ref().is_some_and(|d| d.indicate_xattr),
+                self.opts.details.as_ref().is_some_and(|d| d.secattr),
                 f,
-                table_opts,
-                columns,
-                self.environment,
-                show_xattr_hint(
-                    self.opts.details.as_ref().is_some_and(|d| d.indicate_xattr),
-                    self.opts.details.as_ref().is_some_and(|d| d.secattr),
-                    f,
-                ),
-                self.git,
-                code_loc,
-            );
-            // Read only when it is shown, like every other column.
-            if self.view.file_style.show_symlink_targets
-                == crate::output::file_name::ShowSymlinkTargets::ShowSymlinkTargets
-                && f.is_link()
-            {
-                fobj.target = std::fs::read_link(&f.path)
-                    .ok()
-                    .map(|p| p.display().to_string());
-            }
-            fobj.render()
-        } else {
-            String::new()
+            ),
+            self.git,
+            code_loc,
+        );
+        // Read only when it is shown, like every other column.
+        if self.view.file_style.show_symlink_targets
+            == crate::output::file_name::ShowSymlinkTargets::ShowSymlinkTargets
+            && f.is_link()
+        {
+            fobj.target = std::fs::read_link(&f.path)
+                .ok()
+                .map(|p| p.display().to_string());
         }
+        fobj.into_fields()
+    }
+}
+
+fn report_dir_read_error(dir_path: &Path, e: &io::Error) -> i32 {
+    if e.kind() == io::ErrorKind::PermissionDenied {
+        let _ = writeln!(
+            io::stderr(),
+            "Permission denied: {} - code: {}",
+            dir_path.display(),
+            crate::exits::PERMISSION_DENIED
+        );
+        crate::exits::PERMISSION_DENIED
+    } else {
+        let _ = writeln!(io::stderr(), "{}: {}", dir_path.display(), e);
+        crate::exits::RUNTIME_ERROR
     }
 }
 
@@ -490,27 +562,20 @@ struct JsonFileObject<'a> {
 }
 
 impl<'a> JsonFileObject<'a> {
-    /// Render a json object with the columns in the map
-    fn render(self) -> String {
-        let mut entries: Vec<String> = self
+    fn into_fields(self) -> JsonFileFields {
+        let mut fields: Vec<(&'static str, String)> = self
             .internal
-            .iter()
-            .map(|(c, v)| {
-                let header = serde_json::to_string(c.header())
-                    .unwrap_or_else(|_| format!("\"{}\"", c.header()));
-                format!("{header}:{v}")
-            })
+            .into_iter()
+            .map(|(c, v)| (c.header(), v))
             .collect();
         if let Some(target) = self.target {
-            let escaped =
-                serde_json::to_string(&target).unwrap_or_else(|_| format!("\"{target}\""));
-            entries.push(format!("\"Target\":{escaped}"));
+            fields.push(("Target", target));
         }
-        entries.join(",")
+        JsonFileFields(fields)
     }
 
     fn create_for_file(
-        f: &File<'a>,
+        f: &File<'_>,
         options: &'a TableOptions,
         columns: Vec<Column>,
         env: &Environment,
@@ -536,24 +601,20 @@ impl<'a> JsonFileObject<'a> {
 
     fn add_column(
         &mut self,
-        f: &File,
+        f: &File<'_>,
         c: &Column,
         env: &Environment,
         xattrs: bool,
         cached_loc: &mut Option<Option<LocCounts>>,
     ) {
-        let column_opt = self.get_column(f, c, env, xattrs, cached_loc);
-
-        if let Some(column) = column_opt {
-            let escaped_val =
-                serde_json::to_string(&column).unwrap_or_else(|_| format!("\"{}\"", column));
-            self.internal.push((*c, escaped_val));
+        if let Some(column) = self.get_column(f, c, env, xattrs, cached_loc) {
+            self.internal.push((*c, column));
         }
     }
 
     fn get_column(
         &self,
-        f: &File,
+        f: &File<'_>,
         c: &Column,
         env: &Environment,
         xattrs: bool,
@@ -631,5 +692,75 @@ impl<'a> JsonFileObject<'a> {
         self.git
             .map(|g| g.get(&file.path, file.is_directory()))
             .unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ordered_map_preserves_non_alphabetical_key_order() {
+        let doc = JsonDocument::Directories(OrderedMap(vec![
+            ("dir_c".to_owned(), JsonFiles::Short(vec!["z".to_owned()])),
+            ("dir_b".to_owned(), JsonFiles::Short(vec!["m".to_owned()])),
+            ("dir_a".to_owned(), JsonFiles::Short(vec!["a".to_owned()])),
+        ]));
+        let rendered = serde_json::to_string(&doc).expect("valid json");
+        assert_eq!(rendered, r#"{"dir_c":["z"],"dir_b":["m"],"dir_a":["a"]}"#);
+    }
+
+    #[test]
+    fn serde_escapes_quotes_backslashes_and_control_characters() {
+        let doc = JsonDocument::Files(JsonFiles::Long(OrderedMap(vec![(
+            "a\"b\\c\n\x07".to_owned(),
+            JsonFileFields(vec![
+                ("Size", "12".to_owned()),
+                ("Target", "dest\"\\path\t1".to_owned()),
+            ]),
+        )])));
+        let rendered = serde_json::to_string(&doc).expect("valid json");
+        let parsed: serde_json::Value = serde_json::from_str(&rendered).expect("valid JSON");
+        assert_eq!(parsed["a\"b\\c\n\x07"]["Size"], "12");
+        assert_eq!(parsed["a\"b\\c\n\x07"]["Target"], "dest\"\\path\t1");
+    }
+
+    #[test]
+    fn recursive_dir_node_omits_directories_key_at_recurse_cutoff() {
+        let recurse_cutoff = JsonDirNode {
+            files: JsonFiles::Short(vec!["a".to_owned(), "b.txt".to_owned()]),
+            directories: None,
+        };
+        let tree_cutoff = JsonDirNode {
+            files: JsonFiles::Short(vec!["a".to_owned(), "b.txt".to_owned()]),
+            directories: Some(OrderedMap(Vec::new())),
+        };
+        assert_eq!(
+            serde_json::to_string(&recurse_cutoff).unwrap(),
+            r#"{"files":["a","b.txt"]}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&tree_cutoff).unwrap(),
+            r#"{"files":["a","b.txt"],"directories":{}}"#
+        );
+    }
+
+    #[test]
+    fn writer_broken_pipe_is_preserved_through_serde_json() {
+        struct BrokenPipeWriter;
+        impl Write for BrokenPipeWriter {
+            fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+                Err(io::Error::new(io::ErrorKind::BrokenPipe, "broken pipe"))
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let doc = JsonDocument::Files(JsonFiles::Short(vec!["a.txt".to_owned()]));
+        let err = serde_json::to_writer(BrokenPipeWriter, &doc)
+            .map_err(io::Error::from)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
     }
 }
