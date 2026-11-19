@@ -930,6 +930,29 @@ fn main_rs_stays_a_thin_composition_root() {
 }
 
 #[test]
+fn build_script_declares_rerun_directives_and_stays_zero_dependency() {
+    let build_rs = fs::read_to_string(repo_root().join("build.rs"))
+        .expect("build.rs readable")
+        .replace("\r\n", "\n");
+    assert!(
+        build_rs.contains("cargo::rerun-if-changed=build.rs"),
+        "build.rs must emit explicit `cargo::rerun-if-changed=build.rs` so unrelated doc/test \
+         edits do not re-run build.rs and invalidate the entire crate (ADR-0002)."
+    );
+
+    let cargo_toml = fs::read_to_string(repo_root().join("Cargo.toml"))
+        .expect("Cargo.toml readable")
+        .replace("\r\n", "\n");
+    assert!(
+        !cargo_toml
+            .lines()
+            .any(|line| line.trim() == "[build-dependencies]"),
+        "Cargo.toml should not carry `[build-dependencies]` (build.rs stays pure std to avoid \
+         blocking the build graph and duplicating host compiles in cross-builds; ADR-0002)."
+    );
+}
+
+#[test]
 fn every_unsafe_block_across_all_platforms_has_safety_comment() {
     let mut undocumented = Vec::new();
     for (rel, raw) in src_files() {
