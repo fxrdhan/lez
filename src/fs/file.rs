@@ -222,9 +222,6 @@ pub struct File<'dir> {
 
     /// The MIME type of this file.
     mimetype: OnceLock<Option<&'static str>>,
-
-    /// Cached Lines of Code counts for this file.
-    loc: OnceLock<Option<crate::loc::LocCounts>>,
 }
 
 /// Windows has no `.` or `..` entry on disk: a path ending in one is resolved
@@ -325,7 +322,6 @@ impl<'dir> File<'dir> {
             lookup_path: None,
             chain_end: OnceLock::new(),
             mimetype: OnceLock::new(),
-            loc: OnceLock::new(),
         };
 
         if total_size {
@@ -372,7 +368,6 @@ impl<'dir> File<'dir> {
             extended_attributes: OnceLock::new(),
             filetype: OnceLock::new(),
             mimetype: OnceLock::new(),
-            loc: OnceLock::new(),
         };
 
         if total_size {
@@ -630,60 +625,6 @@ impl<'dir> File<'dir> {
     /// directory, a link, or anything else treated specially.
     pub fn is_file(&self) -> bool {
         self.filetype().is_some_and(std::fs::FileType::is_file)
-    }
-
-    fn language_for_target(&self, target: &File) -> Option<&'static crate::loc::Language> {
-        let path = target.absolute_path().unwrap_or(&self.path);
-        let target_lang = std::fs::canonicalize(path)
-            .ok()
-            .as_deref()
-            .and_then(|p| {
-                let name = p.file_name()?.to_str()?;
-                let ext = p.extension()?.to_str();
-                crate::loc::language_for(name, ext)
-            })
-            .or_else(|| crate::loc::language_for(&target.name, target.ext.as_deref()));
-
-        target_lang.or_else(|| crate::loc::language_for(&self.name, self.ext.as_deref()))
-    }
-
-    /// The programming language this file is written in, worked out from its
-    /// name or extension, if eza recognises it.
-    pub fn language(&self) -> Option<&'static crate::loc::Language> {
-        if !self.deref_links || !self.is_link() {
-            return crate::loc::language_for(&self.name, self.ext.as_deref());
-        }
-
-        self.dereferenced()
-            .filter(|target| target.is_file())
-            .and_then(|target| self.language_for_target(target))
-    }
-
-    /// Count this file’s lines of code. Returns `None` for anything that
-    /// isn’t a readable, regular file in a recognised language — that is,
-    /// directories, links, unknown extensions, and binaries.
-    pub fn loc(&self) -> Option<crate::loc::LocCounts> {
-        *self.loc.get_or_init(|| {
-            if self.is_file() {
-                let lang = self.language()?;
-                return crate::loc::LocCounts::from_path(self.fs_path(), lang)
-                    .ok()
-                    .flatten();
-            }
-
-            if self.deref_links && self.is_link() {
-                match self.link_target_recurse() {
-                    FileTarget::Ok(target) if target.is_file() => {
-                        let lang = self.language_for_target(&target)?;
-                        let path = target.absolute_path().unwrap_or(&self.path);
-                        crate::loc::LocCounts::from_path(path, lang).ok().flatten()
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        })
     }
 
     /// Whether this file is both a regular file *and* executable for the
@@ -981,7 +922,6 @@ impl<'dir> File<'dir> {
                     mime_read_contents: self.mime_read_contents,
                     dot_filter: self.dot_filter,
                     mimetype: OnceLock::new(),
-                    loc: OnceLock::new(),
                 };
                 FileTarget::Ok(Box::new(file))
             }

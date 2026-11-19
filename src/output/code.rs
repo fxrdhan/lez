@@ -114,10 +114,15 @@ impl Cell {
 
 impl Render<'_> {
     pub fn render<W: Write>(self, w: &mut W) -> io::Result<()> {
+        let filter_adapter = self
+            .filter
+            .map(crate::output::loc_adapter::FileFilterAdapter);
         let report = crate::loc::count_roots_filtered(
             &self.roots,
             self.show_hidden,
-            self.filter,
+            filter_adapter
+                .as_ref()
+                .map(|a| a as &dyn crate::loc::PathFilter),
             self.no_git,
             self.deref_links,
         );

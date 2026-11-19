@@ -18,9 +18,10 @@ use crate::fs::feature::git::GitCache;
 use crate::fs::fields as f;
 use crate::fs::filter::{FileFilter, FileFilterFlags, GitIgnore};
 use crate::fs::{Dir, DotFilter, File};
-use crate::loc::CodeContent;
+use crate::loc::{CodeContent, LocCounts};
 use crate::output::View;
 use crate::output::details::{self, show_xattr_hint};
+use crate::output::loc_adapter;
 use crate::output::render::{LanguageRender, LocRender, PermissionsPlusRender, TimeRender};
 use crate::output::table::{Column, ENVIRONMENT, Environment, Options as TableOptions};
 
@@ -141,10 +142,11 @@ impl<'a> Render<'a> {
                             t.columns.loc,
                             Some(CodeContent::Percent | CodeContent::Both)
                         ) {
+                            let filter_adapter = loc_adapter::FileFilterAdapter(self.file_filter);
                             let report = crate::loc::count_roots_filtered(
                                 roots,
                                 self.dots.shows_dotfiles(),
-                                Some(self.file_filter),
+                                Some(&filter_adapter),
                                 !self.git_ignoring,
                                 self.view.follow_links,
                             );
@@ -546,15 +548,23 @@ impl<'a> JsonFileObject<'a> {
             target: None,
         };
 
+        let mut cached_loc: Option<Option<LocCounts>> = None;
         columns
             .iter()
-            .for_each(|c| res.add_column(f, c, env, xattrs));
+            .for_each(|c| res.add_column(f, c, env, xattrs, &mut cached_loc));
 
         res
     }
 
-    fn add_column(&mut self, f: &File, c: &Column, env: &Environment, xattrs: bool) {
-        let column_opt = self.get_column(f, c, env, xattrs);
+    fn add_column(
+        &mut self,
+        f: &File,
+        c: &Column,
+        env: &Environment,
+        xattrs: bool,
+        cached_loc: &mut Option<Option<LocCounts>>,
+    ) {
+        let column_opt = self.get_column(f, c, env, xattrs, cached_loc);
 
         if let Some(column) = column_opt {
             let escaped_val =
@@ -563,7 +573,14 @@ impl<'a> JsonFileObject<'a> {
         }
     }
 
-    fn get_column(&self, f: &File, c: &Column, env: &Environment, xattrs: bool) -> Option<String> {
+    fn get_column(
+        &self,
+        f: &File,
+        c: &Column,
+        env: &Environment,
+        xattrs: bool,
+        cached_loc: &mut Option<Option<LocCounts>>,
+    ) -> Option<String> {
         match c {
             Column::Permissions => f.permissions_plus(xattrs).render_json(),
             Column::Timestamp(time_type) => time_type
@@ -609,13 +626,16 @@ impl<'a> JsonFileObject<'a> {
                 .render_json(),
             Column::SecurityContext => f.security_context().render_json(),
 
-            Column::Language => f.language().render_json(),
-            Column::Loc(code_content) => f.loc().render_json(
-                *code_content,
-                self.code_loc,
-                &env.numeric,
-                self.options.percent_digits,
-            ),
+            Column::Language => loc_adapter::file_language(f).render_json(),
+            Column::Loc(code_content) => {
+                let loc = *cached_loc.get_or_insert_with(|| loc_adapter::file_loc(f));
+                loc.render_json(
+                    *code_content,
+                    self.code_loc,
+                    &env.numeric,
+                    self.options.percent_digits,
+                )
+            }
             Column::SubdirGitRepo(status) => self.subdir_git_repo(f, *status).render_json(),
         }
     }

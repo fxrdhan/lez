@@ -225,10 +225,11 @@ impl<'a> Render<'a> {
             // Percentage columns need the whole tree’s code total as their
             // denominator, so walk the tree (or git repo) once up front.
             if matches!(loc_content, Some(CodeContent::Percent | CodeContent::Both)) {
+                let filter_adapter = crate::output::loc_adapter::FileFilterAdapter(self.filter);
                 let report = crate::loc::count_roots_filtered(
                     &self.loc_roots(),
                     self.filter.dot_filter.shows_dotfiles(),
-                    Some(self.filter),
+                    Some(&filter_adapter),
                     !self.git_ignoring,
                     self.opts.follow_links,
                 );

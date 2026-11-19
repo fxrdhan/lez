@@ -28,6 +28,7 @@ pub mod time;
 
 pub mod cell;
 pub mod escape;
+mod loc_adapter;
 mod theme_impls;
 mod tree;
 

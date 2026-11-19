@@ -18,9 +18,10 @@ use uzers::UsersCache;
 
 use crate::fs::feature::git::GitCache;
 use crate::fs::{File, fields as f};
-use crate::loc::CodeContent;
+use crate::loc::{CodeContent, LocCounts};
 use crate::output::cell::TextCell;
 use crate::output::color_scale::ColorScaleInformation;
+use crate::output::loc_adapter;
 #[cfg(unix)]
 use crate::output::render::{GroupRender, OctalPermissionsRender, UserRender};
 use crate::output::render::{LanguageRender, LocRender, PermissionsPlusRender, TimeRender};
@@ -553,17 +554,26 @@ impl<'a> Table<'a> {
                 None
             };
 
+        let mut cached_loc: Option<Option<LocCounts>> = None;
+
         let cells = self
             .columns
             .iter()
             .map(|&c| {
                 #[cfg(unix)]
                 {
-                    self.display(file, c, xattrs, color_scale_info, users_guard.as_deref())
+                    self.display(
+                        file,
+                        c,
+                        xattrs,
+                        color_scale_info,
+                        &mut cached_loc,
+                        users_guard.as_deref(),
+                    )
                 }
                 #[cfg(not(unix))]
                 {
-                    self.display(file, c, xattrs, color_scale_info)
+                    self.display(file, c, xattrs, color_scale_info, &mut cached_loc)
                 }
             })
             .collect();
@@ -587,6 +597,7 @@ impl<'a> Table<'a> {
         column: Column,
         xattrs: bool,
         color_scale_info: Option<ColorScaleInformation>,
+        cached_loc: &mut Option<Option<LocCounts>>,
         #[cfg(unix)] users_cache: Option<&uzers::UsersCache>,
     ) -> TextCell {
         match column {
@@ -598,22 +609,25 @@ impl<'a> Table<'a> {
                 &self.env.numeric,
                 color_scale_info,
             ),
-            Column::Language => file
-                .language()
-                .render(self.theme.ui.date.unwrap_or_default()),
-            Column::Loc(content) => file.loc().render(
-                self.theme
-                    .ui
-                    .size
-                    .unwrap_or_default()
-                    .number_byte
-                    .unwrap_or_default(),
-                self.theme.ui.punctuation.unwrap_or_default(),
-                content,
-                self.loc_total,
-                &self.env.numeric,
-                self.percent_digits,
-            ),
+            Column::Language => {
+                loc_adapter::file_language(file).render(self.theme.ui.date.unwrap_or_default())
+            }
+            Column::Loc(content) => {
+                let loc = *cached_loc.get_or_insert_with(|| loc_adapter::file_loc(file));
+                loc.render(
+                    self.theme
+                        .ui
+                        .size
+                        .unwrap_or_default()
+                        .number_byte
+                        .unwrap_or_default(),
+                    self.theme.ui.punctuation.unwrap_or_default(),
+                    content,
+                    self.loc_total,
+                    &self.env.numeric,
+                    self.percent_digits,
+                )
+            }
             #[cfg(unix)]
             Column::HardLinks => file.links().render(self.theme, &self.env.numeric),
             #[cfg(unix)]

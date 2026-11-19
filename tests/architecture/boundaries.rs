@@ -35,10 +35,9 @@ fn layer_rank(module: &str) -> Option<u8> {
     }
 }
 
-/// Legacy upward or same-rank module edges scheduled for removal in Phase 1.
-/// Format: `(source_file, target_top_level_module)`.
-const LEGACY_FORBIDDEN_MODULE_EDGES: &[(&str, &str)] =
-    &[("src/fs/file.rs", "loc"), ("src/loc/mod.rs", "fs")];
+/// Legacy upward or same-rank module edges — completely cleared in Phase 1.
+/// Any non-empty entry here would indicate architectural regression.
+const LEGACY_FORBIDDEN_MODULE_EDGES: &[(&str, &str)] = &[];
 
 /// Legacy files outside `src/main.rs` and `src/options/` referencing `clap`.
 const LEGACY_CLAP_LEAKS: &[&str] = &[];
