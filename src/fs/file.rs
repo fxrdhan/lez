@@ -773,7 +773,12 @@ impl<'dir> File<'dir> {
         #[cfg(not(target_env = "musl"))]
         let btrfs = libc::BTRFS_SUPER_MAGIC;
 
-        result == 0 && unsafe { out.assume_init() }.f_type == btrfs
+        if result != 0 {
+            return false;
+        }
+        // SAFETY: `libc::statfs` returned 0 above, so the kernel has fully
+        // initialized `out`.
+        unsafe { out.assume_init() }.f_type == btrfs
     }
 
     /// Whether this file carries Linux file capabilities, which `LS_COLORS`
@@ -1177,10 +1182,13 @@ impl<'dir> File<'dir> {
             #[allow(clippy::unnecessary_cast, clippy::useless_conversion)]
             {
                 let device_id = device_id.try_into().unwrap_or(0);
-                return f::Size::DeviceIDs(f::DeviceIDs {
-                    major: unsafe { libc::major(device_id) as u32 },
-                    minor: unsafe { libc::minor(device_id) as u32 },
-                });
+                // SAFETY: `libc::major` takes a `dev_t` by value and performs
+                // pure bit extraction with no pointer dereferences or preconditions.
+                let major = unsafe { libc::major(device_id) as u32 };
+                // SAFETY: `libc::minor` takes a `dev_t` by value and performs
+                // pure bit extraction with no pointer dereferences or preconditions.
+                let minor = unsafe { libc::minor(device_id) as u32 };
+                return f::Size::DeviceIDs(f::DeviceIDs { major, minor });
             }
         }
 
@@ -1566,6 +1574,9 @@ impl<'dir> File<'dir> {
             return f::Flags(0);
         };
 
+        // SAFETY: `c_path` is a valid NUL-terminated `CString` and the flags
+        // (`O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW`) do not require a
+        // variadic mode argument.
         let fd = unsafe {
             libc::open(
                 c_path.as_ptr(),
@@ -1589,7 +1600,11 @@ impl<'dir> File<'dir> {
         };
 
         let mut raw_flags: libc::c_long = 0;
+        // SAFETY: `fd` is an open descriptor checked `>= 0` above, and
+        // `FS_IOC_GETFLAGS` writes a `c_long` into the aligned `&mut raw_flags`.
         let ret = unsafe { libc::ioctl(fd, FS_IOC_GETFLAGS, &mut raw_flags) };
+        // SAFETY: `fd` is owned exclusively by this function and is never used
+        // again after closing.
         unsafe {
             libc::close(fd);
         }

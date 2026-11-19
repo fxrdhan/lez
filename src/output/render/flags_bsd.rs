@@ -30,17 +30,22 @@ fn wrapper_flags_to_string(flags: f::flag_t) -> String {
     #[cfg(target_os = "netbsd")]
     let empty_string = CString::new("").expect("This string is always valid");
 
-    // SAFETY: Calling external "C" function
     #[cfg(not(target_os = "netbsd"))]
+    // SAFETY: `fflagstostr` takes a bitmask by value and returns a newly
+    // malloc'd NUL-terminated C string (or null on allocation failure).
     let flags_c_str = unsafe { fflagstostr(libc::c_ulong::from(flags)) };
 
-    // SAFETY: Calling external "C" function
     #[cfg(target_os = "netbsd")]
+    // SAFETY: `empty_string` is a valid NUL-terminated `CString`; `flags_to_string`
+    // returns a newly malloc'd NUL-terminated C string (or null on failure).
     let flags_c_str = unsafe { flags_to_string(libc::c_ulong::from(flags), empty_string.as_ptr()) };
 
     if flags_c_str.is_null() {
         "-".to_string()
     } else {
+        // SAFETY: `flags_c_str` was checked non-null above and points to a
+        // NUL-terminated C string allocated by `fflagstostr`/`flags_to_string`,
+        // valid until it is freed below.
         let flags_str = unsafe { CStr::from_ptr(flags_c_str) };
         let flags = flags_str
             .to_str()

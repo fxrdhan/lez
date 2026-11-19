@@ -8,6 +8,8 @@
 #![warn(trivial_casts, trivial_numeric_casts)]
 #![warn(clippy::all)]
 #![allow(clippy::non_ascii_literal)]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::collections::HashSet;
 use std::env;
@@ -40,6 +42,9 @@ use lez::theme::Theme;
 
 fn main() {
     #[cfg(unix)]
+    // SAFETY: Restoring `SIGPIPE` to the default OS handler (`SIG_DFL`) at
+    // startup before spawning worker threads is async-signal-safe and avoids
+    // broken-pipe panics when stdout is closed by a downstream consumer.
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }

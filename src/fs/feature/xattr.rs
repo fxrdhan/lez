@@ -476,53 +476,67 @@ mod extended_attrs {
 
         static LIBSELINUX: OnceLock<Option<SelinuxLib>> = OnceLock::new();
 
-        let lib = LIBSELINUX.get_or_init(|| unsafe {
-            let lib_name = CString::new("libselinux.so.1").ok()?;
-            let handle = libc::dlopen(lib_name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL);
-            if handle.is_null() {
-                return None;
+        let lib = LIBSELINUX.get_or_init(|| {
+            // SAFETY: `dlopen`/`dlsym`/`dlclose` receive valid NUL-terminated
+            // `CString` pointers; on success the handle is intentionally kept
+            // open for the process lifetime inside `LIBSELINUX` so the
+            // transmuted `libselinux.so.1` C ABI function pointers stay valid.
+            unsafe {
+                let lib_name = CString::new("libselinux.so.1").ok()?;
+                let handle = libc::dlopen(lib_name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL);
+                if handle.is_null() {
+                    return None;
+                }
+
+                let fn_name = CString::new("selinux_raw_to_trans_context").ok()?;
+                let sym = libc::dlsym(handle, fn_name.as_ptr());
+                if sym.is_null() {
+                    libc::dlclose(handle);
+                    return None;
+                }
+
+                let raw_to_trans: RawToTransFn =
+                    std::mem::transmute::<*mut libc::c_void, RawToTransFn>(sym);
+
+                let freecon_name = CString::new("freecon").ok()?;
+                let freecon_sym = libc::dlsym(handle, freecon_name.as_ptr());
+                let freecon: Option<FreeConFn> = if !freecon_sym.is_null() {
+                    Some(std::mem::transmute::<*mut libc::c_void, FreeConFn>(
+                        freecon_sym,
+                    ))
+                } else {
+                    None
+                };
+
+                Some(SelinuxLib {
+                    raw_to_trans,
+                    freecon,
+                })
             }
-
-            let fn_name = CString::new("selinux_raw_to_trans_context").ok()?;
-            let sym = libc::dlsym(handle, fn_name.as_ptr());
-            if sym.is_null() {
-                libc::dlclose(handle);
-                return None;
-            }
-
-            let raw_to_trans: RawToTransFn =
-                std::mem::transmute::<*mut libc::c_void, RawToTransFn>(sym);
-
-            let freecon_name = CString::new("freecon").ok()?;
-            let freecon_sym = libc::dlsym(handle, freecon_name.as_ptr());
-            let freecon: Option<FreeConFn> = if !freecon_sym.is_null() {
-                Some(std::mem::transmute::<*mut libc::c_void, FreeConFn>(
-                    freecon_sym,
-                ))
-            } else {
-                None
-            };
-
-            Some(SelinuxLib {
-                raw_to_trans,
-                freecon,
-            })
         });
 
         let selinux = lib.as_ref()?;
         let c_raw = CString::new(raw).ok()?;
         let mut trans_ptr: *mut libc::c_char = std::ptr::null_mut();
 
+        // SAFETY: `c_raw` is a valid NUL-terminated `CString`, `trans_ptr` is a
+        // valid writable out-pointer, and `raw_to_trans` matches `libselinux`'s
+        // `selinux_raw_to_trans_context` signature.
         let ret = unsafe { (selinux.raw_to_trans)(c_raw.as_ptr(), &mut trans_ptr) };
         if ret != 0 || trans_ptr.is_null() {
             return None;
         }
 
+        // SAFETY: `raw_to_trans` succeeded and initialized non-null `trans_ptr`
+        // to a NUL-terminated C string valid until freed below.
         let trans_str = unsafe { CStr::from_ptr(trans_ptr) }
             .to_str()
             .ok()
             .map(|s| s.to_owned());
 
+        // SAFETY: `trans_ptr` was allocated by `selinux_raw_to_trans_context`,
+        // is no longer borrowed, and is released once via `freecon` (or
+        // `libc::free` fallback).
         unsafe {
             if let Some(freecon_fn) = selinux.freecon {
                 freecon_fn(trans_ptr);

@@ -515,6 +515,8 @@ mod windows_tests {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect::<Vec<_>>();
+        // SAFETY: `wide` is a valid NUL-terminated UTF-16 path buffer for the
+        // duration of both Win32 attribute calls.
         unsafe {
             let attrs = GetFileAttributesW(wide.as_ptr());
             assert_ne!(attrs, u32::MAX);
@@ -531,6 +533,8 @@ mod windows_tests {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect::<Vec<_>>();
+        // SAFETY: `wide` is a valid NUL-terminated UTF-16 path buffer for the
+        // duration of both Win32 attribute calls.
         unsafe {
             let attrs = GetFileAttributesW(wide.as_ptr());
             assert_ne!(attrs, u32::MAX);
