@@ -9,9 +9,19 @@
 
 #![cfg(unix)]
 
-use std::process::Command;
-
 use crate::common::{TempTestDir, lez_in, success_stdout};
+
+/// `decimal_point` and `thousands_sep` for `locale`.
+///
+/// musl intentionally leaves `LC_NUMERIC` unlocalized (`localeconv()` always
+/// returns `"."` and `""` regardless of `LC_ALL`), whereas `/usr/bin/locale`
+/// on a glibc host reads glibc's locale archive and reports separators that
+/// a musl binary never produces.
+#[cfg(target_env = "musl")]
+#[allow(clippy::unnecessary_wraps)]
+fn separators(_locale: &str) -> Option<(String, String)> {
+    Some((".".to_owned(), String::new()))
+}
 
 /// `decimal_point` and `thousands_sep` in `locale`, or `None` where the
 /// system does not have it. `LOCPATH` is passed on, so locales built with
@@ -20,7 +30,10 @@ use crate::common::{TempTestDir, lez_in, success_stdout};
 /// `locale` itself is looked for on `PATH` first, then in `/usr/bin` and
 /// `/bin`, the only places a cleared environment would search. NixOS and
 /// the Nix build sandbox keep it in neither.
+#[cfg(not(target_env = "musl"))]
 fn separators(locale: &str) -> Option<(String, String)> {
+    use std::process::Command;
+
     let mut cmd = Command::new("locale");
     cmd.env_clear()
         .env("LC_ALL", locale)
