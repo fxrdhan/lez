@@ -8,7 +8,10 @@
 use locale::Numeric as NumericLocale;
 use nu_ansi_term::Style;
 
-use crate::{loc::LocCounts, options::parser::CodeContent, output::cell::TextCell};
+use crate::{
+    loc::{CodeContent, LocCounts},
+    output::cell::TextCell,
+};
 
 pub trait Render {
     fn render(

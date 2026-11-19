@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: MIT
 use crate::fs::feature::git::GitCache;
 use crate::fs::fields::GitStatus;
-use crate::output::hidden_count::HiddenCount;
+use crate::fs::hidden_count::HiddenCount;
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs;
@@ -20,7 +20,7 @@ use std::sync::OnceLock;
 
 use log::info;
 
-use crate::fs::File;
+use crate::fs::{File, FileOptions};
 
 /// A **Dir** provides a cached list of the file paths in a directory that’s
 /// being listed.
@@ -77,6 +77,20 @@ pub type RecSizeFileId = (u64, u64);
 #[cfg(not(unix))]
 pub type RecSizeFileId = PathBuf;
 
+/// Options controlling how [`Dir::files`] filters and constructs child [`File`] entries.
+#[derive(Default, Clone, Copy)]
+pub struct ReadDirOptions<'ig> {
+    pub dots: DotFilter,
+    pub git: Option<&'ig GitCache>,
+    pub git_ignoring: bool,
+    pub deref_links: bool,
+    pub total_size: bool,
+    pub mime_read_contents: bool,
+    pub no_system: bool,
+    pub no_hidden_attrib: bool,
+    pub no_hidden_links: bool,
+}
+
 impl Dir {
     /// Create a new, empty `Dir` object representing the directory at the given path.
     ///
@@ -125,43 +139,35 @@ impl Dir {
         })
     }
 
-    /// Produce an iterator of IO results of trying to read all the files in
-    /// this directory.
+    /// Produce an iterator of all visible files in this directory.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
     pub fn files<'dir, 'ig, 'hc>(
         &'dir self,
-        dots: DotFilter,
-        git: Option<&'ig GitCache>,
-        git_ignoring: bool,
-        deref_links: bool,
-        total_size: bool,
-        mime_read_contents: bool,
+        opts: ReadDirOptions<'ig>,
         hidden_count: Option<&'hc mut HiddenCount>,
-        #[allow(unused_variables)] no_system: bool,
-        #[allow(unused_variables)] no_hidden_attrib: bool,
-        #[allow(unused_variables)] no_hidden_links: bool,
     ) -> Files<'dir, 'ig, 'hc> {
+        #[cfg(not(windows))]
+        let _ = (opts.no_system, opts.no_hidden_attrib, opts.no_hidden_links);
         Files {
             inner: self.contents.iter(),
             dir: self,
             hidden_count,
-            dot_filter: dots,
-            dotfiles: dots.shows_dotfiles(),
+            dot_filter: opts.dots,
+            dotfiles: opts.dots.shows_dotfiles(),
             #[cfg(windows)]
-            windows_hidden: dots.shows_windows_hidden(),
+            windows_hidden: opts.dots.shows_windows_hidden(),
             #[cfg(windows)]
-            no_system,
+            no_system: opts.no_system,
             #[cfg(windows)]
-            no_hidden_attrib,
+            no_hidden_attrib: opts.no_hidden_attrib,
             #[cfg(windows)]
-            no_hidden_links,
-            dots: dots.dots(),
-            git,
-            git_ignoring,
-            deref_links,
-            total_size,
-            mime_read_contents,
+            no_hidden_links: opts.no_hidden_links,
+            dots: opts.dots.dots(),
+            git: opts.git,
+            git_ignoring: opts.git_ignoring,
+            deref_links: opts.deref_links,
+            total_size: opts.total_size,
+            mime_read_contents: opts.mime_read_contents,
         }
     }
 
@@ -197,16 +203,12 @@ impl Dir {
         let mut total_blocks = 0;
 
         for file in self.files(
-            traversal_filter,
+            ReadDirOptions {
+                dots: traversal_filter,
+                mime_read_contents,
+                ..Default::default()
+            },
             None,
-            false,
-            false,
-            false,
-            mime_read_contents,
-            None,
-            false,
-            false,
-            false,
         ) {
             if file.is_directory() {
                 #[cfg(unix)]
@@ -336,15 +338,17 @@ impl<'dir> Files<'dir, '_, '_> {
                     }
                 }
 
-                let file = File::from_args_with_filter(
+                let file = File::with_options(
                     path,
                     self.dir,
                     filename,
-                    self.deref_links,
-                    self.total_size,
-                    self.mime_read_contents,
-                    entry.file_type,
-                    Some(self.dot_filter),
+                    FileOptions {
+                        deref_links: self.deref_links,
+                        total_size: self.total_size,
+                        mime_read_contents: self.mime_read_contents,
+                        filetype: entry.file_type,
+                        dot_filter: Some(self.dot_filter),
+                    },
                 );
 
                 // Windows visibility filters
@@ -515,6 +519,8 @@ mod windows_tests {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect::<Vec<_>>();
+        // SAFETY: `wide` is a valid NUL-terminated UTF-16 path buffer for the
+        // duration of both Win32 attribute calls.
         unsafe {
             let attrs = GetFileAttributesW(wide.as_ptr());
             assert_ne!(attrs, u32::MAX);
@@ -531,6 +537,8 @@ mod windows_tests {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect::<Vec<_>>();
+        // SAFETY: `wide` is a valid NUL-terminated UTF-16 path buffer for the
+        // duration of both Win32 attribute calls.
         unsafe {
             let attrs = GetFileAttributesW(wide.as_ptr());
             assert_ne!(attrs, u32::MAX);
@@ -554,16 +562,11 @@ mod windows_tests {
         let dir = Dir::read_dir(path.clone()).unwrap();
         let names: Vec<_> = dir
             .files(
-                DotFilter::DotfilesByName,
+                ReadDirOptions {
+                    dots: DotFilter::DotfilesByName,
+                    ..Default::default()
+                },
                 None,
-                false,
-                false,
-                false,
-                false,
-                None,
-                false,
-                false,
-                false,
             )
             .map(|file| file.name)
             .collect();
@@ -585,16 +588,12 @@ mod windows_tests {
         // When all files are shown (-a / Dotfiles), but no_system=true:
         let names: Vec<_> = dir
             .files(
-                DotFilter::Dotfiles,
+                ReadDirOptions {
+                    dots: DotFilter::Dotfiles,
+                    no_system: true,
+                    ..Default::default()
+                },
                 None,
-                false,
-                false,
-                false,
-                false,
-                None,
-                true,
-                false,
-                false,
             )
             .map(|file| file.name)
             .collect();
@@ -732,16 +731,11 @@ mod tests {
         let dir = Dir::read_dir(test_dir.path.clone()).unwrap();
         let files: Vec<_> = dir
             .files(
-                DotFilter::JustFiles,
+                ReadDirOptions {
+                    dots: DotFilter::JustFiles,
+                    ..Default::default()
+                },
                 None,
-                false,
-                false,
-                false,
-                false,
-                None,
-                false,
-                false,
-                false,
             )
             .collect();
 

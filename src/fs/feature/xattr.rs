@@ -476,53 +476,67 @@ mod extended_attrs {
 
         static LIBSELINUX: OnceLock<Option<SelinuxLib>> = OnceLock::new();
 
-        let lib = LIBSELINUX.get_or_init(|| unsafe {
-            let lib_name = CString::new("libselinux.so.1").ok()?;
-            let handle = libc::dlopen(lib_name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL);
-            if handle.is_null() {
-                return None;
+        let lib = LIBSELINUX.get_or_init(|| {
+            // SAFETY: `dlopen`/`dlsym`/`dlclose` receive valid NUL-terminated
+            // `CString` pointers; on success the handle is intentionally kept
+            // open for the process lifetime inside `LIBSELINUX` so the
+            // transmuted `libselinux.so.1` C ABI function pointers stay valid.
+            unsafe {
+                let lib_name = CString::new("libselinux.so.1").ok()?;
+                let handle = libc::dlopen(lib_name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL);
+                if handle.is_null() {
+                    return None;
+                }
+
+                let fn_name = CString::new("selinux_raw_to_trans_context").ok()?;
+                let sym = libc::dlsym(handle, fn_name.as_ptr());
+                if sym.is_null() {
+                    libc::dlclose(handle);
+                    return None;
+                }
+
+                let raw_to_trans: RawToTransFn =
+                    std::mem::transmute::<*mut libc::c_void, RawToTransFn>(sym);
+
+                let freecon_name = CString::new("freecon").ok()?;
+                let freecon_sym = libc::dlsym(handle, freecon_name.as_ptr());
+                let freecon: Option<FreeConFn> = if !freecon_sym.is_null() {
+                    Some(std::mem::transmute::<*mut libc::c_void, FreeConFn>(
+                        freecon_sym,
+                    ))
+                } else {
+                    None
+                };
+
+                Some(SelinuxLib {
+                    raw_to_trans,
+                    freecon,
+                })
             }
-
-            let fn_name = CString::new("selinux_raw_to_trans_context").ok()?;
-            let sym = libc::dlsym(handle, fn_name.as_ptr());
-            if sym.is_null() {
-                libc::dlclose(handle);
-                return None;
-            }
-
-            let raw_to_trans: RawToTransFn =
-                std::mem::transmute::<*mut libc::c_void, RawToTransFn>(sym);
-
-            let freecon_name = CString::new("freecon").ok()?;
-            let freecon_sym = libc::dlsym(handle, freecon_name.as_ptr());
-            let freecon: Option<FreeConFn> = if !freecon_sym.is_null() {
-                Some(std::mem::transmute::<*mut libc::c_void, FreeConFn>(
-                    freecon_sym,
-                ))
-            } else {
-                None
-            };
-
-            Some(SelinuxLib {
-                raw_to_trans,
-                freecon,
-            })
         });
 
         let selinux = lib.as_ref()?;
         let c_raw = CString::new(raw).ok()?;
         let mut trans_ptr: *mut libc::c_char = std::ptr::null_mut();
 
+        // SAFETY: `c_raw` is a valid NUL-terminated `CString`, `trans_ptr` is a
+        // valid writable out-pointer, and `raw_to_trans` matches `libselinux`'s
+        // `selinux_raw_to_trans_context` signature.
         let ret = unsafe { (selinux.raw_to_trans)(c_raw.as_ptr(), &mut trans_ptr) };
         if ret != 0 || trans_ptr.is_null() {
             return None;
         }
 
+        // SAFETY: `raw_to_trans` succeeded and initialized non-null `trans_ptr`
+        // to a NUL-terminated C string valid until freed below.
         let trans_str = unsafe { CStr::from_ptr(trans_ptr) }
             .to_str()
             .ok()
             .map(|s| s.to_owned());
 
+        // SAFETY: `trans_ptr` was allocated by `selinux_raw_to_trans_context`,
+        // is no longer borrowed, and is released once via `freecon` (or
+        // `libc::free` fallback).
         unsafe {
             if let Some(freecon_fn) = selinux.freecon {
                 freecon_fn(trans_ptr);
@@ -741,25 +755,40 @@ fn display_capability(attribute: &Attribute) -> Option<String> {
 // from January 1, 1970
 #[cfg(target_os = "macos")]
 fn display_lastuseddate(attribute: &Attribute) -> Option<String> {
-    use crate::output::strftime;
-    use crate::output::time::LOCAL_ZONE;
-
     let value = attribute.value.as_ref().filter(|value| value.len() == 16)?;
     let sec = i64::from_le_bytes(value[0..8].try_into().ok()?);
     let n_sec = i64::from_le_bytes(value[8..].try_into().ok()?);
     let n_sec = i32::try_from(n_sec)
         .ok()
         .filter(|n_sec| (0..1_000_000_000).contains(n_sec))?;
+    let zone = jiff::tz::TimeZone::try_system().unwrap_or(jiff::tz::TimeZone::UTC);
     let time = jiff::Timestamp::new(sec, n_sec)
         .ok()?
-        .to_zoned_datetime(LOCAL_ZONE.clone());
+        .to_zoned_datetime(zone);
     // RFC 3339 in nanoseconds, with `Z` for UTC.
-    let offset = if time.offset().seconds() == 0 {
-        "Z"
+    let year = time.year();
+    let year_str = if year < 0 {
+        format!("-{:04}", year.unsigned_abs())
     } else {
-        "%:z"
+        format!("{year:04}")
     };
-    strftime::format(&format!("%Y-%m-%dT%H:%M:%S%.9f{offset}"), &time).ok()
+    let offset_secs = time.offset().seconds();
+    let offset = if offset_secs == 0 {
+        String::from("Z")
+    } else {
+        let sign = if offset_secs < 0 { '-' } else { '+' };
+        let abs = offset_secs.unsigned_abs();
+        format!("{sign}{:02}:{:02}", abs / 3600, (abs % 3600) / 60)
+    };
+    Some(format!(
+        "{year_str}-{:02}-{:02}T{:02}:{:02}:{:02}.{:09}{offset}",
+        time.month(),
+        time.day(),
+        time.hour(),
+        time.minute(),
+        time.second(),
+        time.subsec_nanosecond(),
+    ))
 }
 
 // Decode Classic Mac OS Resource Fork headers

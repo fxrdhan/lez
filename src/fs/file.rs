@@ -37,6 +37,24 @@ use crate::fs::recursive_size::RecursiveSize;
 use super::mounts::MountedFs;
 use super::mounts::{all_mounts, mount_point_names};
 
+/// Default Windows `PATHEXT` extensions used when the environment variable is
+/// unset.
+pub const DEFAULT_WINDOWS_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD";
+
+/// Parses a Windows semicolon-separated `PATHEXT` value (e.g.
+/// `.COM;.EXE;.BAT;.CMD`) into uppercase extension names without leading dots.
+/// Falls back to [`DEFAULT_WINDOWS_PATHEXT`] when `raw` is `None` or non-UTF-8.
+#[must_use]
+pub fn parse_pathext(raw: Option<&OsStr>) -> HashSet<String> {
+    let value = raw
+        .and_then(OsStr::to_str)
+        .unwrap_or(DEFAULT_WINDOWS_PATHEXT);
+    value
+        .split(';')
+        .filter_map(|entry| entry.strip_prefix('.').map(str::to_ascii_uppercase))
+        .collect()
+}
+
 /// What identifies a directory in [`DIRECTORY_SIZE_CACHE`].
 ///
 /// The key must not hold the directory open, as a `same_file::Handle`
@@ -222,9 +240,6 @@ pub struct File<'dir> {
 
     /// The MIME type of this file.
     mimetype: OnceLock<Option<&'static str>>,
-
-    /// Cached Lines of Code counts for this file.
-    loc: OnceLock<Option<crate::loc::LocCounts>>,
 }
 
 /// Windows has no `.` or `..` entry on disk: a path ending in one is resolved
@@ -247,6 +262,16 @@ fn follow_instead_of_stating_the_link(path: &std::path::Path) -> bool {
     )
 }
 
+/// Construction options for [`File::with_options`].
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FileOptions {
+    pub deref_links: bool,
+    pub total_size: bool,
+    pub mime_read_contents: bool,
+    pub filetype: Option<std::fs::FileType>,
+    pub dot_filter: Option<super::DotFilter>,
+}
+
 impl<'dir> File<'dir> {
     pub fn from_args<PD, FN>(
         path: PathBuf,
@@ -261,33 +286,37 @@ impl<'dir> File<'dir> {
         PD: Into<Option<&'dir Dir>>,
         FN: Into<Option<String>>,
     {
-        Self::from_args_with_filter(
+        Self::with_options(
             path,
             parent_dir,
             filename,
-            deref_links,
-            total_size,
-            mime_read_contents,
-            filetype,
-            None,
+            FileOptions {
+                deref_links,
+                total_size,
+                mime_read_contents,
+                filetype,
+                dot_filter: None,
+            },
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_args_with_filter<PD, FN>(
+    pub fn with_options<PD, FN>(
         path: PathBuf,
         parent_dir: PD,
         filename: FN,
-        deref_links: bool,
-        total_size: bool,
-        mime_read_contents: bool,
-        filetype: Option<std::fs::FileType>,
-        dot_filter: Option<super::DotFilter>,
+        opts: FileOptions,
     ) -> File<'dir>
     where
         PD: Into<Option<&'dir Dir>>,
         FN: Into<Option<String>>,
     {
+        let FileOptions {
+            deref_links,
+            total_size,
+            mime_read_contents,
+            filetype,
+            dot_filter,
+        } = opts;
         let parent_dir = parent_dir.into();
         let name = filename.into().unwrap_or_else(|| File::filename(&path));
         let ext = File::ext_from_name(&name);
@@ -325,7 +354,6 @@ impl<'dir> File<'dir> {
             lookup_path: None,
             chain_end: OnceLock::new(),
             mimetype: OnceLock::new(),
-            loc: OnceLock::new(),
         };
 
         if total_size {
@@ -372,7 +400,6 @@ impl<'dir> File<'dir> {
             extended_attributes: OnceLock::new(),
             filetype: OnceLock::new(),
             mimetype: OnceLock::new(),
-            loc: OnceLock::new(),
         };
 
         if total_size {
@@ -632,60 +659,6 @@ impl<'dir> File<'dir> {
         self.filetype().is_some_and(std::fs::FileType::is_file)
     }
 
-    fn language_for_target(&self, target: &File) -> Option<&'static crate::loc::Language> {
-        let path = target.absolute_path().unwrap_or(&self.path);
-        let target_lang = std::fs::canonicalize(path)
-            .ok()
-            .as_deref()
-            .and_then(|p| {
-                let name = p.file_name()?.to_str()?;
-                let ext = p.extension()?.to_str();
-                crate::loc::language_for(name, ext)
-            })
-            .or_else(|| crate::loc::language_for(&target.name, target.ext.as_deref()));
-
-        target_lang.or_else(|| crate::loc::language_for(&self.name, self.ext.as_deref()))
-    }
-
-    /// The programming language this file is written in, worked out from its
-    /// name or extension, if eza recognises it.
-    pub fn language(&self) -> Option<&'static crate::loc::Language> {
-        if !self.deref_links || !self.is_link() {
-            return crate::loc::language_for(&self.name, self.ext.as_deref());
-        }
-
-        self.dereferenced()
-            .filter(|target| target.is_file())
-            .and_then(|target| self.language_for_target(target))
-    }
-
-    /// Count this file’s lines of code. Returns `None` for anything that
-    /// isn’t a readable, regular file in a recognised language — that is,
-    /// directories, links, unknown extensions, and binaries.
-    pub fn loc(&self) -> Option<crate::loc::LocCounts> {
-        *self.loc.get_or_init(|| {
-            if self.is_file() {
-                let lang = self.language()?;
-                return crate::loc::LocCounts::from_path(self.fs_path(), lang)
-                    .ok()
-                    .flatten();
-            }
-
-            if self.deref_links && self.is_link() {
-                match self.link_target_recurse() {
-                    FileTarget::Ok(target) if target.is_file() => {
-                        let lang = self.language_for_target(&target)?;
-                        let path = target.absolute_path().unwrap_or(&self.path);
-                        crate::loc::LocCounts::from_path(path, lang).ok().flatten()
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        })
-    }
-
     /// Whether this file is both a regular file *and* executable for the
     /// current user. An executable file has a different purpose from an
     /// executable directory, so they should be highlighted differently.
@@ -702,27 +675,41 @@ impl<'dir> File<'dir> {
     }
 
     /// Windows edition: a regular file is “executable” when its extension
-    /// appears in the `PATHEXT` environment variable (defaulting to the
-    /// usual `.COM;.EXE;.BAT;…` list when unset).
+    /// matches one of the default Windows executable extensions
+    /// (`.COM;.EXE;.BAT;.CMD`). Prefer [`Self::is_executable_file_with_pathext`]
+    /// when a caller-supplied `PATHEXT` set is available.
     #[cfg(windows)]
     pub fn is_executable_file(&self) -> bool {
-        use std::collections::HashSet;
-        use std::sync::LazyLock;
+        self.is_executable_file_with_pathext(None)
+    }
 
-        static PATHEXT: LazyLock<HashSet<String>> = LazyLock::new(|| {
-            std::env::var("PATHEXT")
-                .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
-                .split(';')
-                .filter_map(|s| s.strip_prefix('.').map(|s| s.to_ascii_uppercase()))
-                .collect()
-        });
-
-        if !self.is_file() {
-            return false;
+    /// Cross-platform executable check that uses Unix permission bits on Unix
+    /// and a caller-supplied `PATHEXT` extension set on Windows (defaulting to
+    /// `.COM;.EXE;.BAT;.CMD` when `pathext` is `None`).
+    #[must_use]
+    pub fn is_executable_file_with_pathext(
+        &self,
+        pathext: Option<&std::collections::HashSet<String>>,
+    ) -> bool {
+        #[cfg(unix)]
+        {
+            let _ = pathext;
+            self.is_executable_file()
         }
-        match self.ext.as_ref() {
-            Some(ext) => PATHEXT.contains(&ext.to_ascii_uppercase()),
-            None => false,
+        #[cfg(windows)]
+        {
+            if !self.is_file() {
+                return false;
+            }
+            let Some(ext) = self.ext.as_ref() else {
+                return false;
+            };
+            match pathext {
+                Some(set) => set.contains(&ext.to_ascii_uppercase()),
+                None => ["COM", "EXE", "BAT", "CMD"]
+                    .iter()
+                    .any(|default_ext| ext.eq_ignore_ascii_case(default_ext)),
+            }
         }
     }
 
@@ -773,7 +760,12 @@ impl<'dir> File<'dir> {
         #[cfg(not(target_env = "musl"))]
         let btrfs = libc::BTRFS_SUPER_MAGIC;
 
-        result == 0 && unsafe { out.assume_init() }.f_type == btrfs
+        if result != 0 {
+            return false;
+        }
+        // SAFETY: `libc::statfs` returned 0 above, so the kernel has fully
+        // initialized `out`.
+        unsafe { out.assume_init() }.f_type == btrfs
     }
 
     /// Whether this file carries Linux file capabilities, which `LS_COLORS`
@@ -976,7 +968,6 @@ impl<'dir> File<'dir> {
                     mime_read_contents: self.mime_read_contents,
                     dot_filter: self.dot_filter,
                     mimetype: OnceLock::new(),
-                    loc: OnceLock::new(),
                 };
                 FileTarget::Ok(Box::new(file))
             }
@@ -1177,10 +1168,13 @@ impl<'dir> File<'dir> {
             #[allow(clippy::unnecessary_cast, clippy::useless_conversion)]
             {
                 let device_id = device_id.try_into().unwrap_or(0);
-                return f::Size::DeviceIDs(f::DeviceIDs {
-                    major: unsafe { libc::major(device_id) as u32 },
-                    minor: unsafe { libc::minor(device_id) as u32 },
-                });
+                // SAFETY: `libc::major` takes a `dev_t` by value and performs
+                // pure bit extraction with no pointer dereferences or preconditions.
+                let major = unsafe { libc::major(device_id) as u32 };
+                // SAFETY: `libc::minor` takes a `dev_t` by value and performs
+                // pure bit extraction with no pointer dereferences or preconditions.
+                let minor = unsafe { libc::minor(device_id) as u32 };
+                return f::Size::DeviceIDs(f::DeviceIDs { major, minor });
             }
         }
 
@@ -1566,6 +1560,9 @@ impl<'dir> File<'dir> {
             return f::Flags(0);
         };
 
+        // SAFETY: `c_path` is a valid NUL-terminated `CString` and the flags
+        // (`O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW`) do not require a
+        // variadic mode argument.
         let fd = unsafe {
             libc::open(
                 c_path.as_ptr(),
@@ -1589,7 +1586,11 @@ impl<'dir> File<'dir> {
         };
 
         let mut raw_flags: libc::c_long = 0;
+        // SAFETY: `fd` is an open descriptor checked `>= 0` above, and
+        // `FS_IOC_GETFLAGS` writes a `c_long` into the aligned `&mut raw_flags`.
         let ret = unsafe { libc::ioctl(fd, FS_IOC_GETFLAGS, &mut raw_flags) };
+        // SAFETY: `fd` is owned exclusively by this function and is never used
+        // again after closing.
         unsafe {
             libc::close(fd);
         }
@@ -2127,28 +2128,28 @@ mod recursive_size_test {
         fs::write(hidden_subdir.join("nested.bin"), vec![0u8; 16384]).unwrap();
 
         // Without dotfiles (DotFilter::JustFiles)
-        let file_no_dots = File::from_args_with_filter(
+        let file_no_dots = File::with_options(
             root.clone(),
             None,
             None,
-            false,
-            true,
-            false,
-            None,
-            Some(DotFilter::JustFiles),
+            super::FileOptions {
+                total_size: true,
+                dot_filter: Some(DotFilter::JustFiles),
+                ..Default::default()
+            },
         );
         assert_eq!(file_no_dots.length(), 4096);
 
         // With dotfiles (DotFilter::Dotfiles)
-        let file_with_dots = File::from_args_with_filter(
+        let file_with_dots = File::with_options(
             root.clone(),
             None,
             None,
-            false,
-            true,
-            false,
-            None,
-            Some(DotFilter::Dotfiles),
+            super::FileOptions {
+                total_size: true,
+                dot_filter: Some(DotFilter::Dotfiles),
+                ..Default::default()
+            },
         );
         assert_eq!(file_with_dots.length(), 4096 + 8192 + 16384);
     }
@@ -2173,15 +2174,15 @@ mod recursive_size_test {
         let file2 = root.join("file2.bin");
         fs::write(&file2, vec![0u8; 5000]).unwrap();
 
-        let file = File::from_args_with_filter(
+        let file = File::with_options(
             root.clone(),
             None,
             None,
-            false,
-            true,
-            false,
-            None,
-            Some(DotFilter::JustFiles),
+            super::FileOptions {
+                total_size: true,
+                dot_filter: Some(DotFilter::JustFiles),
+                ..Default::default()
+            },
         );
         assert_eq!(file.length(), 15000);
     }
@@ -2216,6 +2217,24 @@ mod mime_type_test {
 
         let file_without_mime = File::from_args(png_no_ext, None, None, false, false, false, None);
         assert_eq!(file_without_mime.mimetype(), None);
+    }
+
+    #[test]
+    fn parse_pathext_parses_custom_and_default_extensions() {
+        let defaults = super::parse_pathext(None);
+        assert!(defaults.contains("EXE"));
+        assert!(defaults.contains("BAT"));
+        assert!(defaults.contains("COM"));
+        assert!(defaults.contains("CMD"));
+        assert!(!defaults.contains("TXT"));
+
+        let custom = super::parse_pathext(Some(std::ffi::OsStr::new(".ps1;.Exe;no_dot;")));
+        assert_eq!(custom.len(), 2);
+        assert!(custom.contains("PS1"));
+        assert!(custom.contains("EXE"));
+
+        let empty = super::parse_pathext(Some(std::ffi::OsStr::new("")));
+        assert!(empty.is_empty());
     }
 
     #[cfg(windows)]

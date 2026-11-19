@@ -29,7 +29,28 @@ use std::path::{Path, PathBuf};
 use phf::{Map, phf_map};
 use rayon::prelude::*;
 
-use crate::fs::filter::FileFilter;
+/// Predicate hook passed by callers to filter files and directories while
+/// walking roots for line counting, keeping `loc` independent of `fs`.
+pub trait PathFilter {
+    fn is_ignored_path(&self, path: &Path, name: &str) -> bool;
+    fn is_ignored_dir(&self, _path: &Path) -> bool {
+        false
+    }
+    fn only_dirs(&self) -> bool;
+    fn no_symlinks(&self) -> bool;
+    fn has_since_filter(&self) -> bool;
+    fn matches_since_metadata(&self, metadata: &std::fs::Metadata) -> bool;
+}
+
+/// What the `--loc` columns and `--code` summary should display: raw line
+/// counts, each language’s share as a percentage, or both side by side.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CodeContent {
+    Lines,
+    Percent,
+    #[default]
+    Both,
+}
 
 /// A programming language lez knows how to count, along with the comment
 /// syntax needed to tell code from commentary.
@@ -737,7 +758,7 @@ fn collect_jobs<F>(
     path: &Path,
     is_ignored: &F,
     show_hidden: bool,
-    filter: Option<&FileFilter>,
+    filter: Option<&dyn PathFilter>,
     deref_links: bool,
     jobs: &mut Vec<(PathBuf, &'static Language)>,
 ) where
@@ -762,7 +783,7 @@ fn collect_entry<F>(
     file_type: std::fs::FileType,
     is_ignored: &F,
     show_hidden: bool,
-    filter: Option<&FileFilter>,
+    filter: Option<&dyn PathFilter>,
     deref_links: bool,
     jobs: &mut Vec<(PathBuf, &'static Language)>,
 ) where
@@ -780,27 +801,19 @@ fn collect_entry<F>(
         if f.is_ignored_path(path, &name_str) {
             return;
         }
-        if f.flags
-            .contains(&crate::fs::filter::FileFilterFlags::OnlyDirs)
-            && !file_type.is_dir()
-        {
+        if f.only_dirs() && !file_type.is_dir() {
             return;
         }
     }
 
     if file_type.is_symlink() {
         if deref_links
-            && filter.is_none_or(|f| {
-                !f.no_symlinks
-                    && !f
-                        .flags
-                        .contains(&crate::fs::filter::FileFilterFlags::NoSymlinks)
-            })
+            && filter.is_none_or(|f| !f.no_symlinks())
             && let Ok(meta) = std::fs::metadata(path)
             && meta.is_file()
         {
             if let Some(f) = filter
-                && f.since.is_some()
+                && f.has_since_filter()
                 && !f.matches_since_metadata(&meta)
             {
                 return;
@@ -822,7 +835,7 @@ fn collect_entry<F>(
 
     if file_type.is_file() {
         if let Some(f) = filter
-            && f.since.is_some()
+            && f.has_since_filter()
         {
             let Ok(meta) = std::fs::metadata(path) else {
                 return;
@@ -877,6 +890,10 @@ fn collect_entry<F>(
                 continue;
             };
 
+            if child_ft.is_dir() && filter.is_some_and(|f| f.is_ignored_dir(&child)) {
+                continue;
+            }
+
             collect_entry(
                 &child,
                 child_ft,
@@ -904,7 +921,7 @@ pub fn count_roots(roots: &[PathBuf], show_hidden: bool) -> Report {
 pub fn count_roots_filtered(
     roots: &[PathBuf],
     show_hidden: bool,
-    filter: Option<&FileFilter>,
+    filter: Option<&dyn PathFilter>,
     no_git: bool,
     deref_links: bool,
 ) -> Report {

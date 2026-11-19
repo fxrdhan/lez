@@ -15,12 +15,12 @@ use term_grid as grid;
 use crate::fs::feature::git::GitCache;
 use crate::fs::filter::FileFilter;
 use crate::fs::{Dir, File};
-use crate::options::parser::CodeContent;
+use crate::loc::CodeContent;
 use crate::output::cell::TextCell;
 use crate::output::color_scale::ColorScaleInformation;
 use crate::output::details::{Options as DetailsOptions, Render as DetailsRender, show_xattr_hint};
 use crate::output::file_name::Options as FileStyle;
-use crate::output::table::{Options as TableOptions, Table};
+use crate::output::table::{Environment, Options as TableOptions, Table};
 use crate::theme::Theme;
 
 #[derive(PartialEq, Eq, Debug)]
@@ -93,13 +93,15 @@ pub struct Render<'a> {
     pub console_width: usize,
 
     pub git_repos: bool,
+
+    pub env: &'a Environment,
 }
 
 impl<'a> Render<'a> {
     // This doesn’t take an IgnoreCache even though the details one does
     // because grid-details has no tree view.
 
-    pub fn render<W: Write>(mut self, w: &mut W) -> io::Result<i32> {
+    pub fn render<W: Write, E: Write>(mut self, w: &mut W, err: &mut E) -> io::Result<i32> {
         let options = self
             .details
             .table
@@ -195,6 +197,7 @@ impl<'a> Render<'a> {
                 git_ignoring,
                 git,
                 git_repos,
+                env,
                 ..
             } = self;
 
@@ -211,8 +214,9 @@ impl<'a> Render<'a> {
                 git_repos,
                 summary: false,
                 total_entries: false,
+                env,
             };
-            return r.render(w);
+            return r.render(w, err);
         }
 
         if self.details.header {
@@ -262,7 +266,7 @@ impl<'a> Render<'a> {
             (None, _) => { /* Keep Git how it is */ }
         }
 
-        let mut table = Table::new(options, self.git, self.theme, self.git_repos);
+        let mut table = Table::new(options, self.git, self.theme, self.git_repos, self.env);
 
         // The `--loc` percentage columns need the whole tree’s code total as
         // their denominator, just like in the details view.
@@ -275,10 +279,12 @@ impl<'a> Render<'a> {
             } else {
                 self.files.iter().map(|f| f.path.clone()).collect()
             };
+            let filter_adapter =
+                crate::output::loc_adapter::FileFilterAdapter::new(self.filter, self.git);
             let report = crate::loc::count_roots_filtered(
                 &roots,
                 self.filter.dot_filter.shows_dotfiles(),
-                Some(self.filter),
+                Some(&filter_adapter),
                 !self.git_ignoring,
                 self.details.follow_links,
             );

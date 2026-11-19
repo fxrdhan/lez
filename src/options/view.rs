@@ -498,6 +498,31 @@ impl RowThreshold {
     }
 }
 
+impl SpacingBetweenColumns {
+    pub fn deduce(matches: &ArgMatches) -> Self {
+        if let Some(&spaces) = matches.get_one::<usize>("spacing") {
+            Self::Set(spaces.min(1000))
+        } else {
+            Self::Default
+        }
+    }
+}
+
+impl FlagsFormat {
+    pub(crate) fn deduce<V: Vars>(vars: &V) -> FlagsFormat {
+        vars.get_with_fallback(vars::LEZ_FLAGS_FORMAT, vars::EZA_FLAGS_FORMAT)
+            .or_else(|| {
+                vars.get_with_fallback(vars::LEZ_WINDOWS_ATTRIBUTES, vars::EZA_WINDOWS_ATTRIBUTES)
+            })
+            .and_then(|v| match v.to_ascii_lowercase().to_str() {
+                Some("short") => Some(FlagsFormat::Short),
+                Some("long") => Some(FlagsFormat::Long),
+                _ => None,
+            })
+            .unwrap_or_default()
+    }
+}
+
 impl TableOptions {
     fn deduce<V: Vars>(
         matches: &ArgMatches,

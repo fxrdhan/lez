@@ -11,66 +11,12 @@ use palette::{FromColor, LinSrgb, Oklab, Srgb};
 use crate::{
     fs::{
         File, dir_action::RecurseOptions, feature::git::GitCache, fields::Size, filter::FileFilter,
+        traversal::TraversalPolicy,
     },
     output::{table::TimeType, tree::TreeDepth},
 };
 
-/// Options for applying dynamic color scaling to file sizes and timestamps.
-///
-/// # Examples
-/// ```
-/// use lez::output::color_scale::{ColorScaleOptions, ColorScaleMode};
-///
-/// let default_opts = ColorScaleOptions::default();
-/// assert_eq!(default_opts.mode, ColorScaleMode::Fixed);
-/// assert_eq!(default_opts.min_luminance, 50);
-/// assert_eq!(default_opts.max_luminance, 100);
-/// ```
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub struct ColorScaleOptions {
-    pub mode: ColorScaleMode,
-    pub min_luminance: isize,
-    pub max_luminance: isize,
-    pub size: bool,
-    pub age: bool,
-    pub depth: ColorDepth,
-}
-
-impl Default for ColorScaleOptions {
-    fn default() -> Self {
-        Self {
-            mode: ColorScaleMode::Fixed,
-            min_luminance: 50,
-            max_luminance: 100,
-            size: false,
-            age: false,
-            depth: ColorDepth::default(),
-        }
-    }
-}
-
-/// How many colours the terminal can be asked for.
-///
-/// A scale works its shades out as 24-bit colours. A terminal that does not
-/// take those may read the numbers after `38;2` as codes of their own, and
-/// then the column comes out in colours that have nothing to do with the
-/// scale (eza#755). Such a terminal is given the nearest of the 256-colour
-/// palette instead.
-///
-/// # Examples
-/// ```
-/// use lez::output::color_scale::ColorDepth;
-///
-/// assert_eq!(ColorDepth::default(), ColorDepth::TrueColor);
-/// ```
-#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
-pub enum ColorDepth {
-    /// Any colour, written `38;2;r;g;b`.
-    #[default]
-    TrueColor,
-    /// One of the 256-colour palette, written `38;5;n`.
-    Palette,
-}
+pub use crate::theme::color_scale::{ColorDepth, ColorScaleMode, ColorScaleOptions};
 
 impl ColorDepth {
     /// `colour` as a terminal of this depth can be asked for it.
@@ -126,22 +72,6 @@ fn nearest_in_palette(r: u8, g: u8, b: u8) -> u8 {
     } else {
         16 + 36 * red + 6 * green + blue
     }
-}
-
-/// Rendering mode for the dynamic color scale.
-///
-/// # Examples
-/// ```
-/// use lez::output::color_scale::ColorScaleMode;
-///
-/// assert_ne!(ColorScaleMode::Fixed, ColorScaleMode::Gradient);
-/// ```
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum ColorScaleMode {
-    // Color scale is disabled, use a static color for the range
-    Fixed,
-    // Color scale uses an automatic gradient of colors for the range
-    Gradient,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -314,30 +244,26 @@ fn update_information_recursively(
         // not walked; a tree's root, `.` itself when lez is run without a
         // path, is walked like any other directory. Nor into a directory the
         // ignore patterns leave out.
+        let policy = TraversalPolicy {
+            filter,
+            git,
+            git_ignoring,
+            deref_links: false,
+            follow_links: false,
+            total_size: false,
+            mime_read_contents: false,
+            recursing: r.is_some(),
+        };
         if file.is_directory()
             && !filter.ignore_patterns.is_ignored(&file.name)
             && !filter.ignore_patterns_caseins.is_ignored(&file.name)
             && r.is_some_and(|x| !x.is_too_deep(depth.0))
             && !file.is_all_all
+            && !policy.is_pruned_submodule(file)
         {
             match file.read_dir() {
                 Ok(dir) => {
-                    let mut child_files: Vec<File<'_>> = dir
-                        .files(
-                            filter.dot_filter,
-                            git,
-                            git_ignoring,
-                            false,
-                            false,
-                            false,
-                            None,
-                            filter.no_system,
-                            filter.no_hidden_attrib,
-                            filter.no_hidden_links,
-                        )
-                        .collect();
-
-                    filter.filter_child_files(r.is_some(), &mut child_files);
+                    let child_files = policy.read_children_unsorted(&dir);
 
                     update_information_recursively(
                         information,

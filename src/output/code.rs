@@ -21,10 +21,11 @@ use std::path::PathBuf;
 
 use nu_ansi_term::Style;
 
+use crate::fs::feature::git::GitCache;
 use crate::fs::filter::SortField;
-use crate::loc::{LangStat, LocCounts};
-use crate::options::parser::CodeContent;
+use crate::loc::{CodeContent, LangStat, LocCounts};
 use crate::output::icons::{icon_for_name_ext, iconify_style};
+use crate::output::table::Environment;
 use crate::theme::Theme;
 
 /// The width, in cells, of the share bar next to the percentage column.
@@ -81,11 +82,17 @@ pub struct Render<'a> {
     /// Optional file filter for glob patterns and timestamps.
     pub filter: Option<&'a crate::fs::filter::FileFilter>,
 
+    /// Optional Git cache used for submodule pruning (`--ignore-submodule-contents`).
+    pub git: Option<&'a GitCache>,
+
     /// Whether Git operations should be completely suppressed.
     pub no_git: bool,
 
     /// Whether symlinks should be followed / dereferenced.
     pub deref_links: bool,
+
+    /// Scoped runtime environment (locale numeric formatting).
+    pub env: &'a Environment,
 }
 
 /// How a summary column lines its contents up.
@@ -115,10 +122,15 @@ impl Cell {
 
 impl Render<'_> {
     pub fn render<W: Write>(self, w: &mut W) -> io::Result<()> {
+        let filter_adapter = self
+            .filter
+            .map(|f| crate::output::loc_adapter::FileFilterAdapter::new(f, self.git));
         let report = crate::loc::count_roots_filtered(
             &self.roots,
             self.show_hidden,
-            self.filter,
+            filter_adapter
+                .as_ref()
+                .map(|a| a as &dyn crate::loc::PathFilter),
             self.no_git,
             self.deref_links,
         );
@@ -128,7 +140,7 @@ impl Render<'_> {
             return writeln!(w, "{}", style.paint("No recognised source code found."));
         }
 
-        let numerics = crate::output::numbers::user_numeric();
+        let numerics = &self.env.numeric;
 
         // The eza-flavoured palette: quantities take the size colour, the
         // language names the date colour, and structure stays dim.
@@ -537,4 +549,209 @@ fn paint_row(cells: &[Cell], widths: &[usize], iconify_first: bool, tree_style: 
     }
     out.truncate(out.trim_end().len());
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fs::filter::SortCase;
+    use crate::output::time::TimeContext;
+    use crate::theme::{Definitions, Options as ThemeOptions, UseColours};
+    use std::fs;
+
+    fn plain_theme() -> Theme {
+        ThemeOptions {
+            use_colours: UseColours::Never,
+            colour_scale: crate::output::color_scale::ColorScaleOptions::default(),
+            definitions: Definitions::default(),
+            theme_config: None,
+        }
+        .to_theme(false)
+    }
+
+    fn test_env(numeric: locale::Numeric) -> Environment {
+        Environment::for_tests(
+            numeric,
+            TimeContext::utc_fixed("2026-06-15T12:00:00Z".parse().unwrap()),
+        )
+    }
+
+    #[test]
+    fn empty_directory_prints_no_source_code_message() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_code_empty_")
+            .tempdir()
+            .unwrap();
+        let theme = plain_theme();
+        let env = test_env(locale::Numeric::english());
+        let opts = Options {
+            content: CodeContent::Lines,
+            sub_files: SubFilesMode::Symbol,
+            percent_digits: 1,
+        };
+
+        let mut out = Vec::new();
+        Render {
+            theme: &theme,
+            opts: &opts,
+            roots: vec![dir.path().to_path_buf()],
+            show_icons: false,
+            show_hidden: false,
+            sort_field: SortField::Name(SortCase::AaBbCc),
+            is_explicit_sort: false,
+            reverse: false,
+            filter: None,
+            git: None,
+            no_git: true,
+            deref_links: false,
+            env: &env,
+        }
+        .render(&mut out)
+        .unwrap();
+
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            "No recognised source code found.\n"
+        );
+    }
+
+    #[test]
+    fn renders_language_counts_and_percentages_in_both_mode() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_code_both_")
+            .tempdir()
+            .unwrap();
+        fs::write(
+            dir.path().join("main.rs"),
+            "// header\nfn main() {}\n\nlet a = 1;\n",
+        )
+        .unwrap();
+        fs::write(dir.path().join("util.py"), "x = 1\ny = 2\n").unwrap();
+
+        let theme = plain_theme();
+        let env = test_env(locale::Numeric::english());
+        let opts = Options {
+            content: CodeContent::Both,
+            sub_files: SubFilesMode::Symbol,
+            percent_digits: 1,
+        };
+
+        let mut out = Vec::new();
+        Render {
+            theme: &theme,
+            opts: &opts,
+            roots: vec![dir.path().to_path_buf()],
+            show_icons: false,
+            show_hidden: false,
+            sort_field: SortField::Name(SortCase::AaBbCc),
+            is_explicit_sort: false,
+            reverse: false,
+            filter: None,
+            git: None,
+            no_git: true,
+            deref_links: false,
+            env: &env,
+        }
+        .render(&mut out)
+        .unwrap();
+
+        let text = String::from_utf8(out).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        assert!(lines[0].contains("Language") && lines[0].contains("Code %"));
+        assert!(text.contains("Rust"), "out:\n{text}");
+        assert!(text.contains("Python"), "out:\n{text}");
+        assert!(text.contains("50.0%"), "out:\n{text}");
+        let total_line = lines.last().unwrap();
+        assert!(total_line.contains("Total") && total_line.contains("100.0%"));
+    }
+
+    #[test]
+    fn percent_only_mode_omits_line_count_columns() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_code_pct_")
+            .tempdir()
+            .unwrap();
+        fs::write(dir.path().join("lib.rs"), "pub fn f() {}\n").unwrap();
+
+        let theme = plain_theme();
+        let env = test_env(locale::Numeric::english());
+        let opts = Options {
+            content: CodeContent::Percent,
+            sub_files: SubFilesMode::Symbol,
+            percent_digits: 0,
+        };
+
+        let mut out = Vec::new();
+        Render {
+            theme: &theme,
+            opts: &opts,
+            roots: vec![dir.path().to_path_buf()],
+            show_icons: false,
+            show_hidden: false,
+            sort_field: SortField::Name(SortCase::AaBbCc),
+            is_explicit_sort: false,
+            reverse: false,
+            filter: None,
+            git: None,
+            no_git: true,
+            deref_links: false,
+            env: &env,
+        }
+        .render(&mut out)
+        .unwrap();
+
+        let text = String::from_utf8(out).unwrap();
+        let header = text.lines().next().unwrap();
+        assert!(header.contains("Code %"));
+        assert!(!header.contains("Comments"));
+        assert!(!header.contains("Blanks"));
+        assert!(text.contains("100%"), "out:\n{text}");
+    }
+
+    #[test]
+    fn uses_injected_numeric_grouping_instead_of_host_locale() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_code_num_")
+            .tempdir()
+            .unwrap();
+        let body = "let x = 1;\n".repeat(1005);
+        fs::write(dir.path().join("big.rs"), body).unwrap();
+
+        let theme = plain_theme();
+        let custom_num = locale::Numeric {
+            decimal_sep: ".".into(),
+            thousands_sep: "_".into(),
+        };
+        let env = test_env(custom_num);
+        let opts = Options {
+            content: CodeContent::Lines,
+            sub_files: SubFilesMode::Symbol,
+            percent_digits: 1,
+        };
+
+        let mut out = Vec::new();
+        Render {
+            theme: &theme,
+            opts: &opts,
+            roots: vec![dir.path().to_path_buf()],
+            show_icons: false,
+            show_hidden: false,
+            sort_field: SortField::Name(SortCase::AaBbCc),
+            is_explicit_sort: false,
+            reverse: false,
+            filter: None,
+            git: None,
+            no_git: true,
+            deref_links: false,
+            env: &env,
+        }
+        .render(&mut out)
+        .unwrap();
+
+        let text = String::from_utf8(out).unwrap();
+        assert!(
+            text.contains("1_005"),
+            "expected injected '_' thousands separator, got:\n{text}"
+        );
+    }
 }

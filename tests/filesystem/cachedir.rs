@@ -64,3 +64,68 @@ fn a_tagged_directory_named_on_the_command_line_is_listed() {
         "CACHEDIR.TAG\ndata.bin\n"
     );
 }
+
+/// `--json` (flat, `-R`, `-T`) and `--code` follow the exact same
+/// `--cachedir-ignore` policy as standard and tree listings.
+#[test]
+fn json_and_code_views_honor_cachedir_ignore_consistently() {
+    let dir = TempTestDir::new("cachedir_json_code");
+    dir.create_file("keep.rs", b"fn keep() {}\n");
+    dir.create_file("cache/ignored.py", b"def ignored():\n    return 1\n");
+    dir.create_file("cache/CACHEDIR.TAG", CACHEDIR_MAGIC.as_bytes());
+    dir.create_file("fake/kept.py", b"def kept():\n    return 2\n");
+    dir.create_file("fake/CACHEDIR.TAG", b"not the real magic");
+
+    let flat_json: serde_json::Value =
+        serde_json::from_str(&lez(dir.path(), &["--json", "--cachedir-ignore"])).expect("JSON");
+    assert_eq!(flat_json, serde_json::json!(["fake", "keep.rs"]));
+
+    let expected_tree = serde_json::json!({
+        ".": {
+            "files": ["keep.rs"],
+            "directories": {
+                "fake": {
+                    "files": ["CACHEDIR.TAG", "kept.py"],
+                    "directories": {}
+                }
+            }
+        }
+    });
+    let rec_json: serde_json::Value =
+        serde_json::from_str(&lez(dir.path(), &["--json", "-R", "--cachedir-ignore"]))
+            .expect("JSON");
+    assert_eq!(rec_json, expected_tree);
+
+    let tree_json: serde_json::Value =
+        serde_json::from_str(&lez(dir.path(), &["--json", "-T", "--cachedir-ignore"]))
+            .expect("JSON");
+    assert_eq!(tree_json, expected_tree);
+
+    // Without --cachedir-ignore, Python has 2 files (cache/ignored.py + fake/kept.py -> 4 code lines).
+    // With --cachedir-ignore, only fake/kept.py is counted (1 file, 2 code lines).
+    let code_all = lez(dir.path(), &["--code=lines"]);
+    let code_pruned = lez(dir.path(), &["--code=lines", "--cachedir-ignore"]);
+    assert!(
+        code_all.contains("Python") && code_pruned.contains("Python"),
+        "expected Python in both reports:\nall:\n{code_all}\npruned:\n{code_pruned}"
+    );
+    let python_line = |report: &str| {
+        report
+            .lines()
+            .find(|l| l.contains("Python"))
+            .expect("Python row")
+            .to_owned()
+    };
+    assert_ne!(
+        python_line(&code_all),
+        python_line(&code_pruned),
+        "cache/ignored.py must be excluded when --cachedir-ignore is set"
+    );
+
+    // Naming the tagged directory explicitly still counts its files, matching `-1`.
+    let code_named = lez(dir.path(), &["--code=lines", "--cachedir-ignore", "cache"]);
+    assert!(
+        code_named.contains("Python"),
+        "explicitly named cachedir root should still be counted:\n{code_named}"
+    );
+}

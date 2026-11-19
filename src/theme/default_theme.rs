@@ -8,7 +8,7 @@ use nu_ansi_term::Color::{Blue, Cyan, DarkGray, Green, Purple, Red, Yellow};
 use nu_ansi_term::Style;
 use std::default::Default;
 
-use crate::output::color_scale::{ColorScaleMode, ColorScaleOptions};
+use crate::theme::color_scale::{ColorScaleMode, ColorScaleOptions};
 use crate::theme::ui_styles::{
     FileKinds, FileType, Git, GitRepo, LinkStyle, Links, Permissions, SELinuxContext,
     SecurityContext, Size, Tags, UiStyles, Users,

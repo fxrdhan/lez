@@ -12,23 +12,19 @@ use std::sync::{Mutex, MutexGuard};
 use jiff::Timestamp;
 
 use log::debug;
-use std::sync::LazyLock;
 #[cfg(unix)]
 use uzers::UsersCache;
 
 use crate::fs::feature::git::GitCache;
 use crate::fs::{File, fields as f};
-use crate::options::Vars;
-use crate::options::parser::CodeContent;
-use crate::options::vars::{
-    EZA_FLAGS_FORMAT, EZA_WINDOWS_ATTRIBUTES, LEZ_FLAGS_FORMAT, LEZ_WINDOWS_ATTRIBUTES,
-};
+use crate::loc::{CodeContent, LocCounts};
 use crate::output::cell::TextCell;
 use crate::output::color_scale::ColorScaleInformation;
+use crate::output::loc_adapter;
 #[cfg(unix)]
 use crate::output::render::{GroupRender, OctalPermissionsRender, UserRender};
 use crate::output::render::{LanguageRender, LocRender, PermissionsPlusRender, TimeRender};
-use crate::output::time::TimeFormat;
+use crate::output::time::{TimeContext, TimeFormat};
 use crate::theme::Theme;
 
 /// Mode for displaying allocated size: either formatted bytes or raw block count.
@@ -376,19 +372,6 @@ pub enum FlagsFormat {
     Short,
 }
 
-impl FlagsFormat {
-    pub(crate) fn deduce<V: Vars>(vars: &V) -> FlagsFormat {
-        vars.get_with_fallback(LEZ_FLAGS_FORMAT, EZA_FLAGS_FORMAT)
-            .or_else(|| vars.get_with_fallback(LEZ_WINDOWS_ATTRIBUTES, EZA_WINDOWS_ATTRIBUTES))
-            .and_then(|v| match v.to_ascii_lowercase().to_str() {
-                Some("short") => Some(FlagsFormat::Short),
-                Some("long") => Some(FlagsFormat::Long),
-                _ => None,
-            })
-            .unwrap_or_default()
-    }
-}
-
 /// Fields for which of a file’s time fields should be displayed in the
 /// columns output.
 ///
@@ -417,15 +400,18 @@ impl Default for TimeTypes {
     }
 }
 
-/// The **environment** struct contains any data that could change between
-/// running instances of exa, depending on the user’s computer’s configuration.
+/// The **environment** struct contains runtime context that varies across
+/// invocations (locale number formatting, timezone/clock, and Unix user/group
+/// lookup cache).
 ///
-/// Any environment field should be able to be mocked up for test runs.
+/// Production code constructs this once via [`Environment::load_all`]; unit
+/// tests can inject deterministic values via [`Environment::for_tests`].
 pub struct Environment {
-    /// The computer’s current time offset, determined from time zone.
-
     /// Localisation rules for formatting numbers.
     pub numeric: locale::Numeric,
+
+    /// Timezone, reference year/clock, and time locale.
+    pub time: TimeContext,
 
     /// Mapping cache of user IDs to usernames.
     #[cfg(unix)]
@@ -440,21 +426,38 @@ impl Environment {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    fn load_all() -> Self {
+    /// Loads live locale, timezone, and user cache from the host OS.
+    #[must_use]
+    pub fn load_all() -> Self {
         let numeric = crate::output::numbers::user_numeric();
+        let time = TimeContext::from_system();
 
         #[cfg(unix)]
         let users = Mutex::new(UsersCache::new());
 
         Self {
             numeric,
+            time,
+            #[cfg(unix)]
+            users,
+        }
+    }
+
+    /// Constructs an isolated environment with explicit numeric formatting and
+    /// time context for deterministic unit tests.
+    #[must_use]
+    pub fn for_tests(numeric: locale::Numeric, time: TimeContext) -> Self {
+        #[cfg(unix)]
+        let users = Mutex::new(UsersCache::new());
+
+        Self {
+            numeric,
+            time,
             #[cfg(unix)]
             users,
         }
     }
 }
-
-pub static ENVIRONMENT: LazyLock<Environment> = LazyLock::new(Environment::load_all);
 
 pub struct Table<'a> {
     columns: Vec<Column>,
@@ -494,13 +497,13 @@ impl<'a> Table<'a> {
         git: Option<&'a GitCache>,
         theme: &'a Theme,
         git_repos: bool,
+        env: &'a Environment,
     ) -> Table<'a> {
         let columns =
             options
                 .columns
                 .collect(git.is_some(), git_repos, options.allocated_size_mode);
         let widths = TableWidths::zero(columns.len());
-        let env = &*ENVIRONMENT;
 
         debug!("Creating table with columns: {columns:?}");
 
@@ -570,17 +573,26 @@ impl<'a> Table<'a> {
                 None
             };
 
+        let mut cached_loc: Option<Option<LocCounts>> = None;
+
         let cells = self
             .columns
             .iter()
             .map(|&c| {
                 #[cfg(unix)]
                 {
-                    self.display(file, c, xattrs, color_scale_info, users_guard.as_deref())
+                    self.display(
+                        file,
+                        c,
+                        xattrs,
+                        color_scale_info,
+                        &mut cached_loc,
+                        users_guard.as_deref(),
+                    )
                 }
                 #[cfg(not(unix))]
                 {
-                    self.display(file, c, xattrs, color_scale_info)
+                    self.display(file, c, xattrs, color_scale_info, &mut cached_loc)
                 }
             })
             .collect();
@@ -604,6 +616,7 @@ impl<'a> Table<'a> {
         column: Column,
         xattrs: bool,
         color_scale_info: Option<ColorScaleInformation>,
+        cached_loc: &mut Option<Option<LocCounts>>,
         #[cfg(unix)] users_cache: Option<&uzers::UsersCache>,
     ) -> TextCell {
         match column {
@@ -615,22 +628,25 @@ impl<'a> Table<'a> {
                 &self.env.numeric,
                 color_scale_info,
             ),
-            Column::Language => file
-                .language()
-                .render(self.theme.ui.date.unwrap_or_default()),
-            Column::Loc(content) => file.loc().render(
-                self.theme
-                    .ui
-                    .size
-                    .unwrap_or_default()
-                    .number_byte
-                    .unwrap_or_default(),
-                self.theme.ui.punctuation.unwrap_or_default(),
-                content,
-                self.loc_total,
-                &self.env.numeric,
-                self.percent_digits,
-            ),
+            Column::Language => {
+                loc_adapter::file_language(file).render(self.theme.ui.date.unwrap_or_default())
+            }
+            Column::Loc(content) => {
+                let loc = *cached_loc.get_or_insert_with(|| loc_adapter::file_loc(file));
+                loc.render(
+                    self.theme
+                        .ui
+                        .size
+                        .unwrap_or_default()
+                        .number_byte
+                        .unwrap_or_default(),
+                    self.theme.ui.punctuation.unwrap_or_default(),
+                    content,
+                    self.loc_total,
+                    &self.env.numeric,
+                    self.percent_digits,
+                )
+            }
             #[cfg(unix)]
             Column::HardLinks => file.links().render(self.theme, &self.env.numeric),
             #[cfg(unix)]
@@ -690,6 +706,7 @@ impl<'a> Table<'a> {
                 },
                 &self.time_format,
                 self.use_utc,
+                &self.env.time,
             ),
         }
     }
@@ -768,5 +785,173 @@ impl TableWidths {
             .checked_mul(spaces)
             .and_then(|total_spaces| total_spaces.checked_add(sum))
             .unwrap_or(usize::MAX)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::{Definitions, Options as ThemeOptions, UseColours};
+    use std::fs;
+
+    fn plain_theme() -> Theme {
+        ThemeOptions {
+            use_colours: UseColours::Never,
+            colour_scale: crate::output::color_scale::ColorScaleOptions::default(),
+            definitions: Definitions::default(),
+            theme_config: None,
+        }
+        .to_theme(false)
+    }
+
+    fn test_env(numeric: locale::Numeric) -> Environment {
+        let fixed_now: Timestamp = "2026-06-15T12:00:00Z".parse().unwrap();
+        Environment::for_tests(numeric, TimeContext::utc_fixed(fixed_now))
+    }
+
+    fn minimal_columns() -> Columns {
+        Columns {
+            time_types: TimeTypes {
+                modified: false,
+                changed: false,
+                accessed: false,
+                created: false,
+            },
+            inode: false,
+            links: false,
+            blocksize: false,
+            group: false,
+            git: false,
+            git_glyphs: false,
+            subdir_git_repos: false,
+            subdir_git_repos_no_stat: false,
+            octal: false,
+            security_context: false,
+            file_flags: false,
+            permissions: false,
+            filesize: true,
+            user: false,
+            language: false,
+            loc: None,
+        }
+    }
+
+    fn table_options(columns: Columns) -> Options {
+        Options {
+            size_format: SizeFormat::JustBytes,
+            size_digits: 0,
+            percent_digits: 1,
+            time_format: TimeFormat::LongISO,
+            user_format: UserFormat::Numeric,
+            group_format: GroupFormat::Regular,
+            owner_width: None,
+            flags_format: FlagsFormat::Short,
+            allocated_size_mode: AllocatedSizeMode::Bytes,
+            columns,
+            use_utc: true,
+            spaces: 2,
+        }
+    }
+
+    #[test]
+    fn header_and_row_alignment_use_injected_environment() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_table_unit_")
+            .tempdir()
+            .unwrap();
+        let small_path = dir.path().join("small.txt");
+        let big_path = dir.path().join("big.txt");
+        fs::write(&small_path, vec![b'a'; 5]).unwrap();
+        fs::write(&big_path, vec![b'b'; 1234]).unwrap();
+
+        let small = File::from_args(small_path, None, None, false, false, false, None);
+        let big = File::from_args(big_path, None, None, false, false, false, None);
+
+        let mut cols = minimal_columns();
+        cols.time_types.modified = true;
+        let opts = table_options(cols);
+        let theme = plain_theme();
+        let env = test_env(locale::Numeric::english());
+        let mut table = Table::new(&opts, None, &theme, false, &env);
+
+        let header = table.header_row();
+        let row_small = table.row_for_file(&small, false, None);
+        let row_big = table.row_for_file(&big, false, None);
+        table.add_widths(&header);
+        table.add_widths(&row_small);
+        table.add_widths(&row_big);
+
+        let rendered_header = table.render(header).strings().to_string();
+        let rendered_small = table.render(row_small).strings().to_string();
+        let rendered_big = table.render(row_big).strings().to_string();
+
+        assert!(rendered_header.starts_with(" Size  Date Modified"));
+        assert!(
+            rendered_small.starts_with("    5  "),
+            "small size should be right-aligned to widest value (1,234): {rendered_small:?}"
+        );
+        assert!(
+            rendered_big.starts_with("1,234  "),
+            "big size should use injected English grouping: {rendered_big:?}"
+        );
+    }
+
+    #[test]
+    fn custom_numeric_separator_flows_through_injected_environment() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_table_locale_")
+            .tempdir()
+            .unwrap();
+        let path = dir.path().join("data.bin");
+        fs::write(&path, vec![0u8; 1500]).unwrap();
+        let file = File::from_args(path, None, None, false, false, false, None);
+
+        let opts = table_options(minimal_columns());
+        let theme = plain_theme();
+        let german = locale::Numeric {
+            decimal_sep: ",".into(),
+            thousands_sep: ".".into(),
+        };
+        let env = test_env(german);
+        let mut table = Table::new(&opts, None, &theme, false, &env);
+
+        let row = table.row_for_file(&file, false, None);
+        table.add_widths(&row);
+        assert_eq!(table.render(row).strings().to_string(), "1.500  ");
+    }
+
+    #[test]
+    fn loc_both_computes_lines_and_percentage_from_injected_denominator() {
+        let dir = tempfile::Builder::new()
+            .prefix("lez_table_loc_")
+            .tempdir()
+            .unwrap();
+        let rs_path = dir.path().join("sample.rs");
+        fs::write(&rs_path, "fn main() {}\n// a comment\nlet x = 1;\n").unwrap();
+        let file = File::from_args(rs_path, None, None, false, false, false, None);
+
+        let mut cols = minimal_columns();
+        cols.filesize = false;
+        cols.language = true;
+        cols.loc = Some(CodeContent::Both);
+        let opts = table_options(cols);
+        let theme = plain_theme();
+        let env = test_env(locale::Numeric::english());
+        let mut table = Table::new(&opts, None, &theme, false, &env);
+        table.set_loc_total(Some(4));
+
+        let header = table.header_row();
+        let row = table.row_for_file(&file, false, None);
+        table.add_widths(&header);
+        table.add_widths(&row);
+
+        let rendered_header = table.render(header).strings().to_string();
+        let rendered_row = table.render(row).strings().to_string();
+        assert!(rendered_header.contains("Language"));
+        assert!(rendered_header.contains("Code"));
+        assert!(rendered_header.contains("Code %"));
+        assert!(rendered_row.contains("Rust"), "row: {rendered_row:?}");
+        assert!(rendered_row.contains("2"), "row: {rendered_row:?}");
+        assert!(rendered_row.contains("50.0%"), "row: {rendered_row:?}");
     }
 }

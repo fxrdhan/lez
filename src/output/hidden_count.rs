@@ -1,46 +1,13 @@
 // SPDX-FileCopyrightText: 2026 fxrdhan
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Counting of entries skipped by the visibility filters, backing the
-//! `--warn-hidden` option.
+//! Presentation of filtered-entry tallies for `--warn-hidden`.
 
 use nu_ansi_term::Style;
 
-/// Tracks how many entries were filtered out while listing a directory so a
-/// warning can be shown afterwards.
-#[derive(Debug)]
-pub struct HiddenCount {
-    /// Whether to show all counts regardless of how many hidden and/or
-    /// ignored items there are (`--warn-hidden` given twice).
-    always_print: bool,
-    hidden: usize,
-    ignored: usize,
-}
+pub use crate::fs::hidden_count::{HiddenCount, WarnHiddenMode};
 
 impl HiddenCount {
-    #[must_use]
-    pub fn new(mode: WarnHiddenMode) -> Option<Self> {
-        let always_print = match mode {
-            WarnHiddenMode::Never => return None,
-            WarnHiddenMode::Auto => false,
-            WarnHiddenMode::Always => true,
-        };
-
-        Some(Self {
-            always_print,
-            hidden: 0,
-            ignored: 0,
-        })
-    }
-
-    pub fn inc_hidden(&mut self) {
-        self.hidden += 1;
-    }
-
-    pub fn inc_ignored(&mut self) {
-        self.ignored += 1;
-    }
-
     /// The warning line to print, if any: in `Auto` mode nothing is produced
     /// until something was actually filtered out.
     #[must_use]
@@ -49,7 +16,7 @@ impl HiddenCount {
         // noun, it follows the nearer one, which a tally of one item in all
         // leaves at zero.
         let items = |count: usize| if count == 1 { "item" } else { "items" };
-        let warn_string = match (self.always_print, self.hidden, self.ignored) {
+        let warn_string = match (self.always_print(), self.hidden(), self.ignored()) {
             (false, 0, 0) => None,
             (false, hidden, 0) => Some(format!("...and {hidden} hidden {}", items(hidden))),
             (false, 0, ignored) => Some(format!("...and {ignored} ignored {}", items(ignored))),
@@ -64,14 +31,4 @@ impl HiddenCount {
         };
         warn_string.map(|s| style.paint(s).to_string())
     }
-}
-
-/// How eager `--warn-hidden` should be: never, only when something was
-/// filtered out, or always printing the tally.
-#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
-pub enum WarnHiddenMode {
-    #[default]
-    Never,
-    Auto,
-    Always,
 }

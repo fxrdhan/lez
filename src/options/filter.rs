@@ -14,11 +14,35 @@ use crate::fs::filter::{
     SortCase, SortField,
 };
 
+use crate::fs::hidden_count::WarnHiddenMode;
 use crate::options::OptionsError;
 use crate::options::{Vars, vars};
-use crate::output::hidden_count::WarnHiddenMode;
 
 use crate::options::file_config::FileConfig;
+
+impl LocaleCollator {
+    /// Deduce the active collation locale from environment variables following POSIX
+    /// precedence (`LC_ALL` -> `LC_COLLATE` -> `LANG`) with `sys_locale` fallback.
+    pub fn deduce<V: Vars>(vars: &V) -> Option<Self> {
+        // POSIX precedence hierarchy: LC_ALL -> LC_COLLATE -> LANG
+        for var_name in &[vars::LC_ALL, vars::LC_COLLATE, vars::LANG] {
+            if let Some(val) = vars.get(var_name) {
+                let s = val.to_string_lossy();
+                if let Some(collator) = Self::try_from_locale_str(&s) {
+                    return Some(collator);
+                } else if Self::is_c_or_posix(&s) {
+                    // Explicit C/POSIX locale means standard byte/ASCII collation without ICU
+                    return None;
+                }
+            }
+        }
+
+        // OS-level fallback via vars.get_locale() (defaults to sys_locale::get_locale())
+        vars.get_locale()
+            .as_deref()
+            .and_then(Self::try_from_locale_str)
+    }
+}
 
 impl FileFilter {
     /// Determines which of all the file filter options to use.

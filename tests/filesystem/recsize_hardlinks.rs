@@ -17,21 +17,21 @@ use std::path::{Path, PathBuf};
 use std::os::unix::fs::MetadataExt;
 
 use lez::fs::fields::Size;
-use lez::fs::{Dir, DotFilter, File};
+use lez::fs::{Dir, DotFilter, File, FileOptions};
 
 use crate::common::{TempTestDir, grouped, lez_in, success_stdout};
 
 /// The recursive size of `dir` as lez computes it in-process.
 fn total(dir: &Path, dot_filter: DotFilter) -> u64 {
-    File::from_args_with_filter(
+    File::with_options(
         dir.to_path_buf(),
         None,
         File::filename(dir),
-        false,
-        true,
-        false,
-        None,
-        Some(dot_filter),
+        FileOptions {
+            total_size: true,
+            dot_filter: Some(dot_filter),
+            ..Default::default()
+        },
     )
     .length()
 }
@@ -411,25 +411,25 @@ fn test_property_fuzz_random_tree_matches_oracle() {
         let oracle_dots = oracle_calculate_size(&temp.path, DotFilter::Dotfiles);
 
         // Test with lez File API
-        let lez_no_dots = File::from_args_with_filter(
+        let lez_no_dots = File::with_options(
             temp.path.clone(),
             None,
             File::filename(&temp.path),
-            false,
-            true,
-            false,
-            None,
-            Some(DotFilter::JustFiles),
+            FileOptions {
+                total_size: true,
+                dot_filter: Some(DotFilter::JustFiles),
+                ..Default::default()
+            },
         );
-        let lez_dots = File::from_args_with_filter(
+        let lez_dots = File::with_options(
             temp.path.clone(),
             None,
             File::filename(&temp.path),
-            false,
-            true,
-            false,
-            None,
-            Some(DotFilter::Dotfiles),
+            FileOptions {
+                total_size: true,
+                dot_filter: Some(DotFilter::Dotfiles),
+                ..Default::default()
+            },
         );
 
         assert_eq!(

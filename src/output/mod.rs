@@ -28,6 +28,8 @@ pub mod time;
 
 pub mod cell;
 pub mod escape;
+mod loc_adapter;
+mod theme_impls;
 mod tree;
 
 /// The **view** contains all information about how to format output.
@@ -103,10 +105,13 @@ impl TerminalWidth {
         let stdout_term_width = {
             use std::os::windows::io::BorrowedHandle;
             use windows_sys::Win32::System::Console::{GetStdHandle, STD_OUTPUT_HANDLE};
-            terminal_size::terminal_size_of(unsafe {
-                BorrowedHandle::borrow_raw(GetStdHandle(STD_OUTPUT_HANDLE))
-            })
-            .map(|(w, _h)| (w.0 as usize).clamp(1, u16::MAX as usize))
+            // SAFETY: `GetStdHandle(STD_OUTPUT_HANDLE)` returns the process's
+            // standard output handle, which remains open for the duration of
+            // the borrow; `terminal_size_of` only queries it without closing it.
+            let stdout_handle =
+                unsafe { BorrowedHandle::borrow_raw(GetStdHandle(STD_OUTPUT_HANDLE)) };
+            terminal_size::terminal_size_of(stdout_handle)
+                .map(|(w, _h)| (w.0 as usize).clamp(1, u16::MAX as usize))
         };
 
         match self {
@@ -155,14 +160,6 @@ pub enum SpacingBetweenColumns {
 }
 
 impl SpacingBetweenColumns {
-    pub fn deduce(matches: &clap::ArgMatches) -> Self {
-        if let Some(&spaces) = matches.get_one::<usize>("spacing") {
-            Self::Set(spaces.min(1000))
-        } else {
-            Self::Default
-        }
-    }
-
     /// Get the actual number of spaces to use between columns.
     /// Takes the spacing mode to determine the correct default.
     ///

@@ -33,8 +33,8 @@ genDemo:
 # produce an HTML chart of compilation timings
 [group('building')]
 @build-time:
-    cargo +nightly clean
-    cargo +nightly build -Z timings
+    cargo clean
+    cargo build --timings
 
 # check that the lez binary can compile
 [group('building')]

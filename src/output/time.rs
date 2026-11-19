@@ -6,7 +6,6 @@
 // SPDX-License-Identifier: MIT
 //! Timestamp formatting.
 
-use std::sync::LazyLock;
 use std::time::Duration;
 
 use jiff::tz::TimeZone;
@@ -14,6 +13,96 @@ use jiff::{Timestamp, ZonedDateTime};
 use unicode_width::UnicodeWidthStr;
 
 use crate::output::strftime;
+
+/// Scoped timezone, reference year/clock, and time-locale context used when
+/// formatting timestamps.
+///
+/// Production code constructs this once per invocation via
+/// [`TimeContext::from_system`]; unit tests can inject a fixed UTC clock and
+/// English locale via [`TimeContext::utc_fixed`] so formatted output does not
+/// depend on the host machine's timezone, locale, or wall-clock time.
+pub struct TimeContext {
+    zone: TimeZone,
+    current_year: i16,
+    locale: locale::Time,
+    max_month_width: usize,
+    now: Option<Timestamp>,
+}
+
+impl TimeContext {
+    /// Captures the host's local timezone (falling back to UTC), current year,
+    /// and time locale.
+    #[must_use]
+    pub fn from_system() -> Self {
+        let zone = TimeZone::try_system().unwrap_or(TimeZone::UTC);
+        let current_year = Timestamp::now().to_zoned_datetime(zone.clone()).year();
+        let locale = locale::Time::load_user_locale().unwrap_or_else(|_| locale::Time::english());
+        Self::new(zone, current_year, locale, None)
+    }
+
+    /// Constructs a `TimeContext` with explicit timezone, current year, time
+    /// locale, and optional fixed reference timestamp for relative formats.
+    #[must_use]
+    pub fn new(
+        zone: TimeZone,
+        current_year: i16,
+        locale: locale::Time,
+        now: Option<Timestamp>,
+    ) -> Self {
+        // Some locales use a three-character wide month name (Jan to Dec);
+        // others vary between three to four (1月 to 12月, juil.). We check
+        // each month width to detect the longest and align columns accordingly.
+        let max_month_width = (0..12)
+            .map(|i| UnicodeWidthStr::width(&*locale.short_month_name(i)))
+            .max()
+            .unwrap_or(3);
+        Self {
+            zone,
+            current_year,
+            locale,
+            max_month_width,
+            now,
+        }
+    }
+
+    /// Deterministic UTC + English locale context pinned to `now`, suitable for
+    /// repeatable unit tests without consulting host locale or wall clock.
+    #[must_use]
+    pub fn utc_fixed(now: Timestamp) -> Self {
+        let current_year = now.to_zoned_datetime(TimeZone::UTC).year();
+        Self::new(
+            TimeZone::UTC,
+            current_year,
+            locale::Time::english(),
+            Some(now),
+        )
+    }
+
+    /// The local timezone used when `--utc` is not requested.
+    #[must_use]
+    pub fn zone(&self) -> &TimeZone {
+        &self.zone
+    }
+
+    /// Puts `time` in the zone it is shown in: UTC under `--utc`, this
+    /// context's local zone otherwise. The zone gives the offset that was in
+    /// effect at this very timestamp, so DST transitions render with their
+    /// historical wall-clock time instead of whatever offset "now" happens to
+    /// have.
+    #[must_use]
+    pub fn zoned(&self, time: Timestamp, use_utc: bool) -> ZonedDateTime {
+        let zone = if use_utc {
+            TimeZone::UTC
+        } else {
+            self.zone.clone()
+        };
+        time.to_zoned_datetime(zone)
+    }
+
+    fn now(&self) -> Timestamp {
+        self.now.unwrap_or_else(Timestamp::now)
+    }
+}
 
 /// Every timestamp in exa needs to be rendered by a **time format**.
 /// Formatting times is tricky, because how a timestamp is rendered can
@@ -69,28 +158,32 @@ pub enum TimeFormat {
 }
 
 impl TimeFormat {
-    /// Writes `time` in this format. The zone `time` is in, UTC under
-    /// `--utc` and the local zone otherwise, gives its wall-clock time,
-    /// offset and `%Z` abbreviation.
+    /// Writes `time` in this format using `ctx` for locale, reference year,
+    /// and relative-time clock. The zone `time` is in, UTC under `--utc` and
+    /// the local zone otherwise, gives its wall-clock time, offset and `%Z`
+    /// abbreviation.
     #[must_use]
-    pub fn format(&self, time: &ZonedDateTime) -> String {
+    pub fn format_in(&self, time: &ZonedDateTime, ctx: &TimeContext) -> String {
         #[rustfmt::skip]
         return match self {
-            Self::DefaultFormat                 => default(time),
-            Self::ISOFormat                     => iso(time),
-            Self::LongISO                       => long(time),
-            Self::FullISO                       => full(time),
-            Self::Relative                      => relative(time),
-            Self::RelativeRecent { recent_window_days } => relative_recent(time, *recent_window_days),
-            Self::Custom { non_recent, recent } => custom(time, non_recent.as_str(), recent.as_deref()),
+            Self::DefaultFormat                         => default(time, ctx),
+            Self::ISOFormat                             => iso(time, ctx),
+            Self::LongISO                               => long(time),
+            Self::FullISO                               => full(time),
+            Self::Relative                              => relative(time, ctx),
+            Self::RelativeRecent { recent_window_days } => relative_recent(time, *recent_window_days, ctx),
+            Self::Custom { non_recent, recent }         => custom(time, non_recent.as_str(), recent.as_deref(), ctx),
         };
     }
-}
 
-/// The zone times are shown in without `--utc`: the system's, or UTC when
-/// that cannot be read.
-pub static LOCAL_ZONE: LazyLock<TimeZone> =
-    LazyLock::new(|| TimeZone::try_system().unwrap_or(TimeZone::UTC));
+    /// Writes `time` in this format using the host system's current timezone,
+    /// year, and locale. Prefer [`Self::format_in`] in renderers so context is
+    /// captured once per run.
+    #[must_use]
+    pub fn format(&self, time: &ZonedDateTime) -> String {
+        self.format_in(time, &TimeContext::from_system())
+    }
+}
 
 /// Formats with a format lez wrote itself or validated when it read the
 /// options, which therefore cannot fail.
@@ -127,11 +220,11 @@ fn default_format(month: &str, month_width: usize, is_current_year: bool) -> Str
     }
 }
 
-fn default(time: &ZonedDateTime) -> String {
+fn default(time: &ZonedDateTime, ctx: &TimeContext) -> String {
     let month_index = usize::from(time.month().unsigned_abs()).saturating_sub(1);
-    let month = &*LOCALE.short_month_name(month_index);
-    let month_width = short_month_padding(*MAX_MONTH_WIDTH, month);
-    let format = default_format(month, month_width, time.year() == *CURRENT_YEAR);
+    let month = &*ctx.locale.short_month_name(month_index);
+    let month_width = short_month_padding(ctx.max_month_width, month);
+    let format = default_format(month, month_width, time.year() == ctx.current_year);
     strftime(&format, time)
 }
 
@@ -146,8 +239,8 @@ fn short_month_padding(max_month_width: usize, month: &str) -> usize {
     (max_month_width as isize + shift) as usize
 }
 
-fn iso(time: &ZonedDateTime) -> String {
-    if time.year() == *CURRENT_YEAR {
+fn iso(time: &ZonedDateTime, ctx: &TimeContext) -> String {
+    if time.year() == ctx.current_year {
         strftime("%m-%d %H:%M", time)
     } else {
         strftime("%Y-%m-%d", time)
@@ -158,27 +251,33 @@ fn long(time: &ZonedDateTime) -> String {
     strftime("%Y-%m-%d %H:%M", time)
 }
 
-/// Whole seconds from `time` to now, or zero for a time still to come.
-fn seconds_ago(time: &ZonedDateTime) -> i64 {
-    strftime::unix_seconds(Timestamp::now()) - strftime::unix_seconds(time.timestamp())
+/// Whole seconds from `time` to `ctx.now()`, or negative for a time in the future.
+fn seconds_ago(time: &ZonedDateTime, ctx: &TimeContext) -> i64 {
+    strftime::unix_seconds(ctx.now()) - strftime::unix_seconds(time.timestamp())
 }
 
-fn relative(time: &ZonedDateTime) -> String {
+fn relative(time: &ZonedDateTime, ctx: &TimeContext) -> String {
     timeago::Formatter::new()
         .ago("")
-        .convert(Duration::from_secs(seconds_ago(time).max(0).unsigned_abs()))
+        .convert(Duration::from_secs(
+            seconds_ago(time, ctx).max(0).unsigned_abs(),
+        ))
 }
 
 const DEFAULT_RECENT_WINDOW_DAYS: u32 = 7;
 
-fn relative_recent(time: &ZonedDateTime, recent_window_days: Option<u32>) -> String {
+fn relative_recent(
+    time: &ZonedDateTime,
+    recent_window_days: Option<u32>,
+    ctx: &TimeContext,
+) -> String {
     let days = recent_window_days.unwrap_or(DEFAULT_RECENT_WINDOW_DAYS);
     let window_secs = i64::from(days) * 24 * 60 * 60;
-    let delta = seconds_ago(time);
+    let delta = seconds_ago(time, ctx);
     if delta >= 0 && delta < window_secs {
-        relative(time)
+        relative(time, ctx)
     } else {
-        default(time)
+        default(time, ctx)
     }
 }
 
@@ -186,9 +285,14 @@ fn full(time: &ZonedDateTime) -> String {
     strftime("%Y-%m-%d %H:%M:%S.%f %z", time)
 }
 
-fn custom(time: &ZonedDateTime, non_recent_fmt: &str, recent_fmt: Option<&str>) -> String {
+fn custom(
+    time: &ZonedDateTime,
+    non_recent_fmt: &str,
+    recent_fmt: Option<&str>,
+    ctx: &TimeContext,
+) -> String {
     let format = if let Some(recent_fmt) = recent_fmt {
-        if time.year() == *CURRENT_YEAR {
+        if time.year() == ctx.current_year {
             recent_fmt
         } else {
             non_recent_fmt
@@ -199,25 +303,6 @@ fn custom(time: &ZonedDateTime, non_recent_fmt: &str, recent_fmt: Option<&str>) 
 
     strftime(format, time)
 }
-
-static CURRENT_YEAR: LazyLock<i16> = LazyLock::new(|| {
-    Timestamp::now()
-        .to_zoned_datetime(LOCAL_ZONE.clone())
-        .year()
-});
-
-static LOCALE: LazyLock<locale::Time> =
-    LazyLock::new(|| locale::Time::load_user_locale().unwrap_or_else(|_| locale::Time::english()));
-
-static MAX_MONTH_WIDTH: LazyLock<usize> = LazyLock::new(|| {
-    // Some locales use a three-character wide month name (Jan to Dec);
-    // others vary between three to four (1月 to 12月, juil.). We check each month width
-    // to detect the longest and set the output format accordingly.
-    (0..12)
-        .map(|i| UnicodeWidthStr::width(&*LOCALE.short_month_name(i)))
-        .max()
-        .unwrap()
-});
 
 #[cfg(test)]
 mod test {
@@ -236,12 +321,13 @@ mod test {
             .to_zoned_datetime(TimeZone::fixed(Offset::from_hours(hours).unwrap()))
     }
 
-    /// `now` moved by `delta`, in the local zone.
+    /// `now` moved by `delta`, in the system's local zone.
     fn local(delta: SignedDuration) -> ZonedDateTime {
+        let zone = TimeZone::try_system().unwrap_or(TimeZone::UTC);
         Timestamp::now()
             .checked_add(delta)
             .unwrap()
-            .to_zoned_datetime(LOCAL_ZONE.clone())
+            .to_zoned_datetime(zone)
     }
 
     #[test]
@@ -334,14 +420,54 @@ mod test {
     fn local_timezone_abbreviation_is_resolved() {
         // In the local zone, %Z is that zone's abbreviation, which every
         // zone has for every time.
-        let time = june_first(0)
-            .timestamp()
-            .to_zoned_datetime(LOCAL_ZONE.clone());
+        let ctx = TimeContext::from_system();
+        let time = ctx.zoned(june_first(0).timestamp(), false);
         let fmt = TimeFormat::Custom {
             non_recent: String::from("%Z"),
             recent: None,
         };
-        assert!(!fmt.format(&time).is_empty());
+        assert!(!fmt.format_in(&time, &ctx).is_empty());
+    }
+
+    #[test]
+    fn time_context_utc_fixed_produces_deterministic_formatting() {
+        let now: Timestamp = "2026-06-15T12:00:00Z".parse().unwrap();
+        let ctx = TimeContext::utc_fixed(now);
+
+        let same_year = ctx.zoned("2026-06-15T10:00:00Z".parse().unwrap(), true);
+        let old_year = ctx.zoned("2020-01-05T08:30:00Z".parse().unwrap(), true);
+
+        assert_eq!(
+            TimeFormat::DefaultFormat.format_in(&same_year, &ctx),
+            "15 Jun 10:00"
+        );
+        assert_eq!(
+            TimeFormat::DefaultFormat.format_in(&old_year, &ctx),
+            " 5 Jan  2020"
+        );
+        assert_eq!(
+            TimeFormat::ISOFormat.format_in(&same_year, &ctx),
+            "06-15 10:00"
+        );
+        assert_eq!(
+            TimeFormat::ISOFormat.format_in(&old_year, &ctx),
+            "2020-01-05"
+        );
+        assert_eq!(TimeFormat::Relative.format_in(&same_year, &ctx), "2 hours");
+        assert_eq!(
+            TimeFormat::RelativeRecent {
+                recent_window_days: Some(1)
+            }
+            .format_in(&same_year, &ctx),
+            "2 hours"
+        );
+        assert_eq!(
+            TimeFormat::RelativeRecent {
+                recent_window_days: Some(1)
+            }
+            .format_in(&old_year, &ctx),
+            " 5 Jan  2020"
+        );
     }
 
     #[test]

@@ -16,6 +16,14 @@ pub mod git {
 
     use crate::fs::fields as f;
 
+    /// Git environment overrides (`GIT_DIR`, `GIT_WORK_TREE`) passed explicitly
+    /// by the caller.
+    #[derive(Debug, Default, Clone, PartialEq, Eq)]
+    pub struct GitEnv {
+        pub git_dir: Option<PathBuf>,
+        pub git_work_tree: Option<PathBuf>,
+    }
+
     pub struct GitCache;
 
     impl FromIterator<PathBuf> for GitCache {
@@ -50,6 +58,13 @@ pub mod git {
         }
 
         pub fn from_paths<I>(paths: I, _deep_untracked: bool) -> Self
+        where
+            I: IntoIterator<Item = PathBuf>,
+        {
+            paths.into_iter().collect()
+        }
+
+        pub fn from_paths_with_env<I>(paths: I, _deep_untracked: bool, _env: &GitEnv) -> Self
         where
             I: IntoIterator<Item = PathBuf>,
         {

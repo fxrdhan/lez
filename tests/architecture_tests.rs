@@ -1,0 +1,5 @@
+// SPDX-FileCopyrightText: 2026 fxrdhan
+// SPDX-License-Identifier: EUPL-1.2
+
+#[path = "architecture/boundaries.rs"]
+mod boundaries;
