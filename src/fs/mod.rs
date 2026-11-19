@@ -10,7 +10,7 @@ pub use self::dir::{Dir, DotFilter, ReadDirOptions};
 #[cfg(feature = "inspect-archives")]
 pub mod archives;
 mod file;
-pub use self::file::{File, FileOptions, FileTarget};
+pub use self::file::{DEFAULT_WINDOWS_PATHEXT, File, FileOptions, FileTarget, parse_pathext};
 
 pub mod dir_action;
 pub mod feature;

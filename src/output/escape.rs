@@ -361,8 +361,7 @@ pub fn format_hyperlink_url(abs_path: &str, wsl_distro: Option<&str>) -> String 
 }
 
 pub fn get_hyperlink_start_tag(abs_path: &str) -> String {
-    let wsl_distro = std::env::var("WSL_DISTRO_NAME").ok();
-    get_hyperlink_start_tag_with_distro(abs_path, wsl_distro.as_deref())
+    get_hyperlink_start_tag_with_distro(abs_path, None)
 }
 
 /// Construct the opening ANSI OSC 8 escape sequence for an absolute path and optional WSL distro.

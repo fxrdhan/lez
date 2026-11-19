@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: 2023-2024 Christina Sørensen, eza contributors
 // SPDX-FileCopyrightText: 2014 Benjamin Sago
 // SPDX-License-Identifier: MIT
+use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
@@ -22,7 +23,7 @@ use crate::output::render::FiletypeColours;
 use crate::theme::{FileNameStyle, LinkStyle as LinkColouring};
 
 /// Basically a file name factory.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Options {
     /// Whether to append file class characters to file names.
     pub classify: Classify,
@@ -54,6 +55,32 @@ pub struct Options {
     /// and a read of its contents when the link count does not settle it.
     /// See `vars::LEZ_NO_EMPTY_DIR_ICON` for why anyone would turn it off.
     pub empty_dir_icon: bool,
+
+    /// Active WSL distribution name from `WSL_DISTRO_NAME`, if any, used for
+    /// formatting clickable OSC 8 hyperlinks under WSL.
+    pub wsl_distro: Option<String>,
+
+    /// Parsed uppercase Windows executable extensions from `PATHEXT`, if set.
+    /// When `None`, Windows executable detection uses `.COM;.EXE;.BAT;.CMD`.
+    pub pathext: Option<HashSet<String>>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            classify: Classify::JustFilenames,
+            show_icons: ShowIcons::Never,
+            quote_style: QuoteStyle::Auto,
+            embed_hyperlinks: EmbedHyperlinks::Never,
+            absolute: Absolute::Off,
+            short_nix: false,
+            show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
+            is_a_tty: false,
+            empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
+        }
+    }
 }
 
 /// How many characters of a Nix store hash to keep when `--short-nix`
@@ -150,7 +177,7 @@ impl Options {
     /// Create a new `FileName` that prints the given file’s name, painting it
     /// with the remaining arguments.
     pub fn for_file<'a, 'dir, C>(
-        self,
+        &'a self,
         file: &'a File<'dir>,
         colours: &'a C,
     ) -> FileName<'a, 'dir, C> {
@@ -219,7 +246,7 @@ enum MountStyle {
 }
 
 /// Whether and how to show icons.
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum ShowIcons {
     /// Display icons next to file names, with the given number of spaces between
     /// the icon and the file name, even when output isn’t going to a terminal.
@@ -306,7 +333,7 @@ pub struct FileName<'a, 'dir, C> {
     /// How to handle displaying links.
     link_style: LinkStyle,
 
-    pub options: Options,
+    pub options: &'a Options,
 
     /// How to handle displaying a mounted filesystem.
     mount_style: MountStyle,
@@ -455,7 +482,9 @@ impl<C: Colours> FileName<'_, '_, C> {
             .then(|| self.file.absolute_path())
             .flatten()
             .and_then(|p| p.as_os_str().to_str())
-            .map(escape::get_hyperlink_start_tag);
+            .map(|p| {
+                escape::get_hyperlink_start_tag_with_distro(p, self.options.wsl_distro.as_deref())
+            });
 
         if let Some(start_tag) = hyperlink_start_tag.as_ref() {
             bits.push(ANSIString::from(start_tag.clone()));
@@ -835,7 +864,7 @@ impl<C: Colours> FileName<'_, '_, C> {
             if self.colours.capability().is_some() && file.has_capabilities() {
                 return (self.colours.capability().unwrap_or_default(), R::Capability);
             }
-            if file.is_executable_file() {
+            if file.is_executable_file_with_pathext(self.options.pathext.as_ref()) {
                 return (self.colours.executable_file(), R::Executable);
             }
             #[cfg(unix)]
@@ -1211,13 +1240,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &file,
             colours: &colours,
             target: None,
             link_style: LinkStyle::FullLinkPaths,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1255,13 +1286,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &file,
             colours: &colours,
             target: None,
             link_style: LinkStyle::FullLinkPaths,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1290,13 +1323,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &file,
             colours: &colours,
             target: None,
             link_style: LinkStyle::FullLinkPaths,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1326,13 +1361,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &file,
             colours: &colours,
             target: None,
             link_style: LinkStyle::JustFilenames,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1361,13 +1398,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &link_file,
             colours: &colours,
             target: Some(FileTarget::Ok(Box::new(target_file))),
             link_style: LinkStyle::FullLinkPaths,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1396,13 +1435,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &file,
             colours: &colours,
             target: None,
             link_style: LinkStyle::FullLinkPaths,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1430,13 +1471,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &link_file,
             colours: &colours,
             target: Some(FileTarget::Ok(Box::new(target_file))),
             link_style: LinkStyle::JustFilenames,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         }
@@ -1467,13 +1510,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::NoSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &link_file,
             colours: &colours,
             target: Some(FileTarget::Ok(Box::new(target_file))),
             link_style: LinkStyle::JustFilenames,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         }
@@ -1508,13 +1553,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::NoSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &link_file,
             colours: &colours,
             target: Some(FileTarget::Ok(Box::new(target_file))),
             link_style: LinkStyle::JustFilenames,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         }
@@ -1730,13 +1777,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &link_file,
             colours: &colours,
             target: Some(FileTarget::Ok(Box::new(target_file))),
             link_style: LinkStyle::JustFilenames,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1773,13 +1822,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &link_file,
             colours: &colours,
             target: Some(FileTarget::Broken(std::path::PathBuf::from("/gone"))),
             link_style: LinkStyle::JustFilenames,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1823,13 +1874,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &link_file,
             colours: &colours,
             target: Some(FileTarget::Ok(Box::new(target_file))),
             link_style: LinkStyle::JustFilenames,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1869,13 +1922,15 @@ mod test {
             show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
             is_a_tty: true,
             empty_dir_icon: true,
+            wsl_distro: None,
+            pathext: None,
         };
         let file_name = FileName {
             file: &link_file,
             colours: &colours,
             target: Some(FileTarget::Broken(std::path::PathBuf::from("/gone"))),
             link_style: LinkStyle::JustFilenames,
-            options,
+            options: &options,
             mount_style: MountStyle::JustDirectoryNames,
             tags: Tags::Off,
         };
@@ -1889,6 +1944,26 @@ mod test {
         assert!(
             painted.contains(&expected),
             "broken orphan link must retain or= broken style unaffected: {painted:?}"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn hyperlink_honors_injected_wsl_distro_without_env() {
+        let colours = TestColours;
+        let path = std::path::PathBuf::from("tests/itest/index.svg");
+        let file = File::from_args(path, None, None, false, false, false, None);
+        let options = Options {
+            quote_style: QuoteStyle::Never,
+            embed_hyperlinks: EmbedHyperlinks::Always,
+            is_a_tty: true,
+            wsl_distro: Some("Ubuntu".to_owned()),
+            ..Options::default()
+        };
+        let painted = format!("{}", options.for_file(&file, &colours).paint().strings());
+        assert!(
+            painted.starts_with("\x1B]8;;file://wsl$/Ubuntu/"),
+            "expected injected WSL distro hyperlink prefix, got {painted:?}"
         );
     }
 }

@@ -43,6 +43,20 @@ pub static LC_COLLATE: &str = "LC_COLLATE";
 pub static LC_TIME: &str = "LC_TIME";
 pub static LANG: &str = "LANG";
 
+/// Environment variable set by Windows Subsystem for Linux naming the active
+/// distribution, used to construct clickable `file://wsl$/…` and Windows drive
+/// hyperlinks.
+pub static WSL_DISTRO_NAME: &str = "WSL_DISTRO_NAME";
+
+/// Standard Git environment variables pointing at an out-of-tree repository
+/// directory and its working tree.
+pub static GIT_DIR: &str = "GIT_DIR";
+pub static GIT_WORK_TREE: &str = "GIT_WORK_TREE";
+
+/// Windows semicolon-separated list of executable file extensions
+/// (e.g. `.COM;.EXE;.BAT;.CMD`).
+pub static PATHEXT: &str = "PATHEXT";
+
 // lez-specific variables
 
 /// Environment variable used to colour lez’s interface when colours are
@@ -300,6 +314,10 @@ pub mod test {
         pub lez_windows_attributes: OsString,
         pub eza_windows_attributes: OsString,
         pub windows_attributes: OsString,
+        pub wsl_distro_name: OsString,
+        pub git_dir: OsString,
+        pub git_work_tree: OsString,
+        pub pathext: OsString,
         pub sys_locale: Option<String>,
         pub stdout_is_terminal: bool,
     }
@@ -471,6 +489,14 @@ pub mod test {
                 "LANG" if !self.lang.is_empty() => Some(self.lang.clone()),
                 "COLORTERM" if !self.colorterm.is_empty() => Some(self.colorterm.clone()),
                 "TERM" if !self.term.is_empty() => Some(self.term.clone()),
+                "WSL_DISTRO_NAME" if !self.wsl_distro_name.is_empty() => {
+                    Some(self.wsl_distro_name.clone())
+                }
+                "GIT_DIR" if !self.git_dir.is_empty() => Some(self.git_dir.clone()),
+                "GIT_WORK_TREE" if !self.git_work_tree.is_empty() => {
+                    Some(self.git_work_tree.clone())
+                }
+                "PATHEXT" if !self.pathext.is_empty() => Some(self.pathext.clone()),
                 _ => None,
             }
         }
@@ -532,6 +558,10 @@ pub mod test {
                 "LANG" => self.lang = value.clone(),
                 "COLORTERM" => self.colorterm = value.clone(),
                 "TERM" => self.term = value.clone(),
+                "WSL_DISTRO_NAME" => self.wsl_distro_name = value.clone(),
+                "GIT_DIR" => self.git_dir = value.clone(),
+                "GIT_WORK_TREE" => self.git_work_tree = value.clone(),
+                "PATHEXT" => self.pathext = value.clone(),
                 "LEZ_NO_EMPTY_DIR_ICON" | "EXA_NO_EMPTY_DIR_ICON" | "EZA_NO_EMPTY_DIR_ICON" => {
                     self.no_empty_dir_icon = value.clone();
                 }
@@ -660,6 +690,18 @@ pub mod test {
             vars.get(EZA_WINDOWS_ATTRIBUTES),
             Some(OsString::from("long"))
         );
+
+        vars.set(WSL_DISTRO_NAME, &OsString::from("Ubuntu"));
+        assert_eq!(vars.get(WSL_DISTRO_NAME), Some(OsString::from("Ubuntu")));
+
+        vars.set(GIT_DIR, &OsString::from("/repo.git"));
+        assert_eq!(vars.get(GIT_DIR), Some(OsString::from("/repo.git")));
+
+        vars.set(GIT_WORK_TREE, &OsString::from("/work"));
+        assert_eq!(vars.get(GIT_WORK_TREE), Some(OsString::from("/work")));
+
+        vars.set(PATHEXT, &OsString::from(".EXE;.CMD"));
+        assert_eq!(vars.get(PATHEXT), Some(OsString::from(".EXE;.CMD")));
     }
 
     #[test]

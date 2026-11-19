@@ -37,6 +37,24 @@ use crate::fs::recursive_size::RecursiveSize;
 use super::mounts::MountedFs;
 use super::mounts::{all_mounts, mount_point_names};
 
+/// Default Windows `PATHEXT` extensions used when the environment variable is
+/// unset.
+pub const DEFAULT_WINDOWS_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD";
+
+/// Parses a Windows semicolon-separated `PATHEXT` value (e.g.
+/// `.COM;.EXE;.BAT;.CMD`) into uppercase extension names without leading dots.
+/// Falls back to [`DEFAULT_WINDOWS_PATHEXT`] when `raw` is `None` or non-UTF-8.
+#[must_use]
+pub fn parse_pathext(raw: Option<&OsStr>) -> HashSet<String> {
+    let value = raw
+        .and_then(OsStr::to_str)
+        .unwrap_or(DEFAULT_WINDOWS_PATHEXT);
+    value
+        .split(';')
+        .filter_map(|entry| entry.strip_prefix('.').map(str::to_ascii_uppercase))
+        .collect()
+}
+
 /// What identifies a directory in [`DIRECTORY_SIZE_CACHE`].
 ///
 /// The key must not hold the directory open, as a `same_file::Handle`
@@ -657,27 +675,41 @@ impl<'dir> File<'dir> {
     }
 
     /// Windows edition: a regular file is “executable” when its extension
-    /// appears in the `PATHEXT` environment variable (defaulting to the
-    /// usual `.COM;.EXE;.BAT;…` list when unset).
+    /// matches one of the default Windows executable extensions
+    /// (`.COM;.EXE;.BAT;.CMD`). Prefer [`Self::is_executable_file_with_pathext`]
+    /// when a caller-supplied `PATHEXT` set is available.
     #[cfg(windows)]
     pub fn is_executable_file(&self) -> bool {
-        use std::collections::HashSet;
-        use std::sync::LazyLock;
+        self.is_executable_file_with_pathext(None)
+    }
 
-        static PATHEXT: LazyLock<HashSet<String>> = LazyLock::new(|| {
-            std::env::var("PATHEXT")
-                .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
-                .split(';')
-                .filter_map(|s| s.strip_prefix('.').map(|s| s.to_ascii_uppercase()))
-                .collect()
-        });
-
-        if !self.is_file() {
-            return false;
+    /// Cross-platform executable check that uses Unix permission bits on Unix
+    /// and a caller-supplied `PATHEXT` extension set on Windows (defaulting to
+    /// `.COM;.EXE;.BAT;.CMD` when `pathext` is `None`).
+    #[must_use]
+    pub fn is_executable_file_with_pathext(
+        &self,
+        pathext: Option<&std::collections::HashSet<String>>,
+    ) -> bool {
+        #[cfg(unix)]
+        {
+            let _ = pathext;
+            self.is_executable_file()
         }
-        match self.ext.as_ref() {
-            Some(ext) => PATHEXT.contains(&ext.to_ascii_uppercase()),
-            None => false,
+        #[cfg(windows)]
+        {
+            if !self.is_file() {
+                return false;
+            }
+            let Some(ext) = self.ext.as_ref() else {
+                return false;
+            };
+            match pathext {
+                Some(set) => set.contains(&ext.to_ascii_uppercase()),
+                None => ["COM", "EXE", "BAT", "CMD"]
+                    .iter()
+                    .any(|default_ext| ext.eq_ignore_ascii_case(default_ext)),
+            }
         }
     }
 
@@ -2185,6 +2217,24 @@ mod mime_type_test {
 
         let file_without_mime = File::from_args(png_no_ext, None, None, false, false, false, None);
         assert_eq!(file_without_mime.mimetype(), None);
+    }
+
+    #[test]
+    fn parse_pathext_parses_custom_and_default_extensions() {
+        let defaults = super::parse_pathext(None);
+        assert!(defaults.contains("EXE"));
+        assert!(defaults.contains("BAT"));
+        assert!(defaults.contains("COM"));
+        assert!(defaults.contains("CMD"));
+        assert!(!defaults.contains("TXT"));
+
+        let custom = super::parse_pathext(Some(std::ffi::OsStr::new(".ps1;.Exe;no_dot;")));
+        assert_eq!(custom.len(), 2);
+        assert!(custom.contains("PS1"));
+        assert!(custom.contains("EXE"));
+
+        let empty = super::parse_pathext(Some(std::ffi::OsStr::new("")));
+        assert!(empty.is_empty());
     }
 
     #[cfg(windows)]

@@ -414,10 +414,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
         depth: usize,
         ancestors: &AncestorSet,
     ) -> io::Result<i32> {
-        let View {
-            file_style: file_name::Options { quote_style, .. },
-            ..
-        } = self.options.view;
+        let quote_style = self.options.view.file_style.quote_style;
 
         let mut denied_dirs = vec![];
 
@@ -816,7 +813,11 @@ fn discover_git_state(options: &Options, args: &[&OsStr]) -> (Option<GitCache>, 
         // --git-ignore has to judge each nested file.
         let deep_untracked = options.dir_action.recurse_options().is_some()
             || options.filter.git_ignore == GitIgnore::CheckAndIgnore;
-        Some(GitCache::from_paths(paths, deep_untracked))
+        Some(GitCache::from_paths_with_env(
+            paths,
+            deep_untracked,
+            &options.git_env,
+        ))
     } else {
         None
     };

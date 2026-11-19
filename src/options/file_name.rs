@@ -56,6 +56,15 @@ impl Options {
             .or_else(|| vars.get(vars::EXA_NO_EMPTY_DIR_ICON))
             .is_none();
 
+        let wsl_distro = vars
+            .get(vars::WSL_DISTRO_NAME)
+            .and_then(|v| v.into_string().ok())
+            .filter(|s| !s.is_empty());
+
+        let pathext = vars
+            .get(vars::PATHEXT)
+            .map(|raw| crate::fs::parse_pathext(Some(raw.as_os_str())));
+
         Ok(Self {
             classify,
             show_icons,
@@ -66,6 +75,8 @@ impl Options {
             show_symlink_targets,
             empty_dir_icon,
             is_a_tty,
+            wsl_distro,
+            pathext,
         })
     }
 }
@@ -780,6 +791,8 @@ mod tests {
                 show_symlink_targets: ShowSymlinkTargets::ShowSymlinkTargets,
                 is_a_tty: true,
                 empty_dir_icon: true,
+                wsl_distro: None,
+                pathext: None,
             })
         );
     }
@@ -823,5 +836,20 @@ mod tests {
             ShowSymlinkTargets::deduce(&mock_cli(vec![""])),
             ShowSymlinkTargets::ShowSymlinkTargets
         );
+    }
+
+    #[test]
+    fn deduce_options_reads_wsl_distro_and_pathext_from_vars() {
+        let mut vars = MockVars::default();
+        vars.set(vars::WSL_DISTRO_NAME, &OsString::from("Ubuntu"));
+        vars.set(vars::PATHEXT, &OsString::from(".exe;.ps1"));
+
+        let opts = Options::deduce(&mock_cli(vec![""]), &vars, true, &FileConfig::default())
+            .expect("options deduce");
+        assert_eq!(opts.wsl_distro.as_deref(), Some("Ubuntu"));
+        let pathext = opts.pathext.expect("PATHEXT parsed");
+        assert!(pathext.contains("EXE"));
+        assert!(pathext.contains("PS1"));
+        assert!(!pathext.contains("BAT"));
     }
 }

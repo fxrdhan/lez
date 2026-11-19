@@ -37,20 +37,11 @@ fn layer_rank(module: &str) -> Option<u8> {
     }
 }
 
-/// Legacy files outside `src/main.rs` and `src/options/vars.rs` calling
-/// `env::var` or `env::var_os` directly (bypassing `Vars`).
-const LEGACY_DIRECT_ENV_FILES: &[&str] = &[
-    "src/fs/feature/git.rs",
-    "src/fs/file.rs",
-    "src/output/escape.rs",
-];
-
 /// Legacy process-wide runtime `LazyLock` / `OnceLock` singletons in
 /// production `src/` scheduled for scoping into `RunContext` in Phase 3.
 const LEGACY_RUNTIME_STATICS: &[(&str, &str)] = &[
     ("src/fs/feature/xattr.rs", "LIBSELINUX"),
     ("src/fs/file.rs", "DIRECTORY_SIZE_CACHE"),
-    ("src/fs/file.rs", "PATHEXT"),
     ("src/fs/mounts/mod.rs", "ALL_MOUNTS"),
     ("src/fs/mounts/mod.rs", "NAMES"),
     ("src/output/icons.rs", "SPECIAL_DIRS"),
@@ -843,8 +834,8 @@ fn clap_is_isolated_to_cli_and_options() {
 }
 
 #[test]
-fn direct_env_var_access_is_ratcheted() {
-    let mut actual = BTreeSet::new();
+fn direct_env_var_access_is_zero() {
+    let mut violations = BTreeSet::new();
     for (rel, raw) in src_files() {
         if rel == "src/main.rs" || rel == "src/options/vars.rs" {
             continue;
@@ -853,19 +844,14 @@ fn direct_env_var_access_is_ratcheted() {
         if contains_token_sequence(&prod, &["env", "::", "var"])
             || contains_token_sequence(&prod, &["env", "::", "var_os"])
         {
-            actual.insert(rel);
+            violations.insert(rel);
         }
     }
 
-    let expected: BTreeSet<String> = LEGACY_DIRECT_ENV_FILES
-        .iter()
-        .map(|s| (*s).to_owned())
-        .collect();
-    assert_ratchet_set(
-        "direct_env_var_access",
-        &actual,
-        &expected,
-        "Read environment variables through `Vars` / `RunContext`, not `std::env::var` directly (ADR-0001).",
+    assert!(
+        violations.is_empty(),
+        "ARCHITECTURAL REGRESSION (direct_env_var_access): production file(s) read \
+         `std::env::var` / `var_os` directly instead of routing through `Vars`: {violations:#?} (ADR-0001)."
     );
 }
 

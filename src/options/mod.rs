@@ -78,6 +78,7 @@ use clap::ArgMatches;
 use clap::parser::ValueSource;
 
 use crate::fs::dir_action::DirAction;
+use crate::fs::feature::git::GitEnv;
 use crate::fs::filter::{FileFilter, GitIgnore};
 use crate::options::stdin::FilesInput;
 use crate::output::{Mode, View, details, grid_details, json};
@@ -126,6 +127,9 @@ pub struct Options {
 
     /// Whether Git operations and ignore checks should be completely suppressed.
     pub no_git: bool,
+
+    /// Caller-provided `GIT_DIR` / `GIT_WORK_TREE` overrides captured via `Vars`.
+    pub git_env: GitEnv,
 }
 
 impl Options {
@@ -222,6 +226,10 @@ impl Options {
                 .get(vars::LEZ_OVERRIDE_GIT)
                 .or_else(|| vars.get_with_fallback(vars::EZA_OVERRIDE_GIT, vars::EXA_OVERRIDE_GIT))
                 .is_some();
+        let git_env = GitEnv {
+            git_dir: vars.get(vars::GIT_DIR).map(std::path::PathBuf::from),
+            git_work_tree: vars.get(vars::GIT_WORK_TREE).map(std::path::PathBuf::from),
+        };
 
         Ok(Self {
             dir_action,
@@ -230,6 +238,7 @@ impl Options {
             theme,
             stdin,
             no_git,
+            git_env,
         })
     }
 }

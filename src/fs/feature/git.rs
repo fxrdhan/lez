@@ -6,7 +6,6 @@
 // SPDX-License-Identifier: MIT
 //! Getting the Git status of files and directories.
 
-use std::env;
 use std::ffi::OsStr;
 #[cfg(target_family = "unix")]
 use std::os::unix::ffi::OsStrExt;
@@ -17,6 +16,14 @@ use git2::StatusEntry;
 use log::{debug, error, info, warn};
 
 use crate::fs::fields as f;
+
+/// Git environment overrides (`GIT_DIR`, `GIT_WORK_TREE`) captured by the
+/// caller rather than read directly from process-wide environment variables.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct GitEnv {
+    pub git_dir: Option<PathBuf>,
+    pub git_work_tree: Option<PathBuf>,
+}
 
 /// A **Git cache** is assembled based on the user’s input arguments.
 ///
@@ -114,33 +121,34 @@ impl GitCache {
     where
         I: IntoIterator<Item = PathBuf>,
     {
-        let mut cache: Self = paths.into_iter().collect();
-        cache.deep_untracked = deep_untracked;
-        for repo in &mut cache.repos {
-            repo.deep_untracked = deep_untracked;
-        }
-        cache
+        Self::from_paths_with_env(paths, deep_untracked, &GitEnv::default())
     }
-}
 
-impl FromIterator<PathBuf> for GitCache {
-    fn from_iter<I>(iter: I) -> Self
+    /// Like [`Self::from_paths`], additionally honoring caller-supplied
+    /// `GIT_DIR` and `GIT_WORK_TREE` overrides without reading process globals.
+    #[must_use]
+    pub fn from_paths_with_env<I>(paths: I, deep_untracked: bool, env: &GitEnv) -> Self
     where
         I: IntoIterator<Item = PathBuf>,
     {
-        let iter = iter.into_iter();
+        let iter = paths.into_iter();
         let mut git = Self {
             repos: Vec::with_capacity(iter.size_hint().0),
             misses: Vec::new(),
-            deep_untracked: true,
+            deep_untracked,
         };
 
-        if let Ok(path) = env::var("GIT_DIR") {
+        if let Some(ref path) = env.git_dir {
             // These flags are consistent with how `git` uses GIT_DIR:
             let flags = git2::RepositoryOpenFlags::NO_SEARCH
                 | git2::RepositoryOpenFlags::NO_DOTGIT
                 | git2::RepositoryOpenFlags::FROM_ENV;
-            match GitRepo::discover(path.into(), flags, git.deep_untracked) {
+            match GitRepo::discover(
+                path.clone(),
+                flags,
+                git.deep_untracked,
+                env.git_work_tree.as_deref(),
+            ) {
                 Ok(repo) => {
                     debug!("Opened GIT_DIR repo");
                     git.repos.push(repo);
@@ -165,7 +173,12 @@ impl FromIterator<PathBuf> for GitCache {
                 r.extra_paths.push(path);
             } else {
                 let flags = git2::RepositoryOpenFlags::FROM_ENV;
-                match GitRepo::discover(path, flags, git.deep_untracked) {
+                match GitRepo::discover(
+                    path,
+                    flags,
+                    git.deep_untracked,
+                    env.git_work_tree.as_deref(),
+                ) {
                     Ok(r) => {
                         if let Some(r2) = git.repos.iter_mut().find(|e| e.has_workdir(&r.workdir)) {
                             debug!(
@@ -187,6 +200,15 @@ impl FromIterator<PathBuf> for GitCache {
         }
 
         git
+    }
+}
+
+impl FromIterator<PathBuf> for GitCache {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = PathBuf>,
+    {
+        Self::from_paths_with_env(iter, true, &GitEnv::default())
     }
 }
 
@@ -502,6 +524,7 @@ impl GitRepo {
         path: PathBuf,
         flags: git2::RepositoryOpenFlags,
         deep_untracked: bool,
+        git_work_tree: Option<&Path>,
     ) -> Result<Self, PathBuf> {
         info!("Opening Git repository for {path:?} ({flags:?})");
         let unused: [&OsStr; 0] = [];
@@ -514,10 +537,9 @@ impl GitRepo {
         };
 
         if repo.workdir().is_none()
-            && let Some(wt) = env::var_os("GIT_WORK_TREE")
+            && let Some(wt_path) = git_work_tree
         {
-            let wt_path = PathBuf::from(wt);
-            let wt_canon = reorient(&wt_path);
+            let wt_canon = reorient(wt_path);
             let _ = repo.set_workdir(&wt_canon, false);
         }
 
@@ -1673,6 +1695,7 @@ mod tests {
             test_repo.path.clone(),
             git2::RepositoryOpenFlags::empty(),
             false,
+            None,
         )
         .expect("should discover repo");
 
@@ -1687,5 +1710,31 @@ mod tests {
         // Calling search on poisoned mutex must succeed without panicking
         let status = repo.search(&test_repo.path.join("tracked.txt"), false);
         assert_eq!(status, f::Git::default());
+    }
+
+    #[test]
+    fn from_paths_with_env_opens_bare_repo_and_work_tree_without_process_env() {
+        let root = tempfile::Builder::new()
+            .prefix("lez_git_env_")
+            .tempdir()
+            .unwrap();
+        let bare = root.path().join("repo.git");
+        let work = root.path().join("work");
+        std::fs::create_dir_all(&work).unwrap();
+        git2::Repository::init_bare(&bare).unwrap();
+        let untracked = work.join("hello.txt");
+        std::fs::write(&untracked, b"hi").unwrap();
+
+        let env = GitEnv {
+            git_dir: Some(bare),
+            git_work_tree: Some(work.clone()),
+        };
+        let cache = GitCache::from_paths_with_env(vec![work.clone()], true, &env);
+        assert!(cache.has_anything_for(&work));
+        assert_eq!(
+            cache.get(&untracked, false),
+            unstaged(f::GitStatus::New),
+            "injected GitEnv must report status inside external work tree"
+        );
     }
 }
