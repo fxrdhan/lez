@@ -12,7 +12,6 @@ use std::sync::{Mutex, MutexGuard};
 use jiff::Timestamp;
 
 use log::debug;
-use std::sync::LazyLock;
 #[cfg(unix)]
 use uzers::UsersCache;
 
@@ -25,7 +24,7 @@ use crate::output::loc_adapter;
 #[cfg(unix)]
 use crate::output::render::{GroupRender, OctalPermissionsRender, UserRender};
 use crate::output::render::{LanguageRender, LocRender, PermissionsPlusRender, TimeRender};
-use crate::output::time::TimeFormat;
+use crate::output::time::{TimeContext, TimeFormat};
 use crate::theme::Theme;
 
 /// Mode for displaying allocated size: either formatted bytes or raw block count.
@@ -401,15 +400,18 @@ impl Default for TimeTypes {
     }
 }
 
-/// The **environment** struct contains any data that could change between
-/// running instances of exa, depending on the user’s computer’s configuration.
+/// The **environment** struct contains runtime context that varies across
+/// invocations (locale number formatting, timezone/clock, and Unix user/group
+/// lookup cache).
 ///
-/// Any environment field should be able to be mocked up for test runs.
+/// Production code constructs this once via [`Environment::load_all`]; unit
+/// tests can inject deterministic values via [`Environment::for_tests`].
 pub struct Environment {
-    /// The computer’s current time offset, determined from time zone.
-
     /// Localisation rules for formatting numbers.
     pub numeric: locale::Numeric,
+
+    /// Timezone, reference year/clock, and time locale.
+    pub time: TimeContext,
 
     /// Mapping cache of user IDs to usernames.
     #[cfg(unix)]
@@ -424,21 +426,38 @@ impl Environment {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    fn load_all() -> Self {
+    /// Loads live locale, timezone, and user cache from the host OS.
+    #[must_use]
+    pub fn load_all() -> Self {
         let numeric = crate::output::numbers::user_numeric();
+        let time = TimeContext::from_system();
 
         #[cfg(unix)]
         let users = Mutex::new(UsersCache::new());
 
         Self {
             numeric,
+            time,
+            #[cfg(unix)]
+            users,
+        }
+    }
+
+    /// Constructs an isolated environment with explicit numeric formatting and
+    /// time context for deterministic unit tests.
+    #[must_use]
+    pub fn for_tests(numeric: locale::Numeric, time: TimeContext) -> Self {
+        #[cfg(unix)]
+        let users = Mutex::new(UsersCache::new());
+
+        Self {
+            numeric,
+            time,
             #[cfg(unix)]
             users,
         }
     }
 }
-
-pub static ENVIRONMENT: LazyLock<Environment> = LazyLock::new(Environment::load_all);
 
 pub struct Table<'a> {
     columns: Vec<Column>,
@@ -478,13 +497,13 @@ impl<'a> Table<'a> {
         git: Option<&'a GitCache>,
         theme: &'a Theme,
         git_repos: bool,
+        env: &'a Environment,
     ) -> Table<'a> {
         let columns =
             options
                 .columns
                 .collect(git.is_some(), git_repos, options.allocated_size_mode);
         let widths = TableWidths::zero(columns.len());
-        let env = &*ENVIRONMENT;
 
         debug!("Creating table with columns: {columns:?}");
 
@@ -687,6 +706,7 @@ impl<'a> Table<'a> {
                 },
                 &self.time_format,
                 self.use_utc,
+                &self.env.time,
             ),
         }
     }

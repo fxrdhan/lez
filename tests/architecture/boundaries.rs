@@ -37,20 +37,18 @@ fn layer_rank(module: &str) -> Option<u8> {
     }
 }
 
-/// Legacy process-wide runtime `LazyLock` / `OnceLock` singletons in
-/// production `src/` scheduled for scoping into `RunContext` in Phase 3.
-const LEGACY_RUNTIME_STATICS: &[(&str, &str)] = &[
+/// Approved process-lifetime OS/FFI performance caches (ADR-0001 Section 3).
+///
+/// Output-layer runtime singletons (`ENVIRONMENT`, `LOCAL_ZONE`, `CURRENT_YEAR`,
+/// `LOCALE`, `MAX_MONTH_WIDTH`, `PATHEXT`) have all been eliminated in favor of
+/// scoped, injectable context; only immutable OS/FFI caches remain permitted.
+const ALLOWED_PROCESS_CACHES: &[(&str, &str)] = &[
     ("src/fs/feature/xattr.rs", "LIBSELINUX"),
     ("src/fs/file.rs", "DIRECTORY_SIZE_CACHE"),
     ("src/fs/mounts/mod.rs", "ALL_MOUNTS"),
     ("src/fs/mounts/mod.rs", "NAMES"),
     ("src/output/icons.rs", "SPECIAL_DIRS"),
     ("src/output/icons.rs", "WORKING_DIR"),
-    ("src/output/table.rs", "ENVIRONMENT"),
-    ("src/output/time.rs", "CURRENT_YEAR"),
-    ("src/output/time.rs", "LOCALE"),
-    ("src/output/time.rs", "LOCAL_ZONE"),
-    ("src/output/time.rs", "MAX_MONTH_WIDTH"),
 ];
 
 fn repo_root() -> PathBuf {
@@ -895,7 +893,7 @@ fn too_many_arguments_suppressions_are_zero() {
 }
 
 #[test]
-fn runtime_global_statics_are_ratcheted() {
+fn process_wide_runtime_statics_are_limited_to_approved_caches() {
     let mut actual: BTreeSet<(String, String)> = BTreeSet::new();
     for (rel, raw) in src_files() {
         let prod = strip_cfg_test_items(&strip_comments_and_literals(&raw));
@@ -904,7 +902,7 @@ fn runtime_global_statics_are_ratcheted() {
         }
     }
 
-    let expected: BTreeSet<(String, String)> = LEGACY_RUNTIME_STATICS
+    let expected: BTreeSet<(String, String)> = ALLOWED_PROCESS_CACHES
         .iter()
         .map(|(f, s)| ((*f).to_owned(), (*s).to_owned()))
         .collect();
@@ -912,7 +910,7 @@ fn runtime_global_statics_are_ratcheted() {
         "runtime_global_statics",
         &actual,
         &expected,
-        "Avoid adding new process-wide `LazyLock`/`OnceLock` singletons; scope runtime state to `RunContext` (ADR-0001).",
+        "Avoid adding new process-wide `LazyLock`/`OnceLock` singletons; inject scoped context via `Environment` / `TimeContext` (ADR-0001).",
     );
 }
 

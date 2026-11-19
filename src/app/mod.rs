@@ -31,6 +31,7 @@ use crate::fs::{Dir, File, FileOptions, shell_globs};
 use crate::options::Options;
 use crate::options::stdin::FilesInput;
 use crate::output::summary::Summary;
+use crate::output::table::Environment;
 use crate::output::{
     Mode, View, code, details, escape, explain, file_name, grid, grid_details,
     hidden_count::HiddenCount, json, lines,
@@ -148,6 +149,10 @@ pub struct App<'args, W: Write, E: Write> {
 
     /// Whether any subdirectory Git repository column should be shown.
     pub git_repos: bool,
+
+    /// Scoped runtime environment (locale number formatting, timezone/clock,
+    /// and Unix user/group cache).
+    pub env: Environment,
 }
 
 impl<'args, W: Write, E: Write> App<'args, W, E> {
@@ -166,6 +171,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
         // them out as a terminal would get them, wherever it is written.
         let explain = matches!(options.view.mode, Mode::Explain(_));
         let theme = options.theme.to_theme(stdout_is_tty || explain);
+        let env = Environment::load_all();
 
         Self {
             options,
@@ -176,6 +182,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
             console_width,
             git,
             git_repos,
+            env,
         }
     }
 
@@ -222,6 +229,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
                 &self.options.filter,
                 &self.options.dir_action,
                 &self.options.view,
+                &self.env,
             );
 
             let render_exit = r.render(files, dirs, &mut self.writer, &mut self.err_writer)?;
@@ -333,6 +341,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
             git: self.git.as_ref(),
             no_git: self.options.no_git,
             deref_links: self.options.view.deref_links,
+            env: &self.env,
         };
         r.render(&mut self.writer)?;
         Ok(exit_status)
@@ -685,6 +694,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
                     git_repos,
                     summary,
                     total_entries: *total_entries,
+                    env: &self.env,
                 };
                 r.render(&mut self.writer, &mut self.err_writer)
             }
@@ -712,6 +722,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
                     git,
                     console_width,
                     git_repos,
+                    env: &self.env,
                 };
                 r.render(&mut self.writer, &mut self.err_writer)
             }
@@ -737,6 +748,7 @@ impl<'args, W: Write, E: Write> App<'args, W, E> {
                     git_repos,
                     summary,
                     total_entries: *total_entries,
+                    env: &self.env,
                 };
                 r.render(&mut self.writer, &mut self.err_writer)
             }

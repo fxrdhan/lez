@@ -25,6 +25,7 @@ use crate::fs::feature::git::GitCache;
 use crate::fs::filter::SortField;
 use crate::loc::{CodeContent, LangStat, LocCounts};
 use crate::output::icons::{icon_for_name_ext, iconify_style};
+use crate::output::table::Environment;
 use crate::theme::Theme;
 
 /// The width, in cells, of the share bar next to the percentage column.
@@ -89,6 +90,9 @@ pub struct Render<'a> {
 
     /// Whether symlinks should be followed / dereferenced.
     pub deref_links: bool,
+
+    /// Scoped runtime environment (locale numeric formatting).
+    pub env: &'a Environment,
 }
 
 /// How a summary column lines its contents up.
@@ -136,7 +140,7 @@ impl Render<'_> {
             return writeln!(w, "{}", style.paint("No recognised source code found."));
         }
 
-        let numerics = crate::output::numbers::user_numeric();
+        let numerics = &self.env.numeric;
 
         // The eza-flavoured palette: quantities take the size colour, the
         // language names the date colour, and structure stays dim.

@@ -20,7 +20,7 @@ use crate::output::cell::TextCell;
 use crate::output::color_scale::ColorScaleInformation;
 use crate::output::details::{Options as DetailsOptions, Render as DetailsRender, show_xattr_hint};
 use crate::output::file_name::Options as FileStyle;
-use crate::output::table::{Options as TableOptions, Table};
+use crate::output::table::{Environment, Options as TableOptions, Table};
 use crate::theme::Theme;
 
 #[derive(PartialEq, Eq, Debug)]
@@ -93,6 +93,8 @@ pub struct Render<'a> {
     pub console_width: usize,
 
     pub git_repos: bool,
+
+    pub env: &'a Environment,
 }
 
 impl<'a> Render<'a> {
@@ -195,6 +197,7 @@ impl<'a> Render<'a> {
                 git_ignoring,
                 git,
                 git_repos,
+                env,
                 ..
             } = self;
 
@@ -211,6 +214,7 @@ impl<'a> Render<'a> {
                 git_repos,
                 summary: false,
                 total_entries: false,
+                env,
             };
             return r.render(w, err);
         }
@@ -262,7 +266,7 @@ impl<'a> Render<'a> {
             (None, _) => { /* Keep Git how it is */ }
         }
 
-        let mut table = Table::new(options, self.git, self.theme, self.git_repos);
+        let mut table = Table::new(options, self.git, self.theme, self.git_repos, self.env);
 
         // The `--loc` percentage columns need the whole tree’s code total as
         // their denominator, just like in the details view.

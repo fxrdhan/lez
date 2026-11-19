@@ -90,7 +90,7 @@ use crate::output::color_scale::{ColorScaleInformation, ColorScaleOptions};
 #[cfg(feature = "inspect-archives")]
 use crate::output::escape::{Quoting, escape_inner_chars};
 use crate::output::file_name::Options as FileStyle;
-use crate::output::table::{Options as TableOptions, Row as TableRow, Table};
+use crate::output::table::{Environment, Options as TableOptions, Row as TableRow, Table};
 use crate::output::tree::{TreeDepth, TreeParams, TreeTrunk};
 use crate::theme::Theme;
 
@@ -166,6 +166,8 @@ pub struct Render<'a> {
     pub summary: bool,
 
     pub total_entries: bool,
+
+    pub env: &'a Environment,
 }
 
 #[rustfmt::skip]
@@ -231,7 +233,7 @@ impl<'a> Render<'a> {
             }
 
             let loc_content = table.columns.loc;
-            let mut table = Table::new(table, self.git, self.theme, self.git_repos);
+            let mut table = Table::new(table, self.git, self.theme, self.git_repos, self.env);
 
             // Percentage columns need the whole tree’s code total as their
             // denominator, so walk the tree (or git repo) once up front.

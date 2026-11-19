@@ -25,7 +25,7 @@ use crate::output::View;
 use crate::output::details::{self, show_xattr_hint};
 use crate::output::loc_adapter;
 use crate::output::render::{LanguageRender, LocRender, PermissionsPlusRender, TimeRender};
-use crate::output::table::{Column, ENVIRONMENT, Environment, Options as TableOptions};
+use crate::output::table::{Column, Environment, Options as TableOptions};
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct Options {
@@ -160,9 +160,8 @@ impl<'a> Render<'a> {
         file_filter: &'a FileFilter,
         dir_action: &'a DirAction,
         view: &'a View,
+        environment: &'a Environment,
     ) -> Self {
-        let environment = &*ENVIRONMENT;
-
         Self {
             git,
             deref_links: view.deref_links,
@@ -627,9 +626,11 @@ impl<'a> JsonFileObject<'a> {
     ) -> Option<String> {
         match c {
             Column::Permissions => f.permissions_plus(xattrs).render_json(),
-            Column::Timestamp(time_type) => time_type
-                .get_corresponding_time(f)
-                .render_json(&self.options.time_format, self.options.use_utc),
+            Column::Timestamp(time_type) => time_type.get_corresponding_time(f).render_json(
+                &self.options.time_format,
+                self.options.use_utc,
+                &env.time,
+            ),
             Column::FileSize => f.size().render_json(
                 self.options.size_format,
                 self.options.size_digits,
