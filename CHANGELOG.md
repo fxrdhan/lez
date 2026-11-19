@@ -8,6 +8,45 @@ SPDX-License-Identifier: EUPL-1.2
 -->
 # Changelog
 
+## [0.30.0] - 2026-11-19
+
+### Behaviour Changes
+
+- **256-Color Fallback for `--color-scale`**: `--color-scale` now emits 24-bit truecolor (`38;2;r;g;b`) only where the terminal advertises it (`COLORTERM` set to `truecolor` or `24bit`, `TERM` ending in `-direct` or `-truecolor`, or a Windows console). Elsewhere, shades map to the nearest entry in the 256-color palette (indices 16–255). Over `ssh` or `sudo` where `COLORTERM` is not forwarded, set `COLORTERM=truecolor` to keep the 24-bit scale. Colours named by a theme or `LS_COLORS` are unchanged ([eza#755](https://github.com/eza-community/eza/issues/755), [#201](https://github.com/fxrdhan/lez/pull/201)).
+- **Raw-Byte Rendering for Non-UTF-8 Names**: On Unix, bytes in paths, names, symlink targets, `--recurse` headers, `--explain`, and `--absolute` that are not valid UTF-8 are written as octal escapes inside ANSI-C quotes (`$'...'`) or `\xNN` under `--quotes=never`, instead of `U+FFFD`, so shells (`bash`, `zsh`, `ksh`) read the exact bytes back. `--json`, `--hyperlink`, and Windows retain their previous behaviour ([eza#585](https://github.com/eza-community/eza/issues/585), [#201](https://github.com/fxrdhan/lez/pull/201)).
+- **Datetime and Duration Parsing via `jiff`**: Replaced `chrono` and `humantime` with `jiff` and native `strftime` / `--since` parsers ([#202](https://github.com/fxrdhan/lez/pull/202)):
+  - `%Z` now prints the timezone abbreviation on Windows as well as Unix.
+  - An invalid `TZ` falls back to UTC (matching `ls`) instead of the system zone.
+  - `%#z` is rejected when options are read instead of panicking while formatting.
+  - Timestamps outside years `-9999..=9999` render as `-`, and very large `--since` windows that underflow keep every file instead of none.
+  - Option errors now ask for a `strftime` format string instead of a `chrono` one.
+- **Cache and Submodule Filtering in `--json` and `--code`**: `--ignore-cachedirs` and `--ignore-submodule-contents` are now honoured in `--json` and `--code` modes as well as standard listings ([#207](https://github.com/fxrdhan/lez/pull/207)).
+
+### Bug Fixes & Hardening
+
+- **Windows Path Handling**: Handled trailing quotes left by `cmd.exe` and Windows PowerShell 5.1 tab completion on quoted paths ending in `\` (such as `"C:\Program Files\"`), and fixed `Path::join` separator formatting for drive-root (`C:\Program Files`) and drive-relative (`C:notes.txt`) paths ([eza#874](https://github.com/eza-community/eza/issues/874), [#201](https://github.com/fxrdhan/lez/pull/201)).
+- **Linux musl Compilation**: Fixed `statfs::f_type` and `localtime_r` type compatibility so `lez` builds cleanly with warnings denied on `*-unknown-linux-musl` targets ([#201](https://github.com/fxrdhan/lez/pull/201)).
+
+### Architecture, Dependencies & Performance
+
+- **Layered Architecture & Injectable Context**: Enforced an acyclic 7-rank module DAG (`exits`/`logger` < `fs`/`loc` < `info` < `theme` < `output` < `options` < `app` < `main`) with architectural fitness tests, unified directory traversal (`TraversalPolicy`), typed `serde_json` models for `--json`, extracted application orchestration into `src/app/mod.rs`, replaced output-layer runtime globals with injectable `Environment`, `TimeContext`, and stderr writers, and enforced `#![deny(unsafe_op_in_unsafe_fn)]` and `#![deny(clippy::undocumented_unsafe_blocks)]` ([#207](https://github.com/fxrdhan/lez/pull/207)).
+- **Dependency & Build-Script Cleanup**: Removed the unused `backtrace` dependency and its six transitive crates ([#204](https://github.com/fxrdhan/lez/pull/204)), dropped `chrono` and `humantime` from `[dependencies]` ([#202](https://github.com/fxrdhan/lez/pull/202)), removed `jiff` from `[build-dependencies]` with explicit `cargo::rerun-if-changed` directives in `build.rs` ([#207](https://github.com/fxrdhan/lez/pull/207)), and updated `Cargo.lock` and `flake.lock` ([#206](https://github.com/fxrdhan/lez/pull/206)).
+
+### Documentation
+
+- **`lez(1)` & Upstream Triage**: Documented `--long`/`--oneline` last-flag precedence in `man/lez.1.md`, listed supported `strftime` specifiers directly, updated `INSTALL.md` and `CONTRIBUTING.md` for static musl builds, and recorded verdicts for the 23 previously unrecorded upstream bug reports in `docs/UPSTREAM_TRIAGE.md` ([eza#1592](https://github.com/eza-community/eza/issues/1592), [#201](https://github.com/fxrdhan/lez/pull/201), [#202](https://github.com/fxrdhan/lez/pull/202)).
+- **README Badges & Screenshot**: Fixed the Cachix and MSRV header badges, added a live `dev` line-coverage badge, and replaced the legacy `eza` screenshot with a rendered `lez` screenshot ([#203](https://github.com/fxrdhan/lez/pull/203)).
+
+### Testing & Quality Assurance
+
+- **Cross-Mode Differential Matrix & E2E Hardening**: Added cross-mode invariant tests across `-1`, `-G`, `-l`, `-lG`, `-T`, `-R`, `--json`, `--json -T`, `--json -R`, and `--code`; added E2E coverage for `--short-nix`, `--explain`, PTY auto modes, 64-filename shell-quoting roundtrips, JSON contracts, and `--no-default-features` runtime checks ([#208](https://github.com/fxrdhan/lez/pull/208)).
+- **Cargo 1.100 Test Discovery**: Switched integration test binary discovery to `CARGO_BIN_EXE_lez` so the suite passes under Cargo 1.100's target layout ([#201](https://github.com/fxrdhan/lez/pull/201)).
+
+### Distribution & CI Automation
+
+- **Static Linux musl Binaries & Installer**: Releases now publish statically linked `lez_x86_64-unknown-linux-musl.tar.gz` and `lez_aarch64-unknown-linux-musl.tar.gz` archives, and `packaging/install.sh` detects musl via `ldd --version` to select the static archive automatically ([#201](https://github.com/fxrdhan/lez/pull/201)).
+- **CI Gates & Syscall-Budget Guard**: Raised the line-coverage gate from 70% to 90%, added a Linux `strace -c` syscall-budget guard, ran `--no-default-features` E2E tests in CI, switched `ci-result` to a strict allowlist so abandoned runner jobs fail the gate, and updated CI GitHub Actions pins ([#199](https://github.com/fxrdhan/lez/pull/199), [#200](https://github.com/fxrdhan/lez/pull/200), [#205](https://github.com/fxrdhan/lez/pull/205), [#208](https://github.com/fxrdhan/lez/pull/208)).
+
 ## [0.29.1] - 2026-11-12
 
 ### Features & Enhancements
