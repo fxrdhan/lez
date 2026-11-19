@@ -5,7 +5,7 @@ SPDX-License-Identifier: EUPL-1.2
 
 # ADR-0001: Layered Architecture, Dependency Boundaries, and Automated Fitness Functions
 
-- **Status:** Accepted (Phase 1 complete — strict acyclic DAG & zero `clap` leaks enforced; Phase 2–3 ratchets active)
+- **Status:** Accepted (Phase 1–2 complete — strict acyclic DAG, zero `clap` leaks, zero `too_many_arguments`, unified traversal policy, typed `serde_json` output, and thin `main.rs` enforced; Phase 3 ratchets active)
 - **Date:** 2026-11-19
 
 ## Context

@@ -939,6 +939,21 @@ fn runtime_global_statics_are_ratcheted() {
 }
 
 #[test]
+fn main_rs_stays_a_thin_composition_root() {
+    let main_rs = fs::read_to_string(repo_root().join("src/main.rs"))
+        .expect("src/main.rs readable")
+        .replace("\r\n", "\n");
+    let prod = strip_cfg_test_items(&strip_comments_and_literals(&main_rs));
+    let non_empty_lines = prod.lines().filter(|l| !l.trim().is_empty()).count();
+    assert!(
+        non_empty_lines <= 200,
+        "ARCHITECTURAL REGRESSION (thin_composition_root): src/main.rs grew to \
+         {non_empty_lines} non-empty production lines (limit: 200).\n\
+         Keep orchestration in `src/app/` and leave `src/main.rs` as a thin shell (ADR-0001)."
+    );
+}
+
+#[test]
 fn every_unsafe_block_across_all_platforms_has_safety_comment() {
     let mut undocumented = Vec::new();
     for (rel, raw) in src_files() {
