@@ -31,6 +31,16 @@ use rayon::prelude::*;
 
 use crate::fs::filter::FileFilter;
 
+/// What the `--loc` columns and `--code` summary should display: raw line
+/// counts, each language’s share as a percentage, or both side by side.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CodeContent {
+    Lines,
+    Percent,
+    #[default]
+    Both,
+}
+
 /// A programming language lez knows how to count, along with the comment
 /// syntax needed to tell code from commentary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

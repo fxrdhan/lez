@@ -571,11 +571,11 @@ impl Lez<'_> {
         if let Mode::Json(opts) = &self.options.view.mode {
             let r = json::Render::new(
                 self.git.as_ref(),
-                self.options.filter.dot_filter,
                 opts,
-                self.options.filter.git_ignore == GitIgnore::CheckAndIgnore,
                 self.git_repos,
-                &self.options,
+                &self.options.filter,
+                &self.options.dir_action,
+                &self.options.view,
             );
 
             let render_exit = r.render(files, dirs, &mut self.writer)?;

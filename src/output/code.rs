@@ -22,8 +22,7 @@ use std::path::PathBuf;
 use nu_ansi_term::Style;
 
 use crate::fs::filter::SortField;
-use crate::loc::{LangStat, LocCounts};
-use crate::options::parser::CodeContent;
+use crate::loc::{CodeContent, LangStat, LocCounts};
 use crate::output::icons::{icon_for_name_ext, iconify_style};
 use crate::theme::Theme;
 

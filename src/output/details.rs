@@ -81,7 +81,7 @@ use crate::fs::fields::SecurityContextType;
 use crate::fs::filter::FileFilter;
 use crate::fs::filter::FileFilterFlags::OnlyFiles;
 use crate::fs::{Dir, File};
-use crate::options::parser::CodeContent;
+use crate::loc::CodeContent;
 use crate::output::cell::TextCell;
 #[cfg(feature = "inspect-archives")]
 use crate::output::cell::TextCellContents;

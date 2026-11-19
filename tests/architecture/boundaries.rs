@@ -44,19 +44,13 @@ const LEGACY_FORBIDDEN_MODULE_EDGES: &[(&str, &str)] = &[
     ("src/fs/filter.rs", "options"),
     ("src/fs/filter.rs", "output"),
     ("src/loc/mod.rs", "fs"),
-    ("src/output/code.rs", "options"),
-    ("src/output/details.rs", "options"),
-    ("src/output/grid_details.rs", "options"),
-    ("src/output/json.rs", "options"),
-    ("src/output/render/loc.rs", "options"),
-    ("src/output/table.rs", "options"),
     ("src/theme/default_theme.rs", "output"),
     ("src/theme/mod.rs", "options"),
     ("src/theme/mod.rs", "output"),
 ];
 
 /// Legacy files outside `src/main.rs` and `src/options/` referencing `clap`.
-const LEGACY_CLAP_LEAKS: &[&str] = &["src/output/mod.rs"];
+const LEGACY_CLAP_LEAKS: &[&str] = &[];
 
 /// Legacy files outside `src/main.rs` and `src/options/vars.rs` calling
 /// `env::var` or `env::var_os` directly (bypassing `Vars`).

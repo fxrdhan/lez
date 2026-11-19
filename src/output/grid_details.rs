@@ -15,7 +15,7 @@ use term_grid as grid;
 use crate::fs::feature::git::GitCache;
 use crate::fs::filter::FileFilter;
 use crate::fs::{Dir, File};
-use crate::options::parser::CodeContent;
+use crate::loc::CodeContent;
 use crate::output::cell::TextCell;
 use crate::output::color_scale::ColorScaleInformation;
 use crate::output::details::{Options as DetailsOptions, Render as DetailsRender, show_xattr_hint};

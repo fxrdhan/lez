@@ -16,9 +16,9 @@ use crate::output::render::{GroupRender, OctalPermissionsRender, UserRender};
 use crate::fs::dir_action::DirAction;
 use crate::fs::feature::git::GitCache;
 use crate::fs::fields as f;
-use crate::fs::filter::{FileFilter, FileFilterFlags};
+use crate::fs::filter::{FileFilter, FileFilterFlags, GitIgnore};
 use crate::fs::{Dir, DotFilter, File};
-use crate::options::parser::CodeContent;
+use crate::loc::CodeContent;
 use crate::output::View;
 use crate::output::details::{self, show_xattr_hint};
 use crate::output::render::{LanguageRender, LocRender, PermissionsPlusRender, TimeRender};
@@ -52,29 +52,26 @@ pub struct Render<'a> {
 impl<'a> Render<'a> {
     pub fn new(
         git: Option<&'a GitCache>,
-
-        dots: DotFilter,
         opts: &'a Options,
-
-        git_ignoring: bool,
         git_repos: bool,
-
-        options: &'a crate::options::Options,
+        file_filter: &'a FileFilter,
+        dir_action: &'a DirAction,
+        view: &'a View,
     ) -> Self {
         let environment = &*ENVIRONMENT;
 
         Self {
             git,
-            deref_links: options.view.deref_links,
-            total_size: options.view.total_size,
-            dots,
+            deref_links: view.deref_links,
+            total_size: view.total_size,
+            dots: file_filter.dot_filter,
             opts,
-            git_ignoring,
+            git_ignoring: file_filter.git_ignore == GitIgnore::CheckAndIgnore,
             git_repos,
             environment,
-            file_filter: &options.filter,
-            dir_action: &options.dir_action,
-            view: &options.view,
+            file_filter,
+            dir_action,
+            view,
         }
     }
 

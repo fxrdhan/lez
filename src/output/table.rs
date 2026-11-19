@@ -18,11 +18,7 @@ use uzers::UsersCache;
 
 use crate::fs::feature::git::GitCache;
 use crate::fs::{File, fields as f};
-use crate::options::Vars;
-use crate::options::parser::CodeContent;
-use crate::options::vars::{
-    EZA_FLAGS_FORMAT, EZA_WINDOWS_ATTRIBUTES, LEZ_FLAGS_FORMAT, LEZ_WINDOWS_ATTRIBUTES,
-};
+use crate::loc::CodeContent;
 use crate::output::cell::TextCell;
 use crate::output::color_scale::ColorScaleInformation;
 #[cfg(unix)]
@@ -374,19 +370,6 @@ pub enum FlagsFormat {
     Long,
     /// Display flags as single character abbreviations
     Short,
-}
-
-impl FlagsFormat {
-    pub(crate) fn deduce<V: Vars>(vars: &V) -> FlagsFormat {
-        vars.get_with_fallback(LEZ_FLAGS_FORMAT, EZA_FLAGS_FORMAT)
-            .or_else(|| vars.get_with_fallback(LEZ_WINDOWS_ATTRIBUTES, EZA_WINDOWS_ATTRIBUTES))
-            .and_then(|v| match v.to_ascii_lowercase().to_str() {
-                Some("short") => Some(FlagsFormat::Short),
-                Some("long") => Some(FlagsFormat::Long),
-                _ => None,
-            })
-            .unwrap_or_default()
-    }
 }
 
 /// Fields for which of a file’s time fields should be displayed in the

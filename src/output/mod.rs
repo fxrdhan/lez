@@ -158,14 +158,6 @@ pub enum SpacingBetweenColumns {
 }
 
 impl SpacingBetweenColumns {
-    pub fn deduce(matches: &clap::ArgMatches) -> Self {
-        if let Some(&spaces) = matches.get_one::<usize>("spacing") {
-            Self::Set(spaces.min(1000))
-        } else {
-            Self::Default
-        }
-    }
-
     /// Get the actual number of spaces to use between columns.
     /// Takes the spacing mode to determine the correct default.
     ///

@@ -355,14 +355,20 @@ pub enum ColorScaleModeArgs {
     Gradient,
 }
 
-/// What the `--loc` columns and `--code` summary should display: raw line
-/// counts, each language’s share as a percentage, or both side by side.
-#[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
-pub enum CodeContent {
-    Lines,
-    Percent,
-    #[default]
-    Both,
+pub use crate::loc::CodeContent;
+
+impl ValueEnum for CodeContent {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Lines, Self::Percent, Self::Both]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        Some(match self {
+            Self::Lines => PossibleValue::new("lines"),
+            Self::Percent => PossibleValue::new("percent"),
+            Self::Both => PossibleValue::new("both"),
+        })
+    }
 }
 
 impl ValueEnum for SortField {
