@@ -16,7 +16,7 @@ To run the complete test suite:
   - `just coverage` — Generate and print code coverage report via `cargo-llvm-cov`.
   - `just coverage-html` — Generate browsable HTML report in `target/llvm-cov/html/index.html`.
   - `just coverage-lcov` — Generate `lcov.info` for CI/Codecov integration.
-  - `just coverage-gate 70` — Enforce quality gate (fails if line coverage is below specified threshold).
+  - `just coverage-gate 90` — Enforce quality gate (fails if line coverage is below specified threshold).
 
 ## Modifying Tests
 

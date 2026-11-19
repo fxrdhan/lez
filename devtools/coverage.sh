@@ -68,7 +68,7 @@ case "$ACTION" in
         fi
         ;;
     gate)
-        THRESHOLD="${1:-70}"
+        THRESHOLD="${1:-90}"
         echo "==> Verifying code coverage gate (minimum: ${THRESHOLD}%)..."
         # The lines total, read by name from the JSON summary. The first
         # percentage in the text report's TOTAL row, which this used to
