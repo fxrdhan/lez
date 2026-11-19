@@ -180,3 +180,151 @@ fn a_layout_beside_it_is_refused_in_strict_mode() {
     assert_eq!(out.status.code(), Some(3));
     assert!(String::from_utf8_lossy(&out.stderr).contains("long is useless given option explain"));
 }
+
+#[test]
+fn explains_all_builtin_file_types_and_directory_icon_sources() {
+    let dir = TempTestDir::new("explain_types");
+    for file in [
+        "photo.png",
+        "clip.mp4",
+        "song.mp3",
+        "track.flac",
+        "key.pem",
+        "doc.pdf",
+        "pack.tar.gz",
+        "notes.bak",
+        "obj.o",
+        "Cargo.toml",
+        "data.csv",
+    ] {
+        dir.create_file(file, b"");
+    }
+    dir.create_dir("empty_dir");
+    dir.create_file("full_dir/child.txt", b"x");
+    dir.create_dir("src");
+
+    let output = run(&dir, &["--explain"], &[]);
+    let text = |name: &str| {
+        explained(&output)
+            .into_iter()
+            .find(|entry| entry.0 == name)
+            .unwrap_or_else(|| panic!("missing explanation for {name}:\n{output}"))
+            .3
+    };
+
+    assert!(text("photo.png").contains("from `im`, the built-in file type for image files"));
+    assert!(text("clip.mp4").contains("from `vi`, the built-in file type for video files"));
+    assert!(text("song.mp3").contains("from `mu`, the built-in file type for lossy music files"));
+    assert!(
+        text("track.flac").contains("from `lo`, the built-in file type for lossless music files")
+    );
+    assert!(text("key.pem").contains("from `cr`, the built-in file type for cryptography files"));
+    assert!(text("doc.pdf").contains("from `do`, the built-in file type for document files"));
+    assert!(text("pack.tar.gz").contains("from `co`, the built-in file type for compressed files"));
+    assert!(text("notes.bak").contains("from `tm`, the built-in file type for temporary files"));
+    assert!(text("obj.o").contains("from `cm`, the built-in file type for compiled files"));
+    assert!(text("Cargo.toml").contains("from `bu`, the built-in file type for build files"));
+    assert!(text("data.csv").contains("from `dt`, the built-in file type for data files"));
+    assert!(text("empty_dir").contains("from the built-in icon for an empty directory"));
+    assert!(text("full_dir").contains("from the built-in directory icon"));
+    assert!(text("src").contains("from the built-in icon for directories named `src`"));
+}
+
+#[test]
+fn explains_theme_directory_extension_default_and_icon_colour_overrides() {
+    let dir = TempTestDir::new("explain_theme_entries");
+    dir.create_file("app.foo", b"");
+    dir.create_file("plain.unknownext", b"");
+    dir.create_dir("special_dir");
+    dir.create_dir("empty_plain");
+    dir.create_file("nonempty_plain/x", b"1");
+    dir.create_file(
+        ".config/theme.yml",
+        b"\
+directorynames:
+  special_dir: {filename: {foreground: Yellow}, icon: {glyph: D, style: {foreground: Cyan}}}
+extensions:
+  foo: {filename: {foreground: Green}, icon: {glyph: F, style: {foreground: Red}}}
+  .default_directory_empty: {filename: {foreground: Purple}}
+  .default_directory: {filename: {foreground: Blue}}
+  .default_file: {filename: {foreground: White}}
+",
+    );
+
+    let cfg = dir.path().join(".config");
+    let output = run(
+        &dir,
+        &["--explain"],
+        &[("LEZ_CONFIG_DIR", cfg.to_str().unwrap())],
+    );
+    let text = |name: &str| {
+        explained(&output)
+            .into_iter()
+            .find(|entry| entry.0 == name)
+            .unwrap_or_else(|| panic!("missing explanation for {name}:\n{output}"))
+            .3
+    };
+
+    assert!(
+        text("special_dir").contains("from the theme file's `directorynames` entry `special_dir`")
+    );
+    assert!(
+        text("special_dir")
+            .contains("coloured 36 by the theme file's `directorynames` entry `special_dir`")
+    );
+    assert!(text("empty_plain").contains("from the theme file's `.default_directory_empty` entry"));
+    assert!(text("nonempty_plain").contains("from the theme file's `.default_directory` entry"));
+    assert!(text("app.foo").contains("from the theme file's `extensions` entry `foo`"));
+    assert!(text("app.foo").contains("coloured 31 by the theme file's `extensions` entry `foo`"));
+    assert!(text("plain.unknownext").contains("from the theme file's `.default_file` entry"));
+}
+
+#[cfg(unix)]
+#[test]
+fn explains_broken_links_ln_target_multi_hardlinks_and_pipes() {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let dir = TempTestDir::new("explain_unix_specials");
+    let orig = dir.create_file("hard_a", b"data");
+    std::fs::hard_link(&orig, dir.path().join("hard_b")).unwrap();
+    dir.create_symlink("hard_a", "good_link");
+    dir.create_symlink("missing_target", "broken_link");
+    dir.create_symlink("broken_link", "chained_broken");
+
+    let fifo_path = dir.path().join("my_pipe");
+    let c_fifo = CString::new(fifo_path.as_os_str().as_bytes()).unwrap();
+    // SAFETY: `c_fifo` is a valid NUL-terminated path pointing inside our temp dir.
+    let rc = unsafe { libc::mkfifo(c_fifo.as_ptr(), 0o600) };
+    assert_eq!(rc, 0, "mkfifo failed");
+
+    let out_default = run(&dir, &["--explain"], &[("LEZ_COLORS", "mh=33:or=31:pi=35")]);
+    let text_default = |name: &str| {
+        explained(&out_default)
+            .into_iter()
+            .find(|entry| entry.0 == name)
+            .unwrap_or_else(|| panic!("missing {name}:\n{out_default}"))
+            .3
+    };
+    assert!(text_default("hard_a").contains("from `mh`, a file with more than one hard link"));
+    assert!(text_default("broken_link").contains("from `or`, a link whose target is missing"));
+    assert!(text_default("my_pipe").contains("from `pi`, a named pipe"));
+
+    let out_ln_target = run(&dir, &["--explain"], &[("LEZ_COLORS", "ln=target:or=31")]);
+    let text_target = |name: &str| {
+        explained(&out_ln_target)
+            .into_iter()
+            .find(|entry| entry.0 == name)
+            .unwrap_or_else(|| panic!("missing {name}:\n{out_ln_target}"))
+            .3
+    };
+    assert!(
+        text_target("good_link")
+            .contains("from `ln=target`, the colour of the file the link leads to")
+    );
+    assert!(text_target("broken_link").contains("from `or`, a link whose target is missing"));
+    assert!(
+        text_target("chained_broken")
+            .contains("from `or`, under `ln=target`, a link that leads nowhere")
+    );
+}
