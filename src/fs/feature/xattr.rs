@@ -755,25 +755,40 @@ fn display_capability(attribute: &Attribute) -> Option<String> {
 // from January 1, 1970
 #[cfg(target_os = "macos")]
 fn display_lastuseddate(attribute: &Attribute) -> Option<String> {
-    use crate::output::strftime;
-    use crate::output::time::LOCAL_ZONE;
-
     let value = attribute.value.as_ref().filter(|value| value.len() == 16)?;
     let sec = i64::from_le_bytes(value[0..8].try_into().ok()?);
     let n_sec = i64::from_le_bytes(value[8..].try_into().ok()?);
     let n_sec = i32::try_from(n_sec)
         .ok()
         .filter(|n_sec| (0..1_000_000_000).contains(n_sec))?;
+    let zone = jiff::tz::TimeZone::try_system().unwrap_or(jiff::tz::TimeZone::UTC);
     let time = jiff::Timestamp::new(sec, n_sec)
         .ok()?
-        .to_zoned_datetime(LOCAL_ZONE.clone());
+        .to_zoned_datetime(zone);
     // RFC 3339 in nanoseconds, with `Z` for UTC.
-    let offset = if time.offset().seconds() == 0 {
-        "Z"
+    let year = time.year();
+    let year_str = if year < 0 {
+        format!("-{:04}", year.unsigned_abs())
     } else {
-        "%:z"
+        format!("{year:04}")
     };
-    strftime::format(&format!("%Y-%m-%dT%H:%M:%S%.9f{offset}"), &time).ok()
+    let offset_secs = time.offset().seconds();
+    let offset = if offset_secs == 0 {
+        String::from("Z")
+    } else {
+        let sign = if offset_secs < 0 { '-' } else { '+' };
+        let abs = offset_secs.unsigned_abs();
+        format!("{sign}{:02}:{:02}", abs / 3600, (abs % 3600) / 60)
+    };
+    Some(format!(
+        "{year_str}-{:02}-{:02}T{:02}:{:02}:{:02}.{:09}{offset}",
+        time.month(),
+        time.day(),
+        time.hour(),
+        time.minute(),
+        time.second(),
+        time.subsec_nanosecond(),
+    ))
 }
 
 // Decode Classic Mac OS Resource Fork headers

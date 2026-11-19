@@ -80,32 +80,6 @@ impl LocaleCollator {
         })
     }
 
-    /// Deduce the active collation locale from environment variables following POSIX
-    /// precedence (`LC_ALL` -> `LC_COLLATE` -> `LANG`) with `sys_locale` fallback.
-    pub fn deduce<V: crate::options::Vars>(vars: &V) -> Option<Self> {
-        // POSIX precedence hierarchy: LC_ALL -> LC_COLLATE -> LANG
-        for var_name in &[
-            crate::options::vars::LC_ALL,
-            crate::options::vars::LC_COLLATE,
-            crate::options::vars::LANG,
-        ] {
-            if let Some(val) = vars.get(var_name) {
-                let s = val.to_string_lossy();
-                if let Some(collator) = Self::try_from_locale_str(&s) {
-                    return Some(collator);
-                } else if Self::is_c_or_posix(&s) {
-                    // Explicit C/POSIX locale means standard byte/ASCII collation without ICU
-                    return None;
-                }
-            }
-        }
-
-        // OS-level fallback via vars.get_locale() (defaults to sys_locale::get_locale())
-        vars.get_locale()
-            .as_deref()
-            .and_then(Self::try_from_locale_str)
-    }
-
     /// Clean/normalize a locale string by stripping encoding (.UTF-8) and modifiers (@euro).
     /// Returns None if empty or if it represents a C/POSIX locale.
     ///
@@ -259,7 +233,7 @@ pub struct FileFilter {
     pub ignore_cachedir: IgnoreCacheDir,
 
     /// Whether (and how eagerly) to report filtered-out entries.
-    pub warn_hidden: crate::output::hidden_count::WarnHiddenMode,
+    pub warn_hidden: crate::fs::hidden_count::WarnHiddenMode,
 
     /// Whether to skip descending into Git submodule working trees.
     pub ignore_submodule_contents: bool,

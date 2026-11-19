@@ -38,11 +38,7 @@ fn layer_rank(module: &str) -> Option<u8> {
 /// Legacy upward or same-rank module edges scheduled for removal in Phase 1.
 /// Format: `(source_file, target_top_level_module)`.
 const LEGACY_FORBIDDEN_MODULE_EDGES: &[(&str, &str)] = &[
-    ("src/fs/dir.rs", "output"),
-    ("src/fs/feature/xattr.rs", "output"),
     ("src/fs/file.rs", "loc"),
-    ("src/fs/filter.rs", "options"),
-    ("src/fs/filter.rs", "output"),
     ("src/loc/mod.rs", "fs"),
     ("src/theme/default_theme.rs", "output"),
     ("src/theme/mod.rs", "options"),

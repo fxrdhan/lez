@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: MIT
 use crate::fs::feature::git::GitCache;
 use crate::fs::fields::GitStatus;
-use crate::output::hidden_count::HiddenCount;
+use crate::fs::hidden_count::HiddenCount;
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs;

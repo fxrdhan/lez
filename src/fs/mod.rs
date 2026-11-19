@@ -16,6 +16,7 @@ pub mod dir_action;
 pub mod feature;
 pub mod fields;
 pub mod filter;
+pub mod hidden_count;
 pub mod mounts;
 pub mod recursive_size;
 pub mod shell_globs;
