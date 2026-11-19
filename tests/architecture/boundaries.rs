@@ -9,7 +9,7 @@
 //! - Resolving a legacy violation also fails until its allowlist entry is
 //!   deleted, so architectural debt can only shrink monotonically toward zero.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -34,13 +34,6 @@ fn layer_rank(module: &str) -> Option<u8> {
         _ => None,
     }
 }
-
-/// Legacy upward or same-rank module edges — completely cleared in Phase 1.
-/// Any non-empty entry here would indicate architectural regression.
-const LEGACY_FORBIDDEN_MODULE_EDGES: &[(&str, &str)] = &[];
-
-/// Legacy files outside `src/main.rs` and `src/options/` referencing `clap`.
-const LEGACY_CLAP_LEAKS: &[&str] = &[];
 
 /// Legacy files outside `src/main.rs` and `src/options/vars.rs` calling
 /// `env::var` or `env::var_os` directly (bypassing `Vars`).
@@ -771,8 +764,9 @@ fn all_top_level_modules_have_assigned_layer_ranks() {
 }
 
 #[test]
-fn module_dependency_dag_ratchet() {
-    let mut actual: BTreeSet<(String, String)> = BTreeSet::new();
+fn module_dependency_dag_is_strictly_acyclic() {
+    let mut forbidden: BTreeSet<(String, String)> = BTreeSet::new();
+    let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
     for (rel, raw) in src_files() {
         let Some(src_mod) = top_level_module(&rel) else {
@@ -782,49 +776,75 @@ fn module_dependency_dag_ratchet() {
             .unwrap_or_else(|| panic!("unranked top-level module `{src_mod}` for {rel}"));
         let prod = strip_cfg_test_items(&strip_comments_and_literals(&raw));
 
+        let entry = graph.entry(src_mod.to_owned()).or_default();
         for target_mod in extract_crate_module_targets(&prod) {
             if target_mod == src_mod {
                 continue;
             }
             let target_rank = layer_rank(&target_mod).expect("target module ranked");
+            entry.insert(target_mod.clone());
             if src_rank <= target_rank {
-                actual.insert((rel.clone(), target_mod));
+                forbidden.insert((rel.clone(), target_mod));
             }
         }
     }
 
-    let expected: BTreeSet<(String, String)> = LEGACY_FORBIDDEN_MODULE_EDGES
-        .iter()
-        .map(|(f, m)| ((*f).to_owned(), (*m).to_owned()))
-        .collect();
+    assert!(
+        forbidden.is_empty(),
+        "ARCHITECTURAL REGRESSION (module_dependency_dag): forbidden upward or same-rank \
+         edge(s) detected: {forbidden:#?}\n\
+         Modules may only import lower-ranked layers (ADR-0001)."
+    );
 
-    assert_ratchet_set(
-        "module_dependency_dag",
-        &actual,
-        &expected,
-        "Modules may only import lower-ranked layers (ADR-0001).",
+    // Independent cycle check (Kahn's topological sort) proving 0 cycles / 0 SCCs > 1.
+    let mut indegree: BTreeMap<String, usize> = graph.keys().map(|k| (k.clone(), 0usize)).collect();
+    for targets in graph.values() {
+        for target in targets {
+            *indegree.entry(target.clone()).or_insert(0) += 1;
+        }
+    }
+    let mut ready: Vec<String> = indegree
+        .iter()
+        .filter(|&(_, &deg)| deg == 0)
+        .map(|(node, _)| node.clone())
+        .collect();
+    let mut visited = 0usize;
+    while let Some(node) = ready.pop() {
+        visited += 1;
+        if let Some(targets) = graph.get(&node) {
+            for target in targets {
+                let deg = indegree.get_mut(target).expect("node in graph");
+                *deg -= 1;
+                if *deg == 0 {
+                    ready.push(target.clone());
+                }
+            }
+        }
+    }
+    assert_eq!(
+        visited,
+        indegree.len(),
+        "Top-level module dependency graph contains a cycle: {graph:#?}"
     );
 }
 
 #[test]
-fn clap_is_isolated_to_cli_and_options_ratchet() {
-    let mut actual = BTreeSet::new();
+fn clap_is_isolated_to_cli_and_options() {
+    let mut leaks = BTreeSet::new();
     for (rel, raw) in src_files() {
         if rel == "src/main.rs" || rel.starts_with("src/options/") {
             continue;
         }
         let prod = strip_cfg_test_items(&strip_comments_and_literals(&raw));
         if contains_ident(&prod, "clap") {
-            actual.insert(rel);
+            leaks.insert(rel);
         }
     }
 
-    let expected: BTreeSet<String> = LEGACY_CLAP_LEAKS.iter().map(|s| (*s).to_owned()).collect();
-    assert_ratchet_set(
-        "clap_isolation",
-        &actual,
-        &expected,
-        "CLI parser (`clap`) types must stay inside `src/main.rs` and `src/options/` (ADR-0001).",
+    assert!(
+        leaks.is_empty(),
+        "ARCHITECTURAL REGRESSION (clap_isolation): `clap` referenced outside `src/main.rs` \
+         and `src/options/`: {leaks:#?} (ADR-0001)."
     );
 }
 
