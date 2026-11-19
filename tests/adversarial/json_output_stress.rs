@@ -218,6 +218,63 @@ fn a_link_carries_its_target() {
     );
 }
 
+#[test]
+#[cfg(unix)]
+fn json_long_honors_no_symlink_targets_and_dereference_and_mixed_recursive_shape() {
+    let dir = TempTestDir::new("json_contract_links");
+    dir.create_file("real.txt", b"hello123");
+    dir.create_symlink("real.txt", "link.txt");
+    dir.create_file("sub/child.txt", b"c");
+
+    // `--no-symlink-targets` omits the `Target` key.
+    let no_target: serde_json::Value = serde_json::from_str(&json(
+        &dir,
+        &[
+            "-l",
+            "--no-extended",
+            "--no-user",
+            "--no-time",
+            "--no-symlink-targets",
+            "link.txt",
+        ],
+    ))
+    .expect("valid JSON");
+    assert!(
+        no_target["link.txt"].get("Target").is_none(),
+        "Target must be omitted under --no-symlink-targets: {no_target}"
+    );
+
+    // `--dereference` reports the target's size ("8") and permissions (regular file).
+    let deref: serde_json::Value = serde_json::from_str(&json(
+        &dir,
+        &[
+            "-l",
+            "--no-extended",
+            "--no-user",
+            "--no-time",
+            "--dereference",
+            "link.txt",
+        ],
+    ))
+    .expect("valid JSON");
+    assert_eq!(deref["link.txt"]["Size"], "8");
+    assert!(
+        deref["link.txt"]["Permissions"]
+            .as_str()
+            .is_some_and(|p| p.starts_with('.')),
+        "dereferenced link must show regular-file permissions: {deref}"
+    );
+
+    // Mixed file + directory arguments under `-R` emit `files` + `directories`.
+    let mixed: serde_json::Value =
+        serde_json::from_str(&json(&dir, &["-R", "real.txt", "sub"])).expect("valid JSON");
+    assert_eq!(mixed["files"], serde_json::json!(["real.txt"]));
+    assert_eq!(
+        mixed["directories"]["sub"]["files"],
+        serde_json::json!(["child.txt"])
+    );
+}
+
 /// Recursion nests each directory's `files` and `directories`, keyed by
 /// name; a link back up the tree is a file and is not followed.
 #[test]
