@@ -109,7 +109,7 @@ Triaged 2026-11-24, against v0.30.0 on macOS. A PR marked *Pending decision* add
 | [#1987](https://github.com/eza-community/eza/pull/1987) `libz-sys` 1.1.33 for RUSTSEC-2026-0418 | **Covered.** `Cargo.lock` already has 1.1.33. |
 | [#1988](https://github.com/eza-community/eza/pull/1988) every flag combination in `filter_child_files` ([#1927](https://github.com/eza-community/eza/issues/1927)) | **Covered** by the #1930 port (PR #93): `--only-files --no-symlinks` lists the plain file alone. |
 | [#1989](https://github.com/eza-community/eza/pull/1989) `windows-11-arm` in the unit test matrix | **Declined.** eza's own CI. `lez` builds `aarch64-pc-windows-msvc` in its release jobs (#1929 in §5). |
-| [#1990](https://github.com/eza-community/eza/pull/1990) fish completion for `--sort=created` | **Reproduces; not yet ported.** `completions/fish/lez.fish` and its `eza` copy describe `created` as "Sort by file modified time". |
+| [#1990](https://github.com/eza-community/eza/pull/1990) fish completion for `--sort=created` | **Ported.** `completions/fish/lez.fish` and its `eza` copy described `created` as "Sort by file modified time"; they now say created time, and `fish_describes_each_timestamp_sort_by_the_timestamp_it_uses` checks every timestamp sort value against the field clap maps it to. |
 | [#1994](https://github.com/eza-community/eza/pull/1994) `Gr` style for directories that are Git repositories ([#1993](https://github.com/eza-community/eza/issues/1993)) | **Pending decision.** |
 
 ---
