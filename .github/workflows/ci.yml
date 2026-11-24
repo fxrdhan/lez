@@ -129,7 +129,7 @@ jobs:
       # with Cargo.lock or deny.toml, unlike the advisories, which the
       # Dependency Advisories workflow checks outside this gate.
       - name: Install cargo-deny
-        uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
+        uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2.90.7
         with:
           tool: cargo-deny
       - name: Check licenses, bans and sources
@@ -236,7 +236,7 @@ jobs:
       # Pinned: nextest 0.9.129 and later require rustc 1.91, above this
       # crate's MSRV.
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
+        uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2.90.7
         with:
           tool: cargo-nextest@0.9.128
       # The zsh completion files are parsed by zsh itself, which a Linux
@@ -285,7 +285,7 @@ jobs:
           key: llvm-cov
           save-if: ${{ github.ref == 'refs/heads/dev' }}
       - name: Install cargo-llvm-cov & cargo-nextest
-        uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
+        uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2.90.7
         with:
           tool: cargo-llvm-cov,cargo-nextest@0.9.128
       - name: Install zsh
@@ -459,7 +459,7 @@ jobs:
           shared-key: release-${{ matrix.target }}
           save-if: false
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
+        uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2.90.7
         with:
           tool: cargo-nextest@0.9.128
       - name: Install zsh
