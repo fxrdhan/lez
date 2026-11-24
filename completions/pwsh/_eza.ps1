@@ -12,6 +12,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
     $ArrayTime           = @('modified', 'mod', 'm', 'accessed', 'acc', 'changed', 'ch', 'created', 'cr')
     $ArrayTimeStyle      = @('default', 'iso', 'long-iso', 'full-iso', 'relative', '+%Y-%m-%d %H:%M', '+%Y.%m.%d %H:$M:$s')
     $ArrayCodeMode       = @('lines', 'percent', 'both')
+    $ArrayShell          = @('bash', 'zsh', 'fish', 'nushell', 'powershell')
 
     # Nine flags take an optional value and only accept it with an equals sign,
     # as `eza --absolute=on`. Offering these after a space would build a command
@@ -61,6 +62,11 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         }
         '*;--sort' {
             $ArraySort | 
+            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
+            break
+        }
+        '*;--completions' {
+            $ArrayShell | 
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)}
             break
         }
@@ -229,6 +235,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
             [CompletionResult]::new('--mime-types'               ,'mimetypes'           , [CompletionResultType]::ParameterName, 'determine file MIME types to better inform styling decisions (unix only)')
             [CompletionResult]::new('--config'                   ,'config'              , [CompletionResultType]::ParameterName, 'load options from specified configuration file')
             [CompletionResult]::new('--no-config'                ,'no-config'           , [CompletionResultType]::ParameterName, 'do not load any configuration files')
+            [CompletionResult]::new('--completions'              ,'completions'         , [CompletionResultType]::ParameterName, 'print the completion script for a shell and exit')
             break
         }
         

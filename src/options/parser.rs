@@ -18,6 +18,7 @@ use clap::{
 
 use crate::{
     fs::filter::{SortCase, SortField},
+    options::completions::Shell,
     output::{file_name::Absolute, time::TimeFormat},
 };
 
@@ -82,6 +83,10 @@ fn meta_options(command: clap::Command) -> clap::Command {
                 .value_parser(value_parser!(PathBuf)),
         )
         .arg(arg!(--"no-config" "do not read any configuration file"))
+        .arg(
+            arg!(--completions <SHELL> "print the completion script for SHELL and exit")
+                .value_parser(value_parser!(Shell)),
+        )
         .arg(arg!(-'?' --help "Print help").action(clap::ArgAction::HelpShort))
         .arg(arg!(--version "Print version").action(clap::ArgAction::Version))
         // `ls -v` orders embedded numbers by value, which is what sorting by

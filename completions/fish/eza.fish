@@ -14,6 +14,7 @@ complete -c eza -s v -d "Sort numerically within names, as ls -v does (the defau
 complete -c eza -l help -d "Show list of command-line options"
 complete -c eza -l config -d "Load options from specified configuration file" -r -F
 complete -c eza -l no-config -d "Do not load any configuration files"
+complete -c eza -l completions -d "Print the completion script for a shell and exit" -x -a "bash zsh fish nushell powershell"
 
 # Display options
 complete -c eza -s 1 -l oneline -d "Display one entry per line"

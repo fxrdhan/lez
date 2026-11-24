@@ -352,6 +352,7 @@ These options work with every view:
 - **--stdin0**: read NUL-separated file names from stdin (e.g. `find -print0 | lez --stdin0`)
 - **--config**: load default options from specified configuration file (`.toml`, `.yaml`, or `.yml`)
 - **--no-config**: do not load any global or per-directory configuration files, nor a theme file other than one named by `--theme`
+- **--completions=SHELL**: print the completion script for `bash`, `zsh`, `fish`, `nushell` or `powershell` and exit (e.g. `source <(lez --completions=bash)`)
 
 </details>
 

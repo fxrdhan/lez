@@ -178,6 +178,17 @@ attaches them as `completions-v<version>.tar.gz`. Homebrew, the `.deb` and the
 Nix package install the bash, zsh and fish ones for you. For any other install,
 and for nushell and PowerShell, wire them up yourself.
 
+The binary carries the same scripts, so an install that brings the binary alone,
+such as mise or aqua, needs no clone: `lez --completions=SHELL` prints the one
+for `bash`, `zsh`, `fish`, `nushell` or `powershell`. Save it where the steps
+below put the file, or, in bash, load it directly:
+
+```sh
+source <(lez --completions=bash)
+lez --completions=zsh > ~/.zfunc/_lez   # a folder in $fpath
+lez --completions=fish > ~/.config/fish/completions/lez.fish
+```
+
 #### zsh
 
 > **Note**

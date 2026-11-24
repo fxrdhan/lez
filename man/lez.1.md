@@ -62,6 +62,9 @@ META OPTIONS
 `--no-config`
 : Do not load any global or per-directory configuration files, nor a theme file other than one named by `--theme`.
 
+`--completions=SHELL`
+: Print the completion script for `SHELL` and exit: `bash`, `zsh`, `fish`, `nushell` (or `nu`) or `powershell` (or `pwsh`). It is the script the release ships under `completions/`, built into the binary for installs that bring the binary alone. Like `--version`, it reads no configuration file and lists nothing.
+
 `--stdin`
 : When you wish to pipe directories to lez/read from stdin. Separate one per line or define custom separation char in `LEZ_STDIN_SEPARATOR` / `EZA_STDIN_SEPARATOR` env variable.
 

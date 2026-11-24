@@ -80,7 +80,7 @@ fn test_exit_code_3_on_strict_mode_conflicting_options() {
 #[test]
 fn test_exit_code_3_on_invalid_cli_arguments() {
     let output = lez_cmd()
-        .arg("--completely-invalid-nonexistent-flag-xyz")
+        .arg("--nonexistent-flag-xyz")
         .output()
         .expect("run lez");
 
@@ -89,9 +89,9 @@ fn test_exit_code_3_on_invalid_cli_arguments() {
         (
             Some(3),
             "",
-            "error: unexpected argument '--completely-invalid-nonexistent-flag-xyz' found\n\n  \
-             tip: to pass '--completely-invalid-nonexistent-flag-xyz' as a value, use \
-             '-- --completely-invalid-nonexistent-flag-xyz'\n\n\
+            "error: unexpected argument '--nonexistent-flag-xyz' found\n\n  \
+             tip: to pass '--nonexistent-flag-xyz' as a value, use \
+             '-- --nonexistent-flag-xyz'\n\n\
              Usage: lez [OPTIONS] [FILE]...\n\n\
              For more information, try '--help'.\n"
         )

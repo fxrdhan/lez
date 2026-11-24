@@ -7,6 +7,8 @@ mod common;
 
 #[path = "cli_options/buffered_output.rs"]
 mod buffered_output;
+#[path = "cli_options/completions_flag.rs"]
+mod completions_flag;
 #[path = "cli_options/config_file.rs"]
 mod config_file;
 #[path = "cli_options/cross_mode_differential.rs"]

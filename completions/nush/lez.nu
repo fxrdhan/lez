@@ -13,6 +13,7 @@ export extern "lez" [
     --help                     # Show list of command-line options
     --config: string           # Load options from specified configuration file
     --no-config                # Do not load any configuration files
+    --completions: string      # Print the completion script for a shell and exit
     --oneline(-1)              # Display one entry per line
     --long(-l)                 # Display extended file metadata as a table
     --grid(-G)                 # Display entries in a grid
