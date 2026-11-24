@@ -15,6 +15,8 @@ mod conflicts_and_states;
 mod gitignore;
 #[path = "git/glyphs.rs"]
 mod glyphs;
+#[path = "git/intent_to_add.rs"]
+mod intent_to_add;
 #[path = "git/nested_repos.rs"]
 mod nested_repos;
 #[path = "git/repos_dotgit.rs"]

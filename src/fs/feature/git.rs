@@ -629,10 +629,19 @@ fn repo_to_statuses(
 
     match repo.statuses(Some(&mut options)) {
         Ok(es) => {
+            // Loaded on the first entry that may be intent-to-add. The status
+            // walk has already read the index, and this is the same copy.
+            let mut index = None;
             for e in es.iter() {
                 if let Some(p) = get_path_from_status_entry(&e) {
-                    let elem = (workdir.join(p), e.status());
-                    statuses.push(elem);
+                    let mut status = e.status();
+                    if status.intersects(INTENT_TO_ADD_SUSPECT)
+                        && let Some(index) = index.get_or_insert_with(|| repo.index().ok())
+                        && is_intent_to_add(index, e.path_bytes())
+                    {
+                        status = intent_to_add_status(status);
+                    }
+                    statuses.push((workdir.join(p), status));
                 }
             }
             // We manually add the `.git` at the root of the repo as ignored, since it is in practice.
@@ -845,6 +854,50 @@ fn index_status(status: git2::Status) -> f::GitStatus {
         s if s.contains(git2::Status::INDEX_TYPECHANGE)  => f::GitStatus::TypeChange,
         _                                                => f::GitStatus::NotModified,
     };
+}
+
+/// The index-side bits libgit2 reports for an intent-to-add entry
+/// (`git add -N`, and every new file in a colocated jj repository). libgit2
+/// has no notion of such entries: it compares their placeholder, an empty
+/// blob, like any other index entry, so the file shows as added to the index
+/// (or modified, if `HEAD` has the path) and, once it has content, modified in
+/// the working tree. Only entries carrying one of these bits are looked up in
+/// the index.
+const INTENT_TO_ADD_SUSPECT: git2::Status = git2::Status::INDEX_NEW
+    .union(git2::Status::INDEX_MODIFIED)
+    .union(git2::Status::INDEX_TYPECHANGE);
+
+/// Whether the index entry at `path` (stage 0, as the status walk names it)
+/// is marked intent-to-add. A lookup in the index already in memory: no
+/// filesystem access.
+fn is_intent_to_add(index: &git2::Index, path: &[u8]) -> bool {
+    index
+        .find_prefix(path)
+        .ok()
+        .and_then(|pos| index.get(pos))
+        .is_some_and(|entry| {
+            entry.path == path
+                && git2::IndexEntryExtendedFlag::from_bits_truncate(entry.flags_extended)
+                    .is_intent_to_add()
+        })
+}
+
+/// Rewrites libgit2's status for an intent-to-add entry into what
+/// `git status` reports: the entry is not really in the index yet, so nothing
+/// is staged (or a deletion is, when `HEAD` has the path), and the working
+/// tree holds a new file, or a deleted one if it has gone since `git add -N`.
+fn intent_to_add_status(status: git2::Status) -> git2::Status {
+    let mut s = status;
+    let in_head = s.intersects(git2::Status::INDEX_MODIFIED | git2::Status::INDEX_TYPECHANGE);
+    s.remove(INTENT_TO_ADD_SUSPECT);
+    if in_head {
+        s.insert(git2::Status::INDEX_DELETED);
+    }
+    if !s.contains(git2::Status::WT_DELETED) {
+        s.remove(git2::Status::WT_MODIFIED | git2::Status::WT_TYPECHANGE);
+        s.insert(git2::Status::WT_NEW);
+    }
+    s
 }
 
 fn current_branch(repo: &git2::Repository) -> Option<String> {
