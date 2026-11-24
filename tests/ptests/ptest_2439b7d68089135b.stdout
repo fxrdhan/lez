@@ -3,13 +3,15 @@ A modern, fast, and feature-rich replacement for ls written in Rust
 Usage: lez [OPTIONS] [FILE]...
 
 META OPTIONS:
-      --stdin          read file names from stdin
-      --stdin0         read NUL-separated file names from stdin
-      --config <PATH>  load custom configuration file
-      --no-config      do not read any configuration file
-  -?, --help           Print help
-      --version        Print version
-  -v                   sort numerically within names, as `ls -v` does (the default)
+      --stdin                read file names from stdin
+      --stdin0               read NUL-separated file names from stdin
+      --config <PATH>        load custom configuration file
+      --no-config            do not read any configuration file
+      --completions <SHELL>  print the completion script for SHELL and exit [possible values: bash,
+                             zsh, fish, nushell, powershell]
+  -?, --help                 Print help
+      --version              Print version
+  -v                         sort numerically within names, as `ls -v` does (the default)
 
 LAYOUT OPTIONS:
   -1, --oneline           display one entry per line

@@ -23,6 +23,7 @@ use log::{info, trace, warn};
 use lez::app::{App, collect_input_paths};
 use lez::exits;
 use lez::logger;
+use lez::options::completions::Shell;
 use lez::options::parser::{get_command, normalize_args};
 use lez::options::{Options, Vars, vars};
 
@@ -54,6 +55,23 @@ fn main() {
             }
         }
     };
+
+    // Like `--version`, this answers before any configuration is read, so a
+    // broken config file cannot stand between a shell and its completions.
+    if let Some(shell) = cli.get_one::<Shell>("completions") {
+        let mut stdout = io::stdout().lock();
+        match stdout
+            .write_all(shell.script().as_bytes())
+            .and_then(|()| stdout.flush())
+        {
+            Ok(()) => exit(exits::SUCCESS),
+            Err(e) if e.kind() == ErrorKind::BrokenPipe => exit(exits::SUCCESS),
+            Err(e) => {
+                let _ = writeln!(io::stderr(), "lez: {e}");
+                exit(exits::RUNTIME_ERROR);
+            }
+        }
+    }
 
     let given_paths: Vec<OsString> = cli
         .get_many::<OsString>("FILE")

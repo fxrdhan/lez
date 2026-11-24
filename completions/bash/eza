@@ -96,6 +96,11 @@ _eza() {
             return
             ;;
 
+        --completions)
+            mapfile -t COMPREPLY < <(compgen -W 'bash zsh fish nushell powershell' -- "$cur")
+            return
+            ;;
+
         -L|--level|--size-digits|--digits|--percent-digits|--precision-percent)
             mapfile -t COMPREPLY < <(compgen -W '{0..8}' -- "$cur")
             return

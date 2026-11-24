@@ -15,6 +15,7 @@ __lez() {
         "(- *)"--help"[Show list of command-line options]" \
         \*--config="[Load options from specified configuration file]:(config file):_files" \
         \*--no-config"[Do not load any configuration files]" \
+        "(- *)"--completions="[Print the completion script for a shell and exit]:(shell):(bash zsh fish nushell powershell)" \
         \*{-1,--oneline}"[Display one entry per line]" \
         \*{-l,--long}"[Display extended file metadata as a table]" \
         \*{-G,--grid}"[Display entries as a grid]" \
