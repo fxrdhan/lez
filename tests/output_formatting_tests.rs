@@ -38,3 +38,5 @@ mod size_digits;
 mod smart_group;
 #[path = "output_formatting/summary_and_total.rs"]
 mod summary_and_total;
+#[path = "output_formatting/time_zone_loading.rs"]
+mod time_zone_loading;

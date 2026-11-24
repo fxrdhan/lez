@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: MIT
 use std::cmp::max;
 use std::ops::Deref;
+use std::sync::OnceLock;
 #[cfg(unix)]
 use std::sync::{Mutex, MutexGuard};
 
@@ -410,8 +411,11 @@ pub struct Environment {
     /// Localisation rules for formatting numbers.
     pub numeric: locale::Numeric,
 
-    /// Timezone, reference year/clock, and time locale.
-    pub time: TimeContext,
+    /// Timezone, reference year/clock, and time locale, read from the host
+    /// the first time [`Environment::time`] is called. Finding the local
+    /// zone’s name makes `jiff` walk every directory of the zoneinfo
+    /// database, which a listing that shows no time has no use for.
+    time: OnceLock<TimeContext>,
 
     /// Mapping cache of user IDs to usernames.
     #[cfg(unix)]
@@ -426,21 +430,28 @@ impl Environment {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    /// Loads live locale, timezone, and user cache from the host OS.
+    /// Loads the number locale and an empty user cache from the host OS.
+    /// The timezone, clock and time locale wait for [`Self::time`].
     #[must_use]
     pub fn load_all() -> Self {
         let numeric = crate::output::numbers::user_numeric();
-        let time = TimeContext::from_system();
 
         #[cfg(unix)]
         let users = Mutex::new(UsersCache::new());
 
         Self {
             numeric,
-            time,
+            time: OnceLock::new(),
             #[cfg(unix)]
             users,
         }
+    }
+
+    /// The timezone, reference year and time locale, read from the host on
+    /// the first call unless a test supplied them.
+    #[must_use]
+    pub fn time(&self) -> &TimeContext {
+        self.time.get_or_init(TimeContext::from_system)
     }
 
     /// Constructs an isolated environment with explicit numeric formatting and
@@ -452,7 +463,7 @@ impl Environment {
 
         Self {
             numeric,
-            time,
+            time: OnceLock::from(time),
             #[cfg(unix)]
             users,
         }
@@ -706,7 +717,7 @@ impl<'a> Table<'a> {
                 },
                 &self.time_format,
                 self.use_utc,
-                &self.env.time,
+                self.env.time(),
             ),
         }
     }
@@ -793,6 +804,23 @@ mod tests {
     use super::*;
     use crate::theme::{Definitions, Options as ThemeOptions, UseColours};
     use std::fs;
+
+    #[test]
+    fn the_host_time_context_waits_for_its_first_use() {
+        let env = Environment::load_all();
+        assert!(env.time.get().is_none());
+
+        let first: *const TimeContext = env.time();
+        assert!(env.time.get().is_some());
+        assert!(std::ptr::eq(first, env.time()));
+    }
+
+    #[test]
+    fn a_test_time_context_is_used_as_given() {
+        let now: jiff::Timestamp = "2026-06-15T12:00:00Z".parse().unwrap();
+        let env = Environment::for_tests(locale::Numeric::english(), TimeContext::utc_fixed(now));
+        assert_eq!(env.time().zone(), &jiff::tz::TimeZone::UTC);
+    }
 
     fn plain_theme() -> Theme {
         ThemeOptions {

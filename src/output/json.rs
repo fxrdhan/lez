@@ -629,7 +629,7 @@ impl<'a> JsonFileObject<'a> {
             Column::Timestamp(time_type) => time_type.get_corresponding_time(f).render_json(
                 &self.options.time_format,
                 self.options.use_utc,
-                &env.time,
+                env.time(),
             ),
             Column::FileSize => f.size().render_json(
                 self.options.size_format,
