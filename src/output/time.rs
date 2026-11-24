@@ -34,6 +34,7 @@ impl TimeContext {
     /// and time locale.
     #[must_use]
     pub fn from_system() -> Self {
+        log::debug!("Loading the local time zone");
         let zone = TimeZone::try_system().unwrap_or(TimeZone::UTC);
         let current_year = Timestamp::now().to_zoned_datetime(zone.clone()).year();
         let locale = locale::Time::load_user_locale().unwrap_or_else(|_| locale::Time::english());

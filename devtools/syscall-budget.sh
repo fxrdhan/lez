@@ -3,12 +3,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # Automated Linux syscall-budget regression guard.
-# Verifies three O(1) vs O(N) syscall invariants under `strace -c`:
+# Verifies four O(1) vs O(N) syscall invariants under `strace -c`:
 #   1. Plain flat listing of 500 regular files does not stat each entry.
 #   2. Coloured + icon flat listing of 500 non-executable files (`.png`)
 #      resolves extension styles before `is_executable_file` (PR #87).
 #   3. Listing 200 directories with `LEZ_NO_EMPTY_DIR_ICON=1 --icons=always`
 #      does not open/read each child directory (`getdents64`).
+#   4. A listing that shows no time reads no directory but the one listed:
+#      finding the local time zone's name walks every directory of the
+#      zoneinfo database (about 40 `getdents64` calls), so it waits for a
+#      view with a time column.
 
 set -euo pipefail
 
@@ -74,6 +78,12 @@ check_budget \
     --no-config --color=never --icons=never "$WORK/plain"
 
 check_budget \
+    "plain-flat-500-files-getdents" \
+    "$GETDENTS_PATTERN" \
+    10 \
+    --no-config --color=never --icons=never "$WORK/plain"
+
+check_budget \
     "coloured-icons-500-png-files" \
     "$STAT_PATTERN" \
     30 \
@@ -84,7 +94,7 @@ check_budget \
     check_budget \
         "no-empty-dir-icon-200-dirs-getdents" \
         "$GETDENTS_PATTERN" \
-        80 \
+        10 \
         --no-config --color=never --icons=always "$WORK/dirs"
     check_budget \
         "no-empty-dir-icon-200-dirs-stat" \
