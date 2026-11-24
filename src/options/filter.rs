@@ -132,6 +132,7 @@ impl FileFilter {
             dot_filter: DotFilter::deduce(matches, strict, config)?,
             ignore_patterns: IgnorePatterns::deduce(matches, config)?,
             ignore_patterns_caseins: IgnorePatterns::deduce_set_insensitive(matches)?,
+            include_patterns: IgnorePatterns::deduce_include(matches)?,
             git_ignore: GitIgnore::deduce(matches, vars, config),
             ignore_cachedir: IgnoreCacheDir::deduce(matches),
             warn_hidden: WarnHiddenMode::deduce(matches),
@@ -280,6 +281,26 @@ impl IgnorePatterns {
 
         // It can actually return more than one glob error,
         // but we only use one. (TODO)
+        match errors.pop() {
+            Some(e) => Err(e.into()),
+            None => Ok(patterns),
+        }
+    }
+
+    /// Determines the set of glob patterns a file has to match to be listed,
+    /// based on the `--include-glob` argument’s values. Each is a list of
+    /// strings separated by pipe (`|`) characters, as for `--ignore-glob`,
+    /// and an empty string between or around the pipes is not a pattern.
+    pub fn deduce_include(matches: &ArgMatches) -> Result<Self, OptionsError> {
+        let Some(inputs) = matches.get_many::<String>("include-glob") else {
+            return Ok(Self::empty());
+        };
+
+        let iter = inputs
+            .flat_map(|s| s.split('|'))
+            .filter(|pattern| !pattern.is_empty());
+        let (patterns, mut errors) = Self::parse_from_iter(iter);
+
         match errors.pop() {
             Some(e) => Err(e.into()),
             None => Ok(patterns),
@@ -445,6 +466,63 @@ mod tests {
                 &FileConfig::default()
             ),
             Err(e.pop().unwrap().into())
+        );
+    }
+
+    #[test]
+    fn deduce_include_patterns_empty() {
+        assert_eq!(
+            IgnorePatterns::deduce_include(&mock_cli(vec![""])),
+            Ok(IgnorePatterns::empty())
+        );
+    }
+
+    #[test]
+    fn deduce_include_patterns_from_pipes_and_repeats() {
+        let (res, _) = IgnorePatterns::parse_from_iter(vec!["*.rs", "*.toml", "*.md"]);
+
+        assert_eq!(
+            IgnorePatterns::deduce_include(&mock_cli(vec![
+                "--include-glob",
+                "*.rs|*.toml",
+                "--include-glob",
+                "*.md",
+            ])),
+            Ok(res)
+        );
+    }
+
+    /// An empty piece is not a pattern, so that an empty value asks for
+    /// nothing instead of hiding every file.
+    #[test]
+    fn deduce_include_patterns_drops_empty_pieces() {
+        let (res, _) = IgnorePatterns::parse_from_iter(vec!["*.rs"]);
+
+        assert_eq!(
+            IgnorePatterns::deduce_include(&mock_cli(vec!["--include-glob", "|*.rs|"])),
+            Ok(res)
+        );
+        assert_eq!(
+            IgnorePatterns::deduce_include(&mock_cli(vec!["--include-glob", ""])),
+            Ok(IgnorePatterns::empty())
+        );
+    }
+
+    #[test]
+    fn deduce_include_patterns_error() {
+        let (_, mut e) = IgnorePatterns::parse_from_iter(vec!["["]);
+
+        assert_eq!(
+            IgnorePatterns::deduce_include(&mock_cli(vec!["--include-glob", "["])),
+            Err(e.pop().unwrap().into())
+        );
+    }
+
+    #[test]
+    fn deduce_include_patterns_does_not_read_ignore_glob() {
+        assert_eq!(
+            IgnorePatterns::deduce_include(&mock_cli(vec!["--ignore-glob", "*.o"])),
+            Ok(IgnorePatterns::empty())
         );
     }
 
@@ -929,6 +1007,7 @@ mod tests {
                 is_explicit_sort: false,
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
+                include_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
                 ignore_cachedir: IgnoreCacheDir::Off,
@@ -960,6 +1039,7 @@ mod tests {
                 is_explicit_sort: false,
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
+                include_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 ignore_cachedir: IgnoreCacheDir::Off,
                 git_ignore: GitIgnore::Off,
@@ -992,6 +1072,7 @@ mod tests {
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
                 ignore_cachedir: IgnoreCacheDir::Off,
+                include_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
                 since: None,
@@ -1023,6 +1104,7 @@ mod tests {
                 dot_filter: DotFilter::JustFiles,
                 ignore_cachedir: IgnoreCacheDir::Off,
                 ignore_patterns: IgnorePatterns::empty(),
+                include_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
                 git_ignore: GitIgnore::Off,
                 since: None,
@@ -1059,6 +1141,7 @@ mod tests {
                 ignore_cachedir: IgnoreCacheDir::Off,
                 dot_filter: DotFilter::JustFiles,
                 ignore_patterns: IgnorePatterns::empty(),
+                include_patterns: IgnorePatterns::empty(),
                 ignore_patterns_caseins: ci_patterns,
                 git_ignore: GitIgnore::Off,
                 since: None,

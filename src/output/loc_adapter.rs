@@ -37,6 +37,11 @@ impl PathFilter for FileFilterAdapter<'_> {
         self.filter.ignore_submodule_contents && self.git.is_some_and(|g| g.is_submodule_path(path))
     }
 
+    fn is_included_file(&self, path: &Path, name: &str) -> bool {
+        self.filter.include_patterns.is_empty()
+            || self.filter.include_patterns.matches_path(path, name)
+    }
+
     fn only_dirs(&self) -> bool {
         self.filter.flags.contains(&FileFilterFlags::OnlyDirs)
     }

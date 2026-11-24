@@ -820,6 +820,7 @@ mod tests {
             flags: Vec::new(),
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty(),
             git_ignore: GitIgnore::Off,
             ignore_cachedir: IgnoreCacheDir::Off,

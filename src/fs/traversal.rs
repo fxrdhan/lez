@@ -121,9 +121,7 @@ impl<'a> TraversalPolicy<'a> {
     ) -> Vec<File<'dir>> {
         let mut children: Vec<File<'dir>> =
             dir.files(self.read_dir_options(), hidden_count).collect();
-        self.filter
-            .filter_child_files(self.recursing, &mut children);
-        self.filter.filter_cachedirs(&mut children);
+        self.filter_children(&mut children);
         self.filter.sort_files(&mut children);
         children
     }
@@ -133,10 +131,17 @@ impl<'a> TraversalPolicy<'a> {
     #[must_use]
     pub fn read_children_unsorted<'dir>(&self, dir: &'dir Dir) -> Vec<File<'dir>> {
         let mut children: Vec<File<'dir>> = dir.files(self.read_dir_options(), None).collect();
-        self.filter
-            .filter_child_files(self.recursing, &mut children);
-        self.filter.filter_cachedirs(&mut children);
+        self.filter_children(&mut children);
         children
+    }
+
+    /// Drops the children the filter leaves out. `--include-glob` is applied
+    /// here and not in [`FileFilter::filter_child_files`], because whether a
+    /// link to a directory stays depends on `follow_links`.
+    fn filter_children(&self, children: &mut Vec<File<'_>>) {
+        self.filter.filter_child_files(self.recursing, children);
+        children.retain(|f| self.filter.matches_include_patterns(f, self.follow_links));
+        self.filter.filter_cachedirs(children);
     }
 
     /// Whether `file` is a directory candidate for descent (ignoring `.` / `..`
