@@ -220,6 +220,7 @@ Register-ArgumentCompleter -Native -CommandName 'eza' -ScriptBlock {
         #   [CompletionResult]::new('-I'                         ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--ignore-glob'              ,'ignore-glob'         , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore GLOBS')
             [CompletionResult]::new('--ignore-glob-ci'         ,'ignore-glob-ci'        , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to ignore, case-insensitively GLOBS')
+            [CompletionResult]::new('--include-glob'             ,'include-glob'        , [CompletionResultType]::ParameterName, 'glob patterns (pipe-separated) of files to list GLOBS')
             [CompletionResult]::new('--cachedir-ignore'           ,'cachedir-ignore'     , [CompletionResultType]::ParameterName, 'ignore directories with a ''CACHEDIR.TAG'' file')
             [CompletionResult]::new('--inspect-archives'         ,'inspectarchives'     , [CompletionResultType]::ParameterName, 'list contents of supported archives in long view')
             [CompletionResult]::new('--ignore-submodule-contents' ,'ignore-submodule-contents', [CompletionResultType]::ParameterName, 'do not list contents of submodules')

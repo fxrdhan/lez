@@ -273,6 +273,9 @@ Sort fields starting with a capital letter will sort uppercase before lowercase:
 `--ignore-glob-ci=GLOBS`
 : Glob patterns, pipe-separated, of files to ignore, matched case-insensitively.
 
+`--include-glob=GLOBS`
+: Glob patterns, pipe-separated, of files to list: a file that matches none of them is left out. Patterns are written as for `--ignore-glob`, which still applies, and the option may be given more than once. Directories are always listed, so that `--recurse` and `--tree` reach the files inside them; add `--only-files` to list the matching files alone. A link to a directory is listed as one under `--dereference` or `--follow-symlinks`, or when it is named on the command line.
+
 `--git-ignore` [if lez was built with git support]
 : Do not list files that are ignored by Git.
 

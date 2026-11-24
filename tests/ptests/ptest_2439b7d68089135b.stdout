@@ -72,6 +72,8 @@ FILTERING OPTIONS:
   -I, --ignore-glob <GLOBS>        glob patterns (pipe-separated) of files to ignore
       --ignore-glob-ci <GLOBS>     glob patterns (pipe-separated) of files to ignore
                                    (case-insensitive)
+      --include-glob <GLOBS>       glob patterns (pipe-separated) of files to list; directories are
+                                   always listed
       --git-ignore                 ignore files mentioned in '.gitignore'
       --cachedir-ignore            ignore directories with a 'CACHEDIR.TAG' file
   -W, --warn-hidden...             print a message showing the number of hidden and ignored items;

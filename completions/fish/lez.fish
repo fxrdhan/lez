@@ -169,6 +169,7 @@ complete -c lez -s s -l sort -d "Which field to sort by" -x -a "
 
 complete -c lez -s I -l ignore-glob -d "Ignore files that match these glob patterns" -r
 complete -c lez -l ignore-glob-ci -d "Ignore files that match these glob patterns case-insensitively" -r
+complete -c lez -l include-glob -d "List only the files that match these glob patterns" -r
 complete -c lez -s D -l only-dirs -d "List only directories"
 complete -c lez -s f -l only-files -d "List only files"
 complete -c lez -l show-symlinks -d "Explicitly show symbolic links (For use with --only-dirs | --only-files)"

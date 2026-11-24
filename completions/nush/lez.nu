@@ -56,6 +56,7 @@ export extern "lez" [
     --sort(-s): string         # Which field to sort by
     --ignore-glob(-I): string  # Ignore files that match these glob patterns
     --ignore-glob-ci: string   # Ignore files that match these glob patterns case-insensitively
+    --include-glob: string     # List only the files that match these glob patterns
     --only-dirs(-D)            # List only directories
     --only-files(-f)           # List only files
     --show-symlinks            # Explicitly show symbolic links (for use with --only-dirs | --only-files)

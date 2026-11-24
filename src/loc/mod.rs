@@ -36,6 +36,12 @@ pub trait PathFilter {
     fn is_ignored_dir(&self, _path: &Path) -> bool {
         false
     }
+    /// Whether a file that is not a directory is one the caller lists, as
+    /// under `--include-glob`. Directories are not asked: they are walked
+    /// for what they hold.
+    fn is_included_file(&self, _path: &Path, _name: &str) -> bool {
+        true
+    }
     fn only_dirs(&self) -> bool;
     fn no_symlinks(&self) -> bool;
     fn has_since_filter(&self) -> bool;
@@ -802,6 +808,9 @@ fn collect_entry<F>(
             return;
         }
         if f.only_dirs() && !file_type.is_dir() {
+            return;
+        }
+        if !file_type.is_dir() && !f.is_included_file(path, &name_str) {
             return;
         }
     }

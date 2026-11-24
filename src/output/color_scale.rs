@@ -413,6 +413,7 @@ mod test {
             flags,
             dot_filter: DotFilter::JustFiles,
             ignore_patterns,
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             ignore_cachedir: IgnoreCacheDir::Off,

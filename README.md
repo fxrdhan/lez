@@ -277,6 +277,7 @@ To have `ls` run `lez` in bash, zsh or fish, add `alias ls=lez` to your shell's 
 - **--since=(duration)**: filter and display only files created or modified within the specified duration window (e.g. 10m, 1h, 2d, 1w)
 - **-I**, **--ignore-glob=(globs)**: glob patterns (pipe-separated) of files to ignore; patterns containing `/` match against paths relative to the listing root and the flag may be given multiple times
 - **--ignore-glob-ci=(globs)**: glob patterns (pipe-separated) of files to ignore (case-insensitive)
+- **--include-glob=(globs)**: glob patterns (pipe-separated) of files to list, leaving out the files that match none; directories are always listed so that `--recurse` and `--tree` can descend into them, and the flag may be given multiple times
 
 </details>
 

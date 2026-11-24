@@ -226,6 +226,11 @@ pub struct FileFilter {
     /// *any* of these patterns won’t be displayed in the list.
     pub ignore_patterns_caseins: IgnorePatterns,
 
+    /// Glob patterns to include. When there are any, a file that is not a
+    /// directory is displayed only if it matches *any* of them. Directories
+    /// stay, so that `--recurse` and `--tree` can still descend into them.
+    pub include_patterns: IgnorePatterns,
+
     /// Whether to ignore Git-ignored patterns.
     pub git_ignore: GitIgnore,
 
@@ -427,8 +432,31 @@ impl FileFilter {
         true
     }
 
+    /// Whether `file` passes `--include-glob`, which every file does when
+    /// the option was not given.
+    ///
+    /// A directory always passes, as with `tree -P`: leaving it out would
+    /// hide whatever matches further down. A link to a directory passes
+    /// where the listing treats it as one, which is under `--dereference`
+    /// or when `links_are_directories` says so: `--follow-symlinks` for a
+    /// directory’s children, and always for a command-line argument.
+    ///
+    /// The name is matched before the link is followed, so only a link that
+    /// does not match costs a `stat` of its target.
+    #[must_use]
+    pub fn matches_include_patterns(&self, file: &File<'_>, links_are_directories: bool) -> bool {
+        self.include_patterns.is_empty()
+            || file.is_directory()
+            || self.include_patterns.matches_path(&file.path, &file.name)
+            || ((links_are_directories || file.deref_links) && file.points_to_directory())
+    }
+
     /// Remove every file in the given vector that does *not* pass the
     /// filter predicate for files found inside a directory.
+    ///
+    /// `--include-glob` is not applied here but by
+    /// [`TraversalPolicy`](crate::fs::traversal::TraversalPolicy), which
+    /// knows whether links to directories are being followed.
     pub fn filter_child_files(&self, is_recurse: bool, files: &mut Vec<File<'_>>) {
         files.retain(|f| self.matches_since(f));
         files.retain(|f| {
@@ -457,6 +485,7 @@ impl FileFilter {
                     .ignore_patterns_caseins
                     .is_ignored_path(&f.path, &f.name)
         });
+        files.retain(|f| self.matches_include_patterns(f, true));
         files.retain(|f| self.matches_file_type_filters(f, is_tree));
     }
 
@@ -1076,6 +1105,20 @@ impl IgnorePatterns {
     /// without directory separators match against leaf `name`.
     #[must_use]
     pub fn is_ignored_path(&self, path: &std::path::Path, name: &str) -> bool {
+        self.matches_path(path, name)
+    }
+
+    /// Whether there are no patterns at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.patterns.is_empty()
+    }
+
+    /// Test whether the given path/name matches any of the patterns, by the
+    /// rules of [`is_ignored_path`](Self::is_ignored_path). This is the name
+    /// to use where a match keeps a file, as for `--include-glob`.
+    #[must_use]
+    pub fn matches_path(&self, path: &std::path::Path, name: &str) -> bool {
         if self.patterns.is_empty() {
             return false;
         }
@@ -1294,6 +1337,7 @@ mod test_ignores {
             flags: vec![],
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             ignore_cachedir: IgnoreCacheDir::Off,
@@ -1347,6 +1391,67 @@ mod test_ignores {
         };
         assert!(!filter_ignore_ci.is_file_included(&file_cargo));
         assert!(filter_ignore_ci.is_file_included(&dir_src));
+    }
+
+    /// `--include-glob` judges a file by its name or path and lets every
+    /// directory through, matching or not.
+    #[test]
+    fn include_patterns_keep_directories_and_matching_files() {
+        use std::path::PathBuf;
+
+        let file = |path: &str| {
+            File::from_args(PathBuf::from(path), None, None, false, false, false, None)
+        };
+        let cargo = file("Cargo.toml");
+        let readme = file("README.md");
+        let main = file("src/main.rs");
+        let src = file("src");
+
+        let filter = |globs: Vec<&str>| {
+            let (include_patterns, fails) = IgnorePatterns::parse_from_iter(globs);
+            assert!(fails.is_empty());
+            FileFilter {
+                sort_field: SortField::Name(SortCase::ABCabc),
+                flags: vec![],
+                dot_filter: DotFilter::JustFiles,
+                ignore_patterns: IgnorePatterns::empty(),
+                ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
+                include_patterns,
+                git_ignore: GitIgnore::Off,
+                ignore_cachedir: IgnoreCacheDir::Off,
+                warn_hidden: WarnHiddenMode::default(),
+                ignore_submodule_contents: false,
+                since: None,
+                no_symlinks: false,
+                show_symlinks: false,
+                no_system: false,
+                no_hidden_attrib: false,
+                no_hidden_links: false,
+                collator: None,
+                is_explicit_sort: false,
+            }
+        };
+
+        // Without the option, everything passes.
+        let none = filter(vec![]);
+        assert!(none.include_patterns.is_empty());
+        for f in [&cargo, &readme, &main, &src] {
+            assert!(none.matches_include_patterns(f, false), "{}", f.name);
+        }
+
+        // A name pattern keeps its files at any depth, and the directory.
+        let by_name = filter(vec!["*.toml", "*.rs"]);
+        assert!(!by_name.include_patterns.is_empty());
+        assert!(by_name.matches_include_patterns(&cargo, false));
+        assert!(by_name.matches_include_patterns(&main, false));
+        assert!(!by_name.matches_include_patterns(&readme, false));
+        assert!(by_name.matches_include_patterns(&src, false));
+
+        // A path pattern is matched against the path, as for `--ignore-glob`.
+        let by_path = filter(vec!["src/*.rs"]);
+        assert!(by_path.matches_include_patterns(&main, false));
+        assert!(!by_path.matches_include_patterns(&cargo, false));
+        assert!(by_path.matches_include_patterns(&src, false));
     }
 
     #[test]
@@ -1437,6 +1542,7 @@ mod test_ignores {
             flags: vec![],
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             ignore_cachedir: IgnoreCacheDir::Off,
             warn_hidden: WarnHiddenMode::default(),
@@ -1511,6 +1617,7 @@ mod test_ignores {
             flags: vec![],
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             ignore_cachedir: IgnoreCacheDir::Off,
             warn_hidden: WarnHiddenMode::default(),
@@ -1553,6 +1660,7 @@ mod test_ignores {
             flags: vec![],
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             ignore_cachedir: IgnoreCacheDir::Off,
             warn_hidden: WarnHiddenMode::default(),
@@ -1594,6 +1702,7 @@ mod test_ignores {
             flags: vec![FileFilterFlags::Reverse],
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             ignore_cachedir: IgnoreCacheDir::Off,
             warn_hidden: WarnHiddenMode::default(),
@@ -1661,6 +1770,7 @@ mod test_ignores {
             flags: vec![FileFilterFlags::ListDirsFirst],
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             ignore_cachedir: IgnoreCacheDir::Off,
             warn_hidden: WarnHiddenMode::default(),
@@ -1739,6 +1849,7 @@ mod test_ignores {
             flags: vec![FileFilterFlags::ListDirsFirst, FileFilterFlags::Reverse],
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             ignore_cachedir: IgnoreCacheDir::Off,
             warn_hidden: WarnHiddenMode::default(),
@@ -1801,6 +1912,7 @@ mod test_ignores {
             sort_field: SortField::Name(SortCase::ABCabc),
             dot_filter: DotFilter::JustFiles,
             ignore_patterns: IgnorePatterns::empty(),
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             ignore_cachedir: IgnoreCacheDir::Off,
@@ -1853,6 +1965,7 @@ mod test_ignores {
             ignore_cachedir: IgnoreCacheDir::Off,
             warn_hidden: WarnHiddenMode::default(),
             ignore_submodule_contents: false,
+            include_patterns: IgnorePatterns::empty(),
             ignore_patterns_caseins: IgnorePatterns::empty_insensitive(),
             git_ignore: GitIgnore::Off,
             since: None,

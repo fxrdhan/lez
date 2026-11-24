@@ -253,6 +253,62 @@ fn ignore_glob_is_consistent_across_all_views() {
 }
 
 #[test]
+fn include_glob_is_consistent_across_all_views() {
+    let dir = TempTestDir::new("diff_include_glob");
+    dir.create_file("keep.rs", b"fn main() {}\nlet a = 1;\n");
+    dir.create_file("notes.tmp", b"temp\n");
+    dir.create_file("sub/inner.rs", b"fn inner() {}\nlet b = 2;\nlet c = 3;\n");
+    dir.create_file("sub/inner.py", b"x = 1\ny = 2\n");
+
+    // Directories stay in every view, so `sub` is listed without matching.
+    let extra = ["--include-glob", "*.rs"];
+    assert_all_flat_views_match(dir.path(), &extra, &["keep.rs", "sub"]);
+
+    let expected_recursive: BTreeSet<String> = ["keep.rs", "sub", "inner.rs"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(tree_text_names(dir.path(), &extra), expected_recursive);
+    assert_eq!(recurse_text_names(dir.path(), &extra), expected_recursive);
+    assert_eq!(
+        collect_recursive_json_names(dir.path(), "-T", &extra),
+        expected_recursive
+    );
+    assert_eq!(
+        collect_recursive_json_names(dir.path(), "-R", &extra),
+        expected_recursive
+    );
+
+    // `--code` counts the same files: 2 Rust files with 2 + 3 code lines,
+    // and no Python.
+    let code_out = run(
+        dir.path(),
+        &[
+            "--code",
+            "--no-git",
+            "--color=never",
+            "--icons=never",
+            "--include-glob",
+            "*.rs",
+        ],
+    );
+    assert!(code_out.contains("Rust"), "code_out:\n{code_out}");
+    assert!(!code_out.contains("Python"), "code_out:\n{code_out}");
+    let total_line = code_out.lines().last().expect("total line");
+    let tokens: Vec<&str> = total_line.split_whitespace().collect();
+    assert_eq!(
+        tokens.get(1).copied(),
+        Some("2"),
+        "expected 2 files in --code Total row, got:\n{code_out}"
+    );
+    assert_eq!(
+        tokens.get(3).copied(),
+        Some("5"),
+        "expected 5 code lines in --code Total row, got:\n{code_out}"
+    );
+}
+
+#[test]
 fn only_files_and_only_dirs_are_consistent_across_all_views() {
     let dir = TempTestDir::new("diff_only_files_dirs");
     dir.create_file("top.txt", b"a");

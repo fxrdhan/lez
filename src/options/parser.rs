@@ -217,6 +217,8 @@ fn filtering_options(command: clap::Command) -> clap::Command {
             .action(clap::ArgAction::Append))
         .arg(arg!(--"ignore-glob-ci" <GLOBS> "glob patterns (pipe-separated) of files to ignore (case-insensitive)")
             .action(clap::ArgAction::Append))
+        .arg(arg!(--"include-glob" <GLOBS> "glob patterns (pipe-separated) of files to list; directories are always listed")
+            .action(clap::ArgAction::Append))
         .arg(arg!(--"git-ignore" "ignore files mentioned in '.gitignore'")
             .overrides_with("no-git"))
         .arg(arg!(--"cachedir-ignore" "ignore directories with a 'CACHEDIR.TAG' file"))
