@@ -19,6 +19,7 @@ Guide for agents and contributors working on `lez`, a replacement for `ls` writt
 - Treat every filesystem syscall as expensive. Profile before optimizing.
 - Never panic or `unwrap` on user input or runtime I/O.
 - Reproduce upstream issues against our binary before working on them.
+- Verify every technical claim before you state it, however small: run our binary, read the code that decides it, check the primary source. Say plainly what you did not check. See [Verifying claims](#verifying-claims).
 
 ## Architecture
 
@@ -141,6 +142,18 @@ If the flag uses `require_equals`, also make sure every shell completes after `=
 - Languages go in `src/loc/mod.rs` (comment syntax, extensions, filenames), with a fixture in `tests/itest-loc/`.
 
 ## Conventions
+
+### Verifying claims
+
+`lez` is a large codebase, and a wrong statement in a doc, a commit message, a PR or an upstream comment costs more to undo than it would have taken to check. Treat every technical claim as unverified until you have checked it, however small it is, and check it more than one way where you can.
+
+- **Run it.** For behavior, build this checkout and run `target/debug/lez` on a minimal reproduction, and quote what it printed. An installed `lez` may be an older release.
+- **Read the code that decides it.** Confirm behavior in the code path that produces it, not from a name, a doc comment or a test title. For example, a listing takes each file's type from `readdir` (`src/fs/dir.rs`) and stats only on demand (`File::metadata` in `src/fs/file.rs`), so a feature that needs mode bits, a device ID or file flags adds a stat even when it looks free.
+- **Use the primary source for outside facts.** Crate versions and MSRVs come from `cargo info`, upstream behavior from the issue thread and upstream's code, a glyph from the font itself. Not from memory.
+- **Recheck earlier notes before building on them.** `docs/UPSTREAM_TRIAGE.md` has been wrong before: it once had eza#1498 as still reproducing, and said Nerd Fonts had no MATLAB glyph. Any earlier note, PR body or report can be.
+- **Keep what you measured apart from what you expect.** A cost you have not measured is unmeasured, not a conflict with these rules. Describe a trade-off from both sides, and don't sort options into allowed and forbidden without evidence for each one.
+- **Derive numbers.** Counts in docs and commit messages come from the data, with a script or `rg -c`, not from tallying by hand.
+- **Label what stays unchecked.** If you could not verify a claim, say so where you make it.
 
 ### Performance
 

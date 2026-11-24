@@ -422,6 +422,72 @@ fn all_clap_flags_are_present_in_completions() {
     }
 }
 
+/// The `value\t'description'` pairs that fish offers for `--sort`.
+fn fish_sort_values(script: &str) -> Vec<(String, String)> {
+    let start = script
+        .lines()
+        .position(|line| line.contains("-l sort ") && line.trim_end().ends_with("-a \""))
+        .expect("fish completion should offer a value list for --sort");
+    script
+        .lines()
+        .skip(start + 1)
+        .take_while(|line| line.trim() != "\"")
+        .map(|line| {
+            let (value, description) = line
+                .trim()
+                .split_once("\\t")
+                .unwrap_or_else(|| panic!("fish --sort entry without a description: {line}"));
+            (value.to_owned(), description.trim_matches('\'').to_owned())
+        })
+        .collect()
+}
+
+#[test]
+fn fish_describes_each_timestamp_sort_by_the_timestamp_it_uses() {
+    // The canonical clap name of each timestamp sort field, and the word its
+    // description must use. An alias is checked through its canonical name,
+    // so `cr` would be held to "created" as well.
+    let expected = [
+        ("date", "modified"),
+        ("age", "modified"),
+        ("changed", "changed"),
+        ("accessed", "accessed"),
+        ("created", "created"),
+    ];
+    let command = lez::options::parser::get_command();
+    let sort = command
+        .get_arguments()
+        .find(|arg| arg.get_long() == Some("sort"))
+        .expect("clap should define --sort");
+    let fields = sort.get_possible_values();
+
+    let mut checked = Vec::new();
+    for (dir, file) in [("fish", "lez.fish"), ("fish", "eza.fish")] {
+        for (value, description) in fish_sort_values(&completion(dir, file)) {
+            // One fish file serves every platform, while `blocks` and `inode`
+            // exist only on Unix, so a value clap does not know here is
+            // passed over rather than failed.
+            let Some(field) = fields.iter().find(|field| field.matches(&value, false)) else {
+                continue;
+            };
+            let Some((_, word)) = expected.iter().find(|(name, _)| *name == field.get_name())
+            else {
+                continue;
+            };
+            assert!(
+                description.contains(word),
+                "completions/{dir}/{file} describes --sort={value} as `{description}`, \
+                 but it sorts by the {word} time"
+            );
+            checked.push(value);
+        }
+    }
+    assert!(
+        checked.iter().any(|value| value == "created"),
+        "the fish --sort list should offer `created`"
+    );
+}
+
 /// Whether `script` holds `option` as a whole option name: `--git` is not
 /// named by `--git-ignore` or `--git-repos`.
 fn names_the_option(script: &str, option: &str) -> bool {
